@@ -1,0 +1,235 @@
+.project-stages {
+  background-color: var(--color-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.stages-header {
+  margin-bottom: 4rem;
+  max-width: 800px;
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.header-line {
+  flex: 1;
+  height: 1px;
+  background: var(--color-gray-200);
+}
+
+.stages-main-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  color: var(--color-primary);
+  margin-bottom: 1.5rem;
+}
+
+.stages-main-title span {
+  color: var(--color-accent);
+}
+
+.stages-subtitle {
+  color: var(--color-gray-400);
+  font-size: 1.1rem;
+  line-height: 1.6;
+}
+
+/* Grid Layout */
+.stages-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 2rem;
+  margin-bottom: 5rem;
+}
+
+/* Card Design */
+.stage-card {
+  position: relative;
+  height: 500px;
+  background: var(--color-black);
+  overflow: hidden;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.stage-card-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+.stage-card-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.6;
+  filter: grayscale(30%);
+}
+
+.stage-card-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top, var(--color-primary) 20%, transparent 100%);
+  opacity: 0.85;
+}
+
+.stage-card-content {
+  position: relative;
+  height: 100%;
+  padding: 3rem 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  z-index: 2;
+  transition: transform 0.5s ease;
+}
+
+.stage-number {
+  font-family: var(--font-primary);
+  font-size: 4rem;
+  font-weight: 900;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.3);
+  line-height: 1;
+  margin-bottom: 1rem;
+  transition: var(--transition-base);
+}
+
+.stage-title {
+  color: var(--color-white);
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+  transition: var(--transition-base);
+}
+
+.stage-description {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.95rem;
+  margin-bottom: 0;
+  transition: var(--transition-base);
+  max-height: 100px;
+}
+
+.stage-hover-content {
+  margin-top: 1.5rem;
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+  max-height: 0;
+  overflow: hidden;
+}
+
+.items-title {
+  color: var(--color-accent);
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.stage-items {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+/* Hover States */
+.stage-card:hover .stage-card-image {
+  transform: scale(1.1);
+}
+
+.stage-card:hover .stage-card-overlay {
+  background: linear-gradient(to top, var(--color-primary) 60%, rgba(5, 57, 58, 0.4) 100%);
+}
+
+.stage-card:hover .stage-number {
+  -webkit-text-stroke: 1px var(--color-accent);
+  color: var(--color-accent);
+  transform: scale(1.1);
+}
+
+.stage-card:hover .stage-hover-content {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 200px;
+}
+
+.stage-card:hover .stage-card-content {
+  transform: translateY(-20px);
+}
+
+/* Bottom Banner */
+.stages-banner {
+  padding: 4rem;
+  border-radius: 8px;
+  background: var(--color-primary);
+  color: var(--color-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.banner-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 3rem;
+  position: relative;
+  z-index: 2;
+}
+
+.banner-content p {
+  font-family: var(--font-primary);
+  font-size: 1.8rem;
+  font-weight: 600;
+  line-height: 1.2;
+  max-width: 700px;
+}
+
+.banner-content p span {
+  color: var(--color-accent);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .stages-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  
+  .banner-content {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+@media (max-width: 768px) {
+  .stage-card {
+    height: 450px;
+  }
+  
+  .stage-number {
+    font-size: 3rem;
+  }
+  
+  .stage-title {
+    font-size: 1.5rem;
+  }
+  
+  .stages-banner {
+    padding: 2.5rem 1.5rem;
+  }
+  
+  .banner-content p {
+    font-size: 1.3rem;
+  }
+}

@@ -1,0 +1,249 @@
+.nosotros-page {
+  background-color: var(--color-white);
+}
+
+/* Hero Section */
+.nosotros-hero {
+  padding: 180px 0 100px;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  position: relative;
+  overflow: hidden;
+}
+
+.nosotros-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at top right, rgba(224, 146, 43, 0.15), transparent);
+}
+
+.nosotros-title {
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  line-height: 1.1;
+  margin-bottom: 2rem;
+  color: var(--color-white);
+  position: relative;
+  z-index: 2;
+}
+
+.nosotros-title span {
+  color: var(--color-accent);
+}
+
+.nosotros-subtitle {
+  max-width: 800px;
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.6;
+  position: relative;
+  z-index: 2;
+}
+
+/* Legacy Section */
+.legacy-grid {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 5rem;
+  align-items: center;
+}
+
+.legacy-image {
+  position: relative;
+}
+
+.legacy-image img {
+  width: 100%;
+  border-radius: 8px;
+  box-shadow: 0 30px 60px rgba(0,0,0,0.1);
+}
+
+.legacy-years {
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  padding: 2rem;
+  background: var(--color-accent) !important;
+  color: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 4px;
+}
+
+.legacy-years span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.legacy-years strong {
+  font-family: var(--font-primary);
+  font-size: 2.5rem;
+  font-weight: 900;
+}
+
+.legacy-text h2 {
+  font-size: clamp(2.2rem, 4vw, 3rem);
+  margin-bottom: 1.5rem;
+}
+
+.legacy-text h2 span {
+  color: var(--color-accent);
+}
+
+.legacy-text p {
+  color: var(--color-gray-400);
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+}
+
+.legacy-stats {
+  display: flex;
+  gap: 3rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.mini-stat strong {
+  display: block;
+  font-family: var(--font-primary);
+  font-size: 2.5rem;
+  color: var(--color-primary);
+  line-height: 1;
+}
+
+.mini-stat span {
+  font-size: 0.9rem;
+  color: var(--color-gray-400);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+/* Values Section */
+.values-section {
+  background-color: var(--color-gray-100);
+}
+
+.values-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2rem;
+}
+
+.value-card {
+  background: var(--color-white);
+  padding: 3rem 2rem;
+  border-radius: 8px;
+  text-align: center;
+  transition: var(--transition-base);
+  border: 1px solid transparent;
+}
+
+.value-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.05);
+  border-color: var(--color-accent);
+}
+
+.value-icon {
+  font-size: 2.5rem;
+  color: var(--color-accent);
+  margin-bottom: 1.5rem;
+}
+
+.value-card h3 {
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+}
+
+.value-card p {
+  color: var(--color-gray-400);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Trust Section */
+.clients-logo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+  margin-top: 3rem;
+}
+
+.client-badge {
+  background: var(--color-gray-100);
+  padding: 2rem 1.5rem;
+  text-align: center;
+  border-radius: 4px;
+  transition: var(--transition-base);
+  border: 1px solid transparent;
+}
+
+.client-badge span {
+  font-family: var(--font-primary);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--color-gray-400);
+}
+
+.client-badge:hover {
+  background: var(--color-white);
+  border-color: var(--color-accent);
+  transform: scale(1.05);
+}
+
+.client-badge:hover span {
+  color: var(--color-primary);
+}
+
+/* CTA Nosotros */
+.cta-nosotros-box {
+  text-align: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.cta-nosotros-box h2 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  margin-bottom: 1.5rem;
+}
+
+.cta-nosotros-box p {
+  font-size: 1.2rem;
+  color: var(--color-gray-400);
+  margin-bottom: 2.5rem;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+  .legacy-grid {
+    grid-template-columns: 1fr;
+    gap: 3rem;
+  }
+  
+  .values-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .legacy-image {
+    max-width: 500px;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .nosotros-hero {
+    padding: 140px 0 60px;
+  }
+  
+  .legacy-stats {
+    flex-direction: column;
+    gap: 2rem;
+  }
+}

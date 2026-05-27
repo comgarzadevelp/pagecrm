@@ -4,6 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import './Dashboard.css';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+// ── Paneles modulares V2 ──────────────────────────────────────
+import StatsDashboard from './panels/StatsDashboard';
+import MisContactos from './panels/MisContactos';
+import Empresas from './panels/Empresas';
+import GestorCotizaciones from './panels/GestorCotizaciones';
+import Contenedor from './panels/Contenedor';
+import MiPerfil from './panels/MiPerfil';
+import ProspectosHuerfanos from './panels/ProspectosHuerfanos';
+import OportunidadesPanel from './panels/OportunidadesPanel';
+
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -25,6 +35,17 @@ const Dashboard = () => {
   const [newSellerName, setNewSellerName] = useState('');
   const [newSellerEmail, setNewSellerEmail] = useState('');
   const [newSellerPassword, setNewSellerPassword] = useState('');
+  const [saeSellers, setSaeSellers] = useState([]);
+  const [newSellerSaeKey, setNewSellerSaeKey] = useState('');
+
+  // Edit Seller state (Admin only)
+  const [showEditSellerModal, setShowEditSellerModal] = useState(false);
+  const [selectedSellerForEdit, setSelectedSellerForEdit] = useState(null);
+  const [editSellerName, setEditSellerName] = useState('');
+  const [editSellerEmail, setEditSellerEmail] = useState('');
+  const [editSellerSaeKey, setEditSellerSaeKey] = useState('');
+  const [editSellerError, setEditSellerError] = useState('');
+  const [editSellerSuccess, setEditSellerSuccess] = useState('');
 const printableRef = useRef(null);
 
 const handleDownloadPdf = async () => {
@@ -81,6 +102,8 @@ const handleDownloadPdf = async () => {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerQuotes, setCustomerQuotes] = useState([]);
   const [loadingCustomerQuotes, setLoadingCustomerQuotes] = useState(false);
+  const [linkedContacts, setLinkedContacts] = useState([]);
+  const [loadingLinkedContacts, setLoadingLinkedContacts] = useState(false);
   const [activeCustomerTab, setActiveCustomerTab] = useState('profile'); // 'profile', 'quotes', 'history'
 
   // Edit Customer fields
@@ -102,6 +125,14 @@ const handleDownloadPdf = async () => {
 
   // ---------- QUOTE GENERATOR STATE ----------
   const [selectedQuoteCustomer, setSelectedQuoteCustomer] = useState('');
+  
+  // Opportunities integration
+  const [allOpportunities, setAllOpportunities] = useState([]);
+  const [selectedOpportunityId, setSelectedOpportunityId] = useState('');
+  const [opportunitySearch, setOpportunitySearch] = useState('');
+  const [showOpportunityDropdown, setShowOpportunityDropdown] = useState(false);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+
   const [quoteItems, setQuoteItems] = useState([
     { id: 1, description: '', quantity: 1, price: 0, appliedAgreement: 'manual' }
   ]);
@@ -197,6 +228,27 @@ const handleDownloadPdf = async () => {
       }
     } catch (err) {
       console.error('Fetch sellers error:', err);
+    }
+  };
+
+  const fetchSaeSellers = async () => {
+    if (localStorage.getItem('role') !== 'admin') return;
+    const token = localStorage.getItem('token');
+    try {
+      const apiBase = API_BASE;
+      const res = await fetch(`${apiBase}/api/crm/sellers/sae-list`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSaeSellers(data.sellers || []);
+      }
+    } catch (err) {
+      console.error('Fetch SAE sellers error:', err);
     }
   };
 
@@ -304,12 +356,29 @@ const handleDownloadPdf = async () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
-      if (res.ok && data.user?.name) {
+      if (res.ok && data.user) {
         setUserName(data.user.name);
+        setCurrentUserProfile(data.user);
         localStorage.setItem('userName', data.user.name);
       }
     } catch (err) {
       console.error('Fetch profile error:', err);
+    }
+  };
+
+  const fetchOpportunitiesList = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAllOpportunities(data.opportunities || []);
+      }
+    } catch (err) {
+      console.error('Fetch opportunities list error:', err);
     }
   };
 
@@ -318,12 +387,16 @@ const handleDownloadPdf = async () => {
     fetchSellers();
     fetchCustomers();
     fetchProfile();
+    fetchSaeSellers();
+    fetchOpportunitiesList();
   }, []);
 
   const handleRefreshAll = () => {
     fetchLeads();
     fetchSellers();
     fetchCustomers();
+    fetchSaeSellers();
+    fetchOpportunitiesList();
   };
 
   // Compute stats on change
@@ -398,13 +471,8 @@ const handleDownloadPdf = async () => {
       }
 
       // Update local state
-      if (newStatus === 'calificado') {
-        fetchLeads();
-        fetchCustomers();
-        alert('¡El prospecto ha sido calificado y promovido a Cliente Permanente exitosamente!');
-      } else {
-        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-      }
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+      alert('¡El prospecto ha sido calificado exitosamente y permanece en tu embudo!');
 
       // If modal is open for this lead, update it too
       if (selectedLead && selectedLead.id === leadId) {
@@ -481,7 +549,8 @@ const handleDownloadPdf = async () => {
         body: JSON.stringify({
           name: newSellerName,
           email: newSellerEmail,
-          password: newSellerPassword
+          password: newSellerPassword,
+          sae_vendor_key: newSellerSaeKey
         })
       });
 
@@ -494,6 +563,7 @@ const handleDownloadPdf = async () => {
       setNewSellerName('');
       setNewSellerEmail('');
       setNewSellerPassword('');
+      setNewSellerSaeKey('');
       fetchSellers();
 
       setTimeout(() => {
@@ -503,6 +573,74 @@ const handleDownloadPdf = async () => {
     } catch (err) {
       console.error('Create seller error:', err);
       setSellerError(err.message || 'Error de conexión.');
+    }
+  };
+
+  const handleDeleteSeller = async (id, name) => {
+    if (!window.confirm(`¿Estás seguro de que deseas eliminar la cuenta de ${name}? El vendedor perderá su acceso. Todos sus prospectos y cotizaciones creadas se conservarán y pasarán al panel de Leads Huérfanos como huérfanos sin asignar.`)) {
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      const apiBase = API_BASE;
+      const res = await fetch(`${apiBase}/api/crm/sellers/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Vendedor eliminado con éxito.');
+        fetchSellers();
+      } else {
+        alert('Error: ' + data.message);
+      }
+    } catch (err) {
+      console.error('Delete seller error:', err);
+      alert('Error de conexión con el servidor.');
+    }
+  };
+
+  const handleUpdateSeller = async (e) => {
+    e.preventDefault();
+    setEditSellerError('');
+    setEditSellerSuccess('');
+
+    if (!selectedSellerForEdit) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      const apiBase = API_BASE;
+      const res = await fetch(`${apiBase}/api/crm/sellers/${selectedSellerForEdit.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: editSellerName,
+          email: editSellerEmail,
+          sae_vendor_key: editSellerSaeKey
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Error al actualizar el vendedor');
+      }
+
+      setEditSellerSuccess('¡Vendedor actualizado exitosamente!');
+      fetchSellers();
+
+      setTimeout(() => {
+        setShowEditSellerModal(false);
+        setSelectedSellerForEdit(null);
+        setEditSellerSuccess('');
+      }, 2000);
+    } catch (err) {
+      console.error('Update seller error:', err);
+      setEditSellerError(err.message || 'Error de conexión.');
     }
   };
 
@@ -595,6 +733,17 @@ const handleDownloadPdf = async () => {
     return result;
   };
 
+  const getCompanyAgreementMatch = (companyName) => {
+    if (!companyName) return null;
+    const nameLower = companyName.toLowerCase();
+    if (nameLower.includes('ruba')) return 'ruba';
+    if (nameLower.includes('javer')) return 'javer';
+    if (nameLower.includes('casitas')) return 'casitas';
+    if (nameLower.includes('bienestar')) return 'bienestar';
+    if (nameLower.includes('davisa')) return 'davisa';
+    return null;
+  };
+
   // Handle open customer details (Phase 3)
   const handleOpenCustomerDetails = (cust) => {
     setSelectedCustomer(cust);
@@ -612,8 +761,43 @@ const handleDownloadPdf = async () => {
     setEditCustNotes(parsedNotes.general);
     setEditCustStatus(cust.status || 'calificado');
 
-    // Fetch quotes
+    // Auto-match and select agreement for Quotes
+    const matchedAgreement = getCompanyAgreementMatch(cust.company || cust.name);
+    if (matchedAgreement) {
+      setSelectedAgreement(matchedAgreement);
+    } else {
+      setSelectedAgreement('public');
+    }
+
+    // Fetch quotes & linked contacts
     fetchCustomerQuotes(cust.id);
+    fetchLinkedContacts(cust.id);
+  };
+
+  // Fetch linked B2B/SAE contacts for this customer/company
+  const fetchLinkedContacts = async (companyOrCustomerId) => {
+    setLoadingLinkedContacts(true);
+    const token = localStorage.getItem('token');
+    try {
+      const apiBase = API_BASE;
+      const res = await fetch(`${apiBase}/api/crm/companies/${companyOrCustomerId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setLinkedContacts(data.linkedContacts || []);
+      } else {
+        console.error('Error fetching linked contacts:', data.message);
+        setLinkedContacts([]);
+      }
+    } catch (err) {
+      console.error('Error fetching linked contacts:', err);
+      setLinkedContacts([]);
+    } finally {
+      setLoadingLinkedContacts(false);
+    }
   };
 
   // Fetch quotes of a customer (Phase 3)
@@ -987,6 +1171,8 @@ const handleDownloadPdf = async () => {
         return parseFloat(product.convenio_casitas) || 0;
       case 'bienestar':
         return parseFloat(product.convenio_bienestar) || 0;
+      case 'davisa':
+        return parseFloat(product.convenio_davisa) || 0;
       case 'public':
       default:
         return parseFloat(product.precio_publico) || 0;
@@ -1075,8 +1261,8 @@ const handleDownloadPdf = async () => {
   }, [activeTab]);
 
   const handleSaveQuoteToDB = async () => {
-    if (!selectedQuoteCustomer) {
-      alert('Por favor selecciona un cliente registrado antes de guardar la cotización.');
+    if (!selectedOpportunityId) {
+      alert('Por favor selecciona una oportunidad activa antes de guardar la cotización.');
       return;
     }
     if (quoteItems.length === 0 || (quoteItems.length === 1 && quoteItems[0].description === '')) {
@@ -1096,7 +1282,7 @@ const handleDownloadPdf = async () => {
         },
         body: JSON.stringify({
           quoteNum,
-          clientId: selectedQuoteCustomer,
+          opportunityId: selectedOpportunityId,
           agreement: selectedAgreement,
           items: quoteItems.map(item => ({
             description: item.description,
@@ -1114,7 +1300,9 @@ const handleDownloadPdf = async () => {
 
       const data = await res.json();
       if (res.ok) {
-        alert(`¡Cotización ${quoteNum} guardada exitosamente en el historial del cliente!`);
+        alert(`¡Cotización ${quoteNum} guardada exitosamente en el historial de la oportunidad!`);
+        // Refresh opportunities list so the newly saved quote shows up immediately in the kanban/gestor
+        fetchOpportunitiesList();
       } else {
         alert('Error al guardar cotización: ' + (data.message || 'Error desconocido'));
       }
@@ -1158,8 +1346,12 @@ const handleDownloadPdf = async () => {
   }, [selectedLead]);
 
   const handleLoadPastQuote = (pastQuote) => {
-    // Load lead/customer ID
-    setSelectedQuoteCustomer(pastQuote.client_id);
+    // Load opportunity or lead/customer ID
+    if (pastQuote.opportunity_id) {
+      setSelectedOpportunityId(pastQuote.opportunity_id);
+    } else {
+      setSelectedQuoteCustomer(pastQuote.client_id || '');
+    }
     // Load items
     setQuoteItems(pastQuote.items.map((item, index) => ({
       id: Date.now() + index,
@@ -1192,6 +1384,8 @@ const handleDownloadPdf = async () => {
     if (window.confirm('¿Deseas iniciar una nueva cotización limpia? Esto borrará el contenido actual.')) {
       setQuoteItems([{ id: Date.now(), description: '', quantity: 1, price: 0, appliedAgreement: 'manual' }]);
       setSelectedQuoteCustomer('');
+      setSelectedOpportunityId('');
+      setOpportunitySearch('');
       setSelectedAgreement('public');
       setQuoteNotes('Condiciones comerciales:\n• Precios más 16% de IVA.\n• Pago: 50% de anticipo y 50% contra entrega de suministro.\n• Tiempo de entrega: 3-5 días hábiles sujeto a disponibilidad.\n• Flete incluido en área metropolitana de Monterrey.');
       setQuoteNum('CG-' + Math.floor(100000 + Math.random() * 900000));
@@ -1231,43 +1425,100 @@ const handleDownloadPdf = async () => {
           </div>
 
           <nav className="crm-sidebar-nav">
+            {/* 0 — Dashboard Estadísticas */}
+            <button
+              className={`nav-item-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              <i className="fas fa-chart-pie" /> Dashboard
+            </button>
+
+            {/* 1 — Mis Contactos */}
+            <button
+              className={`nav-item-btn ${activeTab === 'contacts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contacts')}
+            >
+              <i className="fas fa-address-book" /> Mis Contactos
+            </button>
+
+            {/* 2 — Empresas / Desarrollos */}
+            <button
+              className={`nav-item-btn ${activeTab === 'companies' ? 'active' : ''}`}
+              onClick={() => setActiveTab('companies')}
+            >
+              <i className="fas fa-city" /> Empresas
+            </button>
+
+            {/* 3 — Asignados (Leads) */}
             <button
               className={`nav-item-btn ${activeTab === 'leads' ? 'active' : ''}`}
               onClick={() => setActiveTab('leads')}
             >
-              <i className="fas fa-envelope-open-text"></i> Asignados (Leads)
+              <i className="fas fa-envelope-open-text" /> Asignados (Leads)
             </button>
 
-            <button
-              className={`nav-item-btn ${activeTab === 'customers' ? 'active' : ''}`}
-              onClick={() => setActiveTab('customers')}
-            >
-              <i className="fas fa-address-book"></i> Mis Clientes
-            </button>
-
+            {/* 4 — Oportunidades (Pipeline) */}
             <button
               className={`nav-item-btn ${activeTab === 'pipeline' ? 'active' : ''}`}
               onClick={() => setActiveTab('pipeline')}
             >
-              <i className="fas fa-columns"></i> Embudo de Venta
+              <i className="fas fa-columns" /> Oportunidades
             </button>
 
+            {/* 5 — Cotizador B2B (badge pulsante para llamar la atención) */}
             <button
               className={`nav-item-btn ${activeTab === 'quotes' ? 'active' : ''}`}
               onClick={() => setActiveTab('quotes')}
             >
-              <i className="fas fa-calculator"></i> Cotizador B2B
+              <span className="nav-item-inner">
+                <i className="fas fa-calculator" /> Cotizador B2B
+                <span className="nav-badge-pulse" title="Cotizador activo">NEW</span>
+              </span>
             </button>
 
+            {/* 6 — Gestor de Cotizaciones */}
+            <button
+              className={`nav-item-btn ${activeTab === 'quotes-manager' ? 'active' : ''}`}
+              onClick={() => setActiveTab('quotes-manager')}
+            >
+              <i className="fas fa-receipt" /> Gestor de Cots.
+            </button>
+
+            {/* 7 — Contenedor de Archivos */}
+            <button
+              className={`nav-item-btn ${activeTab === 'files' ? 'active' : ''}`}
+              onClick={() => setActiveTab('files')}
+            >
+              <i className="fas fa-folder-open" /> Contenedor
+            </button>
+
+            {/* 8 — Mi Perfil */}
+            <button
+              className={`nav-item-btn ${activeTab === 'profile' ? 'active' : ''}`}
+              onClick={() => setActiveTab('profile')}
+            >
+              <i className="fas fa-id-card" /> Mi Perfil
+            </button>
+
+            {/* Admin — Equipo de Ventas */}
             {role === 'admin' && (
-              <button
-                className={`nav-item-btn ${activeTab === 'sellers' ? 'active' : ''}`}
-                onClick={() => setActiveTab('sellers')}
-              >
-                <i className="fas fa-users-cog"></i> Equipo de Ventas
-              </button>
+              <>
+                <button
+                  className={`nav-item-btn ${activeTab === 'orphans' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('orphans')}
+                >
+                  <i className="fas fa-unlink" /> Leads Huérfanos
+                </button>
+                <button
+                  className={`nav-item-btn ${activeTab === 'sellers' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('sellers')}
+                >
+                  <i className="fas fa-users-cog" /> Equipo de Ventas
+                </button>
+              </>
             )}
           </nav>
+
 
           <div className="crm-sidebar-footer">
             <button className="btn-sidebar-refresh" onClick={handleRefreshAll} title="Sincronizar Datos">
@@ -1292,8 +1543,16 @@ const handleDownloadPdf = async () => {
 
         {/* MAIN CONTAINER CONTENT AREA */}
         <main className={`crm-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-          {/* Stats Panel (Global at top, hidden on quotes preview and print) */}
-          {!showQuotePreview && activeTab !== 'quotes' && (
+          {/* Stats Panel (Global at top, hidden on quotes preview, quotes tab, and new V2 panels) */}
+          {!showQuotePreview
+            && activeTab !== 'quotes'
+            && activeTab !== 'dashboard'
+            && activeTab !== 'contacts'
+            && activeTab !== 'companies'
+            && activeTab !== 'quotes-manager'
+            && activeTab !== 'files'
+            && activeTab !== 'profile'
+            && (
             <section className="crm-stats-grid hide-on-print">
               <div className="crm-stat-card glass">
                 <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
@@ -1587,174 +1846,8 @@ const handleDownloadPdf = async () => {
             </section>
           )}
 
-          {/* TAB 3: EMBUDO DE VENTAS (KANBAN BOARD) */}
-          {activeTab === 'pipeline' && (
-            <section className="crm-kanban-section">
-              <div className="crm-table-header">
-                <h2>Embudo de Proceso de Ventas</h2>
-                <p style={{ margin: '4px 0 2rem 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-                  Visualiza y gestiona las etapas de tus prospectos en tiempo real mediante control interactivo.
-                </p>
-              </div>
-
-              <div className="crm-kanban-board">
-                {/* COL 1: NUEVOS */}
-                <div
-                  className={`kanban-col col-nuevo ${dragOverColumn === 'nuevo' ? 'drag-over' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, 'nuevo')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, 'nuevo')}
-                >
-                  <div className="kanban-col-header nuevo">
-                    <h3>NUEVOS</h3>
-                    <span className="count-badge">{filteredLeads.filter(l => (l.status || 'nuevo') === 'nuevo').length}</span>
-                  </div>
-                  <div className="kanban-cards-container">
-                    {filteredLeads.filter(l => (l.status || 'nuevo') === 'nuevo').map(lead => (
-                      <div
-                        key={lead.id}
-                        className={`kanban-card glass ${draggedLeadId === lead.id ? 'is-dragging' : ''}`}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, lead.id)}
-                        onDragEnd={handleDragEnd}
-                        style={{ cursor: 'grab' }}
-                      >
-                        <h4>{lead.name || 'WhatsApp Anónimo'}</h4>
-                        {lead.company && <p className="card-company"><i className="fas fa-building"></i> {lead.company}</p>}
-                        <p className="card-phone"><i className="fas fa-phone-alt"></i> {lead.phone}</p>
-                        <div className="card-footer">
-                          <span className={`channel-tag ${lead.type}`}>{lead.type === 'popup_whatsapp' ? 'WhatsApp' : 'Web'}</span>
-                          <div className="card-arrows">
-                            <button className="arrow-btn right" onClick={() => moveLeadStatus(lead, 'right')} title="Mover a En Contacto">
-                              <i className="fas fa-arrow-right"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* COL 2: CONTACTADOS */}
-                <div
-                  className={`kanban-col col-contactado ${dragOverColumn === 'contactado' ? 'drag-over' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, 'contactado')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, 'contactado')}
-                >
-                  <div className="kanban-col-header contactado">
-                    <h3>CONTACTADOS</h3>
-                    <span className="count-badge">{filteredLeads.filter(l => l.status === 'contactado').length}</span>
-                  </div>
-                  <div className="kanban-cards-container">
-                    {filteredLeads.filter(l => l.status === 'contactado').map(lead => (
-                      <div
-                        key={lead.id}
-                        className={`kanban-card glass ${draggedLeadId === lead.id ? 'is-dragging' : ''}`}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, lead.id)}
-                        onDragEnd={handleDragEnd}
-                        style={{ cursor: 'grab' }}
-                      >
-                        <h4>{lead.name || 'WhatsApp Anónimo'}</h4>
-                        {lead.company && <p className="card-company"><i className="fas fa-building"></i> {lead.company}</p>}
-                        <p className="card-phone"><i className="fas fa-phone-alt"></i> {lead.phone}</p>
-                        <div className="card-footer">
-                          <span className={`channel-tag ${lead.type}`}>{lead.type === 'popup_whatsapp' ? 'WhatsApp' : 'Web'}</span>
-                          <div className="card-arrows">
-                            <button className="arrow-btn left" onClick={() => moveLeadStatus(lead, 'left')} title="Mover a Nuevos">
-                              <i className="fas fa-arrow-left"></i>
-                            </button>
-                            <button className="arrow-btn right" onClick={() => moveLeadStatus(lead, 'right')} title="Mover a Calificados">
-                              <i className="fas fa-arrow-right"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* COL 3: CALIFICADOS */}
-                <div
-                  className={`kanban-col col-calificado ${dragOverColumn === 'calificado' ? 'drag-over' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, 'calificado')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, 'calificado')}
-                >
-                  <div className="kanban-col-header qualified">
-                    <h3>CALIFICADOS</h3>
-                    <span className="count-badge">{filteredLeads.filter(l => l.status === 'calificado').length}</span>
-                  </div>
-                  <div className="kanban-cards-container">
-                    {filteredLeads.filter(l => l.status === 'calificado').map(lead => (
-                      <div
-                        key={lead.id}
-                        className={`kanban-card glass ${draggedLeadId === lead.id ? 'is-dragging' : ''}`}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, lead.id)}
-                        onDragEnd={handleDragEnd}
-                        style={{ cursor: 'grab' }}
-                      >
-                        <h4>{lead.name || 'WhatsApp Anónimo'}</h4>
-                        {lead.company && <p className="card-company"><i className="fas fa-building"></i> {lead.company}</p>}
-                        <p className="card-phone"><i className="fas fa-phone-alt"></i> {lead.phone}</p>
-                        <div className="card-footer">
-                          <span className={`channel-tag ${lead.type}`}>{lead.type === 'popup_whatsapp' ? 'WhatsApp' : 'Web'}</span>
-                          <div className="card-arrows">
-                            <button className="arrow-btn left" onClick={() => moveLeadStatus(lead, 'left')} title="Mover a Contactados">
-                              <i className="fas fa-arrow-left"></i>
-                            </button>
-                            <button className="arrow-btn right" onClick={() => moveLeadStatus(lead, 'right')} title="Mover a Descartados">
-                              <i className="fas fa-arrow-right"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* COL 4: DESCARTADOS */}
-                <div
-                  className={`kanban-col col-descartado ${dragOverColumn === 'descartado' ? 'drag-over' : ''}`}
-                  onDragOver={(e) => handleDragOver(e, 'descartado')}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, 'descartado')}
-                >
-                  <div className="kanban-col-header descartado">
-                    <h3>DESCARTADOS</h3>
-                    <span className="count-badge">{filteredLeads.filter(l => l.status === 'descartado').length}</span>
-                  </div>
-                  <div className="kanban-cards-container">
-                    {filteredLeads.filter(l => l.status === 'descartado').map(lead => (
-                      <div
-                        key={lead.id}
-                        className={`kanban-card glass ${draggedLeadId === lead.id ? 'is-dragging' : ''}`}
-                        draggable="true"
-                        onDragStart={(e) => handleDragStart(e, lead.id)}
-                        onDragEnd={handleDragEnd}
-                        style={{ cursor: 'grab' }}
-                      >
-                        <h4>{lead.name || 'WhatsApp Anónimo'}</h4>
-                        {lead.company && <p className="card-company"><i className="fas fa-building"></i> {lead.company}</p>}
-                        <p className="card-phone"><i className="fas fa-phone-alt"></i> {lead.phone}</p>
-                        <div className="card-footer">
-                          <span className={`channel-tag ${lead.type}`}>{lead.type === 'popup_whatsapp' ? 'WhatsApp' : 'Web'}</span>
-                          <div className="card-arrows">
-                            <button className="arrow-btn left" onClick={() => moveLeadStatus(lead, 'left')} title="Mover a Calificados">
-                              <i className="fas fa-arrow-left"></i>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-              </div>
-            </section>
-          )}
+          {/* TAB 3: OPORTUNIDADES (PANELES COMERCIALES Y DE PROCESOS) */}
+          {activeTab === 'pipeline' && <OportunidadesPanel />}
 
           {/* TAB 4: COTIZADOR B2B */}
           {activeTab === 'quotes' && (
@@ -1847,23 +1940,45 @@ const handleDownloadPdf = async () => {
                         <div className="quote-client-box">
                           <h3>DATOS DEL CLIENTE</h3>
                           {(() => {
+                            const opp = allOpportunities.find(x => x.id === selectedOpportunityId);
+                            if (opp) {
+                              const contactName = opp.contact?.name || '';
+                              const companyName = opp.company?.name || opp.company?.alias || '';
+                              const email = opp.contact?.email || opp.company?.email_main || '';
+                              const phone = opp.contact?.phone || opp.company?.phone_main || '';
+                              return (
+                                <>
+                                  <strong style={{ fontSize: '0.9rem' }}>{contactName || companyName || 'Cliente Garza'}</strong>
+                                  {companyName && contactName && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Empresa: {companyName}</p>}
+                                  {opp.title && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Oportunidad: {opp.title}</p>}
+                                  {phone && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Tel: {phone}</p>}
+                                  {email && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: {email}</p>}
+                                </>
+                              );
+                            }
+                            // Fallback to legacy customer selection if still exists
                             const c = customers.find(x => x.id === selectedQuoteCustomer);
-                            return c ? (
-                              <>
-                                <strong style={{ fontSize: '0.9rem' }}>{c.name}</strong>
-                                {c.company && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Empresa: {c.company}</p>}
-                                <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Giro: {c.project_type || 'General B2B'}</p>
-                                {c.phone && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Tel: {c.phone}</p>}
-                                {c.email && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: {c.email}</p>}
-                              </>
-                            ) : <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>Ningún cliente seleccionado</p>;
+                            if (c) {
+                              return (
+                                <>
+                                  <strong style={{ fontSize: '0.9rem' }}>{c.name}</strong>
+                                  {c.company && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Empresa: {c.company}</p>}
+                                  <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Giro: {c.project_type || 'General B2B'}</p>
+                                  {c.phone && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Tel: {c.phone}</p>}
+                                  {c.email && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: {c.email}</p>}
+                                </>
+                              );
+                            }
+                            return <p style={{ color: 'var(--color-text-muted)', fontSize: '0.75rem', fontStyle: 'italic' }}>Ninguna oportunidad vinculada</p>;
                           })()}
                         </div>
                         <div className="quote-seller-box">
                           <h3>CONTACTO COMERCIAL</h3>
                           <strong style={{ fontSize: '0.9rem' }}>Comercializadora Garza S.A.</strong>
-                          <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Atendido por: {role === 'admin' ? 'Administrador Garza' : 'Ejecutivo de Ventas'}</p>
-                          <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: ventas@comercializadoragarza.com</p>
+                          <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Atendido por: {currentUserProfile?.name || userName || 'Ejecutivo de Ventas'}</p>
+                          {currentUserProfile?.position && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Puesto: {currentUserProfile.position}</p>}
+                          <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: {currentUserProfile?.email || 'ventas@comercializadoragarza.com'}</p>
+                          {currentUserProfile?.phone && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Móvil: {currentUserProfile.phone}</p>}
                           <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Mty, N.L., México</p>
                         </div>
                       </div>
@@ -1978,24 +2093,28 @@ const handleDownloadPdf = async () => {
                     </h3>
 
                     <div className="crm-input-group" style={{ marginBottom: '1rem' }}>
-                      <label className="crm-input-label">Cliente de la Cartera</label>
-                      {selectedQuoteCustomer ? (
+                      <label className="crm-input-label">Vincular Oportunidad Activa</label>
+                      {selectedOpportunityId ? (
                         (() => {
-                          const c = customers.find(x => x.id === selectedQuoteCustomer);
-                          return c ? (
+                          const opp = allOpportunities.find(x => x.id === selectedOpportunityId);
+                          return opp ? (
                             <div className="selected-client-badge-card">
                               <div className="selected-client-details">
-                                <strong style={{ color: 'var(--color-brand-primary)', fontFamily: 'var(--font-primary)', fontSize: '0.95rem' }}>{c.name}</strong>
-                                {c.company && <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block' }}>Empresa: {c.company}</span>}
+                                <strong style={{ color: 'var(--color-brand-primary)', fontFamily: 'var(--font-primary)', fontSize: '0.95rem' }}>{opp.title}</strong>
+                                <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block' }}>
+                                  {opp.company?.name ? `Empresa: ${opp.company.name}` : ''}
+                                  {opp.company?.name && opp.contact?.name ? ' | ' : ''}
+                                  {opp.contact?.name ? `Contacto: ${opp.contact.name}` : ''}
+                                </span>
                               </div>
                               <button
                                 type="button"
                                 className="btn-clear-client"
                                 onClick={() => {
-                                  setSelectedQuoteCustomer('');
-                                  setClientSearch('');
+                                  setSelectedOpportunityId('');
+                                  setOpportunitySearch('');
                                 }}
-                                title="Quitar cliente"
+                                title="Desvincular Oportunidad"
                               >
                                 <i className="fas fa-times-circle"></i>
                               </button>
@@ -2003,49 +2122,75 @@ const handleDownloadPdf = async () => {
                           ) : null;
                         })()
                       ) : (
-                        <div className="client-search-autocomplete-container">
-                          <input
-                            type="text"
-                            className="crm-login-input"
-                            placeholder="Escribe el nombre o empresa del cliente..."
-                            value={clientSearch}
-                            onChange={(e) => {
-                              setClientSearch(e.target.value);
-                              setShowClientDropdown(true);
-                            }}
-                            onFocus={() => setShowClientDropdown(true)}
-                            onBlur={() => setTimeout(() => setShowClientDropdown(false), 200)}
-                          />
-                          {showClientDropdown && clientSearch.trim() && (
-                            <div className="autocomplete-dropdown">
-                              {(() => {
-                                const filtered = customers.filter(c =>
-                                  (c.name && c.name.toLowerCase().includes(clientSearch.toLowerCase())) ||
-                                  (c.company && c.company.toLowerCase().includes(clientSearch.toLowerCase()))
-                                );
-                                return filtered.length === 0 ? (
-                                  <div className="autocomplete-option" style={{ color: 'var(--color-text-muted)', cursor: 'default' }}>
-                                    No se encontraron clientes
-                                  </div>
-                                ) : (
-                                  filtered.map(c => (
-                                    <div
-                                      key={c.id}
-                                      className="autocomplete-option"
-                                      onMouseDown={() => {
-                                        setSelectedQuoteCustomer(c.id);
-                                        setClientSearch('');
-                                        setShowClientDropdown(false);
-                                      }}
-                                    >
-                                      <strong>{c.name}</strong>
-                                      {c.company && <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{c.company}</span>}
+                        <div style={{ display: 'flex', gap: '0.65rem' }}>
+                          <div className="client-search-autocomplete-container" style={{ flex: 1 }}>
+                            <input
+                              type="text"
+                              className="crm-login-input"
+                              placeholder="Escribe el nombre o título de la oportunidad..."
+                              value={opportunitySearch}
+                              onChange={(e) => {
+                                setOpportunitySearch(e.target.value);
+                                setShowOpportunityDropdown(true);
+                              }}
+                              onFocus={() => setShowOpportunityDropdown(true)}
+                              onBlur={() => setTimeout(() => setShowOpportunityDropdown(false), 200)}
+                            />
+                            {showOpportunityDropdown && opportunitySearch.trim() && (
+                              <div className="autocomplete-dropdown">
+                                {(() => {
+                                  const filtered = allOpportunities.filter(o =>
+                                    (o.title && o.title.toLowerCase().includes(opportunitySearch.toLowerCase())) ||
+                                    (o.company?.name && o.company.name.toLowerCase().includes(opportunitySearch.toLowerCase())) ||
+                                    (o.contact?.name && o.contact.name.toLowerCase().includes(opportunitySearch.toLowerCase()))
+                                  );
+                                  return filtered.length === 0 ? (
+                                    <div className="autocomplete-option" style={{ color: 'var(--color-text-muted)', cursor: 'default' }}>
+                                      No se encontraron oportunidades
                                     </div>
-                                  ))
-                                );
-                              })()}
-                            </div>
-                          )}
+                                  ) : (
+                                    filtered.map(o => (
+                                      <div
+                                        key={o.id}
+                                        className="autocomplete-option"
+                                        onMouseDown={() => {
+                                          setSelectedOpportunityId(o.id);
+                                          setOpportunitySearch('');
+                                          setShowOpportunityDropdown(false);
+                                        }}
+                                      >
+                                        <strong>{o.title}</strong>
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block' }}>
+                                          {o.company?.name ? `Empresa: ${o.company.name}` : ''}
+                                          {o.company?.name && o.contact?.name ? ' | ' : ''}
+                                          {o.contact?.name ? `Contacto: ${o.contact.name}` : ''}
+                                        </span>
+                                      </div>
+                                    ))
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+
+                          <select
+                            className="crm-login-input"
+                            style={{ width: '45%', cursor: 'pointer', height: '46px', borderRadius: '10px' }}
+                            value={selectedOpportunityId}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSelectedOpportunityId(e.target.value);
+                                setOpportunitySearch('');
+                              }
+                            }}
+                          >
+                            <option value="">-- O Seleccionar de Lista --</option>
+                            {allOpportunities.map(o => (
+                              <option key={o.id} value={o.id}>
+                                {o.title} {o.company?.name ? `(${o.company.name})` : ''}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       )}
                     </div>
@@ -2088,7 +2233,8 @@ const handleDownloadPdf = async () => {
                           { id: 'ruba', name: 'Ruba', desc: '15% Desc.' },
                           { id: 'javer', name: 'Javer', desc: '18% Desc.' },
                           { id: 'casitas', name: 'Casitas', desc: '20% Desc.' },
-                          { id: 'bienestar', name: 'Bienestar', desc: '20% Desc.' }
+                          { id: 'bienestar', name: 'Bienestar', desc: '20% Desc.' },
+                          { id: 'davisa', name: 'Davisa', desc: '17% Desc.' }
                         ].map(agr => (
                           <button
                             key={agr.id}
@@ -2400,7 +2546,7 @@ const handleDownloadPdf = async () => {
                     Visualiza los ejecutivos autorizados que gestionan los prospectos comerciales.
                   </p>
                 </div>
-                <button className="btn-primary-golden" onClick={() => setShowAddSellerModal(true)}>
+                <button className="btn-primary-golden" onClick={() => { fetchSaeSellers(); setShowAddSellerModal(true); }}>
                   <i className="fas fa-plus"></i> Registrar Vendedor
                 </button>
               </div>
@@ -2412,6 +2558,7 @@ const handleDownloadPdf = async () => {
                       <th>Fecha de Registro</th>
                       <th>Nombre Completo</th>
                       <th>Correo Electrónico</th>
+                      <th>Vinc. SAE</th>
                       <th>Rol en Sistema</th>
                       <th>ID de Vendedor</th>
                       <th style={{ textAlign: 'center' }}>Acciones</th>
@@ -2428,6 +2575,27 @@ const handleDownloadPdf = async () => {
                           <strong>{seller.email}</strong>
                         </td>
                         <td>
+                          {seller.sae_vendor_key ? (
+                            <span style={{
+                              background: 'rgba(212, 163, 89, 0.12)',
+                              color: 'var(--color-brand-primary)',
+                              padding: '0.25rem 0.55rem',
+                              borderRadius: '6px',
+                              fontSize: '0.78rem',
+                              fontFamily: 'monospace',
+                              fontWeight: 'bold',
+                              border: '1px solid rgba(212, 163, 89, 0.3)'
+                            }}>
+                              <i className="fas fa-link" style={{ marginRight: '4px', fontSize: '0.7rem' }}></i>
+                              CLAVE: {seller.sae_vendor_key.trim()}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                              Sin Vincular
+                            </span>
+                          )}
+                        </td>
+                        <td>
                           <span className="role-badge-sales">
                             <i className="fas fa-user-tag"></i> {seller.role === 'sales' ? 'Ventas' : seller.role}
                           </span>
@@ -2436,22 +2604,47 @@ const handleDownloadPdf = async () => {
                           {seller.id}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            className="btn-view-details"
-                            onClick={() => {
-                              setSelectedSellerForReset(seller);
-                              setShowResetPasswordModal(true);
-                            }}
-                            style={{ borderColor: 'var(--color-brand-accent)', color: 'var(--color-brand-accent)', padding: '0.4rem 0.85rem' }}
-                          >
-                            <i className="fas fa-key"></i> Restablecer Contraseña
-                          </button>
+                          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                            <button
+                              className="btn-view-details"
+                              onClick={() => {
+                                fetchSaeSellers();
+                                setSelectedSellerForEdit(seller);
+                                setEditSellerName(seller.name || '');
+                                setEditSellerEmail(seller.email || '');
+                                setEditSellerSaeKey(seller.sae_vendor_key || '');
+                                setEditSellerError('');
+                                setEditSellerSuccess('');
+                                setShowEditSellerModal(true);
+                              }}
+                              style={{ borderColor: 'var(--color-brand-primary)', color: 'var(--color-brand-primary)', padding: '0.4rem 0.85rem' }}
+                            >
+                              <i className="fas fa-user-edit"></i> Editar Perfil
+                            </button>
+                            <button
+                              className="btn-view-details"
+                              onClick={() => {
+                                setSelectedSellerForReset(seller);
+                                setShowResetPasswordModal(true);
+                              }}
+                              style={{ borderColor: 'var(--color-brand-accent)', color: 'var(--color-brand-accent)', padding: '0.4rem 0.85rem' }}
+                            >
+                              <i className="fas fa-key"></i> Contraseña
+                            </button>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => handleDeleteSeller(seller.id, seller.name)}
+                              style={{ borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239, 68, 68, 0.05)', padding: '0.4rem 0.85rem', cursor: 'pointer', borderRadius: '6px', fontWeight: 'bold' }}
+                            >
+                              <i className="fas fa-trash-alt"></i> Borrar
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                     {sellers.length === 0 && (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
+                        <td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: 'var(--color-text-muted)' }}>
                           No hay vendedores registrados todavía. ¡Comienza haciendo clic en "Registrar Vendedor"!
                         </td>
                       </tr>
@@ -2461,6 +2654,80 @@ const handleDownloadPdf = async () => {
               </div>
             </section>
           )}
+
+          {/* ── PANEL 0: DASHBOARD DE ESTADÍSTICAS ─────────────── */}
+          {activeTab === 'dashboard' && <StatsDashboard />}
+
+          {/* ── PANEL 1: MIS CONTACTOS ─────────────────────────── */}
+          {activeTab === 'contacts' && (
+            <MisContactos
+              onViewCompanyDetails={(comp) => {
+                // Map to match customers standard properties
+                const custMock = {
+                  id: comp.id,
+                  name: comp.name,
+                  email: comp.email_main || '',
+                  phone: comp.phone_main || '',
+                  company: comp.alias || comp.name || '',
+                  project_type: comp.industry || 'Sincronizado SAE',
+                  notes: comp.notes || '',
+                  status: comp.status === 'activo' ? 'calificado' : 'nuevo',
+                  limcred: comp.limcred || 0,
+                  saldo: comp.saldo || 0,
+                  lista_prec: comp.lista_prec || 1,
+                  clasific: comp.clasific || '',
+                  calle: comp.calle || '',
+                  colonia: comp.colonia || '',
+                  codigo: comp.codigo || '',
+                  municipio: comp.city || '',
+                  estado: comp.state || ''
+                };
+                handleOpenCustomerDetails(custMock);
+              }}
+            />
+          )}
+
+          {/* ── PANEL 2: EMPRESAS / DESARROLLOS ───────────────── */}
+          {activeTab === 'companies' && (
+            <Empresas
+              onViewCompanyDetails={(comp) => {
+                // Map to match customers standard properties
+                const custMock = {
+                  id: comp.id,
+                  name: comp.name,
+                  email: comp.email_main || '',
+                  phone: comp.phone_main || '',
+                  company: comp.alias || comp.name || '',
+                  project_type: comp.industry || 'Sincronizado SAE',
+                  notes: comp.notes || '',
+                  status: comp.status === 'activo' ? 'calificado' : 'nuevo',
+                  limcred: comp.limcred || 0,
+                  saldo: comp.saldo || 0,
+                  lista_prec: comp.lista_prec || 1,
+                  clasific: comp.clasific || '',
+                  calle: comp.calle || '',
+                  colonia: comp.colonia || '',
+                  codigo: comp.codigo || '',
+                  municipio: comp.city || '',
+                  estado: comp.state || ''
+                };
+                handleOpenCustomerDetails(custMock);
+              }}
+            />
+          )}
+
+          {/* ── PANEL 6: GESTOR DE COTIZACIONES ───────────────── */}
+          {activeTab === 'quotes-manager' && <GestorCotizaciones />}
+
+          {/* ── PANEL 7: CONTENEDOR DE ARCHIVOS ───────────────── */}
+          {activeTab === 'files' && <Contenedor />}
+
+          {/* ── PANEL 8: MI PERFIL ─────────────────────────────── */}
+          {activeTab === 'profile' && <MiPerfil />}
+
+          {/* ── PANEL NUEVO: LEADS HUÉRFANOS (ADMIN) ───────────── */}
+          {activeTab === 'orphans' && <ProspectosHuerfanos onAssignSuccess={fetchLeads} />}
+
         </main>
 
         {/* Modal Detail View */}
@@ -2691,6 +2958,23 @@ const handleDownloadPdf = async () => {
                   />
                 </div>
 
+                <div className="crm-input-group">
+                  <label className="crm-input-label">Vincular con Vendedor SAE</label>
+                  <select
+                    className="crm-login-input"
+                    value={newSellerSaeKey}
+                    onChange={(e) => setNewSellerSaeKey(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">-- No vincular por ahora / Sin clave --</option>
+                    {saeSellers.map(s => (
+                      <option key={s.cve_vend} value={s.cve_vend}>
+                        [{s.cve_vend.trim()}] {s.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {sellerError && (
                   <div className="crm-login-error" style={{ margin: '0' }}>
                     <i className="fas fa-exclamation-circle"></i>
@@ -2717,6 +3001,87 @@ const handleDownloadPdf = async () => {
 
                 <button type="submit" className="btn-primary-golden" style={{ padding: '0.875rem', width: '100%', marginTop: '0.5rem' }}>
                   Crear Cuenta de Ventas
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Seller Modal (Admin only) */}
+        {showEditSellerModal && selectedSellerForEdit && (
+          <div className="crm-modal-overlay" onClick={() => { setShowEditSellerModal(false); setSelectedSellerForEdit(null); }}>
+            <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+              <button className="close-modal-btn" onClick={() => { setShowEditSellerModal(false); setSelectedSellerForEdit(null); }}>&times;</button>
+              <div className="modal-header">
+                <h2>Editar Vendedor</h2>
+                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
+                  Modifica los datos del ejecutivo de ventas y su vinculación con el SAE.
+                </p>
+              </div>
+              <form onSubmit={handleUpdateSeller} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                <div className="crm-input-group">
+                  <label className="crm-input-label">Nombre Completo</label>
+                  <input
+                    type="text"
+                    className="crm-login-input"
+                    value={editSellerName}
+                    onChange={(e) => setEditSellerName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="crm-input-group">
+                  <label className="crm-input-label">Correo Electrónico</label>
+                  <input
+                    type="email"
+                    className="crm-login-input"
+                    value={editSellerEmail}
+                    onChange={(e) => setEditSellerEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="crm-input-group">
+                  <label className="crm-input-label">Vincular con Vendedor SAE</label>
+                  <select
+                    className="crm-login-input"
+                    value={editSellerSaeKey}
+                    onChange={(e) => setEditSellerSaeKey(e.target.value)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">-- No vincular por ahora / Sin clave --</option>
+                    {saeSellers.map(s => (
+                      <option key={s.cve_vend} value={s.cve_vend}>
+                        [{s.cve_vend.trim()}] {s.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {editSellerError && (
+                  <div className="crm-login-error" style={{ margin: '0' }}>
+                    <i className="fas fa-exclamation-circle"></i>
+                    <span>{editSellerError}</span>
+                  </div>
+                )}
+
+                {editSellerSuccess && (
+                  <div style={{
+                    background: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    color: '#16a54a',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    fontSize: '0.875rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem'
+                  }}>
+                    <i className="fas fa-check-circle"></i>
+                    <span>{editSellerSuccess}</span>
+                  </div>
+                )}
+
+                <button type="submit" className="btn-primary-golden" style={{ padding: '0.875rem', width: '100%', marginTop: '0.5rem' }}>
+                  Guardar Cambios
                 </button>
               </form>
             </div>
@@ -2866,7 +3231,7 @@ const handleDownloadPdf = async () => {
         {/* Customer Details & History Modal (Phase 3) */}
         {selectedCustomer && (
           <div className="crm-modal-overlay" onClick={() => setSelectedCustomer(null)}>
-            <div className="crm-modal-content customer-details-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', width: '96%' }}>
+            <div className="crm-modal-content customer-details-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px', width: '96%' }}>
               <button className="close-modal-btn" onClick={() => setSelectedCustomer(null)}>&times;</button>
 
               <div className="modal-header" style={{ marginBottom: '1.5rem' }}>
@@ -2892,6 +3257,13 @@ const handleDownloadPdf = async () => {
                   onClick={() => setActiveCustomerTab('profile')}
                 >
                   <i className="fas fa-user-edit"></i> Perfil y Edición
+                </button>
+                <button
+                  type="button"
+                  className={`cust-tab-btn ${activeCustomerTab === 'contacts' ? 'active' : ''}`}
+                  onClick={() => setActiveCustomerTab('contacts')}
+                >
+                  <i className="fas fa-users"></i> Contactos Vinculados ({linkedContacts.length})
                 </button>
                 <button
                   type="button"
@@ -2991,16 +3363,163 @@ const handleDownloadPdf = async () => {
                       </div>
                     </div>
 
-                    <div className="crm-input-group">
-                      <label className="crm-input-label">Notas e Indicaciones B2B</label>
-                      <textarea
-                        className="crm-login-input"
-                        rows="3"
-                        value={editCustNotes}
-                        onChange={(e) => setEditCustNotes(e.target.value)}
-                        style={{ resize: 'vertical', fontFamily: 'inherit' }}
-                      />
+                    {/* CASILLAS DE INFORMACIÓN FISCAL Y DIRECCIÓN */}
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '1.25rem',
+                      background: 'rgba(15, 23, 42, 0.02)',
+                      borderRadius: '12px',
+                      border: '1px solid #e2e8f0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '1rem',
+                      textAlign: 'left'
+                    }}>
+                      <h4 style={{
+                        margin: 0,
+                        fontFamily: 'var(--font-primary)',
+                        color: 'var(--color-brand-primary)',
+                        fontSize: '0.8rem',
+                        fontWeight: '800',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        letterSpacing: '0.5px'
+                      }}>
+                        <i className="fas fa-file-invoice" style={{ color: 'var(--color-brand-accent)' }}></i>
+                        DATOS DE FACTURACIÓN Y DIRECCIONES
+                      </h4>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }} className="customer-edit-grid">
+                        <div className="crm-input-group">
+                          <label className="crm-input-label">RFC / Identificación Fiscal</label>
+                          <input
+                            type="text"
+                            className="crm-login-input"
+                            value={selectedCustomer.rfc || 'N/A'}
+                            readOnly
+                            style={{ background: '#f8fafc', color: '#475569', cursor: 'not-allowed', fontWeight: '600' }}
+                          />
+                        </div>
+                        <div className="crm-input-group">
+                          <label className="crm-input-label">Uso de CFDI</label>
+                          <input
+                            type="text"
+                            className="crm-login-input"
+                            value="G03 - Gastos en general"
+                            readOnly
+                            style={{ background: '#f8fafc', color: '#475569', cursor: 'not-allowed', fontWeight: '500' }}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }} className="customer-edit-grid">
+                        <div className="crm-input-group">
+                          <label className="crm-input-label">Dirección Física (Despacho / Entrega)</label>
+                          <textarea
+                            className="crm-login-input"
+                            rows="2"
+                            value={selectedCustomer.address || selectedCustomer.calle || 'No registrada'}
+                            readOnly
+                            style={{ background: '#f8fafc', color: '#475569', cursor: 'not-allowed', resize: 'none', fontSize: '0.8rem', lineHeight: '1.3' }}
+                          />
+                        </div>
+                        <div className="crm-input-group">
+                          <label className="crm-input-label">Dirección Fiscal Registrada (SAE)</label>
+                          <textarea
+                            className="crm-login-input"
+                            rows="2"
+                            value={selectedCustomer.calle ? `${selectedCustomer.calle}, Col. ${selectedCustomer.colonia || ''}, CP ${selectedCustomer.codigo || ''}, ${selectedCustomer.municipio || ''}, ${selectedCustomer.estado || ''}`.trim() : 'No registrada en SAE'}
+                            readOnly
+                            style={{ background: '#f8fafc', color: '#475569', cursor: 'not-allowed', resize: 'none', fontSize: '0.8rem', lineHeight: '1.3' }}
+                          />
+                        </div>
+                      </div>
                     </div>
+
+                    {selectedCustomer.id && selectedCustomer.id.startsWith('sae-') && (
+                      <div className="sae-financial-card" style={{
+                        marginTop: '1.25rem',
+                        padding: '1.25rem',
+                        background: 'linear-gradient(135deg, rgba(212, 163, 89, 0.08) 0%, rgba(212, 163, 89, 0.02) 100%)',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(212, 163, 89, 0.35)',
+                        boxShadow: '0 4px 20px rgba(212, 163, 89, 0.06)',
+                        marginBottom: '1rem',
+                        textAlign: 'left'
+                      }}>
+                        <h4 style={{
+                          margin: '0 0 1rem 0',
+                          fontFamily: 'var(--font-primary)',
+                          color: 'var(--color-brand-primary)',
+                          fontSize: '0.85rem',
+                          fontWeight: '800',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.45rem',
+                          letterSpacing: '0.5px'
+                        }}>
+                          <i className="fas fa-balance-scale" style={{ color: 'var(--color-brand-accent)' }}></i>
+                          INFORMACIÓN COMERCIAL Y FINANCIERA (ASPEL SAE 9.0)
+                        </h4>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }} className="customer-edit-grid">
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold' }}>LÍMITE DE CRÉDITO</span>
+                            <strong style={{ fontSize: '0.95rem', color: '#16a34a' }}>
+                              ${(selectedCustomer.limcred || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                            </strong>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold' }}>SALDO PENDIENTE (DEUDA)</span>
+                            <strong style={{ fontSize: '0.95rem', color: (selectedCustomer.saldo || 0) > 0 ? '#dc2626' : 'var(--color-brand-primary)' }}>
+                              ${(selectedCustomer.saldo || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MXN
+                            </strong>
+                          </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }} className="customer-edit-grid">
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold' }}>LISTA DE PRECIOS ASIGNADA</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-text-dark)' }}>
+                              {getCompanyAgreementMatch(selectedCustomer.company || selectedCustomer.name) ? (
+                                <span style={{ color: 'var(--color-brand-primary)', display: 'inline-flex', alignItems: 'center', gap: '6px', fontWeight: '800' }}>
+                                  <i className="fas fa-handshake" style={{ color: 'var(--color-brand-accent)' }}></i>
+                                  CONVENIO {getCompanyAgreementMatch(selectedCustomer.company || selectedCustomer.name).toUpperCase()}
+                                </span>
+                              ) : (
+                                `TARIFA LOTE ${selectedCustomer.lista_prec || 1}`
+                              )}
+                            </span>
+                          </div>
+                          <div>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold' }}>ZONA / CLASIFICACIÓN</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-text-dark)' }}>
+                              {selectedCustomer.clasific || 'General'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <hr style={{ border: '0', borderTop: '1px dashed rgba(212, 163, 89, 0.25)', margin: '1rem 0' }} />
+
+                        <div style={{ marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold', marginBottom: '4px' }}>DIRECCIÓN FISCAL (SAE)</span>
+                          <p style={{ fontSize: '0.75rem', color: 'var(--color-text-dark)', margin: 0, lineHeight: '1.4', fontWeight: '500' }}>
+                            <i className="fas fa-map-marker-alt" style={{ marginRight: '4px', color: 'var(--color-brand-accent)' }}></i>
+                            {selectedCustomer.calle ? `${selectedCustomer.calle}, Col. ${selectedCustomer.colonia || ''}, CP ${selectedCustomer.codigo || ''}, ${selectedCustomer.municipio || ''}, ${selectedCustomer.estado || ''}`.trim() : 'Sin dirección fiscal registrada.'}
+                          </p>
+                        </div>
+
+                        {selectedCustomer.pag_web && (
+                          <div style={{ marginTop: '0.75rem' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'block', fontWeight: 'bold' }}>SITIO WEB</span>
+                            <a href={selectedCustomer.pag_web.startsWith('http') ? selectedCustomer.pag_web : `http://${selectedCustomer.pag_web}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: 'var(--color-brand-primary)', fontWeight: '600', textDecoration: 'none' }}>
+                              <i className="fas fa-globe" style={{ marginRight: '4px' }}></i> {selectedCustomer.pag_web}
+                            </a>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     <button type="submit" className="btn-primary-golden" style={{ padding: '0.875rem', width: '100%', marginTop: '0.5rem' }}>
                       <i className="fas fa-save"></i> Guardar Cambios
@@ -3086,6 +3605,98 @@ const handleDownloadPdf = async () => {
                             </div>
                           </details>
                         ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB 2.5: CONTACTOS VINCULADOS */}
+                {activeCustomerTab === 'contacts' && (
+                  <div className="customer-quotes-section" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <h4 style={{ fontFamily: 'var(--font-primary)', color: 'var(--color-brand-primary)', margin: '0 0 0.25rem 0', fontWeight: '800' }}>
+                      <i className="fas fa-users" style={{ color: 'var(--color-brand-accent)', marginRight: '6px' }}></i> Contactos Vinculados
+                    </h4>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '0 0 0.5rem 0', lineHeight: '1.4' }}>
+                      Representantes y personas de contacto asociadas a esta empresa según el SAE y la DB CRM.
+                    </p>
+
+                    {loadingLinkedContacts ? (
+                      <div style={{ textAlign: 'center', padding: '3rem' }}>
+                        <div className="spinner-mini" style={{ display: 'inline-block' }}></div>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '8px' }}>Buscando contactos vinculados...</p>
+                      </div>
+                    ) : linkedContacts.length === 0 ? (
+                      <div className="quotes-history-empty" style={{ padding: '3rem 1.5rem', textAlign: 'center' }}>
+                        <i className="fas fa-user-slash" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '1rem' }}></i>
+                        <p style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>No hay contactos vinculados a esta empresa.</p>
+                      </div>
+                    ) : (
+                      <div className="contacts-linked-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        {linkedContacts.map((lc, idx) => {
+                          const contact = lc.contact || lc;
+                          const roleName = lc.role || 'Contacto';
+                          return (
+                            <div key={idx} className="contact-card glass" style={{
+                              padding: '1rem',
+                              borderRadius: '12px',
+                              border: '1px solid rgba(212, 163, 89, 0.15)',
+                              background: 'linear-gradient(135deg, rgba(255,255,255,0.8) 0%, rgba(212, 163, 89, 0.02) 100%)',
+                              boxShadow: '0 4px 15px rgba(0, 0, 0, 0.02)',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '0.5rem'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <div style={{
+                                  width: '36px',
+                                  height: '36px',
+                                  borderRadius: '50%',
+                                  background: 'var(--color-brand-primary)',
+                                  color: '#ffffff',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontWeight: 'bold',
+                                  fontSize: '0.9rem'
+                                }}>
+                                  {contact.name ? contact.name.charAt(0).toUpperCase() : 'C'}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                  <strong style={{ fontSize: '0.85rem', color: 'var(--color-text-dark)' }}>{contact.name}</strong>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--color-brand-primary)', fontWeight: '600' }}>
+                                    {contact.position || roleName}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <hr style={{ border: '0', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
+
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', fontSize: '0.75rem' }}>
+                                {contact.phone && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <i className="fas fa-phone" style={{ color: 'var(--color-brand-accent)', width: '12px' }}></i>
+                                    <span>{contact.phone}</span>
+                                    <a
+                                      href={`https://wa.me/52${contact.phone.replace(/\D/g, '')}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{ marginLeft: 'auto', color: '#25d366', fontSize: '0.85rem' }}
+                                      title="Enviar WhatsApp"
+                                    >
+                                      <i className="fab fa-whatsapp"></i>
+                                    </a>
+                                  </div>
+                                )}
+                                {contact.email && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', wordBreak: 'break-all' }}>
+                                    <i className="fas fa-envelope" style={{ color: 'var(--color-brand-accent)', width: '12px' }}></i>
+                                    <a href={`mailto:${contact.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>{contact.email}</a>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -3451,6 +4062,7 @@ const handleDownloadPdf = async () => {
             </div>
           </div>
         )}
+
       </div>
 
       {/* Floating card tooltip — rendered at viewport level via portal */}

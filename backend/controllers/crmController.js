@@ -1,5 +1,4 @@
-// backend/controllers/crmController.js
-import { supabase } from '../supabaseClient.js';
+import { supabase, saeSupabase } from '../supabaseClient.js';
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -9,159 +8,186 @@ import exifr from 'exifr';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-let cachedProducts = null;
-
-const loadProducts = () => {
-  if (cachedProducts) return cachedProducts;
+// ---------- LISTAS DE PRECIOS SAE ----------
+export const getPriceLists = async (req, res) => {
   try {
-    const filePath = path.join(__dirname, '../services/productos_y_servicios_fijo.json');
-    if (fs.existsSync(filePath)) {
-      const fileData = fs.readFileSync(filePath, 'utf-8');
-      const rawProducts = JSON.parse(fileData);
-      
-      cachedProducts = rawProducts.map(p => {
-        // Clean description
-        let desc = p["Descripción"] || "";
-        desc = desc.replace(/^x\s*\(no\s*usar\)\s*/gi, "");
-        desc = desc.replace(/^x\s*\(no\)\s*/gi, "");
-        desc = desc.replace(/^x\s*\(notuboclase16-\s*/gi, "TUBO CLASE 16 - ");
-        desc = desc.replace(/^x\s*\(nollave\s*/gi, "LLAVE ");
-        desc = desc.trim();
+    const { data: priceLists, error } = await saeSupabase
+      .from('precios03')
+      .select('cve_precio, descripcion')
+      .eq('status', 'A')
+      .order('cve_precio', { ascending: true });
 
-        let category = "Otros";
-        let material = "Varios / Otros";
-        let measure = "N/A";
-
-        const descLower = desc.toLowerCase();
-
-        // 1. Category Classification
-        if (descLower.includes("tubo") || descLower.includes("tuboplus") || descLower.includes("manguera") || descLower.includes("conduit")) {
-          category = "Tuberías";
-        } else if (descLower.includes("codo") || descLower.includes("curva") || descLower.includes("yee") || descLower.includes("adaptador") || descLower.includes("cople") || descLower.includes("tee") || descLower.includes("tuerca") || descLower.includes("reduccion") || descLower.includes("tapón") || descLower.includes("tapon") || descLower.includes("conexion")) {
-          category = "Conexiones";
-        } else if (descLower.includes("llave") || descLower.includes("valvula") || descLower.includes("monomando") || descLower.includes("mezcladora") || descLower.includes("nariz") || descLower.includes("flotador")) {
-          category = "Válvulas y Grifería";
-        } else if (descLower.includes("chalupa") || descLower.includes("caja") || descLower.includes("cable") || descLower.includes("apagador") || descLower.includes("contacto") || descLower.includes("registro") || descLower.includes("placa")) {
-          category = "Eléctrico";
-        } else if (descLower.includes("acero") || descLower.includes("varilla") || descLower.includes("clavo") || descLower.includes("alambre") || descLower.includes("tornillo") || descLower.includes("soldadura") || descLower.includes("pija") || descLower.includes("canal") || descLower.includes("viga") || descLower.includes("solera") || descLower.includes("angulo") || descLower.includes("placa")) {
-          category = "Aceros y Ferretería";
-        }
-
-        // 2. Material Classification
-        if (descLower.includes("pvc")) {
-          material = "PVC";
-        } else if (descLower.includes("cpvc")) {
-          material = "CPVC";
-        } else if (descLower.includes("tuboplus")) {
-          material = "Tuboplus";
-        } else if (descLower.includes("cobre")) {
-          material = "Cobre";
-        } else if (descLower.includes("galvanizado") || descLower.includes("galv")) {
-          material = "Galvanizado";
-        } else if (descLower.includes("bronce") || descLower.includes("latón") || descLower.includes("laton")) {
-          material = "Bronce / Latón";
-        } else if (descLower.includes("acero") || descLower.includes("varilla")) {
-          material = "Acero";
-        } else if (descLower.includes("plástico") || descLower.includes("plastico")) {
-          material = "Plástico";
-        }
-
-        // 3. Measure extraction
-        const measureRegex = /(\d+(?:\/\d+)?\s*(?:mm|m|inch|"|'| pulgadas| pulg|”))/i;
-        const match = desc.match(measureRegex);
-        if (match) {
-          measure = match[1];
-        } else if (descLower.includes("1/2")) {
-          measure = "1/2\"";
-        } else if (descLower.includes("3/4")) {
-          measure = "3/4\"";
-        } else if (descLower.includes("1/4")) {
-          measure = "1/4\"";
-        } else if (descLower.includes("1 ")) {
-          measure = "1\"";
-        } else if (descLower.includes("2 ")) {
-          measure = "2\"";
-        }
-
-        const baseCost = parseFloat(p["Último costo"]) || 0;
-        let publicPrice = baseCost * 1.30;
-        if (publicPrice <= 0) publicPrice = 100.00;
-        publicPrice = Math.round(publicPrice * 100) / 100;
-
-        const rubaPrice = Math.round((publicPrice * 0.85) * 100) / 100; 
-        const javerPrice = Math.round((publicPrice * 0.82) * 100) / 100; 
-        const casitasPrice = Math.round((publicPrice * 0.80) * 100) / 100; 
-        const bienestarPrice = Math.round((publicPrice * 0.80) * 100) / 100; 
-
-        return {
-          ...p,
-          "Descripción_Limpia": desc || p["Descripción"] || "Producto Garza",
-          "Categoria": category,
-          "Material": material,
-          "Medida": measure,
-          "precio_publico": p["precio publico"] || publicPrice,
-          "convenio_ruba": p["convenio ruba"] || rubaPrice,
-          "convenio_javer": p["convenio Javer"] || javerPrice,
-          "convenio_casitas": p["convenio casa 1"] || casitasPrice,
-          "convenio_bienestar": p["convenio bienestar"] || bienestarPrice
-        };
-      });
-      console.log(`[BACKEND] Caching ${cachedProducts.length} cleaned products from JSON.`);
-    } else {
-      console.warn("[BACKEND] JSON file not found at " + filePath);
-      cachedProducts = [];
-    }
+    if (error) throw error;
+    res.json({ success: true, priceLists: priceLists || [] });
   } catch (err) {
-    console.error("[BACKEND] Error parsing JSON", err);
-    cachedProducts = [];
+    console.error('getPriceLists error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener listas de precios SAE.' });
   }
-  return cachedProducts;
 };
 
 export const getProducts = async (req, res) => {
   try {
-    const products = loadProducts();
     const { q, category, material, measure } = req.query;
 
-    let filtered = [...products];
+    // 1. Fetch dynamic agreements and price overrides from ASPEL SAE mirror tables
+    const { data: priceLists } = await saeSupabase
+      .from('precios03')
+      .select('cve_precio, descripcion')
+      .eq('status', 'A')
+      .order('cve_precio', { ascending: true });
 
-    // Search filter
-    if (q && q.trim()) {
-      const term = q.toLowerCase().trim();
-      filtered = filtered.filter(p => 
-        (p["Clave"] && p["Clave"].toLowerCase().includes(term)) ||
-        (p["Descripción_Limpia"] && p["Descripción_Limpia"].toLowerCase().includes(term)) ||
-        (p["Descripción"] && p["Descripción"].toLowerCase().includes(term))
-      );
+    const { data: rawPrices } = await saeSupabase
+      .from('precio_x_prod03')
+      .select('cve_art, cve_precio, precio')
+      .gt('precio', 0);
+
+    const priceMap = {};
+    if (rawPrices) {
+      rawPrices.forEach(p => {
+        const art = p.cve_art.trim();
+        if (!priceMap[art]) priceMap[art] = {};
+        priceMap[art][p.cve_precio] = p.precio;
+      });
     }
 
-    // Category filter
+    // 2. Query mirror database table inve03
+    let dbQuery = saeSupabase
+      .from('inve03')
+      .select('cve_art, descr, exist, ult_costo, status, cve_prodserv, cve_unidad')
+      .eq('status', 'A'); // Active products only
+
+    if (q && q.trim()) {
+      const term = q.trim();
+      dbQuery = dbQuery.or(`descr.ilike.%${term}%,cve_art.ilike.%${term}%`);
+    }
+
+    const { data: rawProducts, error } = await dbQuery;
+    if (error) throw error;
+
+    // 3. Clean, categorize, and calculate price tiers
+    const cleanedProducts = (rawProducts || []).map(p => {
+      const artClave = p.cve_art.trim();
+      const customPrices = priceMap[artClave] || {};
+
+      let desc = p.descr || "";
+      desc = desc.replace(/^x\s*\(no\s*usar\)\s*/gi, "");
+      desc = desc.replace(/^x\s*\(no\)\s*/gi, "");
+      desc = desc.replace(/^x\s*\(notuboclase16-\s*/gi, "TUBO CLASE 16 - ");
+      desc = desc.replace(/^x\s*\(nollave\s*/gi, "LLAVE ");
+      desc = desc.trim();
+
+      let cat = "Otros";
+      let mat = "Varios / Otros";
+      let meas = "N/A";
+
+      const descLower = desc.toLowerCase();
+
+      // Category Classification
+      if (descLower.includes("tubo") || descLower.includes("tuboplus") || descLower.includes("manguera") || descLower.includes("conduit")) {
+        cat = "Tuberías";
+      } else if (descLower.includes("codo") || descLower.includes("curva") || descLower.includes("yee") || descLower.includes("adaptador") || descLower.includes("cople") || descLower.includes("tee") || descLower.includes("tuerca") || descLower.includes("reduccion") || descLower.includes("tapón") || descLower.includes("tapon") || descLower.includes("conexion")) {
+        cat = "Conexiones";
+      } else if (descLower.includes("llave") || descLower.includes("valvula") || descLower.includes("monomando") || descLower.includes("mezcladora") || descLower.includes("nariz") || descLower.includes("flotador")) {
+        cat = "Válvulas y Grifería";
+      } else if (descLower.includes("chalupa") || descLower.includes("caja") || descLower.includes("cable") || descLower.includes("apagador") || descLower.includes("contacto") || descLower.includes("registro") || descLower.includes("placa")) {
+        cat = "Eléctrico";
+      } else if (descLower.includes("acero") || descLower.includes("varilla") || descLower.includes("clavo") || descLower.includes("alambre") || descLower.includes("tornillo") || descLower.includes("soldadura") || descLower.includes("pija") || descLower.includes("canal") || descLower.includes("viga") || descLower.includes("solera") || descLower.includes("angulo") || descLower.includes("placa")) {
+        cat = "Aceros y Ferretería";
+      }
+
+      // Material Classification
+      if (descLower.includes("pvc")) {
+        mat = "PVC";
+      } else if (descLower.includes("cpvc")) {
+        mat = "CPVC";
+      } else if (descLower.includes("tuboplus")) {
+        mat = "Tuboplus";
+      } else if (descLower.includes("cobre")) {
+        mat = "Cobre";
+      } else if (descLower.includes("galvanizado") || descLower.includes("galv")) {
+        mat = "Galvanizado";
+      } else if (descLower.includes("bronce") || descLower.includes("latón") || descLower.includes("laton")) {
+        mat = "Bronce / Latón";
+      } else if (descLower.includes("acero") || descLower.includes("varilla")) {
+        mat = "Acero";
+      } else if (descLower.includes("plástico") || descLower.includes("plastico")) {
+        mat = "Plástico";
+      }
+
+      // Measure extraction
+      const measureRegex = /(\d+(?:\/\d+)?\s*(?:mm|m|inch|"|'| pulgadas| pulg|”))/i;
+      const match = desc.match(measureRegex);
+      if (match) {
+        meas = match[1];
+      } else if (descLower.includes("1/2")) {
+        meas = "1/2\"";
+      } else if (descLower.includes("3/4")) {
+        meas = "3/4\"";
+      } else if (descLower.includes("1/4")) {
+        meas = "1/4\"";
+      } else if (descLower.includes("1 ")) {
+        meas = "1\"";
+      } else if (descLower.includes("2 ")) {
+        meas = "2\"";
+      }
+
+      const baseCost = parseFloat(p.ult_costo) || 0;
+      let publicPrice = customPrices[1] || parseFloat(p.precio) || baseCost * 1.30;
+      if (publicPrice <= 0) publicPrice = 100.00;
+      publicPrice = Math.round(publicPrice * 100) / 100;
+
+      // Keep backup values for backwards compatibility
+      const rubaPrice = customPrices[7] || Math.round((publicPrice * 0.85) * 100) / 100; 
+      const javerPrice = customPrices[5] || Math.round((publicPrice * 0.82) * 100) / 100; 
+      const casitasPrice = customPrices[15] || Math.round((publicPrice * 0.80) * 100) / 100; 
+      const bienestarPrice = Math.round((publicPrice * 0.80) * 100) / 100; 
+      const davisaPrice = Math.round((publicPrice * 0.83) * 100) / 100; 
+
+      return {
+        Clave: artClave,
+        Descripción: p.descr ? p.descr.trim() : '',
+        Descripción_Limpia: desc || p.descr || "Producto Garza",
+        Categoria: cat,
+        Material: mat,
+        Medida: meas,
+        Existencias: parseInt(p.exist) || 0,
+        "Último costo": baseCost,
+        precio_publico: publicPrice,
+        convenio_ruba: rubaPrice,
+        convenio_javer: javerPrice,
+        convenio_casitas: casitasPrice,
+        convenio_bienestar: bienestarPrice,
+        convenio_davisa: davisaPrice,
+        precios_lista: customPrices
+      };
+    });
+
+    // 4. Filter by category, material, measure
+    let filtered = [...cleanedProducts];
+
     if (category && category !== "all") {
       filtered = filtered.filter(p => p.Categoria === category);
     }
-
-    // Material filter
     if (material && material !== "all") {
       filtered = filtered.filter(p => p.Material === material);
     }
-
-    // Measure filter
     if (measure && measure !== "all") {
       filtered = filtered.filter(p => p.Medida === measure);
     }
 
-    // Get unique values for frontend filters
-    const categories = [...new Set(products.map(p => p.Categoria))].filter(Boolean);
-    const materials = [...new Set(products.map(p => p.Material))].filter(Boolean);
-    const measures = [...new Set(products.map(p => p.Medida))].filter(p => p && p !== "N/A").slice(0, 30);
+    // 5. Unique filters for frontend
+    const categories = [...new Set(cleanedProducts.map(p => p.Categoria))].filter(Boolean);
+    const materials = [...new Set(cleanedProducts.map(p => p.Material))].filter(Boolean);
+    const measures = [...new Set(cleanedProducts.map(p => p.Medida))].filter(p => p && p !== "N/A").slice(0, 30);
 
-    // Limit returned products to 100 for high performance
+    // 6. Paginate/Limit to first 100 records
     const results = filtered.slice(0, 100);
 
     res.json({
       success: true,
       totalCount: filtered.length,
       products: results,
+      priceLists: priceLists || [],
       filterOptions: {
         categories,
         materials,
@@ -170,7 +196,7 @@ export const getProducts = async (req, res) => {
     });
   } catch (err) {
     console.error('getProducts error:', err);
-    res.status(500).json({ success: false, message: 'Error al buscar productos.' });
+    res.status(500).json({ success: false, message: 'Error al buscar productos del SAE.' });
   }
 };
 
@@ -234,9 +260,6 @@ export const updateLeadStage = async (req, res) => {
 
   try {
     const updateData = { status: stage };
-    if (stage === 'calificado') {
-      updateData.type = 'crm_customer';
-    }
 
     const { data, error } = await supabase
       .from('leads')
@@ -336,7 +359,7 @@ export const getSellers = async (req, res) => {
 
     const { data, error } = await supabase
       .from('crm_users')
-      .select('id, name, email, role, created_at')
+      .select('id, name, email, role, sae_vendor_key, created_at')
       .eq('role', 'sales')
       .order('created_at', { ascending: false });
 
@@ -354,7 +377,7 @@ export const createSeller = async (req, res) => {
       return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
     }
 
-    const { name, email, password } = req.body;
+    const { name, email, password, sae_vendor_key } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Nombre, correo y contraseña son requeridos.' });
     }
@@ -382,10 +405,11 @@ export const createSeller = async (req, res) => {
           name,
           email,
           password_hash: hash,
-          role: 'sales'
+          role: 'sales',
+          sae_vendor_key: sae_vendor_key || null
         }
       ])
-      .select('id, name, email, role, created_at');
+      .select('id, name, email, role, sae_vendor_key, created_at');
 
     if (error) throw error;
     res.status(201).json({ success: true, seller: data[0] });
@@ -447,12 +471,93 @@ export const resetSellerPassword = async (req, res) => {
   }
 };
 
+export const updateSeller = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    }
+
+    const { id } = req.params;
+    const { name, email, sae_vendor_key } = req.body;
+
+    const { data, error } = await supabase
+      .from('crm_users')
+      .update({
+        name,
+        email,
+        sae_vendor_key: sae_vendor_key || null
+      })
+      .eq('id', id)
+      .select('id, name, email, role, sae_vendor_key, created_at');
+
+    if (error) throw error;
+    res.json({ success: true, seller: data[0] });
+  } catch (err) {
+    console.error('updateSeller error:', err);
+    res.status(500).json({ success: false, message: 'Error al actualizar vendedor.' });
+  }
+};
+
+export const deleteSeller = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    }
+
+    const { id } = req.params;
+
+    // 1. Desasignar todos los leads asociados a este vendedor, dejándolos "huérfanos" (assigned_to = null)
+    const { error: updateLeadsError } = await supabase
+      .from('leads')
+      .update({ assigned_to: null })
+      .eq('assigned_to', id);
+
+    if (updateLeadsError) throw updateLeadsError;
+
+    // 2. Eliminar el acceso del vendedor (eliminar su registro de la tabla crm_users)
+    const { error: deleteUserError } = await supabase
+      .from('crm_users')
+      .delete()
+      .eq('id', id);
+
+    if (deleteUserError) throw deleteUserError;
+
+    res.json({ success: true, message: 'Vendedor eliminado. Sus leads ahora están huérfanos y listos para ser reasignados.' });
+  } catch (err) {
+    console.error('deleteSeller error:', err);
+    res.status(500).json({ success: false, message: 'Error al eliminar el perfil del vendedor.' });
+  }
+};
+
+
+export const getSaeSellersList = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    }
+
+    // Consultar la tabla vend03 en la base de datos espejo de Supabase
+    const { data, error } = await saeSupabase
+      .from('vend03')
+      .select('cve_vend, nombre, status')
+      .eq('status', 'A')
+      .order('nombre', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, sellers: data });
+  } catch (err) {
+    console.error('getSaeSellersList error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener vendedores del SAE.' });
+  }
+};
+
 // ---------- CUSTOMERS (CLIENTES DE VENDEDORES) ----------
 export const getCustomers = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
 
+    // 1. CRM customers
     const query = supabase
       .from('leads')
       .select(`
@@ -471,13 +576,64 @@ export const getCustomers = async (req, res) => {
       .eq('type', 'crm_customer')
       .order('created_at', { ascending: false });
 
-    // Sales reps only see their own registered customers, Admins see all
-    const { data, error } = role === 'sales'
+    const { data: crmCustomers, error: crmError } = role === 'sales'
       ? await query.eq('assigned_to', userId)
       : await query;
 
-    if (error) throw error;
-    res.json({ success: true, customers: data });
+    if (crmError) throw crmError;
+
+    // 2. Fetch linked SAE seller key if any
+    let saeKey = null;
+    if (role === 'sales' && userId) {
+      const { data: userRec } = await supabase
+        .from('crm_users')
+        .select('sae_vendor_key')
+        .eq('id', userId)
+        .maybeSingle();
+      if (userRec?.sae_vendor_key) {
+        saeKey = userRec.sae_vendor_key.trim();
+      }
+    }
+
+    let saeCustomers = [];
+    if (saeKey) {
+      const { data: saeData, error: saeError } = await saeSupabase
+        .from('clie03')
+        .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
+        .eq('cve_vend', saeKey)
+        .eq('status', 'A'); // A = Activo
+
+      if (!saeError && saeData) {
+        saeCustomers = saeData.map(client => ({
+          id: `sae-${client.clave.trim()}`,
+          name: client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre',
+          email: client.mail ? client.mail.trim() : '',
+          phone: client.telefono ? client.telefono.trim() : '',
+          status: 'calificado',
+          type: 'crm_customer',
+          company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
+          project_type: 'Sincronizado SAE',
+          notes: `Cliente de Aspel SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+          created_at: client.fch_ultcom || new Date().toISOString(),
+          assigned_to: { id: userId, name: req.user?.name || 'Ejecutivo' },
+          limcred: parseFloat(client.limcred || 0),
+          saldo: parseFloat(client.saldo || 0),
+          lista_prec: parseInt(client.lista_prec || 1),
+          clasific: client.clasific ? client.clasific.trim() : '',
+          pag_web: client.pag_web ? client.pag_web.trim() : '',
+          calle: client.calle ? client.calle.trim() : '',
+          colonia: client.colonia ? client.colonia.trim() : '',
+          codigo: client.codigo ? client.codigo.trim() : '',
+          municipio: client.municipio ? client.municipio.trim() : '',
+          estado: client.estado ? client.estado.trim() : ''
+        }));
+      }
+    }
+
+    // Merge lists
+    const merged = [...crmCustomers, ...saeCustomers];
+
+    res.json({ success: true, customers: merged });
   } catch (err) {
     console.error('getCustomers error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener clientes.' });
@@ -598,10 +754,10 @@ export const getCustomerQuotes = async (req, res) => {
 export const saveQuote = async (req, res) => {
   try {
     const sellerId = req.user?.userId; // Decoded from JWT
-    const { quoteNum, clientId, agreement, items, notes, subtotal, iva, total } = req.body;
+    const { quoteNum, clientId, opportunityId, agreement, items, notes, subtotal, iva, total } = req.body;
 
-    if (!quoteNum || !clientId || !items || items.length === 0) {
-      return res.status(400).json({ success: false, message: 'Número de cotización, cliente y partidas son requeridos.' });
+    if (!quoteNum || (!clientId && !opportunityId) || !items || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'Número de cotización, cliente/oportunidad, y partidas son requeridos.' });
     }
 
     const { data, error } = await supabase
@@ -609,7 +765,8 @@ export const saveQuote = async (req, res) => {
       .insert([
         {
           quote_num: quoteNum,
-          client_id: clientId,
+          client_id: clientId || null,
+          opportunity_id: opportunityId || null,
           seller_id: sellerId,
           agreement,
           items, // stored as jsonb
@@ -819,5 +976,166 @@ export const uploadCustomerEvidence = async (req, res) => {
   } catch (err) {
     console.error('uploadCustomerEvidence error:', err);
     res.status(500).json({ success: false, message: 'Error interno al subir la evidencia.' });
+  }
+};
+
+// ---------- GESTOR DE COTIZACIONES (vista global) ----------
+export const getAllQuotes = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const role = req.user?.role;
+
+    let query = supabase
+      .from('quotes')
+      .select(`
+        id,
+        quote_num,
+        agreement,
+        items,
+        notes,
+        subtotal,
+        iva,
+        total,
+        created_at,
+        seller:crm_users!quotes_seller_id_fkey (id, name),
+        client:leads!quotes_client_id_fkey (id, name, company, email, phone)
+      `)
+      .order('created_at', { ascending: false });
+
+    // Sales only see their own quotes
+    if (role === 'sales') {
+      query = query.eq('seller_id', userId);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, quotes: data });
+  } catch (err) {
+    console.error('getAllQuotes error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener cotizaciones.' });
+  }
+};
+
+// ---------- PIPELINE STATS (Dashboard) ----------
+export const getPipelineStats = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const role = req.user?.role;
+
+    // Get leads count by status
+    let leadsQuery = supabase
+      .from('leads')
+      .select('status, type, created_at')
+      .neq('type', 'crm_customer');
+
+    if (role === 'sales') {
+      leadsQuery = leadsQuery.eq('assigned_to', userId);
+    }
+
+    const { data: leadsData, error: leadsError } = await leadsQuery;
+    if (leadsError) throw leadsError;
+
+    // Get quotes totals
+    let quotesQuery = supabase
+      .from('quotes')
+      .select('total, created_at');
+
+    if (role === 'sales') {
+      quotesQuery = quotesQuery.eq('seller_id', userId);
+    }
+
+    const { data: quotesData, error: quotesError } = await quotesQuery;
+    if (quotesError) throw quotesError;
+
+    // Build stats object
+    const statusCounts = {};
+    (leadsData || []).forEach(l => {
+      const s = l.status || 'nuevo';
+      statusCounts[s] = (statusCounts[s] || 0) + 1;
+    });
+
+    const totalQuotesAmount = (quotesData || []).reduce((acc, q) => acc + (parseFloat(q.total) || 0), 0);
+    const totalQuotesCount = (quotesData || []).length;
+
+    // Monthly grouped quotes
+    const monthlyQuotes = {};
+    (quotesData || []).forEach(q => {
+      const month = new Date(q.created_at).toLocaleDateString('es-MX', { year: 'numeric', month: 'short' });
+      if (!monthlyQuotes[month]) monthlyQuotes[month] = { count: 0, total: 0 };
+      monthlyQuotes[month].count += 1;
+      monthlyQuotes[month].total += parseFloat(q.total) || 0;
+    });
+
+    res.json({
+      success: true,
+      stats: {
+        pipeline: statusCounts,
+        totalLeads: (leadsData || []).length,
+        totalQuotesCount,
+        totalQuotesAmount,
+        monthlyQuotes
+      }
+    });
+  } catch (err) {
+    console.error('getPipelineStats error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener estadísticas.' });
+  }
+};
+
+// ---------- LEADS HUÉRFANOS (Dashboard Admin) ----------
+export const getOrphanLeads = async (req, res) => {
+  try {
+    if (req.user?.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    }
+
+    // 1. Obtener Leads Huérfanos de la base de datos del CRM (assigned_to es null y no es cliente permanente)
+    const { data: crmOrphans, error: crmError } = await supabase
+      .from('leads')
+      .select('*')
+      .is('assigned_to', null)
+      .neq('type', 'crm_customer')
+      .order('created_at', { ascending: false });
+
+    if (crmError) throw crmError;
+
+    // 2. Obtener Clientes Huérfanos de la copia espejo del SAE (cve_vend es null, vacío, o '   ' o similar y status es A)
+    let saeOrphans = [];
+    try {
+      const { data: saeData, error: saeError } = await saeSupabase
+        .from('clie03')
+        .select('clave, nombre, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas')
+        .eq('status', 'A')
+        .or('cve_vend.is.null, cve_vend.eq."", cve_vend.eq." ", cve_vend.eq."  ", cve_vend.eq."   "');
+
+      if (saeError) {
+        console.warn('Advertencia al consultar clie03 espejo de SAE:', saeError);
+      } else {
+        saeOrphans = (saeData || []).map(client => ({
+          id: `sae-${client.clave.trim()}`,
+          name: client.nombre.trim(),
+          email: client.mail ? client.mail.trim() : '',
+          phone: client.telefono ? client.telefono.trim() : '',
+          company: 'Sincronizado de ASPEL SAE',
+          notes: `Cliente importado del SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+          status: 'nuevo',
+          type: 'sae_orphan',
+          created_at: client.fch_ultcom || new Date().toISOString(),
+          assigned_to: null,
+          raw_sae_key: client.clave.trim()
+        }));
+      }
+    } catch (saeEx) {
+      console.error('Error no crítico al consultar SAE espejo:', saeEx);
+    }
+
+    res.json({
+      success: true,
+      crmOrphans: crmOrphans || [],
+      saeOrphans: saeOrphans
+    });
+  } catch (err) {
+    console.error('getOrphanLeads error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener leads huérfanos.' });
   }
 };

@@ -120,3 +120,4 @@ backend/.env
 backend/.env.local
 backend/.env.development.local
 backend/.env.production.local
+backend/migrations/*.FDB

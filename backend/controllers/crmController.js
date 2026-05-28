@@ -353,10 +353,8 @@ export const deleteOpportunity = async (req, res) => {
 // ---------- SELLERS / VENDEDORES (ADMIN ONLY) ----------
 export const getSellers = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
-    }
-
+    // Previously only admin could access; now any authenticated user can fetch seller list
+    // Optionally, you could filter based on user role, but for now we return all sales users
     const { data, error } = await supabase
       .from('crm_users')
       .select('id, name, email, role, sae_vendor_key, created_at')
@@ -582,6 +580,30 @@ export const getCustomers = async (req, res) => {
 
     if (crmError) throw crmError;
 
+    // Parse crmCustomers to find any that are linked to SAE
+    const saeLinkedMap = {};
+    const nativeCustomers = [];
+
+    (crmCustomers || []).forEach(cust => {
+      let saeClave = null;
+      if (cust.notes) {
+        try {
+          const parsed = JSON.parse(cust.notes.trim());
+          if (parsed && parsed.sae_clave) {
+            saeClave = parsed.sae_clave.trim();
+          }
+        } catch (e) {
+          // not JSON
+        }
+      }
+
+      if (saeClave) {
+        saeLinkedMap[saeClave] = cust;
+      } else {
+        nativeCustomers.push(cust);
+      }
+    });
+
     // 2. Fetch linked SAE seller key if any
     let saeKey = null;
     if (role === 'sales' && userId) {
@@ -604,34 +626,56 @@ export const getCustomers = async (req, res) => {
         .eq('status', 'A'); // A = Activo
 
       if (!saeError && saeData) {
-        saeCustomers = saeData.map(client => ({
-          id: `sae-${client.clave.trim()}`,
-          name: client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre',
-          email: client.mail ? client.mail.trim() : '',
-          phone: client.telefono ? client.telefono.trim() : '',
-          status: 'calificado',
-          type: 'crm_customer',
-          company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
-          project_type: 'Sincronizado SAE',
-          notes: `Cliente de Aspel SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
-          created_at: client.fch_ultcom || new Date().toISOString(),
-          assigned_to: { id: userId, name: req.user?.name || 'Ejecutivo' },
-          limcred: parseFloat(client.limcred || 0),
-          saldo: parseFloat(client.saldo || 0),
-          lista_prec: parseInt(client.lista_prec || 1),
-          clasific: client.clasific ? client.clasific.trim() : '',
-          pag_web: client.pag_web ? client.pag_web.trim() : '',
-          calle: client.calle ? client.calle.trim() : '',
-          colonia: client.colonia ? client.colonia.trim() : '',
-          codigo: client.codigo ? client.codigo.trim() : '',
-          municipio: client.municipio ? client.municipio.trim() : '',
-          estado: client.estado ? client.estado.trim() : ''
-        }));
+        saeCustomers = saeData.map(client => {
+          const clave = client.clave.trim();
+          const linkedCust = saeLinkedMap[clave];
+
+          // If we have a matching migrated/enriched CRM record, override values from CRM!
+          const name = linkedCust ? linkedCust.name : (client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre');
+          const email = linkedCust ? linkedCust.email : (client.mail ? client.mail.trim() : '');
+          const phone = linkedCust ? linkedCust.phone : (client.telefono ? client.telefono.trim() : '');
+          const status = linkedCust ? linkedCust.status : 'pendiente_revision'; // Default status for SAE is "pendiente_revision" as requested!
+          const company = linkedCust ? linkedCust.company : (client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'));
+          
+          // Giro/especialidad: blank if empty/Sincronizado SAE by default, unless set
+          const project_type = linkedCust ? linkedCust.project_type : '';
+
+          // Notes: merge timeline and general
+          const notes = linkedCust ? linkedCust.notes : JSON.stringify({
+            general: `Cliente de Aspel SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+            sae_clave: clave,
+            timeline: []
+          });
+
+          return {
+            id: `sae-${clave}`,
+            name,
+            email,
+            phone,
+            status,
+            type: 'crm_customer',
+            company,
+            project_type,
+            notes,
+            created_at: client.fch_ultcom || new Date().toISOString(),
+            assigned_to: { id: userId, name: req.user?.name || 'Ejecutivo' },
+            limcred: parseFloat(client.limcred || 0),
+            saldo: parseFloat(client.saldo || 0),
+            lista_prec: parseInt(client.lista_prec || 1),
+            clasific: client.clasific ? client.clasific.trim() : '',
+            pag_web: client.pag_web ? client.pag_web.trim() : '',
+            calle: client.calle ? client.calle.trim() : '',
+            colonia: client.colonia ? client.colonia.trim() : '',
+            codigo: client.codigo ? client.codigo.trim() : '',
+            municipio: client.municipio ? client.municipio.trim() : '',
+            estado: client.estado ? client.estado.trim() : ''
+          };
+        });
       }
     }
 
     // Merge lists
-    const merged = [...crmCustomers, ...saeCustomers];
+    const merged = [...nativeCustomers, ...saeCustomers];
 
     res.json({ success: true, customers: merged });
   } catch (err) {
@@ -678,24 +722,105 @@ export const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, email, phone, company, project_type, notes, status } = req.body;
+    const userId = req.user?.userId;
 
-    const { data, error } = await supabase
-      .from('leads')
-      .update({
-        name,
-        email,
-        phone,
-        company,
-        project_type,
-        notes,
-        status: status || 'calificado'
-      })
-      .eq('id', id)
-      .eq('type', 'crm_customer')
-      .select();
+    if (id.startsWith('sae-')) {
+      const saeClave = id.replace('sae-', '').trim();
 
-    if (error) throw error;
-    res.json({ success: true, customer: data[0] });
+      // Find if we already have a record in `leads` that matches this SAE key in its notes JSON
+      const { data: existingLeads, error: fetchErr } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('type', 'crm_customer');
+
+      if (fetchErr) throw fetchErr;
+
+      let matchedLead = null;
+      for (const lead of existingLeads || []) {
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
+              matchedLead = lead;
+              break;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      // Clean notes format ensuring we store the sae_clave
+      let notesPayload = notes;
+      try {
+        const parsedNotes = JSON.parse(notes.trim());
+        parsedNotes.sae_clave = saeClave;
+        notesPayload = JSON.stringify(parsedNotes);
+      } catch (e) {
+        notesPayload = JSON.stringify({
+          general: notes,
+          sae_clave: saeClave,
+          timeline: []
+        });
+      }
+
+      if (matchedLead) {
+        const { data, error } = await supabase
+          .from('leads')
+          .update({
+            name,
+            email,
+            phone,
+            company,
+            project_type,
+            notes: notesPayload,
+            status: status || 'calificado'
+          })
+          .eq('id', matchedLead.id)
+          .select();
+
+        if (error) throw error;
+        res.json({ success: true, customer: { ...data[0], id } });
+      } else {
+        const { data, error } = await supabase
+          .from('leads')
+          .insert([
+            {
+              name,
+              email,
+              phone,
+              company,
+              project_type,
+              notes: notesPayload,
+              status: status || 'calificado',
+              type: 'crm_customer',
+              assigned_to: userId
+            }
+          ])
+          .select();
+
+        if (error) throw error;
+        res.json({ success: true, customer: { ...data[0], id } });
+      }
+    } else {
+      const { data, error } = await supabase
+        .from('leads')
+        .update({
+          name,
+          email,
+          phone,
+          company,
+          project_type,
+          notes,
+          status: status || 'calificado'
+        })
+        .eq('id', id)
+        .eq('type', 'crm_customer')
+        .select();
+
+      if (error) throw error;
+      res.json({ success: true, customer: data[0] });
+    }
   } catch (err) {
     console.error('updateCustomer error:', err);
     res.status(500).json({ success: false, message: 'Error al actualizar cliente.' });

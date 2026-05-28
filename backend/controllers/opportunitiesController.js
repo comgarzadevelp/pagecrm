@@ -42,8 +42,8 @@ export const createOpportunity = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El título es obligatorio.' });
     }
 
-    const cleanContactId = (typeof contact_id === 'object' && contact_id !== null) ? contact_id.id : ((contact_id && String(contact_id).trim() !== '') ? String(contact_id).trim() : null);
-    const cleanCompanyId = (typeof company_id === 'object' && company_id !== null) ? company_id.id : ((company_id && String(company_id).trim() !== '') ? String(company_id).trim() : null);
+    const cleanContactId = (typeof contact_id === 'object' && contact_id !== null) ? contact_id.id : ((contact_id && String(contact_id).trim() !== '' && !String(contact_id).trim().startsWith('sae-')) ? String(contact_id).trim() : null);
+    const cleanCompanyId = (typeof company_id === 'object' && company_id !== null) ? company_id.id : ((company_id && String(company_id).trim() !== '' && !String(company_id).trim().startsWith('sae-')) ? String(company_id).trim() : null);
     const cleanAssignedTo = (typeof assigned_to === 'object' && assigned_to !== null) ? assigned_to.id : ((assigned_to && String(assigned_to).trim() !== '') ? String(assigned_to).trim() : userId);
 
     const insertData = {

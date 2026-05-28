@@ -10,6 +10,10 @@ import leadRoutes from './routes/leadRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import crmRoutes from './routes/crmRoutes.js';
+import saeRoutes from './routes/saeRoutes.js';
+
+// Añadir variable de entorno para orígenes permitidos (se define en .env)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +30,7 @@ app.use(morgan('dev'));
 // Configuración de CORS
 // Permite peticiones desde el frontend (Vite por defecto corre en el 5173, o cualquier otro puerto)
 app.use(cors({
-  origin: '*', // En producción real se puede configurar a dominios específicos
+  origin: ALLOWED_ORIGINS,
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
@@ -48,6 +52,7 @@ app.use('/api/leads', leadRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/crm', crmRoutes);
+app.use('/api/sae', saeRoutes);
 
 
 // Manejo de rutas inexistentes (404)

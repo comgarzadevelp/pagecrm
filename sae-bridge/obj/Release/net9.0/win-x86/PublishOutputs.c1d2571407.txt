@@ -1,0 +1,9 @@
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\SaeBridge.exe
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\appsettings.Development.json
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\appsettings.json
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\SaeBridge.dll
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\SaeBridge.deps.json
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\SaeBridge.runtimeconfig.json
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\SaeBridge.pdb
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\Microsoft.AspNetCore.OpenApi.dll
+Z:\Diseño V2\GARZA\06-GarzaPage\sae-bridge\bin\Release\net9.0\win-x86\publish\Microsoft.OpenApi.dll

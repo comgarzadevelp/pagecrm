@@ -7,7 +7,13 @@ export const getContacts = async (req, res) => {
     const userId = req.user?.userId;
     const role = req.user?.role;
 
-    // 1. CRM contacts
+    // 1. Fetch archived contacts from crm to exclude them
+    const { data: archivedRecs, error: archError } = await supabase
+      .from('archived_contacts')
+      .select('sae_id');
+    const archivedIds = new Set((archivedRecs || []).map(r => r.sae_id));
+
+    // 2. CRM contacts
     const { data: crmContacts, error: crmError } = await supabase
       .from('contacts')
       .select(`
@@ -23,7 +29,7 @@ export const getContacts = async (req, res) => {
 
     if (crmError) throw crmError;
 
-    // 2. Fetch linked SAE seller key if any
+    // 3. Fetch linked SAE seller key if any
     let saeKey = null;
     if (role === 'sales' && userId) {
       const { data: userRec } = await supabase
@@ -65,11 +71,15 @@ export const getContacts = async (req, res) => {
         if (!contactsError && contactsData) {
           saeContacts = contactsData.map((contact, idx) => {
             const companyInfo = clientMap[contact.cve_clie.trim()] || { name: 'Particular', lista_prec: 1 };
+            const contactEmail = contact.email ? contact.email.trim() : '';
+            const cleanedEmail = (contactEmail.toUpperCase() === 'S' || contactEmail.toUpperCase() === 'S/D' || contactEmail.trim() === '') ? '' : contactEmail;
+            const saeContactId = `sae-contact-${contact.cve_clie.trim()}-${idx + 1}`;
+            
             return {
-              id: `sae-contact-${contact.cve_clie.trim()}-${idx}`,
+              id: saeContactId,
               name: contact.nombre ? contact.nombre.trim() : 'Contacto SAE',
               position: 'Representante Autorizado / Compras',
-              email: contact.email ? contact.email.trim() : '',
+              email: cleanedEmail,
               phone: contact.telefono ? contact.telefono.trim() : '',
               phone_alt: '',
               whatsapp: contact.telefono ? contact.telefono.trim() : '',
@@ -91,18 +101,70 @@ export const getContacts = async (req, res) => {
                 }
               ]
             };
-          });
+          }).filter(c => !archivedIds.has(c.id));
         }
       }
     }
 
     // Merge lists
-    const merged = [...crmContacts, ...saeContacts];
+    const merged = [...crmContacts.filter(c => !archivedIds.has(c.id)), ...saeContacts];
 
     res.json({ success: true, contacts: merged });
   } catch (err) {
     console.error('getContacts error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener contactos.' });
+  }
+};
+
+// GET /api/crm/contacts/archived
+export const getArchivedContacts = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('archived_contacts')
+      .select(`
+        id, sae_id, name, position, email, phone, whatsapp, notes, archived_at,
+        archived_by (id, name)
+      `)
+      .order('archived_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, contacts: data || [] });
+  } catch (err) {
+    console.error('getArchivedContacts error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener contactos archivados.' });
+  }
+};
+
+// POST /api/crm/contacts/:id/archive
+export const archiveContact = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.userId;
+  try {
+    const { name, position, email, phone, whatsapp, notes, cve_clie } = req.body;
+
+    const { data, error } = await supabase
+      .from('archived_contacts')
+      .upsert([
+        {
+          sae_id: id,
+          cve_clie: cve_clie || 'N/A',
+          name: name || 'Contacto SAE',
+          position: position || '',
+          email: email || '',
+          phone: phone || '',
+          whatsapp: whatsapp || '',
+          notes: notes || '',
+          archived_by: userId,
+          archived_at: new Date().toISOString()
+        }
+      ], { onConflict: 'sae_id' })
+      .select();
+
+    if (error) throw error;
+    res.json({ success: true, message: 'Contacto archivado exitosamente.', archived: data[0] });
+  } catch (err) {
+    console.error('archiveContact error:', err);
+    res.status(500).json({ success: false, message: 'Error al archivar contacto.' });
   }
 };
 

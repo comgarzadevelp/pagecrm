@@ -141,6 +141,55 @@ export default function MisContactos({ onViewCompanyDetails }) {
     } catch (err) { alert('Error: ' + err.message); }
   };
 
+  // Archive Modal states
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [contactForArchive, setContactForArchive] = useState(null);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [archivingInProgress, setArchivingInProgress] = useState(false);
+
+  const handleArchiveClick = (c) => {
+    setContactForArchive(c);
+    setArchiveReason('');
+    setShowArchiveModal(true);
+  };
+
+  const handleArchiveConfirm = async (e) => {
+    e.preventDefault();
+    if (archiveReason.trim().length < 200) {
+      alert(`Por favor redacta una justificación válida. Llevas ${archiveReason.trim().length} de 200 caracteres mínimos requeridos.`);
+      return;
+    }
+    setArchivingInProgress(true);
+    try {
+      const payload = {
+        name: contactForArchive.name,
+        position: contactForArchive.position,
+        email: contactForArchive.email,
+        phone: contactForArchive.phone,
+        whatsapp: contactForArchive.whatsapp,
+        notes: `${contactForArchive.notes || ''}\n\n[Razón de Archivado]: ${archiveReason.trim()}`,
+        cve_clie: contactForArchive.contact_companies?.[0]?.company?.id?.replace('sae-', '') || 'N/A'
+      };
+      
+      const res = await fetch(`${API_BASE}/api/crm/contacts/${contactForArchive.id}/archive`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setShowArchiveModal(false);
+      setContactForArchive(null);
+      alert('Contacto archivado y depurado exitosamente del directorio activo.');
+      fetchContacts();
+    } catch (err) {
+      alert('Error al archivar contacto: ' + err.message);
+    } finally {
+      setArchivingInProgress(false);
+    }
+  };
+
   const handleOpenLink = async (c) => {
     setSelectedContact(c);
     setLinkCompanyId(''); setLinkRole('');
@@ -207,23 +256,78 @@ export default function MisContactos({ onViewCompanyDetails }) {
         <div className="crm-empty-placeholder"><i className="fas fa-user-slash" /><p>No hay contactos registrados aún.</p></div>
       ) : (
         <div className="contacts-cards-grid">
-          {filtered.map(c => (
-            <div className="contact-card glass" key={c.id}>
-              {/* Avatar */}
-              <div className="contact-card-avatar">
-                {c.avatar_url
-                  ? <img src={`${API_BASE}${c.avatar_url}`} alt={c.name} />
-                  : <span>{c.name?.charAt(0).toUpperCase()}</span>}
-              </div>
+          {filtered.map(c => {
+            const isSae = String(c.id).startsWith('sae-');
+            return (
+              <div className="contact-card glass" key={c.id}>
+                {/* Source Badge (SAE or CRM) */}
+                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1 }}>
+                  {isSae ? (
+                    <span style={{ 
+                      fontSize: '0.6rem', 
+                      background: 'rgba(212, 163, 89, 0.12)', 
+                      color: 'var(--color-brand-primary)', 
+                      border: '1px solid rgba(212, 163, 89, 0.3)',
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      fontWeight: '800',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      <i className="fas fa-database" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> SAE
+                    </span>
+                  ) : (
+                    <span style={{ 
+                      fontSize: '0.6rem', 
+                      background: 'rgba(37, 99, 235, 0.1)', 
+                      color: '#2563eb', 
+                      border: '1px solid rgba(37, 99, 235, 0.25)',
+                      padding: '2px 8px', 
+                      borderRadius: '12px',
+                      fontWeight: '800',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em'
+                    }}>
+                      <i className="fas fa-laptop" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> CRM
+                    </span>
+                  )}
+                </div>
+
+                {/* Avatar */}
+                <div className="contact-card-avatar" style={{ position: 'relative' }}>
+                  {c.avatar_url
+                    ? <img src={`${API_BASE}${c.avatar_url}`} alt={c.name} />
+                    : <span>{c.name?.charAt(0).toUpperCase()}</span>}
+                </div>
 
               {/* Info */}
               <div className="contact-card-body">
-                <h4 className="contact-card-name">{c.name}</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                  <h4 className="contact-card-name" style={{ margin: 0 }}>{c.name}</h4>
+                  {(!c.phone || !c.email) && (
+                    <span style={{ 
+                      fontSize: '0.65rem', 
+                      background: '#fef2f2', 
+                      color: '#ef4444', 
+                      border: '1px solid #fee2e2', 
+                      padding: '2px 6px', 
+                      borderRadius: '4px',
+                      fontWeight: 'bold',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      <i className="fas fa-exclamation-circle" style={{ fontSize: '0.65rem' }}></i>
+                      Incompleto: {!c.phone ? 'Sin Tel' : 'Sin Correo'}
+                    </span>
+                  )}
+                </div>
                 {c.position && <span className="contact-card-position">{c.position}</span>}
 
                 <div className="contact-card-data">
-                  {c.email && <span><i className="fas fa-envelope" /> {c.email}</span>}
-                  {c.phone && <span><i className="fas fa-phone" /> {c.phone}</span>}
+                  {c.email ? <span><i className="fas fa-envelope" /> {c.email}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-envelope" /> Falta correo</span>}
+                  {c.phone ? <span><i className="fas fa-phone" /> {c.phone}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-phone" /> Falta teléfono</span>}
                   {c.whatsapp && (
                     <a href={`https://wa.me/52${c.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="contact-wa-link">
                       <i className="fab fa-whatsapp" /> WhatsApp
@@ -290,20 +394,39 @@ export default function MisContactos({ onViewCompanyDetails }) {
               </div>
 
               {/* Actions */}
-              <div className="contact-card-actions">
-                <button className="btn-view-details" onClick={() => openDetail(c)}>
+              <div className="contact-card-actions" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => openDetail(c)}>
                   <i className="fas fa-eye" /> Ver
                 </button>
-                <button className="btn-view-details" onClick={() => handleOpenEdit(c)}>
+                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => handleOpenEdit(c)}>
                   <i className="fas fa-edit" /> Editar
                 </button>
-                <button className="btn-link-company" onClick={() => handleOpenLink(c)}>
+                <button className="btn-link-company" style={{ flex: 1 }} onClick={() => handleOpenLink(c)}>
                   <i className="fas fa-link" /> Empresa
+                </button>
+                <button 
+                  className="btn-logout" 
+                  style={{ 
+                    flex: 1, 
+                    padding: '0.4rem 0.6rem', 
+                    fontSize: '0.75rem', 
+                    background: '#fef2f2', 
+                    color: '#ef4444', 
+                    border: '1px solid #fee2e2', 
+                    borderRadius: '8px',
+                    margin: 0,
+                    boxShadow: 'none'
+                  }} 
+                  onClick={() => handleArchiveClick(c)}
+                  title="Archivar contacto (Guardar copia y ocultar)"
+                >
+                  <i className="fas fa-archive" /> Archivar
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+          );
+        })}
+      </div>
       )}
 
       <div className="crm-table-footer">
@@ -427,6 +550,59 @@ export default function MisContactos({ onViewCompanyDetails }) {
               <div className="form-actions full-width">
                 <button type="button" className="btn-cancel" onClick={() => setShowLinkModal(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary-golden"><i className="fas fa-link" /> Vincular</button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* MODAL ARCHIVAR CON JUSTIFICACIÓN REQUERIDA */}
+      {showArchiveModal && contactForArchive && createPortal(
+        <div className="crm-modal-overlay" onClick={() => setShowArchiveModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 520, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <button className="close-modal-btn" onClick={() => setShowArchiveModal(false)}>×</button>
+            <div className="modal-header">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
+                <i className="fas fa-archive" /> Depurar y Archivar Contacto
+              </h2>
+              <p style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', marginTop: '4px' }}>
+                Contacto: <strong>{contactForArchive.name}</strong>
+              </p>
+            </div>
+            
+            <div style={{ background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: '8px', padding: '12px', marginBottom: '1.25rem', fontSize: '0.8rem', color: '#991b1b', lineHeight: '1.4' }}>
+              <i className="fas fa-exclamation-triangle" style={{ marginRight: '6px' }} />
+              <strong>Control de Calidad Comercial:</strong> Para evitar que se archiven prospectos o contactos viables por descuido, es estrictamente obligatorio redactar una explicación comercial detallada (mínimo 200 caracteres) explicando por qué este contacto ya no es viable (ej. la empresa desapareció del mercado, el puesto ya no existe, el número telefónico pertenece a un particular, etc.).
+            </div>
+
+            <form onSubmit={handleArchiveConfirm} className="crm-form-grid">
+              <div className="form-group full-width">
+                <label style={{ fontWeight: '700' }}>Explicación de Archivado *</label>
+                <textarea 
+                  required
+                  value={archiveReason}
+                  onChange={e => setArchiveReason(e.target.value)}
+                  placeholder="Redacta detalladamente los motivos aquí... (Ej. La constructora Davisa cerró esta sucursal permanentemente y los números de contacto del SAE ya fueron asignados a una línea residencial ajena, validado mediante llamadas directas...)" 
+                  rows={6}
+                  style={{ fontSize: '0.85rem', width: '100%' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginTop: '6px', color: archiveReason.trim().length >= 200 ? '#16a34a' : '#ef4444', fontWeight: 'bold' }}>
+                  <span>{archiveReason.trim().length >= 200 ? '✅ Caracteres mínimos alcanzados' : '❌ Justificación demasiado corta'}</span>
+                  <span>{archiveReason.trim().length} / 200 caracteres</span>
+                </div>
+              </div>
+
+              <div className="form-actions full-width" style={{ marginTop: '1rem' }}>
+                <button type="button" className="btn-cancel" onClick={() => setShowArchiveModal(false)}>Cancelar</button>
+                <button 
+                  type="submit" 
+                  className="btn-primary-golden" 
+                  disabled={archiveReason.trim().length < 200 || archivingInProgress}
+                  style={{ background: archiveReason.trim().length < 200 ? '#cbd5e1' : '#dc2626', borderColor: archiveReason.trim().length < 200 ? '#cbd5e1' : '#dc2626', color: '#fff' }}
+                >
+                  {archivingInProgress ? <><i className="fas fa-spinner fa-spin" /> Archivando...</> : <><i className="fas fa-archive" /> Depurar y Archivar</>}
+                </button>
               </div>
             </form>
           </div>

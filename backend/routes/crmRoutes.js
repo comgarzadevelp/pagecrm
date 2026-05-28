@@ -13,14 +13,13 @@ import {
   getAllQuotes, getPipelineStats
 } from '../controllers/crmController.js';
 
-// New modular controllers
 import {
   getContacts, getContactById, createContact, updateContact, deleteContact,
-  linkContactToCompany, unlinkContactFromCompany
+  linkContactToCompany, unlinkContactFromCompany, getArchivedContacts, archiveContact
 } from '../controllers/contactController.js';
 
 import {
-  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany
+  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany, getArchivedCompanies, archiveCompany
 } from '../controllers/companyController.js';
 
 import { getFiles, uploadFile, deleteFile } from '../controllers/fileController.js';
@@ -58,6 +57,8 @@ router.get('/customers/:id/quotes', getCustomerQuotes);
 
 // ── CONTACTOS (Personas físicas) ──────────────────────────────
 router.get('/contacts', getContacts);
+router.get('/contacts/archived', getArchivedContacts);
+router.post('/contacts/:id/archive', archiveContact);
 router.get('/contacts/:id', getContactById);
 router.post('/contacts', createContact);
 router.put('/contacts/:id', updateContact);
@@ -67,6 +68,8 @@ router.delete('/contacts/:id/link-company/:companyId', unlinkContactFromCompany)
 
 // ── EMPRESAS / DESARROLLOS ────────────────────────────────────
 router.get('/companies', getCompanies);
+router.get('/companies/archived', getArchivedCompanies);
+router.post('/companies/:id/archive', archiveCompany);
 router.get('/companies/:id', getCompanyById);
 router.post('/companies', createCompany);
 router.put('/companies/:id', updateCompany);

@@ -14,7 +14,7 @@ export const getCompanies = async (req, res) => {
     const archivedIds = new Set((archivedRecs || []).map(r => r.sae_id));
 
     // 2. CRM companies
-    const { data: crmCompanies, error: crmError } = await supabase
+    let query = supabase
       .from('companies')
       .select(`
         id, name, alias, type, rfc, address, city, state, maps_url, website, industry,
@@ -27,6 +27,12 @@ export const getCompanies = async (req, res) => {
         contact_payments:contacts!companies_contact_payments_fkey (id, name, phone, email, position)
       `)
       .order('name', { ascending: true });
+
+    if (role === 'sales') {
+      query = query.eq('created_by', userId);
+    }
+
+    const { data: crmCompanies, error: crmError } = await query;
 
     if (crmError) throw crmError;
 
@@ -68,7 +74,8 @@ export const getCompanies = async (req, res) => {
     }
 
     let saeCompanies = [];
-    if (saeKey) {
+    const isGarza = req.user?.companyCode === 'GARZA';
+    if (saeKey && isGarza) {
       const { data: saeData, error: saeError } = await saeSupabase
         .from('clie03')
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
@@ -222,6 +229,10 @@ export const getCompanyById = async (req, res) => {
   const { id } = req.params;
   try {
     if (id.startsWith('sae-')) {
+      const isGarza = req.user?.companyCode === 'GARZA';
+      if (!isGarza) {
+        return res.status(400).json({ success: false, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
+      }
       const saeKey = id.replace('sae-', '').trim();
 
       // Query mirror database clie03

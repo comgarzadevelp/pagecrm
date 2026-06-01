@@ -1,4 +1,30 @@
 import { supabase, saeSupabase } from '../supabaseClient.js';
+
+// Helper to audit commercial activity to all super admins
+const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
+  try {
+    const { data: superAdmins, error } = await supabase
+      .from('crm_users')
+      .select('id')
+      .eq('role', 'super_admin');
+      
+    if (error || !superAdmins || superAdmins.length === 0) return;
+    
+    const payloads = superAdmins.map(admin => ({
+      user_id: admin.id,
+      company_id: companyId || null,
+      title,
+      message,
+      type,
+      read: false
+    }));
+    
+    await supabase.from('crm_notifications').insert(payloads);
+  } catch (err) {
+    console.error('Error notifying super admins:', err);
+  }
+};
+
 import bcrypt from 'bcryptjs';
 import fs from 'fs';
 import path from 'path';
@@ -11,6 +37,11 @@ const __dirname = path.dirname(__filename);
 // ---------- LISTAS DE PRECIOS SAE ----------
 export const getPriceLists = async (req, res) => {
   try {
+    const companyCode = req.user?.companyCode;
+    if (companyCode !== 'GARZA') {
+      return res.json({ success: true, priceLists: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
+    }
+
     const { data: priceLists, error } = await saeSupabase
       .from('precios03')
       .select('cve_precio, descripcion')
@@ -27,6 +58,11 @@ export const getPriceLists = async (req, res) => {
 
 export const getProducts = async (req, res) => {
   try {
+    const companyCode = req.user?.companyCode;
+    if (companyCode !== 'GARZA') {
+      return res.json({ success: true, products: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
+    }
+
     const { q, category, material, measure } = req.query;
 
     // 1. Fetch dynamic agreements and price overrides from ASPEL SAE mirror tables
@@ -206,8 +242,13 @@ export const getLeads = async (req, res) => {
     // Si el usuario es sales, solo devuelve sus leads asignados
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const companyId = req.user?.companyId;
 
-    const query = supabase
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    let query = supabase
       .from('leads')
       .select(`
         id,
@@ -225,9 +266,13 @@ export const getLeads = async (req, res) => {
       .neq('type', 'crm_customer')
       .order('created_at', { ascending: false });
 
+    if (companyId && !String(companyId).startsWith('company-')) {
+      query = query.eq('company_id', companyId);
+    }
+
     const { data, error } = role === 'sales'
       ? await query.eq('assigned_to', userId)
-      : await query;   // admin ve todo
+      : await query;   // admin ve todo de su empresa
 
     if (error) throw error;
     res.json({ success: true, leads: data });
@@ -278,12 +323,24 @@ export const updateLeadStage = async (req, res) => {
 // ---------- OPPORTUNITIES ----------
 export const getOpportunities = async (req, res) => {
   const { id: leadId } = req.params;
+  const companyId = req.user?.companyId;
+
   try {
-    const { data, error } = await supabase
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    let query = supabase
       .from('opportunities')
       .select('*')
       .eq('lead_id', leadId)
       .order('created_at', { ascending: false });
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      query = query.eq('company_id', companyId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     res.json({ success: true, opportunities: data });
@@ -296,15 +353,26 @@ export const getOpportunities = async (req, res) => {
 export const createOpportunity = async (req, res) => {
   const { id: leadId } = req.params;
   const { title, stage } = req.body;
+  const companyId = req.user?.companyId;
 
   try {
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    const opportunityPayload = {
+      lead_id: leadId,
+      title,
+      stage
+    };
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      opportunityPayload.company_id = companyId;
+    }
+
     const { data, error } = await supabase
       .from('opportunities')
-      .insert({
-        lead_id: leadId,
-        title,
-        stage,
-      })
+      .insert(opportunityPayload)
       .select();
 
     if (error) throw error;
@@ -318,13 +386,23 @@ export const createOpportunity = async (req, res) => {
 export const updateOpportunityStage = async (req, res) => {
   const { opId } = req.params;
   const { stage } = req.body;
+  const companyId = req.user?.companyId;
 
   try {
-    const { data, error } = await supabase
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    let query = supabase
       .from('opportunities')
       .update({ stage })
-      .eq('id', opId)
-      .select();
+      .eq('id', opId);
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      query = query.eq('company_id', companyId);
+    }
+
+    const { data, error } = await query.select();
 
     if (error) throw error;
     res.json({ success: true, opportunity: data[0] });
@@ -350,16 +428,43 @@ export const deleteOpportunity = async (req, res) => {
   }
 };
 
-// ---------- SELLERS / VENDEDORES (ADMIN ONLY) ----------
+// ---------- SELLERS / VENDEDORES & GERENTES (ADMIN, SUPERVISOR, SUPER_ADMIN) ----------
+export const getEnterpriseCompanies = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('enterprise_companies')
+      .select('id, name, company_code, color_primary, color_accent, active');
+    
+    if (error) throw error;
+    res.json({ success: true, companies: data });
+  } catch (err) {
+    console.error('getEnterpriseCompanies error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener empresas de la corporación' });
+  }
+};
+
 export const getSellers = async (req, res) => {
   try {
-    // Previously only admin could access; now any authenticated user can fetch seller list
-    // Optionally, you could filter based on user role, but for now we return all sales users
-    const { data, error } = await supabase
+    const userRole = req.user?.role;
+    const companyId = req.user?.companyId;
+
+    let query = supabase
       .from('crm_users')
-      .select('id, name, email, role, sae_vendor_key, created_at')
-      .eq('role', 'sales')
+      .select('id, name, email, role, sae_vendor_key, created_at, company_id, supervisor_id')
       .order('created_at', { ascending: false });
+
+    // If super_admin, they see everyone across all companies.
+    // If not super_admin (i.e. admin/supervisor/sistemas), filter by their company
+    if (userRole !== 'super_admin') {
+      if (!companyId) {
+        return res.status(401).json({ success: false, message: 'Company ID required' });
+      }
+      query = query.eq('company_id', companyId);
+      // For local admins/supervisors, they see salespeople
+      query = query.eq('role', 'sales');
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     res.json({ success: true, sellers: data });
@@ -371,11 +476,22 @@ export const getSellers = async (req, res) => {
 
 export const createSeller = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador o supervisor requeridos.' });
     }
 
-    const { name, email, password, sae_vendor_key } = req.body;
+    let companyId = req.user?.companyId;
+    // Super admins can explicitly assign the company from the body payload
+    if (requesterRole === 'super_admin' && req.body.company_id) {
+      companyId = req.body.company_id;
+    }
+
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'ID de Empresa requerido para crear usuario.' });
+    }
+
+    const { name, email, password, sae_vendor_key, role, supervisor_id } = req.body;
     if (!name || !email || !password) {
       return res.status(400).json({ success: false, message: 'Nombre, correo y contraseña son requeridos.' });
     }
@@ -396,31 +512,41 @@ export const createSeller = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
+    // Super admin can specify roles like 'admin' (supervisor) or 'sales' or 'sistemas'
+    // Supervisors / admins can only create salespeople
+    const targetRole = requesterRole === 'super_admin' ? (role || 'sales') : 'sales';
+
+    const insertPayload = {
+      name,
+      email,
+      password_hash: hash,
+      role: targetRole,
+      sae_vendor_key: sae_vendor_key || null,
+      supervisor_id: supervisor_id || null
+    };
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertPayload.company_id = companyId;
+    }
+
     const { data, error } = await supabase
       .from('crm_users')
-      .insert([
-        {
-          name,
-          email,
-          password_hash: hash,
-          role: 'sales',
-          sae_vendor_key: sae_vendor_key || null
-        }
-      ])
-      .select('id, name, email, role, sae_vendor_key, created_at');
+      .insert([insertPayload])
+      .select('id, name, email, role, sae_vendor_key, company_id, supervisor_id, created_at');
 
     if (error) throw error;
     res.status(201).json({ success: true, seller: data[0] });
   } catch (err) {
     console.error('createSeller error:', err);
-    res.status(500).json({ success: false, message: 'Error interno al registrar el vendedor.' });
+    res.status(500).json({ success: false, message: 'Error interno al registrar el usuario.' });
   }
 };
 
 export const assignLead = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos requeridos.' });
     }
 
     const { id } = req.params; // lead id
@@ -442,8 +568,9 @@ export const assignLead = async (req, res) => {
 
 export const resetSellerPassword = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos requeridos.' });
     }
 
     const { id } = req.params; // seller crm_users id
@@ -471,22 +598,34 @@ export const resetSellerPassword = async (req, res) => {
 
 export const updateSeller = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos requeridos.' });
     }
 
     const { id } = req.params;
-    const { name, email, sae_vendor_key } = req.body;
+    const { name, email, sae_vendor_key, role, company_id, supervisor_id } = req.body;
+
+    const updatePayload = {
+      name,
+      email,
+      sae_vendor_key: sae_vendor_key || null
+    };
+
+    // Super admin can modify company, role and supervisor
+    if (requesterRole === 'super_admin') {
+      if (role) updatePayload.role = role;
+      if (company_id) updatePayload.company_id = company_id;
+      if (supervisor_id !== undefined) updatePayload.supervisor_id = supervisor_id;
+    } else if (requesterRole === 'admin' || requesterRole === 'supervisor') {
+      if (supervisor_id !== undefined) updatePayload.supervisor_id = supervisor_id;
+    }
 
     const { data, error } = await supabase
       .from('crm_users')
-      .update({
-        name,
-        email,
-        sae_vendor_key: sae_vendor_key || null
-      })
+      .update(updatePayload)
       .eq('id', id)
-      .select('id, name, email, role, sae_vendor_key, created_at');
+      .select('id, name, email, role, sae_vendor_key, company_id, supervisor_id, created_at');
 
     if (error) throw error;
     res.json({ success: true, seller: data[0] });
@@ -498,8 +637,9 @@ export const updateSeller = async (req, res) => {
 
 export const deleteSeller = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos requeridos.' });
     }
 
     const { id } = req.params;
@@ -520,18 +660,23 @@ export const deleteSeller = async (req, res) => {
 
     if (deleteUserError) throw deleteUserError;
 
-    res.json({ success: true, message: 'Vendedor eliminado. Sus leads ahora están huérfanos y listos para ser reasignados.' });
+    res.json({ success: true, message: 'Vendedor/Usuario eliminado. Sus leads ahora están huérfanos y listos para ser reasignados.' });
   } catch (err) {
     console.error('deleteSeller error:', err);
     res.status(500).json({ success: false, message: 'Error al eliminar el perfil del vendedor.' });
   }
 };
 
-
 export const getSaeSellersList = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
+    const requesterRole = req.user?.role;
+    if (!['admin', 'supervisor', 'super_admin'].includes(requesterRole)) {
+      return res.status(403).json({ success: false, message: 'No autorizado. Permisos requeridos.' });
+    }
+
+    const companyCode = req.user?.companyCode;
+    if (companyCode !== 'GARZA') {
+      return res.json({ success: true, sellers: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
     // Consultar la tabla vend03 en la base de datos espejo de Supabase
@@ -554,9 +699,14 @@ export const getCustomers = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const companyId = req.user?.companyId;
+
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
 
     // 1. CRM customers
-    const query = supabase
+    let query = supabase
       .from('leads')
       .select(`
         id,
@@ -573,6 +723,10 @@ export const getCustomers = async (req, res) => {
       `)
       .eq('type', 'crm_customer')
       .order('created_at', { ascending: false });
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      query = query.eq('company_id', companyId);
+    }
 
     const { data: crmCustomers, error: crmError } = role === 'sales'
       ? await query.eq('assigned_to', userId)
@@ -618,7 +772,8 @@ export const getCustomers = async (req, res) => {
     }
 
     let saeCustomers = [];
-    if (saeKey) {
+    const isGarza = req.user?.companyCode === 'GARZA';
+    if (saeKey && isGarza) {
       const { data: saeData, error: saeError } = await saeSupabase
         .from('clie03')
         .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
@@ -687,27 +842,36 @@ export const getCustomers = async (req, res) => {
 export const createCustomer = async (req, res) => {
   try {
     const userId = req.user?.userId;
+    const companyId = req.user?.companyId;
     const { name, email, phone, company, project_type, notes } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre del cliente es obligatorio.' });
     }
+    if (!companyId) {
+      return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    const insertPayload = {
+      name,
+      email,
+      phone,
+      company,
+      project_type,
+      notes,
+      status: 'calificado',
+      type: 'crm_customer',
+      assigned_to: userId
+    };
+
+    // Only set company_id when it's a real UUID (not a fallback string)
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertPayload.company_id = companyId;
+    }
 
     const { data, error } = await supabase
       .from('leads')
-      .insert([
-        {
-          name,
-          email,
-          phone,
-          company,
-          project_type,
-          notes,
-          status: 'calificado', // Customers start as qualified by default
-          type: 'crm_customer',
-          assigned_to: userId
-        }
-      ])
+      .insert([insertPayload])
       .select();
 
     if (error) throw error;
@@ -830,13 +994,26 @@ export const updateCustomer = async (req, res) => {
 export const deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = req.user?.companyId;
+    const role = req.user?.role;
 
-    const { error } = await supabase
+    // SAE-prefixed IDs cannot be deleted from CRM directly
+    if (id.startsWith('sae-')) {
+      return res.status(400).json({ success: false, message: 'Los clientes de SAE no se pueden eliminar desde el CRM.' });
+    }
+
+    let query = supabase
       .from('leads')
       .delete()
       .eq('id', id)
       .eq('type', 'crm_customer');
 
+    // Enforce company isolation (super_admin can delete from any company)
+    if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+      query = query.eq('company_id', companyId);
+    }
+
+    const { error } = await query;
     if (error) throw error;
     res.json({ success: true, message: 'Cliente eliminado correctamente.' });
   } catch (err) {
@@ -879,28 +1056,34 @@ export const getCustomerQuotes = async (req, res) => {
 export const saveQuote = async (req, res) => {
   try {
     const sellerId = req.user?.userId; // Decoded from JWT
+    const companyId = req.user?.companyId;
     const { quoteNum, clientId, opportunityId, agreement, items, notes, subtotal, iva, total } = req.body;
 
     if (!quoteNum || (!clientId && !opportunityId) || !items || items.length === 0) {
       return res.status(400).json({ success: false, message: 'Número de cotización, cliente/oportunidad, y partidas son requeridos.' });
     }
 
+    const insertPayload = {
+      quote_num: quoteNum,
+      client_id: clientId || null,
+      opportunity_id: opportunityId || null,
+      seller_id: sellerId,
+      agreement,
+      items,
+      notes,
+      subtotal,
+      iva,
+      total
+    };
+
+    // Enforce company isolation for multi-tenant
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertPayload.company_id = companyId;
+    }
+
     const { data, error } = await supabase
       .from('quotes')
-      .insert([
-        {
-          quote_num: quoteNum,
-          client_id: clientId || null,
-          opportunity_id: opportunityId || null,
-          seller_id: sellerId,
-          agreement,
-          items, // stored as jsonb
-          notes,
-          subtotal,
-          iva,
-          total
-        }
-      ])
+      .insert([insertPayload])
       .select();
 
     if (error) {
@@ -909,6 +1092,16 @@ export const saveQuote = async (req, res) => {
       }
       throw error;
     }
+
+    // Trigger Super Admin Notification with details about quote and total value
+    const createdBy = req.user?.name || 'Un ejecutivo';
+    const formattedTotal = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(total || 0);
+    await notifySuperAdmins(
+      companyId,
+      'Cotización Emitida 📝',
+      `El ejecutivo ${createdBy} emitió la cotización #${quoteNum} por un monto de ${formattedTotal} (Convenio: ${agreement || 'Ninguno'}).`,
+      'info'
+    );
 
     res.status(201).json({ success: true, quote: data[0] });
   } catch (err) {
@@ -1109,6 +1302,7 @@ export const getAllQuotes = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const companyId = req.user?.companyId;
 
     let query = supabase
       .from('quotes')
@@ -1127,10 +1321,14 @@ export const getAllQuotes = async (req, res) => {
       `)
       .order('created_at', { ascending: false });
 
-    // Sales only see their own quotes
     if (role === 'sales') {
+      // Sales only see their own quotes
       query = query.eq('seller_id', userId);
+    } else if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+      // admin/supervisor/sistemas: filter by their company
+      query = query.eq('company_id', companyId);
     }
+    // super_admin sees all quotes across all companies
 
     const { data, error } = await query;
     if (error) throw error;
@@ -1146,31 +1344,50 @@ export const getPipelineStats = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const companyId = req.user?.companyId;
 
     // Get leads count by status
     let leadsQuery = supabase
       .from('leads')
-      .select('status, type, created_at')
+      .select('status, type, created_at, company_id, assigned_to')
       .neq('type', 'crm_customer');
 
     if (role === 'sales') {
       leadsQuery = leadsQuery.eq('assigned_to', userId);
+    } else if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+      leadsQuery = leadsQuery.eq('company_id', companyId);
     }
 
     const { data: leadsData, error: leadsError } = await leadsQuery;
     if (leadsError) throw leadsError;
 
-    // Get quotes totals
+    // Get quotes totals with opportunity stage relation
     let quotesQuery = supabase
       .from('quotes')
-      .select('total, created_at');
+      .select('id, total, created_at, company_id, seller_id, opportunity_id, opportunity:crm_opportunities(id, stage, title, type)');
 
     if (role === 'sales') {
       quotesQuery = quotesQuery.eq('seller_id', userId);
+    } else if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+      quotesQuery = quotesQuery.eq('company_id', companyId);
     }
 
     const { data: quotesData, error: quotesError } = await quotesQuery;
     if (quotesError) throw quotesError;
+
+    // Get contacts list for CRM Usage metrics
+    let contactsQuery = supabase
+      .from('contacts')
+      .select('id, created_at, company_id');
+    const { data: contactsData, error: contactsError } = await contactsQuery;
+    if (contactsError) throw contactsError;
+
+    // Get client companies list for CRM Usage metrics
+    let clientCompaniesQuery = supabase
+      .from('companies')
+      .select('id, created_at, company_id');
+    const { data: clientCompaniesData, error: clientCompaniesError } = await clientCompaniesQuery;
+    if (clientCompaniesError) throw clientCompaniesError;
 
     // Build stats object
     const statusCounts = {};
@@ -1198,7 +1415,11 @@ export const getPipelineStats = async (req, res) => {
         totalLeads: (leadsData || []).length,
         totalQuotesCount,
         totalQuotesAmount,
-        monthlyQuotes
+        monthlyQuotes,
+        rawLeads: leadsData || [],
+        rawQuotes: quotesData || [],
+        rawContacts: contactsData || [],
+        rawCompanies: clientCompaniesData || []
       }
     });
   } catch (err) {
@@ -1210,48 +1431,60 @@ export const getPipelineStats = async (req, res) => {
 // ---------- LEADS HUÉRFANOS (Dashboard Admin) ----------
 export const getOrphanLeads = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
+    const role = req.user?.role;
+    const companyId = req.user?.companyId;
+
+    if (!['admin', 'super_admin'].includes(role)) {
       return res.status(403).json({ success: false, message: 'No autorizado. Permisos de administrador requeridos.' });
     }
 
-    // 1. Obtener Leads Huérfanos de la base de datos del CRM (assigned_to es null y no es cliente permanente)
-    const { data: crmOrphans, error: crmError } = await supabase
+    // 1. Obtener Leads Huérfanos — filtrar por empresa (super_admin ve todos)
+    let orphansQuery = supabase
       .from('leads')
       .select('*')
       .is('assigned_to', null)
       .neq('type', 'crm_customer')
       .order('created_at', { ascending: false });
 
+    if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+      orphansQuery = orphansQuery.eq('company_id', companyId);
+    }
+
+    const { data: crmOrphans, error: crmError } = await orphansQuery;
+
     if (crmError) throw crmError;
 
     // 2. Obtener Clientes Huérfanos de la copia espejo del SAE (cve_vend es null, vacío, o '   ' o similar y status es A)
     let saeOrphans = [];
-    try {
-      const { data: saeData, error: saeError } = await saeSupabase
-        .from('clie03')
-        .select('clave, nombre, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas')
-        .eq('status', 'A')
-        .or('cve_vend.is.null, cve_vend.eq."", cve_vend.eq." ", cve_vend.eq."  ", cve_vend.eq."   "');
+    const isGarza = req.user?.companyCode === 'GARZA';
+    if (isGarza) {
+      try {
+        const { data: saeData, error: saeError } = await saeSupabase
+          .from('clie03')
+          .select('clave, nombre, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas')
+          .eq('status', 'A')
+          .or('cve_vend.is.null, cve_vend.eq."", cve_vend.eq." ", cve_vend.eq."  ", cve_vend.eq."   "');
 
-      if (saeError) {
-        console.warn('Advertencia al consultar clie03 espejo de SAE:', saeError);
-      } else {
-        saeOrphans = (saeData || []).map(client => ({
-          id: `sae-${client.clave.trim()}`,
-          name: client.nombre.trim(),
-          email: client.mail ? client.mail.trim() : '',
-          phone: client.telefono ? client.telefono.trim() : '',
-          company: 'Sincronizado de ASPEL SAE',
-          notes: `Cliente importado del SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
-          status: 'nuevo',
-          type: 'sae_orphan',
-          created_at: client.fch_ultcom || new Date().toISOString(),
-          assigned_to: null,
-          raw_sae_key: client.clave.trim()
-        }));
+        if (saeError) {
+          console.warn('Advertencia al consultar clie03 espejo de SAE:', saeError);
+        } else {
+          saeOrphans = (saeData || []).map(client => ({
+            id: `sae-${client.clave.trim()}`,
+            name: client.nombre.trim(),
+            email: client.mail ? client.mail.trim() : '',
+            phone: client.telefono ? client.telefono.trim() : '',
+            company: 'Sincronizado de ASPEL SAE',
+            notes: `Cliente importado del SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+            status: 'nuevo',
+            type: 'sae_orphan',
+            created_at: client.fch_ultcom || new Date().toISOString(),
+            assigned_to: null,
+            raw_sae_key: client.clave.trim()
+          }));
+        }
+      } catch (saeEx) {
+        console.error('Error no crítico al consultar SAE espejo:', saeEx);
       }
-    } catch (saeEx) {
-      console.error('Error no crítico al consultar SAE espejo:', saeEx);
     }
 
     res.json({

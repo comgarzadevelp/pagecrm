@@ -1,5 +1,5 @@
 // backend/controllers/authController.js
-import { supabase } from '../supabaseClient.js'; // assume client is configured
+import { supabase } from '../supabaseClient.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 
@@ -8,33 +8,226 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
 export const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, companyCode } = req.body;
     if (!email || !password) {
       return res.status(400).json({ success: false, message: 'Email and password required' });
     }
-    // Find user in crm_users table
-    const { data: users, error } = await supabase
-      .from('crm_users')
-      .select('id, name, password_hash, role')
-      .eq('email', email)
-      .single();
-    if (error) {
-      console.error('Supabase query error in authController.login:', error);
-      return res.status(401).json({ success: false, message: 'Invalid credentials or DB error' });
+
+    // Find user in crm_users table - resilient query
+    let users = null;
+    let hasCompanyColumn = true;
+
+    try {
+      const { data, error } = await supabase
+        .from('crm_users')
+        .select('id, name, password_hash, role, company_id, supervisor_id')
+        .eq('email', email)
+        .single();
+      
+      if (!error && data) {
+        users = data;
+      } else if (error && error.code === '42703') { // Column does not exist in DB yet
+        hasCompanyColumn = false;
+      } else if (error) {
+        console.error('Supabase query error in login (with company_id):', error);
+      }
+    } catch (e) {
+      hasCompanyColumn = false;
     }
+
+    // Try query without company_id if first failed due to missing column
+    if (!users && !hasCompanyColumn) {
+      const { data, error } = await supabase
+        .from('crm_users')
+        .select('id, name, password_hash, role')
+        .eq('email', email)
+        .single();
+      
+      if (error) {
+        console.error('Supabase query error in login (resilient):', error);
+        return res.status(401).json({ success: false, message: 'Invalid credentials or DB error' });
+      }
+      users = data;
+    }
+
     if (!users) {
       console.warn(`User login failed: No user found for email ${email}`);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
+
+    if (users.role === 'super_admin') {
+      console.warn(`Attempted super_admin login via regular portal: ${email}`);
+      return res.status(403).json({
+        success: false,
+        message: 'Acceso denegado. Los Administradores Generales deben utilizar el portal de acceso exclusivo de Super Admin.'
+      });
+    }
+
     const passwordMatches = await bcrypt.compare(password, users.password_hash);
     if (!passwordMatches) {
       console.warn(`User login failed: Password mismatch for email ${email}`);
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
-    const token = jwt.sign({ userId: users.id, role: users.role, name: users.name }, JWT_SECRET, { expiresIn: '8h' });
-    return res.json({ success: true, token, role: users.role, name: users.name });
+    
+    // Resolve Company Info
+    let company = null;
+    const selectedCompany = companyCode || 'GARZA';
+
+    if (users.company_id) {
+      try {
+        const { data } = await supabase
+          .from('enterprise_companies')
+          .select('id, name, company_code, color_primary, color_accent')
+          .eq('id', users.company_id)
+          .single();
+        company = data;
+      } catch (err) {
+        console.warn('Failed to fetch company from database, falling back:', err.message);
+      }
+    }
+
+    // Fallback company if tables do not exist or are not migrated
+    if (!company) {
+      if (selectedCompany === 'RAV') {
+        company = {
+          id: 'company-rav-id-123456789',
+          name: 'RAV Aire y Calefacción',
+          company_code: 'RAV',
+          color_primary: '#CC3333',
+          color_accent: '#0087BE'
+        };
+      } else {
+        company = {
+          id: 'company-garza-id-123456789',
+          name: 'Garza',
+          company_code: 'GARZA',
+          color_primary: '#05393A',
+          color_accent: '#E0922B'
+        };
+      }
+    }
+    
+    const token = jwt.sign(
+      { 
+        userId: users.id, 
+        role: users.role, 
+        name: users.name,
+        companyId: company.id,
+        companyCode: company.company_code,
+        supervisorId: users.supervisor_id || null
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '8h' }
+    );
+    
+    return res.json({ 
+      success: true, 
+      token, 
+      role: users.role, 
+      name: users.name,
+      companyId: company.id,
+      companyCode: company.company_code,
+      company: company,
+      companies: [company],
+      message: `Bienvenido a ${company.name}`
+    });
   } catch (err) {
     console.error('Login error', err);
     return res.status(500).json({ success: false, message: 'Server error' });
   }
 };
+
+export const loginSuperAdmin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, message: 'Email and password required' });
+    }
+
+    // Find user in crm_users table - resilient query
+    let users = null;
+    try {
+      const { data, error } = await supabase
+        .from('crm_users')
+        .select('id, name, password_hash, role, company_id, supervisor_id')
+        .eq('email', email)
+        .single();
+      
+      if (!error && data) {
+        users = data;
+      }
+    } catch (e) {
+      console.error('Supabase query error in Super Admin login:', e);
+    }
+
+    if (!users || users.role !== 'super_admin') {
+      console.warn(`Super Admin login attempt failed: User not found or not super_admin: ${email}`);
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Acceso restringido. Este portal es únicamente para Administradores Generales.' 
+      });
+    }
+
+    const passwordMatches = await bcrypt.compare(password, users.password_hash);
+    if (!passwordMatches) {
+      console.warn(`Super Admin password mismatch for: ${email}`);
+      return res.status(401).json({ success: false, message: 'Credenciales incorrectas' });
+    }
+    
+    // Resolve Company Info
+    let company = null;
+    if (users.company_id) {
+      try {
+        const { data } = await supabase
+          .from('enterprise_companies')
+          .select('id, name, company_code, color_primary, color_accent')
+          .eq('id', users.company_id)
+          .single();
+        company = data;
+      } catch (err) {
+        console.warn('Failed to fetch company from database, falling back:', err.message);
+      }
+    }
+
+    // Fallback company
+    if (!company) {
+      company = {
+        id: 'company-garza-id-123456789',
+        name: 'Garza',
+        company_code: 'GARZA',
+        color_primary: '#05393A',
+        color_accent: '#E0922B'
+      };
+    }
+    
+    const token = jwt.sign(
+      { 
+        userId: users.id, 
+        role: users.role, 
+        name: users.name,
+        companyId: company.id,
+        companyCode: company.company_code,
+        supervisorId: users.supervisor_id || null
+      }, 
+      JWT_SECRET, 
+      { expiresIn: '8h' }
+    );
+    
+    return res.json({ 
+      success: true, 
+      token, 
+      role: users.role, 
+      name: users.name,
+      companyId: company.id,
+      companyCode: company.company_code,
+      company: company,
+      companies: [company],
+      message: `Bienvenido Administrador General, ${users.name}`
+    });
+  } catch (err) {
+    console.error('Super Admin login error', err);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+

@@ -16,12 +16,38 @@ export const getExtendedProfile = async (req, res) => {
 
     const { data: user, error } = await supabase
       .from('crm_users')
-      .select('id, name, email, role, phone, whatsapp, bio, avatar_url, position, created_at, updated_at')
+      .select('id, name, email, role, phone, whatsapp, bio, avatar_url, position, company_id, sae_vendor_key, created_at, updated_at')
       .eq('id', userId)
       .single();
 
     if (error) throw error;
-    res.json({ success: true, user });
+
+    let company = null;
+    if (user?.company_id) {
+      try {
+        const { data } = await supabase
+          .from('enterprise_companies')
+          .select('id, name, company_code')
+          .eq('id', user.company_id)
+          .single();
+        company = data;
+      } catch (err) {
+        console.warn('Failed to fetch company from database, falling back:', err.message);
+      }
+    }
+
+    const companyCode = company?.company_code || 'N/A';
+    const isGarza = companyCode === 'GARZA';
+
+    const userWithDb = {
+      ...user,
+      company,
+      dbConnectionName: isGarza ? 'ASPEL SAE 8.0 - Garza (Supabase Mirror)' : 'Ninguna (No Conectada)',
+      dbConnected: isGarza,
+      sae_vendor_key: user.sae_vendor_key || 'N/A'
+    };
+
+    res.json({ success: true, user: userWithDb });
   } catch (err) {
     console.error('getExtendedProfile error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener perfil.' });

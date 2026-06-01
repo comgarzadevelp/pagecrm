@@ -13,6 +13,11 @@ export default function MiPerfil() {
   const [pwdSuccess, setPwdSuccess] = useState('');
   const [pwdError, setPwdError] = useState('');
 
+  // Google Calendar Integration states
+  const [calendarConnected, setCalendarConnected] = useState(false);
+  const [calendarEmail, setCalendarEmail] = useState('');
+  const [checkingCalendar, setCheckingCalendar] = useState(true);
+
   // Profile form
   const [name, setName] = useState('');
   const [position, setPosition] = useState('');
@@ -30,7 +35,32 @@ export default function MiPerfil() {
 
   const token = () => localStorage.getItem('token');
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => { 
+    fetchProfile(); 
+    fetchCalendarStatus();
+
+    // Check query params in case of returning from OAuth flow
+    const urlParts = window.location.href.split('?');
+    if (urlParts.length > 1) {
+      const urlParams = new URLSearchParams(urlParts[1]);
+      const googleSuccess = urlParams.get('google_success');
+      const googleEmail = urlParams.get('email');
+      const googleError = urlParams.get('error');
+
+      if (googleSuccess === 'true') {
+        setSuccess(`¡Google Calendar vinculado con éxito a ${googleEmail}!`);
+        setCalendarConnected(true);
+        setCalendarEmail(googleEmail || '');
+        // Clean URL params to prevent double alerts
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash.split('?')[0]);
+        setTimeout(() => setSuccess(''), 5000);
+      } else if (googleSuccess === 'false') {
+        setError(`Error al conectar con Google: ${googleError || 'Acceso denegado'}`);
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.hash.split('?')[0]);
+        setTimeout(() => setError(''), 5000);
+      }
+    }
+  }, []);
 
   const fetchProfile = async () => {
     setLoading(true); setError('');
@@ -48,6 +78,60 @@ export default function MiPerfil() {
       if (u.avatar_url) setAvatarPreview(`${API_BASE}${u.avatar_url}`);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
+  };
+
+  const fetchCalendarStatus = async () => {
+    setCheckingCalendar(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/status`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCalendarConnected(data.connected);
+        setCalendarEmail(data.email || '');
+      }
+    } catch (err) {
+      console.error('Error fetching calendar status:', err);
+    } finally {
+      setCheckingCalendar(false);
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    setError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/auth-url`, {
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      if (data.authUrl) {
+        window.location.href = data.authUrl;
+      }
+    } catch (err) {
+      setError(err.message || 'Error al iniciar la conexión con Google.');
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas desconectar Google Calendar? Se detendrá la sincronización automática de citas.')) return;
+    setError('');
+    setSuccess('');
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/disconnect`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      setCalendarConnected(false);
+      setCalendarEmail('');
+      setSuccess('Google Calendar desconectado correctamente.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (err) {
+      setError(err.message || 'Error al desconectar Google Calendar.');
+    }
   };
 
   const handleAvatarChange = (e) => {
@@ -133,7 +217,27 @@ export default function MiPerfil() {
           <div className="profile-identity">
             <h3>{user?.name}</h3>
             <span className={`user-role-badge ${user?.role}`}>{user?.role === 'admin' ? 'Administrador' : 'Vendedor'}</span>
-            {user?.email && <p className="profile-email"><i className="fas fa-envelope" /> {user.email}</p>}
+            {user?.email && <p className="profile-email"><i className="fas fa-envelope" style={{ marginRight: '6px' }} /> {user.email}</p>}
+            
+            {/* Resolved company display */}
+            <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+              <i className="fas fa-building" style={{ color: '#98ca3f' }} />
+              Empresa: <strong style={{ color: '#fff' }}>{user?.company?.name || 'Comercializadora Garza'} ({user?.company?.company_code || 'GARZA'})</strong>
+            </div>
+
+            {/* Resolved database connection status */}
+            <div style={{ marginTop: '6px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+              <i className="fas fa-database" style={{ color: user?.dbConnected ? '#98ca3f' : '#ef4444' }} />
+              Base de Datos: <strong style={{ color: user?.dbConnected ? '#98ca3f' : '#ef4444' }}>{user?.dbConnectionName || 'Ninguna (No Conectada)'}</strong>
+            </div>
+            
+            {/* SAE vendor key display */}
+            {user?.role === 'sales' && (
+              <div style={{ marginTop: '6px', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+                <i className="fas fa-key" style={{ color: '#e0922b' }} />
+                Vendedor SAE: <strong style={{ color: '#fff' }}>{user?.sae_vendor_key || 'N/A'}</strong>
+              </div>
+            )}
           </div>
 
           {/* Quick contact cards */}
@@ -224,8 +328,63 @@ export default function MiPerfil() {
               </div>
             </form>
           </div>
+
+          {/* GOOGLE CALENDAR CARD */}
+          <div className="profile-form-card glass" style={{ marginTop: '1.5rem' }}>
+            <h4><i className="fab fa-google" /> Conexiones y Calendario</h4>
+            <p style={{ margin: '4px 0 15px', fontSize: '0.825rem', color: 'var(--color-text-muted)' }}>
+              Sincroniza tus eventos del CRM directamente con tu Google Calendar personal.
+            </p>
+
+            {checkingCalendar ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 0' }}>
+                <i className="fas fa-spinner fa-spin" />
+                <span style={{ fontSize: '0.9rem' }}>Verificando conexión...</span>
+              </div>
+            ) : calendarConnected ? (
+              <div className="calendar-status-container connected">
+                <div className="calendar-status-header">
+                  <div className="calendar-icon-circle connected">
+                    <i className="fab fa-google" />
+                  </div>
+                  <div className="calendar-status-text">
+                    <h5>Google Calendar Vinculado</h5>
+                    <p className="calendar-email-linked">{calendarEmail}</p>
+                  </div>
+                </div>
+                <div className="calendar-status-badge" style={{ marginBottom: '15px' }}>
+                  <span className="badge-dot" /> Sincronización Activa
+                </div>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  style={{ width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  onClick={handleDisconnectCalendar}
+                >
+                  <i className="fas fa-unlink" />
+                  Desconectar Cuenta
+                </button>
+              </div>
+            ) : (
+              <div className="calendar-status-container disconnected">
+                <p style={{ fontSize: '0.9rem', color: '#475569', marginBottom: '1.5rem', lineHeight: '1.4' }}>
+                  Al conectar tu Google Calendar, todas las citas, llamadas y eventos de seguimiento agendados con prospectos se añadirán de forma automática a tu agenda en tiempo real.
+                </p>
+                <button
+                  type="button"
+                  className="btn-primary-golden"
+                  style={{ width: 'auto', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  onClick={handleConnectCalendar}
+                >
+                  <i className="fab fa-google" />
+                  Vincular Google Calendar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </section>
   );
 }
+

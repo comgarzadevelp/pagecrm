@@ -10,7 +10,7 @@ import {
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence,
-  getAllQuotes, getPipelineStats
+  getAllQuotes, getPipelineStats, getEnterpriseCompanies
 } from '../controllers/crmController.js';
 
 import {
@@ -31,6 +31,10 @@ import {
 import {
   getOpportunities, createOpportunity, updateOpportunity, updateOpportunityStage, deleteOpportunity
 } from '../controllers/opportunitiesController.js';
+
+import {
+  getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany
+} from '../controllers/moduleConfigController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -93,7 +97,8 @@ router.put('/profile/password', changeOwnPassword);
 router.get('/products', getProducts);
 router.get('/price-lists', getPriceLists);
 
-// ── VENDEDORES (Admin only) ───────────────────────────────────
+// ── VENDEDORES & USUARIOS (Admin/Supervisor/SuperAdmin) ────────
+router.get('/enterprise-companies', getEnterpriseCompanies);
 router.get('/sellers', getSellers);
 router.get('/sellers/sae-list', getSaeSellersList);
 router.post('/sellers', createSeller);
@@ -110,5 +115,13 @@ router.post('/opportunities', createOpportunity);
 router.put('/opportunities/:id', updateOpportunity);
 router.put('/opportunities/:opId/stage', updateOpportunityStage);
 router.delete('/opportunities/:opId', deleteOpportunity);
+
+// ── CONFIGURACIÓN DE MÓDULOS (Super Admin) ────────────────────
+router.get('/module-config', getModuleConfig);
+router.get('/module-config/:companyId', getModuleConfigForCompany);
+router.put('/module-config/:companyId', updateModuleConfig);
+
+// ── CREAR EMPRESA (Super Admin) ───────────────────────────────
+router.post('/enterprise-companies', createEnterpriseCompany);
 
 export default router;

@@ -11,6 +11,8 @@ import chatRoutes from './routes/chatRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import crmRoutes from './routes/crmRoutes.js';
 import saeRoutes from './routes/saeRoutes.js';
+import calendarRoutes from './routes/calendarRoutes.js';
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // Añadir variable de entorno para orígenes permitidos (se define en .env)
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
@@ -53,6 +55,13 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/crm', crmRoutes);
 app.use('/api/sae', saeRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Intercept callback URI matching user's custom google setup and route internally
+app.get('/auth/google/callback', (req, res) => {
+  res.redirect(`/api/calendar/callback?${new URLSearchParams(req.query).toString()}`);
+});
 
 
 // Manejo de rutas inexistentes (404)
@@ -82,3 +91,6 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(` URL de Supabase: ${process.env.SUPABASE_URL}`);
   console.log(`====================================================`);
 });
+
+// Trigger watch reload
+

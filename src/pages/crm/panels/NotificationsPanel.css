@@ -1,0 +1,316 @@
+/* src/pages/crm/panels/NotificationsPanel.css */
+/* Scoped styles for NotificationsPanel.jsx to prevent global class collisions */
+
+.notifications-panel-expert {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 1.5rem;
+}
+
+.notifications-panel-expert .notifications-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  padding-bottom: 1rem;
+}
+
+.notifications-panel-expert .notifications-header h2 {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--color-brand-primary, #05393A);
+  margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+}
+
+.notifications-panel-expert .notifications-header p {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0;
+  font-weight: 500;
+}
+
+.notifications-panel-expert .btn-mark-all {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 0.6rem 1.2rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.notifications-panel-expert .btn-mark-all:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
+/* Feed List */
+.notifications-panel-expert .notifications-feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 800px;
+}
+
+.notifications-panel-expert .notification-item-card {
+  display: flex;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.2rem;
+  align-items: center;
+  gap: 1.25rem;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.008);
+}
+
+.notifications-panel-expert .notification-item-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.015);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+.notifications-panel-expert .notification-item-card.unread {
+  border-left: 4px solid var(--color-brand-accent, #E0922B);
+  background: rgba(224, 146, 43, 0.01);
+}
+
+.notifications-panel-expert .notification-item-card.read {
+  opacity: 0.85;
+}
+
+.notifications-panel-expert .notif-icon-col {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.notifications-panel-expert .notif-body-col {
+  flex: 1;
+}
+
+.notifications-panel-expert .notif-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.notifications-panel-expert .notif-title-row h4 {
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0;
+  color: #0f172a;
+}
+
+.notifications-panel-expert .notif-time {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.notifications-panel-expert .notif-body-col p {
+  font-size: 0.85rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.notifications-panel-expert .unread-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  background: var(--color-brand-accent, #E0922B);
+  color: #ffffff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+
+.notifications-panel-expert .notif-actions-col {
+  flex-shrink: 0;
+}
+
+.notifications-panel-expert .btn-delete-notif {
+  background: transparent;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  opacity: 0;
+}
+
+.notifications-panel-expert .notification-item-card:hover .btn-delete-notif {
+  opacity: 1;
+}
+
+.notifications-panel-expert .btn-delete-notif:hover {
+  background: #fef2f2;
+}
+
+/* Loading & Empty */
+.notifications-panel-expert .notif-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 2rem;
+  color: #64748b;
+}
+
+.notifications-panel-expert .notif-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(5, 57, 58, 0.06);
+  border-top-color: var(--color-brand-primary, #05393A);
+  border-radius: 50%;
+  animation: notifSpin 0.8s infinite linear;
+  margin-bottom: 1.2rem;
+}
+
+.notifications-panel-expert .notif-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 6rem 2rem;
+}
+
+.notifications-panel-expert .empty-ring {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: #94a3b8;
+  margin-bottom: 1.2rem;
+  border: 1px solid #e2e8f0;
+}
+
+.notifications-panel-expert .notif-empty h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--color-brand-primary, #05393A);
+  margin: 0 0 6px 0;
+}
+
+.notifications-panel-expert .notif-empty p {
+  font-size: 0.85rem;
+  color: #64748b;
+  max-width: 300px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.notifications-panel-expert .animate-fade-in {
+  animation: notifFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes notifFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes notifSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   🔐 PREMIUM TECH DARK STYLING OVERRIDES FOR SUPER ADMIN
+   ═══════════════════════════════════════════════════════════════ */
+.superadmin-dashboard-root .notifications-panel-expert .notifications-header h2 {
+  color: #ffffff !important;
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notifications-header p {
+  color: rgba(226, 241, 242, 0.6) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .btn-mark-all {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(0, 242, 254, 0.25) !important;
+  color: #00f2fe !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .btn-mark-all:hover {
+  background: rgba(0, 242, 254, 0.1) !important;
+  color: #ffffff !important;
+  border-color: #00f2fe !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notification-item-card {
+  background: rgba(10, 20, 22, 0.65) !important;
+  border: 1px solid rgba(0, 242, 254, 0.12) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notification-item-card:hover {
+  border-color: rgba(0, 242, 254, 0.3) !important;
+  box-shadow: 0 12px 40px rgba(0, 242, 254, 0.15) !important;
+  transform: translateY(-2px) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notification-item-card.unread {
+  border-left: 4px solid #00f2fe !important;
+  background: rgba(0, 242, 254, 0.02) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notif-title-row h4 {
+  color: #ffffff !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notif-body-col p {
+  color: rgba(226, 241, 242, 0.8) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notif-time {
+  color: rgba(226, 241, 242, 0.4) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .empty-ring {
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: 1px solid rgba(0, 242, 254, 0.2) !important;
+  color: #00f2fe !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notif-empty h3 {
+  color: #ffffff !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .notif-empty p {
+  color: rgba(226, 241, 242, 0.5) !important;
+}
+
+.superadmin-dashboard-root .notifications-panel-expert .btn-delete-notif:hover {
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+

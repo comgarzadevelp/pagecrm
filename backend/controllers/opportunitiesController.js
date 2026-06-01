@@ -1,5 +1,30 @@
 import { supabase } from '../supabaseClient.js';
 
+// Helper to audit commercial activity to all super admins
+const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
+  try {
+    const { data: superAdmins, error } = await supabase
+      .from('crm_users')
+      .select('id')
+      .eq('role', 'super_admin');
+      
+    if (error || !superAdmins || superAdmins.length === 0) return;
+    
+    const payloads = superAdmins.map(admin => ({
+      user_id: admin.id,
+      company_id: companyId || null,
+      title,
+      message,
+      type,
+      read: false
+    }));
+    
+    await supabase.from('crm_notifications').insert(payloads);
+  } catch (err) {
+    console.error('Error notifying super admins:', err);
+  }
+};
+
 // ---------- OPORTUNIDADES CRUD ----------
 
 export const getOpportunities = async (req, res) => {
@@ -36,6 +61,8 @@ export const getOpportunities = async (req, res) => {
 export const createOpportunity = async (req, res) => {
   try {
     const userId = req.user?.userId;
+    const companyId = req.user?.companyId;
+    const createdBy = req.user?.name || 'Un ejecutivo';
     const { title, description, type, stage, value, contact_id, company_id, assigned_to } = req.body;
 
     if (!title) {
@@ -59,6 +86,11 @@ export const createOpportunity = async (req, res) => {
       stage_updated_at: new Date().toISOString()
     };
 
+    // Tag opportunity to user's company for multi-tenant isolation
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertData.company_id = companyId;
+    }
+
     const { data, error } = await supabase
       .from('crm_opportunities')
       .insert([insertData])
@@ -72,6 +104,15 @@ export const createOpportunity = async (req, res) => {
 
     if (error) throw error;
 
+    // Trigger Super Admin Notification with dynamic money value logging
+    const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+    await notifySuperAdmins(
+      companyId,
+      'Oportunidad Creada 💼',
+      `El ejecutivo ${createdBy} creó la oportunidad "${title}" por un valor en juego de ${formattedValue} (${type}).`,
+      'stage_change'
+    );
+
     res.status(201).json({ success: true, opportunity: data[0] });
   } catch (err) {
     console.error('createOpportunity error:', err);
@@ -82,12 +123,14 @@ export const createOpportunity = async (req, res) => {
 export const updateOpportunity = async (req, res) => {
   try {
     const { id } = req.params;
+    const companyId = req.user?.companyId;
+    const updatedBy = req.user?.name || 'Un ejecutivo';
     const { title, description, type, stage, value, contact_id, company_id, assigned_to } = req.body;
 
     // Verificar primero la oportunidad actual para ver si cambia de etapa
     const { data: currentOpp, error: getError } = await supabase
       .from('crm_opportunities')
-      .select('stage')
+      .select('stage, company_id')
       .eq('id', id)
       .single();
 
@@ -128,6 +171,15 @@ export const updateOpportunity = async (req, res) => {
 
     if (error) throw error;
 
+    // Trigger Super Admin Notification
+    const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
+    await notifySuperAdmins(
+      currentOpp?.company_id || companyId,
+      'Oportunidad Modificada ✏️',
+      `El ejecutivo ${updatedBy} actualizó la oportunidad "${title}" (en juego: ${formattedValue}, etapa: ${stage}).`,
+      'stage_change'
+    );
+
     res.json({ success: true, opportunity: data[0] });
   } catch (err) {
     console.error('updateOpportunity error:', err);
@@ -139,6 +191,11 @@ export const updateOpportunityStage = async (req, res) => {
   try {
     const { opId } = req.params;
     const { stage } = req.body;
+    const companyId = req.user?.companyId;
+    const updatedBy = req.user?.name || 'Un ejecutivo';
+
+    // Fetch opp details before updating
+    const { data: opp } = await supabase.from('crm_opportunities').select('title, value, company_id').eq('id', opId).maybeSingle();
 
     const { data, error } = await supabase
       .from('crm_opportunities')
@@ -158,6 +215,16 @@ export const updateOpportunityStage = async (req, res) => {
 
     if (error) throw error;
 
+    if (opp) {
+      const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(opp.value || 0);
+      await notifySuperAdmins(
+        opp.company_id || companyId,
+        'Etapa de Oportunidad Cambiada 📈',
+        `El ejecutivo ${updatedBy} cambió la etapa de la oportunidad "${opp.title}" (en juego: ${formattedValue}) a "${stage}".`,
+        'stage_change'
+      );
+    }
+
     res.json({ success: true, opportunity: data[0] });
   } catch (err) {
     console.error('updateOpportunityStage error:', err);
@@ -168,6 +235,11 @@ export const updateOpportunityStage = async (req, res) => {
 export const deleteOpportunity = async (req, res) => {
   try {
     const { opId } = req.params;
+    const companyId = req.user?.companyId;
+    const deletedBy = req.user?.name || 'Un ejecutivo';
+
+    // Fetch opp details before deleting to write message
+    const { data: opp } = await supabase.from('crm_opportunities').select('title, value, company_id').eq('id', opId).maybeSingle();
 
     const { error } = await supabase
       .from('crm_opportunities')
@@ -175,6 +247,16 @@ export const deleteOpportunity = async (req, res) => {
       .eq('id', opId);
 
     if (error) throw error;
+
+    if (opp) {
+      const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(opp.value || 0);
+      await notifySuperAdmins(
+        opp.company_id || companyId,
+        'Oportunidad Eliminada 🗑️',
+        `El ejecutivo ${deletedBy} eliminó la oportunidad "${opp.title}" (en juego: ${formattedValue}).`,
+        'warning'
+      );
+    }
 
     res.json({ success: true, message: 'Oportunidad eliminada exitosamente.' });
   } catch (err) {

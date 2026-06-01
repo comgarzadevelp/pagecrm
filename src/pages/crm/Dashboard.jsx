@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useCompany } from '../../contexts/CompanyContext';
+import { applyTheme } from '../../styles/companyThemes';
 import './Dashboard.css';
 
 // ── Paneles modulares V2 y Refactorizados ──────────────────────
@@ -19,6 +21,8 @@ import DirectorioClientes from './panels/DirectorioClientes';
 import CotizadorB2B from './panels/CotizadorB2B';
 import EquipoVentas from './panels/EquipoVentas';
 import FichaClienteModal from './panels/FichaClienteModal';
+import CalendarioPanel from './panels/CalendarioPanel';
+import NotificationsPanel from './panels/NotificationsPanel';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -33,6 +37,9 @@ const Dashboard = () => {
   const [role, setRole] = useState(localStorage.getItem('role') || 'sales');
   const [userName, setUserName] = useState(localStorage.getItem('userName') || '');
   const [activeTab, setActiveTab] = useState('leads'); // default tab
+
+  // Company context
+  const { companyCode, companyId, loadCompanyFromStorage } = useCompany();
 
   // Sellers & SAE
   const [sellers, setSellers] = useState([]);
@@ -110,7 +117,8 @@ const Dashboard = () => {
 
   // Fetch sellers
   const fetchSellers = async () => {
-    if (localStorage.getItem('role') !== 'admin') return;
+    const currentRole = localStorage.getItem('role');
+    if (currentRole !== 'admin' && currentRole !== 'supervisor' && currentRole !== 'super_admin') return;
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/crm/sellers`, {
@@ -131,7 +139,8 @@ const Dashboard = () => {
 
   // Fetch SAE list
   const fetchSaeSellers = async () => {
-    if (localStorage.getItem('role') !== 'admin') return;
+    const currentRole = localStorage.getItem('role');
+    if (currentRole !== 'admin' && currentRole !== 'supervisor' && currentRole !== 'super_admin') return;
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/crm/sellers/sae-list`, {
@@ -214,13 +223,36 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
+    // Validate company access
+    const token = localStorage.getItem('token');
+    const storedCompanyId = localStorage.getItem('companyId');
+    const storedCompanyCode = localStorage.getItem('companyCode');
+
+    if (!token) {
+      navigate('/crm/login');
+      return;
+    }
+
+    if (!storedCompanyId || !storedCompanyCode) {
+      // Missing company info, redirect to login
+      localStorage.clear();
+      navigate('/crm/login');
+      return;
+    }
+
+    // Load company from storage and apply theme
+    loadCompanyFromStorage();
+    if (storedCompanyCode) {
+      applyTheme(storedCompanyCode);
+    }
+
     fetchLeads();
     fetchSellers();
     fetchCustomers();
     fetchProfile();
     fetchSaeSellers();
     fetchOpportunitiesList();
-  }, []);
+  }, [companyCode]);
 
   const handleRefreshAll = () => {
     fetchLeads();
@@ -387,69 +419,104 @@ const Dashboard = () => {
 
         <div className="crm-sidebar-user">
           <div className="user-avatar">
-            <i className={role === 'admin' ? "fas fa-user-shield" : "fas fa-user-tie"}></i>
+            <i className={role === 'admin' || role === 'super_admin' ? "fas fa-user-shield" : role === 'supervisor' ? "fas fa-user-friends" : role === 'sistemas' ? "fas fa-laptop-code" : "fas fa-user-tie"}></i>
           </div>
           <div className="user-details">
-            <h3>{userName || (role === 'admin' ? 'Administrador Garza' : 'Ejecutivo de Ventas')}</h3>
+            <h3>{userName || (role === 'admin' || role === 'super_admin' ? 'Administrador' : role === 'supervisor' ? 'Supervisor Comercial' : role === 'sistemas' ? 'IT / Sistemas' : 'Ejecutivo de Ventas')}</h3>
             <span className="user-role-badge">
-              {role === 'admin' ? 'Admin' : 'Vendedor'}
+              {role === 'admin' ? 'Admin' : role === 'super_admin' ? 'Super Admin' : role === 'supervisor' ? 'Supervisor' : role === 'sistemas' ? 'Sistemas' : 'Vendedor'}
             </span>
           </div>
         </div>
 
         <nav className="crm-sidebar-nav">
-          <button
-            className={`nav-item-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            <i className="fas fa-chart-pie" /> Dashboard
-          </button>
+          {/* 💼 1. DASHBOARD PANEL (Supervisors and Admins) */}
+          {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
+              onClick={() => setActiveTab('dashboard')}
+            >
+              <i className="fas fa-chart-pie" /> Dashboard
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'contacts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('contacts')}
-          >
-            <i className="fas fa-address-book" /> Mis Contactos
-          </button>
+          {/* 📞 2. CONTACTS (Available to all except pure IT) */}
+          {role !== 'sistemas' && (
+            <button
+              className={`nav-item-btn ${activeTab === 'contacts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('contacts')}
+            >
+              <i className="fas fa-address-book" /> Mis Contactos
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'companies' ? 'active' : ''}`}
-            onClick={() => setActiveTab('companies')}
-          >
-            <i className="fas fa-city" /> Empresas
-          </button>
+          {/* 🏢 3. COMPANIES (Available to all except pure IT) */}
+          {role !== 'sistemas' && (
+            <button
+              className={`nav-item-btn ${activeTab === 'companies' ? 'active' : ''}`}
+              onClick={() => setActiveTab('companies')}
+            >
+              <i className="fas fa-city" /> Empresas
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'leads' ? 'active' : ''}`}
-            onClick={() => setActiveTab('leads')}
-          >
-            <i className="fas fa-envelope-open-text" /> Asignados (Leads)
-          </button>
+          {/* 📅 4. CALENDAR (Available to all except pure IT) */}
+          {role !== 'sistemas' && (
+            <button
+              className={`nav-item-btn ${activeTab === 'calendar' ? 'active' : ''}`}
+              onClick={() => setActiveTab('calendar')}
+            >
+              <span className="nav-item-inner" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                <i className="far fa-calendar-alt" /> Mi Calendario
+                <span className="nav-badge-pulse" style={{ background: '#16a34a', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', marginLeft: 'auto', fontWeight: 'bold' }}>LIVE</span>
+              </span>
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'pipeline' ? 'active' : ''}`}
-            onClick={() => setActiveTab('pipeline')}
-          >
-            <i className="fas fa-columns" /> Oportunidades
-          </button>
+          {/* 📩 5. LEADS (Available to all except pure IT) */}
+          {role !== 'sistemas' && (
+            <button
+              className={`nav-item-btn ${activeTab === 'leads' ? 'active' : ''}`}
+              onClick={() => setActiveTab('leads')}
+            >
+              <i className="fas fa-envelope-open-text" /> Asignados (Leads)
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'quotes' ? 'active' : ''}`}
-            onClick={() => setActiveTab('quotes')}
-          >
-            <span className="nav-item-inner">
-              <i className="fas fa-calculator" /> Cotizador B2B
-              <span className="nav-badge-pulse" title="Cotizador activo">NEW</span>
-            </span>
-          </button>
+          {/* 📊 6. OPPORTUNITIES PIPELINE (Sales, Admin, Super Admin) */}
+          {(role === 'sales' || role === 'admin' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'pipeline' ? 'active' : ''}`}
+              onClick={() => setActiveTab('pipeline')}
+            >
+              <i className="fas fa-columns" /> Oportunidades
+            </button>
+          )}
 
-          <button
-            className={`nav-item-btn ${activeTab === 'quotes-manager' ? 'active' : ''}`}
-            onClick={() => setActiveTab('quotes-manager')}
-          >
-            <i className="fas fa-receipt" /> Gestor de Cots.
-          </button>
+          {/* 🧮 7. COTIZADOR B2B (Sales, Admin, Super Admin) */}
+          {(role === 'sales' || role === 'admin' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'quotes' ? 'active' : ''}`}
+              onClick={() => setActiveTab('quotes')}
+            >
+              <span className="nav-item-inner">
+                <i className="fas fa-calculator" /> Cotizador B2B
+                <span className="nav-badge-pulse" title="Cotizador activo">NEW</span>
+              </span>
+            </button>
+          )}
 
+          {/* 🧾 8. GESTOR DE COTIZACIONES (All except pure IT) */}
+          {role !== 'sistemas' && (
+            <button
+              className={`nav-item-btn ${activeTab === 'quotes-manager' ? 'active' : ''}`}
+              onClick={() => setActiveTab('quotes-manager')}
+            >
+              <i className="fas fa-receipt" /> Gestor de Cots.
+            </button>
+          )}
+
+          {/* 📁 9. CONTENEDOR DE ARCHIVOS (All roles) */}
           <button
             className={`nav-item-btn ${activeTab === 'files' ? 'active' : ''}`}
             onClick={() => setActiveTab('files')}
@@ -457,13 +524,30 @@ const Dashboard = () => {
             <i className="fas fa-folder-open" /> Contenedor
           </button>
 
-          <button
-            className={`nav-item-btn ${activeTab === 'archive-contacts' ? 'active' : ''}`}
-            onClick={() => setActiveTab('archive-contacts')}
-          >
-            <i className="fas fa-archive" /> Archivo
-          </button>
+          {/* 📂 10. ARCHIVO HISTORICO (Sales, Admin, Super Admin) */}
+          {(role === 'sales' || role === 'admin' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'archive-contacts' ? 'active' : ''}`}
+              onClick={() => setActiveTab('archive-contacts')}
+            >
+              <i className="fas fa-archive" /> Archivo
+            </button>
+          )}
 
+          {/* 🔔 11. NOTIFICACIONES & ALERTAS (Supervisors, Admins, Sistemas) */}
+          {(role === 'admin' || role === 'supervisor' || role === 'super_admin' || role === 'sistemas') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'notifications' ? 'active' : ''}`}
+              onClick={() => setActiveTab('notifications')}
+            >
+              <span className="nav-item-inner" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                <i className="fas fa-bell" /> Alertas
+                <span className="nav-badge-pulse" style={{ background: 'var(--color-brand-accent)', color: '#fff', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', marginLeft: 'auto', fontWeight: 'bold' }}>LIVE</span>
+              </span>
+            </button>
+          )}
+
+          {/* 👤 12. PERFIL DE USUARIO (All roles) */}
           <button
             className={`nav-item-btn ${activeTab === 'profile' ? 'active' : ''}`}
             onClick={() => setActiveTab('profile')}
@@ -471,21 +555,23 @@ const Dashboard = () => {
             <i className="fas fa-id-card" /> Mi Perfil
           </button>
 
-          {role === 'admin' && (
-            <>
-              <button
-                className={`nav-item-btn ${activeTab === 'orphans' ? 'active' : ''}`}
-                onClick={() => setActiveTab('orphans')}
-              >
-                <i className="fas fa-unlink" /> Leads Huérfanos
-              </button>
-              <button
-                className={`nav-item-btn ${activeTab === 'sellers' ? 'active' : ''}`}
-                onClick={() => setActiveTab('sellers')}
-              >
-                <i className="fas fa-users-cog" /> Equipo de Ventas
-              </button>
-            </>
+          {/* 🛠️ 13. ADMINISTRACION (Admins and Supervisors) */}
+          {(role === 'admin' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'orphans' ? 'active' : ''}`}
+              onClick={() => setActiveTab('orphans')}
+            >
+              <i className="fas fa-unlink" /> Leads Huérfanos
+            </button>
+          )}
+
+          {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
+            <button
+              className={`nav-item-btn ${activeTab === 'sellers' ? 'active' : ''}`}
+              onClick={() => setActiveTab('sellers')}
+            >
+              <i className="fas fa-users-cog" /> Equipo de Ventas
+            </button>
           )}
         </nav>
 
@@ -520,7 +606,8 @@ const Dashboard = () => {
          activeTab !== 'companies' &&
          activeTab !== 'quotes-manager' &&
          activeTab !== 'files' &&
-         activeTab !== 'profile' && (
+         activeTab !== 'profile' &&
+         activeTab !== 'calendar' && (
           <section className="crm-stats-grid hide-on-print">
             <div className="crm-stat-card glass">
               <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
@@ -614,7 +701,7 @@ const Dashboard = () => {
           />
         )}
 
-        {activeTab === 'sellers' && role === 'admin' && (
+        {activeTab === 'sellers' && (role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
           <EquipoVentas
             role={role}
             API_BASE={API_BASE}
@@ -683,6 +770,9 @@ const Dashboard = () => {
             }}
           />
         )}
+
+        {activeTab === 'calendar' && <CalendarioPanel />}
+        {activeTab === 'notifications' && <NotificationsPanel />}
 
         {activeTab === 'pipeline' && <OportunidadesPanel />}
         {activeTab === 'quotes-manager' && <GestorCotizaciones />}

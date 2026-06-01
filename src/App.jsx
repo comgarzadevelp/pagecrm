@@ -10,10 +10,12 @@ import Catalogo from './pages/Catalogo';
 import LeadPopup from './components/child/LeadPopup';
 import AIChat from './components/child/AIChat';
 import ScrollToTop from './components/utils/ScrollToTop';
+import { CompanyProvider } from './contexts/CompanyContext';
 import './styles/Global.css';
 // CRM pages
 import Login from './pages/crm/Login';
-import Dashboard from './pages/crm/Dashboard';
+import LoginSuperAdmin from './pages/crm/LoginSuperAdmin';
+import DashboardRouter from './pages/crm/DashboardRouter';
 
 function AppContent() {
   const location = useLocation();
@@ -31,9 +33,12 @@ function AppContent() {
           <Route path="/contacto" element={<Contacto />} />
           {/* CRM hidden routes */}
           <Route path="/crm/login" element={<Login />} />
-          <Route path="/crm/dashboard" element={<Dashboard />} />
+          <Route path="/crm/login-superadmin" element={<LoginSuperAdmin />} />
+          <Route path="/crm/dashboard" element={<DashboardRouter />} />
+          <Route path="/crm/dashboard/:tab" element={<DashboardRouter />} />
         </Routes>
       </main>
+
       {!isCrmRoute && <Footer />}
       {!isCrmRoute && <LeadPopup />}
       {!isCrmRoute && <AIChat />}
@@ -43,10 +48,12 @@ function AppContent() {
 
 function App() {
   return (
-    <Router>
-      <ScrollToTop />
-      <AppContent />
-    </Router>
+    <CompanyProvider>
+      <Router>
+        <ScrollToTop />
+        <AppContent />
+      </Router>
+    </CompanyProvider>
   );
 }
 

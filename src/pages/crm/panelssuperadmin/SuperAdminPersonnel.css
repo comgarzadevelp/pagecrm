@@ -1,0 +1,616 @@
+/* src/pages/crm/panelssuperadmin/SuperAdminPersonnel.css */
+/* Scoped styles for the Super Admin Personnel Management console */
+
+.sa-pers-root {
+  color: #fff;
+  font-family: 'Outfit', sans-serif;
+  box-sizing: border-box;
+}
+
+.sa-pers-header-box {
+  margin-bottom: 25px;
+  background: rgba(255, 255, 255, 0.01);
+  padding: 20px;
+  border-radius: 14px;
+  border: 1px solid rgba(0, 242, 254, 0.08);
+}
+
+.sa-pers-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  display: flex;
+  align-items: center;
+}
+
+.sa-pers-subtitle {
+  margin: 8px 0 0 0;
+  font-size: 0.875rem;
+  color: rgba(226, 241, 242, 0.6);
+  line-height: 1.5;
+}
+
+/* SEARCH AND FILTERS BAR */
+.sa-pers-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 20px !important;
+  margin-bottom: 25px;
+  background: rgba(10, 20, 22, 0.5) !important;
+  border: 1px solid rgba(0, 242, 254, 0.12) !important;
+  border-radius: 12px !important;
+}
+
+.sa-pers-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 280px;
+}
+
+.sa-pers-search-box .search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(0, 242, 254, 0.5);
+  font-size: 0.9rem;
+}
+
+.sa-pers-search-box input {
+  width: 100%;
+  padding: 10px 14px 10px 38px !important;
+  border-radius: 8px !important;
+  font-size: 0.875rem !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(0, 242, 254, 0.15) !important;
+  color: #fff !important;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.sa-pers-search-box input:focus {
+  border-color: rgba(0, 242, 254, 0.4) !important;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2) !important;
+}
+
+.sa-pers-filters-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.sa-pers-filter-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+}
+
+.sa-pers-filter-lbl {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.sa-pers-filter-item select {
+  padding: 8px 12px !important;
+  font-size: 0.85rem !important;
+  border-radius: 6px !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.3s ease;
+}
+
+.sa-pers-filter-item select:focus {
+  border-color: rgba(0, 242, 254, 0.4) !important;
+}
+
+/* DOUBLE COLUMN GRID */
+.sa-pers-layout-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 25px;
+  align-items: start;
+}
+
+@media (max-width: 992px) {
+  .sa-pers-layout-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sa-pers-list-card, .sa-pers-config-card {
+  padding: 24px !important;
+  border-radius: 16px !important;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.sa-pers-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.sa-pers-list-header h3, .sa-pers-form-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sa-pers-counter {
+  font-size: 0.75rem;
+  background: rgba(0, 242, 254, 0.1);
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.2);
+  padding: 2px 8px;
+  border-radius: 5px;
+  font-weight: 700;
+}
+
+/* SCROLL LIST wrapper */
+.sa-pers-scroll-wrapper {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Custom scrollbars */
+.sa-pers-scroll-wrapper::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sa-pers-scroll-wrapper::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sa-pers-scroll-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.15);
+  border-radius: 4px;
+}
+
+.sa-pers-empty-list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: rgba(226, 241, 242, 0.4);
+  gap: 12px;
+}
+
+.sa-pers-empty-list i {
+  font-size: 2.2rem;
+  opacity: 0.4;
+}
+
+/* LIST ITEM ROW */
+.sa-pers-item-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa-pers-item-row:hover {
+  background: rgba(0, 242, 254, 0.03);
+  border-color: rgba(0, 242, 254, 0.2);
+  transform: translateX(4px);
+}
+
+.sa-pers-item-row.active {
+  background: linear-gradient(135deg, rgba(5, 117, 230, 0.1) 0%, rgba(0, 242, 254, 0.1) 100%);
+  border-color: #00f2fe;
+  box-shadow: 0 4px 20px rgba(0, 242, 254, 0.08);
+}
+
+.sa-pers-item-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: rgba(226, 241, 242, 0.6);
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.sa-pers-item-row.active .sa-pers-item-avatar {
+  background: rgba(0, 242, 254, 0.15);
+  border-color: #00f2fe;
+  color: #00f2fe;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.sa-pers-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sa-pers-item-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sa-pers-item-name {
+  font-size: 0.925rem;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sa-pers-item-email {
+  font-size: 0.8rem;
+  color: rgba(226, 241, 242, 0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sa-pers-item-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.meta-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.725rem;
+  color: rgba(226, 241, 242, 0.6);
+  font-weight: 500;
+}
+
+.meta-tag i {
+  font-size: 0.75rem;
+  color: rgba(0, 242, 254, 0.5);
+}
+
+.sa-pers-item-chevron {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.15);
+  transition: all 0.3s ease;
+}
+
+.sa-pers-item-row:hover .sa-pers-item-chevron {
+  color: #00f2fe;
+  transform: translateX(2px);
+}
+
+.sa-pers-item-row.active .sa-pers-item-chevron {
+  color: #00f2fe;
+}
+
+/* BADGES FOR ROLES */
+.sa-role-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border: 1px solid transparent;
+}
+
+.sa-role-badge.superadmin {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.sa-role-badge.admin {
+  background: rgba(245, 158, 11, 0.1);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.sa-role-badge.supervisor {
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+  border-color: rgba(139, 92, 246, 0.2);
+}
+
+.sa-role-badge.sales {
+  background: rgba(0, 242, 254, 0.1);
+  color: #00f2fe;
+  border-color: rgba(0, 242, 254, 0.2);
+}
+
+.sa-role-badge.sistemas {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+/* RIGHT COLUMN: CONFIG CONSOLE */
+.sa-pers-config-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  padding: 0 30px;
+  color: rgba(226, 241, 242, 0.4);
+}
+
+.sa-pers-config-placeholder .placeholder-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.3;
+  color: #00f2fe;
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.sa-pers-config-placeholder h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: #fff;
+}
+
+.sa-pers-config-placeholder p {
+  font-size: 0.825rem;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.sa-pers-form {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.sa-pers-form-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.user-uuid {
+  font-size: 0.7rem;
+  font-family: monospace;
+  opacity: 0.4;
+}
+
+/* ALERTS */
+.sa-pers-alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-shrink: 0;
+}
+
+.sa-pers-alert.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.sa-pers-alert.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+/* SCROLL FIELDS wrapper */
+.sa-pers-form-fields {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.sa-pers-form-fields::-webkit-scrollbar {
+  width: 5px;
+}
+
+.sa-pers-form-fields::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sa-pers-form-fields::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.sa-pers-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sa-pers-field-group label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+.field-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.field-input-wrapper .field-icon {
+  position: absolute;
+  left: 12px;
+  color: rgba(226, 241, 242, 0.4);
+  font-size: 0.85rem;
+}
+
+.field-input-wrapper input, .field-input-wrapper select {
+  width: 100%;
+  padding: 10px 12px 10px 36px !important;
+  background: rgba(0, 0, 0, 0.3) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  color: #fff !important;
+  border-radius: 8px !important;
+  font-size: 0.875rem !important;
+  outline: none;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.field-input-wrapper input:focus, .field-input-wrapper select:focus {
+  border-color: rgba(0, 242, 254, 0.3) !important;
+  box-shadow: 0 0 8px rgba(0, 242, 254, 0.15) !important;
+}
+
+.field-hint {
+  font-size: 0.675rem;
+  opacity: 0.4;
+  line-height: 1.3;
+  margin-top: 2px;
+}
+
+/* ACTIONS BAR */
+.sa-pers-form-actions {
+  margin-top: 20px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.btn-save-pers {
+  width: 100%;
+  padding: 11px !important;
+  font-size: 0.875rem !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.sa-pers-actions-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+  margin: 2px 0;
+}
+
+.sa-pers-danger-actions-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.btn-pers-secondary {
+  padding: 9px !important;
+  border-radius: 8px !important;
+  background: rgba(0, 242, 254, 0.04) !important;
+  border: 1px solid rgba(0, 242, 254, 0.2) !important;
+  color: #00f2fe !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  outline: none;
+}
+
+.btn-pers-secondary:hover {
+  background: rgba(0, 242, 254, 0.1) !important;
+  color: #fff !important;
+  border-color: #00f2fe !important;
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+}
+
+.btn-pers-danger {
+  padding: 9px !important;
+  border-radius: 8px !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+  border: 1px solid rgba(239, 68, 68, 0.2) !important;
+  color: #f87171 !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  outline: none;
+}
+
+.btn-pers-danger:hover {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+}
+
+/* Animations */
+.animate-fade-in {
+  animation: saPersFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes saPersFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: saPersSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes saPersSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}

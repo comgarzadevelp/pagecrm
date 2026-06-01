@@ -4647,3 +4647,300 @@
   .companies-cards-grid,
   .contacts-cards-grid { grid-template-columns: 1fr; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   GOOGLE CALENDAR STATUS CARD STYLES
+   ───────────────────────────────────────────────────────────── */
+.calendar-status-container {
+  padding: 1.25rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-status-container.connected {
+  border-color: #cbd5e1;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.01) 0%, rgba(22, 163, 74, 0.03) 100%);
+}
+
+.calendar-status-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.calendar-icon-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #64748b;
+}
+
+.calendar-icon-circle.connected {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+  border: 1px solid rgba(22, 163, 74, 0.2);
+}
+
+.calendar-status-text h5 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-brand-primary);
+}
+
+.calendar-email-linked {
+  margin: 2px 0 0 0;
+  font-size: 0.85rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.calendar-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+  padding: 4px 10px;
+  border-radius: 20px;
+  width: fit-content;
+}
+
+.calendar-status-badge .badge-dot {
+  width: 6px;
+  height: 6px;
+  background-color: #16a34a;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse-dot 1.5s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.6; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   🔔 PERSISTENT GLOBAL NOTIFICATION BELL (TOP-RIGHT FIXED)
+   ───────────────────────────────────────────────────────────── */
+.crm-global-bell-wrapper {
+  position: fixed;
+  top: 20px;
+  right: 25px;
+  z-index: 99999; /* Extremely high z-index to stay on top of all sheets and dashboards */
+}
+
+.crm-global-bell-btn {
+  background: #071012 !important; /* Solid dark theme background (no transparency loss!) */
+  border: 2px solid #00f2fe !important; /* Prominent cian border */
+  color: #00f2fe !important; /* Cian color */
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  outline: none;
+  box-shadow: 0 0 15px rgba(0, 242, 254, 0.35); /* Elegant neon glow */
+}
+
+.crm-global-bell-btn:hover {
+  background: #0a171a !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.6), inset 0 0 8px rgba(0, 242, 254, 0.3);
+  transform: scale(1.05);
+}
+
+.crm-global-bell-btn.has-unread {
+  animation: globalBellShake 1.5s infinite ease;
+}
+
+@keyframes globalBellShake {
+  0%, 100% { transform: rotate(0) scale(1); }
+  10%, 30% { transform: rotate(12deg) scale(1.05); }
+  20%, 40% { transform: rotate(-12deg) scale(1.05); }
+  50% { transform: rotate(0) scale(1.05); }
+}
+
+.crm-global-bell-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 900;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.9);
+  border: 1.5px solid #071012;
+}
+
+/* GLOBAL DROPDOWN STYLE */
+.crm-global-bell-dropdown {
+  position: absolute;
+  top: 55px;
+  right: 0;
+  width: 340px;
+  background: #050d0f !important;
+  border: 2px solid rgba(0, 242, 254, 0.35) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 45px rgba(0, 0, 0, 0.9) !important;
+  z-index: 999999 !important;
+  overflow: hidden;
+  backdrop-filter: blur(25px) !important;
+}
+
+.crm-global-bell-dropdown .dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(0, 242, 254, 0.15);
+  background: rgba(0, 242, 254, 0.05);
+}
+
+.crm-global-bell-dropdown .dropdown-header h4 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.crm-global-bell-dropdown .dropdown-header span {
+  font-size: 0.7rem;
+  color: #f87171;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-weight: 800;
+}
+
+.crm-global-bell-dropdown .dropdown-list {
+  max-height: 320px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.crm-global-bell-dropdown .dropdown-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 20px;
+  color: rgba(226, 241, 242, 0.4);
+  font-size: 0.85rem;
+  gap: 10px;
+}
+
+.crm-global-bell-dropdown .dropdown-empty i {
+  font-size: 2rem;
+  opacity: 0.4;
+  color: #00f2fe;
+}
+
+.crm-global-bell-dropdown .dropdown-item {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.crm-global-bell-dropdown .dropdown-item:hover {
+  background: rgba(0, 242, 254, 0.06);
+}
+
+.crm-global-bell-dropdown .dropdown-item.unread {
+  background: rgba(0, 242, 254, 0.02);
+  border-left: 4px solid #00f2fe;
+}
+
+.crm-global-bell-dropdown .item-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.crm-global-bell-dropdown .item-title {
+  font-size: 0.85rem;
+  color: #fff;
+  font-weight: 800;
+}
+
+.crm-global-bell-dropdown .item-time {
+  font-size: 0.7rem;
+  color: rgba(226, 241, 242, 0.5);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.crm-global-bell-dropdown .item-msg {
+  font-size: 0.775rem;
+  color: rgba(226, 241, 242, 0.75);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.crm-global-bell-dropdown .item-badge-unread {
+  font-size: 0.6rem;
+  font-weight: 900;
+  background: #00f2fe;
+  color: #04090a;
+  padding: 2px 5px;
+  border-radius: 4px;
+  align-self: flex-start;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+
+.crm-global-bell-dropdown .dropdown-view-all {
+  width: 100%;
+  padding: 12px !important;
+  background: rgba(0, 242, 254, 0.06) !important;
+  color: #00f2fe !important;
+  border: none !important;
+  border-top: 1px solid rgba(0, 242, 254, 0.25) !important;
+  font-size: 0.85rem !important;
+  font-weight: 800 !important;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.crm-global-bell-dropdown .dropdown-view-all:hover {
+  background: rgba(0, 242, 254, 0.15) !important;
+  color: #fff !important;
+}
+

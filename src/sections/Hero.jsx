@@ -17,7 +17,6 @@ const Hero = () => {
           </p>
           <div className="hero-actions">
             <button className="btn-primary">Contáctanos</button>
-            <button className="btn-secondary">Descargar CV Empresarial</button>
           </div>
         </div>
       </div>

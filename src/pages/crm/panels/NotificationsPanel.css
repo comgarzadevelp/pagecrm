@@ -233,6 +233,29 @@
   animation: notifFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+.notifs-load-more-container {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.btn-load-more-notifs {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 0.6rem 1.5rem;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-load-more-notifs:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #94a3b8;
+}
+
 @keyframes notifFadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }

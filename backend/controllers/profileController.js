@@ -73,25 +73,60 @@ export const updateProfile = async (req, res) => {
 
     // Handle avatar upload
     if (req.file) {
-      const uploadDir = path.join(__dirname, '../public/uploads/avatars');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
       const ext = path.extname(req.file.originalname) || '.jpg';
-      const fileName = `avatar_${userId}${ext}`;
-      const filePath = path.join(uploadDir, fileName);
-      fs.writeFileSync(filePath, req.file.buffer);
-      updateData.avatar_url = `/uploads/avatars/${fileName}`;
+      const fileName = `avatar_${userId}_${Date.now()}${ext}`;
+      try {
+        const { uploadToR2 } = await import('../services/r2Service.js');
+        const r2Url = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'avatars');
+        updateData.avatar_url = r2Url;
+      } catch (r2Err) {
+        console.warn('R2 upload failed or not configured, falling back to local storage:', r2Err.message);
+        // Fallback to local upload
+        const uploadDir = path.join(__dirname, '../public/uploads/avatars');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const filePath = path.join(uploadDir, fileName);
+        fs.writeFileSync(filePath, req.file.buffer);
+        updateData.avatar_url = `/uploads/avatars/${fileName}`;
+      }
     }
 
     const { data, error } = await supabase
       .from('crm_users')
       .update(updateData)
       .eq('id', userId)
-      .select('id, name, email, role, phone, whatsapp, bio, avatar_url, position, updated_at');
+      .select('id, name, email, role, phone, whatsapp, bio, avatar_url, position, company_id, sae_vendor_key, updated_at');
 
     if (error) throw error;
-    res.json({ success: true, user: data[0] });
+
+    const updatedUser = data[0];
+    let company = null;
+    if (updatedUser?.company_id) {
+      try {
+        const { data: comp } = await supabase
+          .from('enterprise_companies')
+          .select('id, name, company_code')
+          .eq('id', updatedUser.company_id)
+          .single();
+        company = comp;
+      } catch (err) {
+        console.warn('Failed to fetch company on profile update:', err.message);
+      }
+    }
+
+    const companyCode = company?.company_code || 'N/A';
+    const isGarza = companyCode === 'GARZA';
+
+    const userWithDb = {
+      ...updatedUser,
+      company,
+      dbConnectionName: isGarza ? 'ASPEL SAE 8.0 - Garza (Supabase Mirror)' : 'Ninguna (No Conectada)',
+      dbConnected: isGarza,
+      sae_vendor_key: updatedUser.sae_vendor_key || 'N/A'
+    };
+
+    res.json({ success: true, user: userWithDb });
   } catch (err) {
     console.error('updateProfile error:', err);
     res.status(500).json({ success: false, message: 'Error al actualizar perfil.' });

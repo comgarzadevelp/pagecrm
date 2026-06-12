@@ -614,3 +614,24 @@
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* CORRECCIÓN REPORTE §4.4: SuperAdminPersonnel móvil */
+@media (max-width: 768px) {
+  .sa-pers-layout-grid {
+    grid-template-columns: 1fr;
+  }
+  .sa-pers-list-card, .sa-pers-config-card {
+    height: auto;
+    min-height: 400px;
+  }
+  .sa-pers-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sa-pers-search-box {
+    min-width: 100%;
+  }
+  .sa-pers-danger-actions-row {
+    grid-template-columns: 1fr;
+  }
+}

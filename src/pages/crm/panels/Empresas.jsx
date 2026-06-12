@@ -1,7 +1,8 @@
-// src/pages/crm/panels/Empresas.jsx
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-
+import { useUX } from '../../../components/common/UXProvider';
+import useEmpresas from '../hooks/useEmpresas';
+import './Directorio.css';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const emptyForm = {
@@ -38,12 +39,17 @@ const TYPE_LABELS = {
 const STATUS_COLORS = { activo: '#10b981', inactivo: '#94a3b8', prospecto: '#f59e0b' };
 
 export default function Empresas({ onViewCompanyDetails }) {
-  const [companies, setCompanies] = useState([]);
+  const { showToast, showConfirm } = useUX();
+  const role = localStorage.getItem('role');
+  const token = () => localStorage.getItem('token');
+
+  const { 
+    companies, setCompanies, 
+    contacts, setContacts, 
+    priceLists, loading, error, refetch 
+  } = useEmpresas(API_BASE, token());
+
   const [filtered, setFiltered] = useState([]);
-  const [contacts, setContacts] = useState([]);
-  const [priceLists, setPriceLists] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
 
@@ -82,14 +88,6 @@ export default function Empresas({ onViewCompanyDetails }) {
   const [showDetail, setShowDetail] = useState(false);
   const [detailCompany, setDetailCompany] = useState(null);
   
-  // Dynamic Map search query state
-  const [mapSearchQuery, setMapSearchQuery] = useState('');
-
-  const role = localStorage.getItem('role');
-  const token = () => localStorage.getItem('token');
-
-  useEffect(() => { fetchCompanies(); fetchContacts(); fetchPriceLists(); }, []);
-
   useEffect(() => {
     let r = [...companies];
     if (search.trim()) {
@@ -105,39 +103,12 @@ export default function Empresas({ onViewCompanyDetails }) {
     setFiltered(r);
   }, [companies, search, typeFilter]);
 
-  const fetchCompanies = async () => {
-    setLoading(true); setError('');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/companies`, { headers: { Authorization: `Bearer ${token()}` } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setCompanies(data.companies || []);
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  };
-
-  const fetchPriceLists = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/price-lists`, { headers: { Authorization: `Bearer ${token()}` } });
-      const data = await res.json();
-      if (res.ok) setPriceLists(data.priceLists || []);
-    } catch { /* silent */ }
-  };
-
   const getPriceListName = (cve_precio) => {
     if (!cve_precio) return null;
     const pl = priceLists.find(p => p.cve_precio === parseInt(cve_precio));
     if (pl) return pl.descripcion;
     if (parseInt(cve_precio) === 1) return 'Lista Pública';
     return `Lista #${cve_precio}`;
-  };
-
-  const fetchContacts = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/contacts`, { headers: { Authorization: `Bearer ${token()}` } });
-      const data = await res.json();
-      if (res.ok) setContacts(data.contacts || []);
-    } catch { /* silent */ }
   };
 
   const handleLockedClick = (fieldName, currentVal) => {
@@ -149,7 +120,7 @@ export default function Empresas({ onViewCompanyDetails }) {
   const handleCreateContactInline = async (e) => {
     e.preventDefault();
     if (!newContactName.trim() || !newContactPhone.trim()) {
-      alert('El nombre y el teléfono son requeridos.');
+      showToast('El nombre y el teléfono son requeridos.', 'warning');
       return;
     }
     setCreatingContact(true);
@@ -187,9 +158,9 @@ export default function Empresas({ onViewCompanyDetails }) {
       setNewContactWhatsapp('');
       setNewContactNotes('');
       setWhatsappMode('buttons');
-      alert('¡Contacto de perfil creado y vinculado con éxito!');
+      showToast('¡Contacto de perfil creado y vinculado con éxito!', 'success');
     } catch (err) {
-      alert('Error al vincular contacto: ' + err.message);
+      showToast('Error al vincular contacto: ' + err.message, 'error');
     } finally {
       setCreatingContact(false);
     }
@@ -312,24 +283,30 @@ export default function Empresas({ onViewCompanyDetails }) {
         body: JSON.stringify(payload)
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setShowModal(false);
-      fetchCompanies();
+      if (res.ok) {
+        showToast('¡Empresa guardada con éxito!', 'success');
+        setShowModal(false);
+        refetch(); // Refetch en lugar de fetchCompanies local
+      } else {
+        throw new Error(data.message);
+      }
     } catch (err) { 
-      alert('Error: ' + err.message); 
+      showToast('Error: ' + err.message, 'error'); 
     } finally { 
       setSaving(false); 
     }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar esta empresa permanentemente?')) return;
+    const confirmed = await showConfirm('¿Confirmar Eliminación?', '¿Eliminar esta empresa permanentemente?', { type: 'danger', confirmText: 'Sí, eliminar' });
+    if (!confirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/companies/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      fetchCompanies();
-    } catch (err) { alert('Error: ' + err.message); }
+      showToast('Empresa eliminada correctamente.', 'success');
+      refetch(); // Refetch en lugar de fetchCompanies local
+    } catch (err) { showToast('Error al eliminar: ' + err.message, 'error'); }
   };
 
   // Archive Modal states
@@ -347,7 +324,7 @@ export default function Empresas({ onViewCompanyDetails }) {
   const handleArchiveConfirm = async (e) => {
     e.preventDefault();
     if (archiveReason.trim().length < 200) {
-      alert(`Por favor redacta una justificación válida. Llevas ${archiveReason.trim().length} de 200 caracteres mínimos requeridos.`);
+      showToast(`Por favor redacta una justificación válida. Llevas ${archiveReason.trim().length} de 200 caracteres mínimos requeridos.`, 'warning');
       return;
     }
     setArchivingInProgress(true);
@@ -373,10 +350,10 @@ export default function Empresas({ onViewCompanyDetails }) {
       if (!res.ok) throw new Error(data.message);
       setShowArchiveModal(false);
       setCompanyForArchive(null);
-      alert('Empresa archivada y depurada correctamente.');
-      fetchCompanies();
+      showToast('Empresa archivada y depurada correctamente.', 'success');
+      refetch(); // Refetch en lugar de fetchCompanies local
     } catch (err) {
-      alert('Error al archivar empresa: ' + err.message);
+      showToast('Error al archivar empresa: ' + err.message, 'error');
     } finally {
       setArchivingInProgress(false);
     }
@@ -427,7 +404,7 @@ export default function Empresas({ onViewCompanyDetails }) {
       {loading ? (
         <div className="crm-loading-placeholder"><div className="spinner" /><p>Cargando empresas...</p></div>
       ) : error ? (
-        <div className="crm-error-placeholder"><i className="fas fa-exclamation-triangle" /><p>{error}</p><button className="btn-primary" onClick={fetchCompanies}>Reintentar</button></div>
+        <div className="crm-error-placeholder"><i className="fas fa-exclamation-triangle" /><p>{error}</p><button className="btn-primary" onClick={refetch}>Reintentar</button></div>
       ) : filtered.length === 0 ? (
         <div className="crm-empty-placeholder"><i className="fas fa-building" /><p>No hay empresas registradas aún.</p></div>
       ) : (
@@ -819,7 +796,7 @@ export default function Empresas({ onViewCompanyDetails }) {
                               onClick={() => {
                                 const newUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapSearchQuery)}`;
                                 setForm(prev => ({ ...prev, maps_url: newUrl }));
-                                alert('¡Enlace de Google Maps generado y cargado en el formulario con éxito!');
+                                showToast('¡Enlace de Google Maps generado y cargado en el formulario con éxito!', 'success');
                               }}
                               style={{ flex: 1, padding: '6px 10px', fontSize: '0.75rem', fontWeight: 'bold', background: '#eff6ff', border: '1px solid #bfdbfe', color: '#2563eb', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
                             >
@@ -1253,13 +1230,13 @@ export default function Empresas({ onViewCompanyDetails }) {
               <button
                 type="button"
                 className="btn-primary-golden"
-                onClick={async () => {
+                onClick={async (e) => {
+                  e.preventDefault();
                   if (!tiReason.trim()) {
-                    alert('Por favor describe el motivo del cambio.');
+                    showToast('Por favor describe el motivo del cambio.', 'warning');
                     return;
                   }
                   setTiSending(true);
-                  const reqFolio = 'REQ-TI-' + Math.floor(1000 + Math.random() * 9000);
                   
                   // Log to timeline automatically inside selected.notes JSON
                   let timeline = [];
@@ -1281,8 +1258,8 @@ export default function Empresas({ onViewCompanyDetails }) {
 
                   const newNoteObj = {
                     date: new Date().toISOString(),
-                    text: `[SOLICITUD TI ${reqFolio}] Solicitud de cambio en campo "${tiField}" (Valor: "${tiVal}"). Motivo: ${tiReason}`,
-                    author: `Sistemas (TI) - Folio ${reqFolio}`
+                    text: `[SOLICITUD TI] Solicitud de cambio en campo "${tiField}" (Valor: "${tiVal}"). Motivo: ${tiReason}`,
+                    author: `Sistemas (TI)`
                   };
 
                   const updatedTimeline = [...timeline, newNoteObj];
@@ -1305,17 +1282,18 @@ export default function Empresas({ onViewCompanyDetails }) {
                       })
                     });
 
-                    if (res.ok) {
-                      alert(`¡Solicitud enviada a TI con éxito!\nFolio de seguimiento: ${reqFolio}.`);
+                    const data = await res.json();
+                    if (res.ok && data.success) {
+                      const reqFolio = data.ticketId || Math.floor(1000 + Math.random() * 9000);
+                      showToast(`¡Solicitud enviada a TI con éxito!\nFolio de seguimiento: ${reqFolio}.`, 'success');
                       setShowTiModal(false);
                       setTiReason('');
-                      fetchCompanies();
                     } else {
-                      alert('Error al procesar la solicitud.');
+                      showToast('Error al procesar la solicitud.', 'error');
                     }
                   } catch (err) {
-                    console.error(err);
-                    alert('Error de conexión.');
+                    console.error('TI req error:', err);
+                    showToast('Error de conexión.', 'error');
                   } finally {
                     setTiSending(false);
                   }
@@ -1448,13 +1426,14 @@ export default function Empresas({ onViewCompanyDetails }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '42px' }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (!newContactPhone.trim()) {
-                            alert('Por favor ingresa primero el teléfono principal.');
-                            return;
+                        onClick={(e) => {
+                          if (!newContactPhone) {
+                            e.preventDefault();
+                            showToast('Por favor ingresa primero el teléfono principal.', 'warning');
+                          } else {
+                            setNewContactWhatsapp(newContactPhone);
+                            setWhatsappMode('manual');
                           }
-                          setNewContactWhatsapp(newContactPhone);
-                          setWhatsappMode('manual');
                         }}
                         style={{
                           padding: '0.4rem 0.8rem',
@@ -1591,3 +1570,4 @@ export default function Empresas({ onViewCompanyDetails }) {
     </section>
   );
 }
+

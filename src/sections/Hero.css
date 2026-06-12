@@ -167,3 +167,20 @@
     width: 100%;
   }
 }
+
+/* -------------------------------------------------------------
+   CORRECCIÓN REPORTE §3.2: HERO RESPONSIVE 900px
+   ------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .hero-left {
+    padding: 5rem var(--container-padding) 3rem;
+  }
+  .hero-right {
+    height: 45vh;
+  }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    min-width: 180px;
+    text-align: center;
+  }
+}

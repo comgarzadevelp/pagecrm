@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 import { MODULE_REGISTRY, CATEGORY_LABELS } from '../moduleRegistry';
 import './ModuleConfigPanel.css';
-
+import '../panels/AdminPanels.css';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const ModuleConfigPanel = () => {
+  const { showToast } = useUX();
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState('');
   const [moduleConfigs, setModuleConfigs] = useState({});
@@ -126,7 +128,7 @@ const ModuleConfigPanel = () => {
   const handleCreateCompany = async (e) => {
     e.preventDefault();
     if (!newCompany.name || !newCompany.company_code) {
-      alert('Nombre y código de empresa son requeridos.');
+      showToast('Nombre y código de empresa son requeridos.', 'warning');
       return;
     }
 
@@ -382,3 +384,4 @@ const ModuleConfigPanel = () => {
 };
 
 export default ModuleConfigPanel;
+

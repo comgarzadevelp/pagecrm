@@ -15,6 +15,8 @@ export default function EnterpriseGroupPanel() {
   const [desc, setDesc] = useState('');
   const [primaryCol, setPrimaryCol] = useState('#05393A');
   const [accentCol, setAccentCol] = useState('#E0922B');
+  const [googleCalendarId, setGoogleCalendarId] = useState('');
+  const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState({ type: '', text: '' });
 
@@ -42,7 +44,29 @@ export default function EnterpriseGroupPanel() {
     }
   };
 
-  const handleCreateCompany = async (e) => {
+  const handleEditClick = (company) => {
+    setEditingId(company.id);
+    setName(company.name || '');
+    setCode(company.company_code || '');
+    setDesc(company.description || '');
+    setPrimaryCol(company.color_primary || '#05393A');
+    setAccentCol(company.color_accent || '#E0922B');
+    setGoogleCalendarId(company.google_calendar_id || '');
+    setFormMsg({ type: '', text: '' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setName('');
+    setCode('');
+    setDesc('');
+    setPrimaryCol('#05393A');
+    setAccentCol('#E0922B');
+    setGoogleCalendarId('');
+    setFormMsg({ type: '', text: '' });
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name.trim() || !code.trim()) {
       setFormMsg({ type: 'error', text: 'El nombre y código de empresa son obligatorios.' });
@@ -52,9 +76,14 @@ export default function EnterpriseGroupPanel() {
     setSubmitting(true);
     setFormMsg({ type: '', text: '' });
 
+    const isEdit = !!editingId;
+    const url = isEdit 
+      ? `${API_BASE}/api/crm/enterprise-companies/${editingId}`
+      : `${API_BASE}/api/crm/enterprise-companies`;
+
     try {
-      const res = await fetch(`${API_BASE}/api/crm/enterprise-companies`, {
-        method: 'POST',
+      const res = await fetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -64,20 +93,22 @@ export default function EnterpriseGroupPanel() {
           company_code: code.trim().toUpperCase(),
           description: desc.trim(),
           color_primary: primaryCol,
-          color_accent: accentCol
+          color_accent: accentCol,
+          google_calendar_id: googleCalendarId.trim()
         })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al registrar empresa.');
+      if (!res.ok) throw new Error(data.message || 'Error al procesar la empresa.');
 
       // Clear form
-      setName('');
-      setCode('');
-      setDesc('');
-      setPrimaryCol('#05393A');
-      setAccentCol('#E0922B');
-      setFormMsg({ type: 'success', text: `Empresa "${data.company?.name}" dada de alta y configurada exitosamente.` });
+      handleCancelEdit();
+      setFormMsg({ 
+        type: 'success', 
+        text: isEdit 
+          ? `Empresa "${data.company?.name}" actualizada con éxito.` 
+          : `Empresa "${data.company?.name}" dada de alta y configurada exitosamente.` 
+      });
 
       // Refresh list
       fetchCompanies();
@@ -100,7 +131,7 @@ export default function EnterpriseGroupPanel() {
             Conjunto Empresarial Corporativo
           </h2>
           <p className="sa-group-subtitle">
-            Administración centralizada de empresas asociadas, sucursales y sus respectivas configuraciones de marca.
+            Administración centralizada de empresas asociadas, sucursales y sus respectivas configuraciones de marca y calendarios corporativos.
           </p>
         </div>
         <button className="btn-refresh" onClick={fetchCompanies} disabled={loading}>
@@ -112,11 +143,14 @@ export default function EnterpriseGroupPanel() {
         {/* CREATE FORM CARD */}
         <div className="sa-group-card glass form-card">
           <h3>
-            <i className="fas fa-plus-circle" style={{ color: 'var(--color-brand-accent)', marginRight: '8px' }} />
-            Dar de Alta Nueva Empresa
+            <i className={editingId ? "fas fa-edit" : "fas fa-plus-circle"} style={{ color: 'var(--color-brand-accent)', marginRight: '8px' }} />
+            {editingId ? "Editar Empresa" : "Dar de Alta Nueva Empresa"}
           </h3>
           <p className="card-desc">
-            Al registrar una empresa se sembrará automáticamente su catálogo de 15 módulos del CRM con activación inicial completa.
+            {editingId 
+              ? "Modifica los estilos de marca corporativos, descripción y ID de Calendario de Google de la empresa."
+              : "Al registrar una empresa se sembrará automáticamente su catálogo de 15 módulos del CRM con activación inicial completa."
+            }
           </p>
 
           {formMsg.text && (
@@ -126,7 +160,7 @@ export default function EnterpriseGroupPanel() {
             </div>
           )}
 
-          <form onSubmit={handleCreateCompany} className="sa-group-form">
+          <form onSubmit={handleSubmit} className="sa-group-form">
             <div className="form-group">
               <label>Nombre de la Empresa *</label>
               <input
@@ -148,7 +182,7 @@ export default function EnterpriseGroupPanel() {
                 placeholder="Ej. GIN, COR"
                 maxLength={4}
                 required
-                disabled={submitting}
+                disabled={submitting || !!editingId} // Disable code edit to prevent database keys breaking
               />
             </div>
 
@@ -161,6 +195,20 @@ export default function EnterpriseGroupPanel() {
                 rows={2}
                 disabled={submitting}
               />
+            </div>
+
+            <div className="form-group">
+              <label>ID Calendario Google Maestro (Sincronización Dual)</label>
+              <input
+                type="text"
+                value={googleCalendarId}
+                onChange={e => setGoogleCalendarId(e.target.value)}
+                placeholder="Ej. c_xxxxxxx@group.calendar.google.com"
+                disabled={submitting}
+              />
+              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px', display: 'block' }}>
+                Utilizado para almacenar una copia espejo consolidada de todas las agendas de sus vendedores.
+              </span>
             </div>
 
             <div className="form-row">
@@ -191,13 +239,29 @@ export default function EnterpriseGroupPanel() {
               </div>
             </div>
 
-            <button type="submit" className="btn-submit" disabled={submitting}>
-              {submitting ? (
-                <><i className="fas fa-spinner fa-spin" /> Registrando en DB...</>
-              ) : (
-                <><i className="fas fa-plus" /> Registrar en Conjunto</>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
+              <button type="submit" className="btn-submit" style={{ flex: 2 }} disabled={submitting}>
+                {submitting ? (
+                  <><i className="fas fa-spinner fa-spin" /> Guardando...</>
+                ) : editingId ? (
+                  <><i className="fas fa-save" /> Guardar Cambios</>
+                ) : (
+                  <><i className="fas fa-plus" /> Registrar en Conjunto</>
+                )}
+              </button>
+              
+              {editingId && (
+                <button 
+                  type="button" 
+                  className="btn-refresh" 
+                  style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }} 
+                  onClick={handleCancelEdit} 
+                  disabled={submitting}
+                >
+                  Cancelar
+                </button>
               )}
-            </button>
+            </div>
           </form>
         </div>
 
@@ -231,9 +295,11 @@ export default function EnterpriseGroupPanel() {
                   <tr>
                     <th>Empresa</th>
                     <th>Código</th>
+                    <th>ID Calendario</th>
                     <th>Colores de Marca</th>
                     <th>Conexión SAE</th>
                     <th>Estado</th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -245,6 +311,18 @@ export default function EnterpriseGroupPanel() {
                       </td>
                       <td>
                         <span className="code-badge">{company.company_code}</span>
+                      </td>
+                      <td>
+                        {company.google_calendar_id ? (
+                          <span className="cell-desc" style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block', whiteSpace: 'nowrap' }} title={company.google_calendar_id}>
+                            <i className="fab fa-google" style={{ color: '#E0922B', marginRight: '5px' }} />
+                            {company.google_calendar_id}
+                          </span>
+                        ) : (
+                          <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                            No asignado
+                          </span>
+                        )}
                       </td>
                       <td>
                         <div className="colors-preview">
@@ -281,6 +359,15 @@ export default function EnterpriseGroupPanel() {
                             Inactivo
                           </span>
                         )}
+                      </td>
+                      <td>
+                        <button 
+                          className="btn-refresh" 
+                          style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '5px', backgroundColor: 'rgba(224, 146, 43, 0.1)', color: '#E0922B', border: '1px solid rgba(224, 146, 43, 0.2)' }}
+                          onClick={() => handleEditClick(company)}
+                        >
+                          <i className="fas fa-pencil-alt" /> Editar
+                        </button>
                       </td>
                     </tr>
                   ))}

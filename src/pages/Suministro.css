@@ -2,8 +2,8 @@
   background-color: var(--color-white);
 }
 
-/* Hero Section */
-.hero-badge {
+/* Hero Section â€” scoped badge override to avoid collision with Hero.css .hero-badge */
+.suministro-hero .hero-badge {
   display: inline-block;
   padding: 0.5rem 1rem;
   background: var(--color-white);
@@ -283,6 +283,16 @@
   }
 }
 
+@media (max-width: 900px) {
+  .continuity-grid {
+    gap: 2.5rem;
+  }
+  
+  .confidence-content {
+    padding: 2.5rem 1.5rem;
+  }
+}
+
 @media (max-width: 768px) {
   .categories-grid-sum {
     grid-template-columns: 1fr;
@@ -294,5 +304,18 @@
   
   .suministro-title {
     font-size: 2rem;
+  }
+}
+
+/* CORRECCIÓN REPORTE §3.7: Suministro confidence 480px */
+@media (max-width: 480px) {
+  .confidence-content {
+    padding: 2rem 1.5rem;
+  }
+  .confidence-text h2 {
+    font-size: clamp(1.5rem, 5vw, 2.5rem);
+  }
+  .suministro-hero {
+    padding: 120px 0 50px;
   }
 }

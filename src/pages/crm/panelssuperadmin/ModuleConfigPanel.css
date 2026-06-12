@@ -324,3 +324,24 @@
   transform: translateY(-2px) !important;
   box-shadow: 0 6px 20px rgba(224, 146, 43, 0.4) !important;
 }
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 2: MODULE CONFIG PANEL RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .sa-config-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .sa-config-company-select-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (max-width: 768px) {
+  .sa-config-form-grid,
+  .sa-config-grid-categories {
+    grid-template-columns: 1fr;
+  }
+}

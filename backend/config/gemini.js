@@ -10,5 +10,5 @@ if (!apiKey) {
 }
 
 export const genAI = new GoogleGenerativeAI(apiKey);
-// Usaremos gemini-1.5-flash para respuestas rápidas y de bajo costo/latencia
-export const GEMINI_MODEL = 'gemini-3.5-flash';
+// Usaremos gemini-2.5-flash para respuestas rápidas, de alta calidad y bajo costo
+export const GEMINI_MODEL = 'gemini-2.5-flash';

@@ -2,7 +2,7 @@ import { genAI, GEMINI_MODEL } from '../config/gemini.js';
 
 // Contexto completo de Comercializadora Garza para inyectar en la IA
 const SYSTEM_PROMPT = `
-Eres el Asistente Virtual Oficial de "Comercializadora de productos sustentables Garza" (Comercializadora Garza), un aliado estratégico líder en el suministro crítico de materiales para proyectos de infraestructura, industriales, comerciales, de obra pública y residenciales en México.
+ Eres Leopoldo, el Asistente Virtual Oficial de "Comercializadora de productos sustentables Garza" (Comercializadora Garza), un aliado estratégico líder en el suministro crítico de materiales para proyectos de infraestructura, industriales, comerciales, de obra pública y residenciales en México.
 
 Tu objetivo principal es:
 1. Brindar información técnica exacta, profesional y confiable sobre nuestros productos y servicios.
@@ -35,12 +35,31 @@ CANALES DE CONTACTO DIRECTO:
 
 INSTRUCCIONES DE TONO Y COMPORTAMIENTO:
 - Sé EXTREMADAMENTE CONCISO Y DIRECTO. Evita dar discursos corporativos largos o listas extensas a menos que el cliente pregunte detalles específicos.
-- Responde a los saludos ("hola", "buenos días") de forma muy breve y conversacional (ej. "¡Hola! Soy el Asistente Garza. ¿En qué material o proyecto puedo apoyarle hoy?"). NO recites toda la información de la empresa si no te lo piden.
+- Responde a los saludos ("hola", "buenos días") de forma muy breve y conversacional (ej. "¡Hola! Soy Leopoldo, el Asistente Garza. ¿En qué material o proyecto puedo apoyarle hoy?"). NO recites toda la información de la empresa si no te lo piden.
 - Háblale al cliente de "Usted", de manera formal pero cálida, ágil, altamente profesional y orientada al B2B.
 - Si te piden precios específicos de mayoreo, cotizaciones detalladas o catálogos de conceptos, explícales que debido al volumen y logística personalizada, manejamos precios preferenciales. Pide su nombre y WhatsApp para que un asesor especializado le contacte.
 - Nunca inventes productos o marcas que no manejamos. Si buscan algo especializado, menciona nuestro servicio de "Sourcing Especializado".
-- Mantén las respuestas fluidas, cortas (1 o 2 párrafos breves máximo por mensaje) para que sea agradable leerlas en el chat flotante.
+- Mantén las respuestas fluidas, cortas (1 o 2 párrafos breves máximo por mensaje) para que sea agradable leerlas en el chat flotante.reves máximo por mensaje) para que sea agradable leerlas en el chat flotante.
 `;
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const getChatbotConfig = () => {
+  try {
+    const configPath = path.join(__dirname, 'chatbot_config.json');
+    if (fs.existsSync(configPath)) {
+      return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    }
+  } catch (err) {
+    console.error('Error al leer chatbot_config.json:', err);
+  }
+  return null;
+};
 
 /**
  * Llama a la API de Gemini para generar una respuesta conversacional.
@@ -50,9 +69,12 @@ INSTRUCCIONES DE TONO Y COMPORTAMIENTO:
  */
 export const generateAIResponse = async (history, userMessage) => {
   try {
+    const config = getChatbotConfig();
+    const activePrompt = config && config.system_prompt ? config.system_prompt : SYSTEM_PROMPT;
+
     const model = genAI.getGenerativeModel({
       model: GEMINI_MODEL,
-      systemInstruction: SYSTEM_PROMPT,
+      systemInstruction: activePrompt,
     });
 
     // Formatear el historial para que coincida exactamente con lo que requiere Gemini SDK

@@ -16,6 +16,7 @@ const AIChat = () => {
   const [inputText, setInputText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
+  const [botName, setBotName] = useState("Leopoldo");
 
   useEffect(() => {
     // Inicializar o recuperar sessionId para persistencia de la conversación por pestaña
@@ -25,6 +26,28 @@ const AIChat = () => {
       sessionStorage.setItem('garza_chat_session_id', activeSessionId);
     }
     setSessionId(activeSessionId);
+
+    // Obtener configuración del chatbot dinámicamente desde el backend
+    const fetchChatbotConfig = async () => {
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiBase}/api/chat/config`);
+        const data = await res.json();
+        if (res.ok && data.success && data.config) {
+          setBotName(data.config.name || "Leopoldo");
+          setMessages([
+            {
+              id: 1,
+              text: data.config.welcome_message,
+              sender: "ai"
+            }
+          ]);
+        }
+      } catch (err) {
+        console.error('Error al cargar la configuración del chatbot:', err);
+      }
+    };
+    fetchChatbotConfig();
 
     const handlePopupTrigger = () => {
       setTimeout(() => {
@@ -131,9 +154,9 @@ const AIChat = () => {
         <div className="chat-window">
           <div className="chat-header">
             <div className="ai-profile">
-              <div className="ai-avatar">G</div>
+              <div className="ai-avatar">{botName ? botName.charAt(0).toUpperCase() : 'G'}</div>
               <div className="ai-status">
-                <h4>Asistente Garza</h4>
+                <h4>{botName || 'Asistente Garza'}</h4>
                 <span className={`status-dot ${isOnline ? '' : 'offline'}`}></span> {isOnline ? 'Online' : 'Offline'}
               </div>
             </div>

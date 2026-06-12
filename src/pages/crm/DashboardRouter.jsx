@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { getEnabledModules } from './moduleRegistry';
+import { UXProvider } from '../../components/common/UXProvider';
 
 // Dashboards per role
 import DashboardSuperAdmin from './dashboards/DashboardSuperAdmin';
@@ -8,8 +9,54 @@ import DashboardAdmin from './dashboards/DashboardAdmin';
 import DashboardSupervisor from './dashboards/DashboardSupervisor';
 import DashboardSales from './dashboards/DashboardSales';
 import DashboardSistemas from './dashboards/DashboardSistemas';
+import './ErrorBoundary.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="error-boundary-wrapper">
+          <div className="error-boundary-card">
+            <h2 className="error-boundary-title">
+              <i className="fas fa-exclamation-triangle"></i> Error de Ejecución en CRM
+            </h2>
+            <p className="error-boundary-msg">
+              Se ha detectado un fallo en el cliente de React. Detalle del error:
+            </p>
+            <div className="error-boundary-box">
+              <strong>{this.state.error?.toString()}</strong>
+            </div>
+            <details open style={{ cursor: 'pointer' }}>
+              <summary style={{ color: '#38bdf8', fontWeight: 'bold', marginBottom: '10px' }}>Pila de llamadas (Stack Trace)</summary>
+              <pre className="error-boundary-stack">
+                {this.state.error?.stack}
+              </pre>
+            </details>
+            <button onClick={() => window.location.reload()} className="error-boundary-btn">
+              Reintentar / Cargar de nuevo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const DashboardRouter = () => {
   const [role, setRole] = useState(localStorage.getItem('role'));
@@ -102,21 +149,31 @@ const DashboardRouter = () => {
     );
   }
 
-  switch (role) {
-    case 'super_admin':
-      return <DashboardSuperAdmin enabledModules={enabledModules} />;
-    case 'admin':
-      return <DashboardAdmin enabledModules={enabledModules} />;
-    case 'supervisor':
-      return <DashboardSupervisor enabledModules={enabledModules} />;
-    case 'sales':
-      return <DashboardSales enabledModules={enabledModules} />;
-    case 'sistemas':
-      return <DashboardSistemas enabledModules={enabledModules} />;
-    default:
-      localStorage.clear();
-      return <Navigate to="/crm/login" replace />;
-  }
+  const renderDashboard = () => {
+    switch (role) {
+      case 'super_admin':
+        return <DashboardSuperAdmin enabledModules={enabledModules} />;
+      case 'admin':
+        return <DashboardAdmin enabledModules={enabledModules} />;
+      case 'supervisor':
+        return <DashboardSupervisor enabledModules={enabledModules} />;
+      case 'sales':
+        return <DashboardSales enabledModules={enabledModules} />;
+      case 'sistemas':
+        return <DashboardSistemas enabledModules={enabledModules} />;
+      default:
+        localStorage.clear();
+        return <Navigate to="/crm/login" replace />;
+    }
+  };
+
+  return (
+    <ErrorBoundary>
+      <UXProvider>
+        {renderDashboard()}
+      </UXProvider>
+    </ErrorBoundary>
+  );
 };
 
 export default DashboardRouter;

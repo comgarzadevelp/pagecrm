@@ -202,3 +202,12 @@
     justify-content: center;
   }
 }
+/* CORRECCIÓN REPORTE §3.9: Footer 900px */
+@media (max-width: 900px) {
+  .footer-top {
+    gap: 2.5rem;
+  }
+  .footer-slogan {
+    max-width: 100%;
+  }
+}

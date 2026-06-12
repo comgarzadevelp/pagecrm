@@ -8,6 +8,7 @@ export default function NotificationsPanel() {
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [visibleLimit, setVisibleLimit] = useState(20);
 
   const token = () => localStorage.getItem('token');
 
@@ -76,6 +77,10 @@ export default function NotificationsPanel() {
     }
   };
 
+  const handleLoadMoreNotifs = () => {
+    setVisibleLimit(prev => prev + 20);
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const getNotificationIcon = (type) => {
@@ -121,7 +126,7 @@ export default function NotificationsPanel() {
         </div>
       ) : (
         <div className="notifications-feed-list">
-          {notifications.map(notif => {
+          {notifications.slice(0, visibleLimit).map(notif => {
             const config = getNotificationIcon(notif.type);
             const dateStr = new Date(notif.created_at).toLocaleString('es-MX', {
               day: 'numeric',
@@ -161,6 +166,16 @@ export default function NotificationsPanel() {
               </div>
             );
           })}
+          {notifications.length > visibleLimit && (
+            <div className="notifs-load-more-container">
+              <button 
+                onClick={handleLoadMoreNotifs} 
+                className="btn-load-more-notifs"
+              >
+                Cargar notificaciones anteriores ({notifications.length - visibleLimit})
+              </button>
+            </div>
+          )}
         </div>
       )}
     </section>

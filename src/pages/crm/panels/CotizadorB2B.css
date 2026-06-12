@@ -1,0 +1,287 @@
+/* ==========================================================================
+   Cotizador B2B Builder Sizing & Design
+   ========================================================================== */
+.crm-quotes-section {
+  padding: 2.25rem;
+}
+
+.quote-items-section {
+  background: var(--color-gray-100);
+  padding: 1.5rem;
+  border-radius: 12px;
+  border: 1px solid var(--color-gray-200);
+}
+
+.quote-item-row .crm-login-input {
+  background: var(--color-white);
+  padding: 0.65rem 0.85rem;
+}
+
+/* ==========================================================================
+   Premium Printable Sheet Layout Styles (MEMBRETADA CORP)
+   ========================================================================== */
+.quote-printable-document {
+  background: var(--color-white);
+  width: 100%;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 3rem;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+  font-family: var(--font-secondary), sans-serif;
+  color: var(--color-text);
+  border-radius: 4px;
+}
+
+.quote-print-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+
+.quote-print-brand {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.quote-print-logo {
+  height: 60px;
+  width: auto;
+}
+
+.quote-print-brand-info h2 {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--color-brand-primary);
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.quote-print-brand-info p {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin: 2px 0;
+}
+
+.quote-print-brand-info span {
+  font-size: 0.725rem;
+  color: var(--color-text-muted);
+  display: block;
+}
+
+.quote-print-meta {
+  display: flex;
+  gap: 1rem;
+}
+
+.quote-meta-box {
+  background: var(--color-gray-100);
+  border: 1px solid var(--color-gray-200);
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  text-align: center;
+  min-width: 100px;
+}
+
+.meta-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  display: block;
+  margin-bottom: 2px;
+  letter-spacing: 0.5px;
+}
+
+.meta-val {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-brand-primary);
+}
+
+.quote-divider-gold {
+  border: none;
+  border-top: 3px solid var(--color-brand-accent);
+  margin: 1.5rem 0;
+}
+
+.quote-client-seller-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.quote-client-box h3,
+.quote-seller-box h3 {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--color-brand-accent);
+  letter-spacing: 0.5px;
+  margin: 0 0 0.65rem 0;
+  border-bottom: 1px solid var(--color-gray-200);
+  padding-bottom: 4px;
+}
+
+.quote-client-box strong,
+.quote-seller-box strong {
+  font-size: 0.95rem;
+  color: var(--color-brand-primary);
+}
+
+.quote-client-box p,
+.quote-seller-box p {
+  font-size: 0.8rem;
+  margin: 4px 0;
+  color: var(--color-gray-400);
+}
+
+/* Printable materials table */
+.quote-print-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 2rem;
+}
+
+.quote-print-table th {
+  background: var(--color-brand-primary);
+  color: var(--color-white);
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid var(--color-brand-primary);
+}
+
+.quote-print-table td {
+  padding: 0.85rem 1rem;
+  font-size: 0.8rem;
+  border: 1px solid var(--color-gray-200);
+}
+
+.quote-print-table tr:nth-child(even) {
+  background: var(--color-gray-100);
+}
+
+/* Totals B2B layout */
+.quote-totals-wrapper {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 2rem;
+  margin-bottom: 3rem;
+  align-items: flex-start;
+}
+
+.quote-notes-block h4 {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--color-brand-accent);
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.5px;
+}
+
+.quote-notes-block p {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.quote-print-totals-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.quote-print-totals-table td {
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.quote-print-totals-table td:first-child {
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.quote-print-totals-table td:last-child {
+  font-weight: 700;
+  text-align: right;
+  color: var(--color-text-dark);
+}
+
+.quote-print-totals-table .grand-total-row {
+  background: rgba(224, 146, 43, 0.08);
+}
+
+.quote-print-totals-table .grand-total-row td {
+  border-top: 2px solid var(--color-brand-accent);
+  border-bottom: 2px solid var(--color-brand-accent);
+}
+
+.quote-print-totals-table .grand-total-row td:first-child {
+  color: var(--color-brand-primary);
+  font-weight: 800;
+}
+
+.quote-print-totals-table .grand-total-row td:last-child {
+  font-size: 1.05rem;
+  color: var(--color-brand-primary);
+  font-weight: 800;
+}
+
+/* Signatures & Footer corporativo */
+.quote-print-footer {
+  text-align: center;
+  border-top: 1px solid #cbd5e1;
+  padding-top: 1.5rem;
+}
+
+.quote-print-footer p {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin: 0 0 2rem 0;
+  font-style: italic;
+}
+
+.quote-signatures {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  margin-bottom: 1.5rem;
+}
+
+.signature-line hr {
+  border: none;
+  border-top: 1px solid #94a3b8;
+  margin: 0 0 6px 0;
+}
+
+.signature-line span {
+  font-size: 0.65rem;
+  color: var(--color-text-muted);
+  display: block;
+}
+
+.signature-line strong {
+  font-size: 0.8rem;
+  color: var(--color-brand-primary);
+  display: block;
+  margin-top: 2px;
+}
+
+.corp-web-link {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--color-brand-primary);
+  letter-spacing: 0.5px;
+}

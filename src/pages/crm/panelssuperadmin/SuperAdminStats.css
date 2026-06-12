@@ -1,8 +1,26 @@
 /* src/pages/crm/panelssuperadmin/SuperAdminStats.css */
 /* Scoped styles for SuperAdminStats.jsx to prevent global class collisions */
 
+/* ── Dark Theme Token System for SuperAdmin panels ── */
 .sa-stats-root {
-  color: #fff;
+  --sa-accent: #00f2fe;
+  --sa-accent-10: rgba(0, 242, 254, 0.1);
+  --sa-accent-15: rgba(0, 242, 254, 0.15);
+  --sa-accent-20: rgba(0, 242, 254, 0.2);
+  --sa-accent-25: rgba(0, 242, 254, 0.25);
+  --sa-accent-40: rgba(0, 242, 254, 0.4);
+  --sa-bg-card: rgba(10, 20, 22, 0.6);
+  --sa-border-subtle: rgba(255, 255, 255, 0.03);
+  --sa-border-light: rgba(255, 255, 255, 0.05);
+  --sa-border-medium: rgba(255, 255, 255, 0.08);
+  --sa-border-accent: var(--sa-accent-10);
+  --sa-text-primary: #fff;
+  --sa-text-muted: rgba(255, 255, 255, 0.6);
+  --sa-success: #10b981;
+  --sa-danger: #ef4444;
+}
+.sa-stats-root {
+  color: var(--sa-text-primary);
   font-family: 'Outfit', sans-serif;
 }
 
@@ -65,8 +83,8 @@
 }
 
 .sa-stats-filter-select:focus {
-  border-color: rgba(0, 242, 254, 0.4);
-  box-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+  border-color: var(--sa-accent-40);
+  box-shadow: 0 0 10px var(--sa-accent-20);
 }
 
 .sa-stats-kpi-grid {
@@ -80,8 +98,8 @@
   display: flex;
   justify-content: space-between;
   padding: 20px;
-  background: rgba(10, 20, 22, 0.6);
-  border: 1px solid rgba(0, 242, 254, 0.1);
+  background: var(--sa-bg-card);
+  border: 1px solid var(--sa-accent-10);
   border-radius: 16px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(16px);
@@ -89,7 +107,7 @@
 }
 
 .sa-stats-kpi-card-custom:hover {
-  border-color: rgba(0, 242, 254, 0.25);
+  border-color: var(--sa-accent-25);
   box-shadow: 0 12px 40px 0 rgba(0, 242, 254, 0.12);
   transform: translateY(-4px);
 }
@@ -115,11 +133,11 @@
 }
 
 .sa-stats-kpi-trend.up {
-  color: #10b981;
+  color: var(--sa-success);
 }
 
 .sa-stats-kpi-trend.down {
-  color: #ef4444;
+  color: var(--sa-danger);
 }
 
 .sa-stats-kpi-icon-container {
@@ -354,9 +372,9 @@
 }
 
 .sa-stats-sae-badge {
-  background: rgba(0, 242, 254, 0.1);
-  color: #00f2fe;
-  border: 1px solid rgba(0, 242, 254, 0.2);
+  background: var(--sa-accent-10);
+  color: var(--sa-accent);
+  border: 1px solid var(--sa-accent-20);
   padding: 3px 10px;
   border-radius: 6px;
   font-size: 0.75rem;
@@ -365,20 +383,20 @@
 }
 
 .sa-stats-sae-badge.na {
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.4);
-  border-color: rgba(255, 255, 255, 0.1);
+  background: var(--sa-border-light);
+  color: var(--sa-text-muted);
+  border-color: var(--sa-border-medium);
 }
 
 .sa-stats-sae-amount {
   font-family: monospace;
   font-weight: 700;
-  color: #10b981;
+  color: var(--sa-success);
   font-size: 0.95rem;
 }
 
 .sa-stats-sae-amount.na {
-  color: rgba(255, 255, 255, 0.4);
+  color: var(--sa-text-muted);
   font-family: inherit;
   font-size: 0.85rem;
 }
@@ -423,9 +441,9 @@
 }
 
 .sa-stats-crm-period-btn.active {
-  background: rgba(0, 242, 254, 0.15) !important;
-  color: #00f2fe !important;
-  box-shadow: inset 0 0 6px rgba(0, 242, 254, 0.1);
+  background: var(--sa-accent-15);
+  color: var(--sa-accent);
+  box-shadow: inset 0 0 6px var(--sa-accent-10);
 }
 
 .sa-stats-crm-use-grid {
@@ -449,14 +467,14 @@
 }
 
 .sa-stats-crm-use-metric-card:hover {
-  border-color: rgba(0, 242, 254, 0.2);
+  border-color: var(--sa-accent-20);
   background: rgba(0, 242, 254, 0.02);
   transform: translateY(-2px);
 }
 
 .sa-stats-crm-use-icon {
   font-size: 1.5rem;
-  color: #00f2fe;
+  color: var(--sa-accent);
   margin-bottom: 4px;
   text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
 }
@@ -497,7 +515,35 @@
 
 .sa-stats-chart-empty-overlay i {
   font-size: 2rem;
-  color: rgba(0, 242, 254, 0.4);
-  text-shadow: 0 0 10px rgba(0, 242, 254, 0.2);
+  color: var(--sa-accent-40);
+  text-shadow: 0 0 10px var(--sa-accent-20);
 }
 
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 2: SUPER ADMIN STATS RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .sa-stats-double-row {
+    grid-template-columns: 1fr;
+  }
+  .sa-stats-heatmap-table-wrapper,
+  .sa-stats-sae-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sa-stats-heatmap-table,
+  .sa-stats-sae-table {
+    min-width: 650px;
+  }
+}
+@media (max-width: 768px) {
+  .sa-stats-top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sa-stats-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

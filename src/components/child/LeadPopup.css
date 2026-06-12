@@ -147,3 +147,10 @@
     font-size: 1.6rem;
   }
 }
+
+/* CORRECCIÓN REPORTE §4.6: LeadPopup 600px */
+@media (max-width: 600px) {
+  .lead-popup-content {
+    padding: 2.5rem 1.5rem;
+  }
+}

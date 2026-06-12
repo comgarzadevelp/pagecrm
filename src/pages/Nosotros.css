@@ -228,7 +228,7 @@
   }
   
   .values-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
   
   .legacy-image {
@@ -242,8 +242,32 @@
     padding: 140px 0 60px;
   }
   
+  .values-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .legacy-stats {
     flex-direction: column;
     gap: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .legacy-years {
+    position: relative;
+    top: auto;
+    right: auto;
+    margin-top: 1rem;
+  }
+}
+
+/* CORRECCIÓN REPORTE §3.6: Nosotros hero y legacy-stats 900px */
+@media (max-width: 900px) {
+  .nosotros-hero {
+    padding: 140px 0 80px;
+  }
+  .legacy-stats {
+    gap: 2rem;
+    flex-wrap: wrap;
   }
 }

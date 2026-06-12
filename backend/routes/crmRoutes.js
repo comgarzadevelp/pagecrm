@@ -9,8 +9,8 @@ import {
   getSellers, createSeller, updateSeller, getSaeSellersList, assignLead, resetSellerPassword,
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
-  getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence,
-  getAllQuotes, getPipelineStats, getEnterpriseCompanies
+  getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
+  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct
 } from '../controllers/crmController.js';
 
 import {
@@ -33,7 +33,7 @@ import {
 } from '../controllers/opportunitiesController.js';
 
 import {
-  getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany
+  getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany, updateEnterpriseCompany
 } from '../controllers/moduleConfigController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -57,6 +57,7 @@ router.post('/customers', createCustomer);
 router.put('/customers/:id', updateCustomer);
 router.delete('/customers/:id', deleteCustomer);
 router.post('/customers/:id/evidence', upload.single('photo'), uploadCustomerEvidence);
+router.post('/customers/:id/invoices', upload.single('invoice'), uploadCustomerInvoice);
 router.get('/customers/:id/quotes', getCustomerQuotes);
 
 // ── CONTACTOS (Personas físicas) ──────────────────────────────
@@ -95,7 +96,9 @@ router.put('/profile/password', changeOwnPassword);
 
 // ── PRODUCTOS CATÁLOGO ────────────────────────────────────────
 router.get('/products', getProducts);
+router.post('/products/rav', saveRavProduct);
 router.get('/price-lists', getPriceLists);
+router.post('/translate', translateText);
 
 // ── VENDEDORES & USUARIOS (Admin/Supervisor/SuperAdmin) ────────
 router.get('/enterprise-companies', getEnterpriseCompanies);
@@ -121,7 +124,8 @@ router.get('/module-config', getModuleConfig);
 router.get('/module-config/:companyId', getModuleConfigForCompany);
 router.put('/module-config/:companyId', updateModuleConfig);
 
-// ── CREAR EMPRESA (Super Admin) ───────────────────────────────
+// ── CREAR Y GESTIONAR EMPRESAS (Super Admin) ───────────────────
 router.post('/enterprise-companies', createEnterpriseCompany);
+router.put('/enterprise-companies/:id', updateEnterpriseCompany);
 
 export default router;

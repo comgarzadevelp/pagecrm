@@ -47,20 +47,27 @@ export const uploadFile = async (req, res) => {
     const { name, description, category } = req.body;
     const userId = req.user?.userId;
 
-    // Save file physically
-    const uploadDir = path.join(__dirname, '../public/uploads/container');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = path.extname(req.file.originalname) || '';
     const fileName = `${uniqueSuffix}${ext}`;
-    const filePath = path.join(uploadDir, fileName);
-    fs.writeFileSync(filePath, req.file.buffer);
-
-    const fileUrl = `/uploads/container/${fileName}`;
     const originalName = name || req.file.originalname;
+
+    let fileUrl = '';
+
+    try {
+      const { uploadToR2 } = await import('../services/r2Service.js');
+      fileUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'container');
+    } catch (r2Err) {
+      console.warn('R2 upload failed or not configured, saving to local filesystem instead:', r2Err.message);
+      // Fallback to local upload
+      const uploadDir = path.join(__dirname, '../public/uploads/container');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `/uploads/container/${fileName}`;
+    }
 
     // Detect file type
     const mime = req.file.mimetype || '';
@@ -109,11 +116,22 @@ export const deleteFile = async (req, res) => {
 
     if (fetchError) throw fetchError;
 
-    // Delete physical file
+    // Delete file
     if (fileData?.file_url) {
-      const physicalPath = path.join(__dirname, '../public', fileData.file_url);
-      if (fs.existsSync(physicalPath)) {
-        fs.unlinkSync(physicalPath);
+      if (fileData.file_url.startsWith('http')) {
+        // Delete from Cloudflare R2
+        try {
+          const { deleteFromR2 } = await import('../services/r2Service.js');
+          await deleteFromR2(fileData.file_url);
+        } catch (r2Err) {
+          console.warn('Could not delete from R2:', r2Err.message);
+        }
+      } else {
+        // Delete from local physical filesystem
+        const physicalPath = path.join(__dirname, '../public', fileData.file_url);
+        if (fs.existsSync(physicalPath)) {
+          fs.unlinkSync(physicalPath);
+        }
       }
     }
 

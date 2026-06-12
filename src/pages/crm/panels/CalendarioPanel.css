@@ -1147,3 +1147,32 @@
   gap: 8px;
   margin-bottom: 1.2rem;
 }
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 1: CALENDARIO PANEL RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .calendar-panel-expert .calendar-layout {
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+  .calendar-panel-expert .team-audit-feed {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .calendar-panel-expert .audit-feed-header,
+  .calendar-panel-expert .audit-row-item {
+    min-width: 750px; 
+  }
+}
+
+/* CORRECCIÓN REPORTE §4.2: CalendarioPanel 480px */
+@media (max-width: 480px) {
+  .calendar-panel-expert .calendar-layout {
+    gap: 1rem;
+  }
+  .calendar-panel-expert .audit-feed-header,
+  .calendar-panel-expert .audit-row-item {
+    min-width: 600px;
+  }
+}

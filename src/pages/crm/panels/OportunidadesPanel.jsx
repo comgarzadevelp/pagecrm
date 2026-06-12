@@ -1,15 +1,42 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useUX } from '../../../components/common/UXProvider';
+import useDebounce from '../hooks/useDebounce';
+import './OportunidadesPanel.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function OportunidadesPanel() {
+  const { showToast, showConfirm } = useUX();
   const [opportunities, setOpportunities] = useState([]);
   const [contacts, setContacts] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [sellers, setSellers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+
+  // Kanban filters
+  const [kanbanSearch, setKanbanSearch] = useState('');
+  const debouncedKanbanSearch = useDebounce(kanbanSearch, 400);
+  const [kanbanFilterSeller, setKanbanFilterSeller] = useState('all');
+
+  // Paginación local del Kanban
+  const INITIAL_LIMIT = 20;
+  const [visibleLimits, setVisibleLimits] = useState({
+    nuevo: INITIAL_LIMIT,
+    contactado: INITIAL_LIMIT,
+    propuesta: INITIAL_LIMIT,
+    negociacion: INITIAL_LIMIT,
+    ganado: INITIAL_LIMIT,
+    perdido: INITIAL_LIMIT
+  });
+
+  const handleLoadMore = (stageKey) => {
+    setVisibleLimits(prev => ({
+      ...prev,
+      [stageKey]: prev[stageKey] + 20
+    }));
+  };
 
   // Drag & drop state
   const [draggedId, setDraggedId] = useState(null);
@@ -46,32 +73,44 @@ export default function OportunidadesPanel() {
   const token = () => localStorage.getItem('token');
 
   useEffect(() => {
-    fetchInitialData();
+    const abortController = new AbortController();
+    fetchInitialData(abortController.signal);
+
+    return () => {
+      abortController.abort();
+    };
   }, []);
 
-  const fetchInitialData = async () => {
+  const fetchInitialData = async (signal) => {
     setLoading(true);
     setError('');
     try {
       const headers = { Authorization: `Bearer ${token()}` };
 
-      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities`, { headers });
-      const dataOpp = await resOpp.json();
+      const [resOpp, resCon, resComp, resSel] = await Promise.all([
+        fetch(`${API_BASE}/api/crm/opportunities`, { headers, signal }),
+        fetch(`${API_BASE}/api/crm/contacts`, { headers, signal }),
+        fetch(`${API_BASE}/api/crm/companies`, { headers, signal }),
+        fetch(`${API_BASE}/api/crm/sellers`, { headers, signal })
+      ]);
+
+      const [dataOpp, dataCon, dataComp, dataSel] = await Promise.all([
+        resOpp.json(),
+        resCon.json(),
+        resComp.json(),
+        resSel.json()
+      ]);
+
       if (resOpp.ok) setOpportunities(dataOpp.opportunities || []);
-
-      const resCon = await fetch(`${API_BASE}/api/crm/contacts`, { headers });
-      const dataCon = await resCon.json();
       if (resCon.ok) setContacts(dataCon.contacts || []);
-
-      const resComp = await fetch(`${API_BASE}/api/crm/companies`, { headers });
-      const dataComp = await resComp.json();
       if (resComp.ok) setCompanies(dataComp.companies || []);
-
-      const resSel = await fetch(`${API_BASE}/api/crm/sellers`, { headers });
-      const dataSel = await resSel.json();
       if (resSel.ok) setSellers(dataSel.sellers || []);
 
     } catch (err) {
+      if (err.name === 'AbortError') {
+        console.log('Fetch de Oportunidades abortado (panel desmontado)');
+        return;
+      }
       console.error(err);
       setError('Fallo de conexión al cargar datos de Oportunidades.');
     } finally {
@@ -169,7 +208,7 @@ export default function OportunidadesPanel() {
 
     // CRITICAL VALIDATION: Must have at least one Contact OR Company associated to prevent orphan quotes/prospects
     if (!form.contact_id && !form.company_id) {
-      alert('⚠️ Requerimiento Obligatorio: Debes asignar al menos un Contacto Físico o una Empresa/Desarrollo a la oportunidad. No se permiten registros huérfanos.');
+      showToast('⚠️ Requerimiento Obligatorio: Debes asignar al menos un Contacto Físico o una Empresa/Desarrollo a la oportunidad. No se permiten registros huérfanos.', 'warning');
       return;
     }
 
@@ -198,14 +237,15 @@ export default function OportunidadesPanel() {
 
       setShowModal(false);
       fetchInitialData();
-      alert('Oportunidad comercial guardada exitosamente.');
+      showToast('Oportunidad comercial guardada exitosamente.', 'success');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
   const handleDelete = async (oppId) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar esta oportunidad permanentemente?')) return;
+    const confirmed = await showConfirm('¿Eliminar Oportunidad?', '¿Estás seguro de que deseas eliminar esta oportunidad permanentemente?', { type: 'danger', confirmText: 'Eliminar' });
+    if (!confirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/opportunities/${oppId}`, {
         method: 'DELETE',
@@ -214,8 +254,9 @@ export default function OportunidadesPanel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       fetchInitialData();
+      showToast('Oportunidad eliminada', 'success');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message, 'error');
     }
   };
 
@@ -269,17 +310,40 @@ export default function OportunidadesPanel() {
     return null;
   };
 
-  // Filtered dropdown results based on smart searches inside modal
-  // Only CRM companies with valid UUIDs — SAE-synced companies have string IDs like 'sae-XXXXXX'
-  // which are not valid UUIDs and cannot be stored in crm_opportunities.company_id
-  const crmOnlyCompanies = companies.filter(c => !String(c.id).startsWith('sae-'));
-  const filteredCompanies = crmOnlyCompanies.filter(c => 
-    !companySearch.trim() || c.name.toLowerCase().includes(companySearch.toLowerCase()) || (c.alias && c.alias.toLowerCase().includes(companySearch.toLowerCase()))
-  );
+  // Master filter logic for Kanban (before column rendering)
+  const filteredOpportunities = opportunities.filter(opp => {
+    if (kanbanFilterSeller !== 'all' && opp.assigned_to !== kanbanFilterSeller) {
+      return false;
+    }
+    if (debouncedKanbanSearch) {
+      const query = debouncedKanbanSearch.toLowerCase();
+      const matchTitle = opp.title?.toLowerCase().includes(query);
+      const matchCompany = opp.company?.name?.toLowerCase().includes(query);
+      const matchContact = opp.contact?.name?.toLowerCase().includes(query);
+      if (!matchTitle && !matchCompany && !matchContact) {
+        return false;
+      }
+    }
+    return true;
+  });
 
-  const filteredContacts = contacts.filter(c => 
-    !contactSearch.trim() || c.name.toLowerCase().includes(contactSearch.toLowerCase()) || (c.position && c.position.toLowerCase().includes(contactSearch.toLowerCase()))
-  );
+  // Filtered dropdown results based on smart searches inside modal
+  // Permite buscar tanto empresas del CRM como las importadas de SAE
+  const filteredCompanies = companies.filter(c => {
+    if (!companySearch.trim()) return true;
+    const s = companySearch.toLowerCase();
+    const nameMatch = c.name && c.name.toLowerCase().includes(s);
+    const aliasMatch = c.alias && c.alias.toLowerCase().includes(s);
+    return nameMatch || aliasMatch;
+  });
+
+  const filteredContacts = contacts.filter(c => {
+    if (!contactSearch.trim()) return true;
+    const s = contactSearch.toLowerCase();
+    const nameMatch = c.name && c.name.toLowerCase().includes(s);
+    const posMatch = c.position && c.position.toLowerCase().includes(s);
+    return nameMatch || posMatch;
+  });
 
   if (loading) {
     return (
@@ -312,98 +376,99 @@ export default function OportunidadesPanel() {
         </div>
       )}
 
+      {/* FILTERS */}
+      <div className="crm-kanban-filters">
+        <div className="crm-search-box">
+          <i className="fas fa-search" />
+          <input 
+            type="text" 
+            placeholder="Buscar proyecto, empresa o contacto..." 
+            value={kanbanSearch}
+            onChange={e => setKanbanSearch(e.target.value)}
+          />
+        </div>
+        <div className="crm-filter-box">
+          <span className="crm-filter-label">Vendedor:</span>
+          <select 
+            value={kanbanFilterSeller} 
+            onChange={e => setKanbanFilterSeller(e.target.value)}
+          >
+            <option value="all">Todos los Vendedores</option>
+            {sellers.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       {/* KANBAN BOARD */}
-      <div className="crm-kanban-board" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', alignItems: 'stretch' }}>
+      <div className="crm-kanban-board kanban-board-grid">
         {stages.map(col => {
-          const colOpps = opportunities.filter(o => o.stage === col.key);
+          const colOpps = filteredOpportunities.filter(o => o.stage === col.key);
           const colSum = colOpps.reduce((acc, o) => acc + parseFloat(o.value || 0), 0);
 
           return (
             <div
               key={col.key}
-              className={`kanban-col ${dragOverCol === col.key ? 'drag-over' : ''}`}
+              className={`kanban-col kanban-col-wrapper ${dragOverCol === col.key ? 'drag-over' : ''}`}
               onDragOver={(e) => onDragOver(e, col.key)}
               onDrop={(e) => onDrop(e, col.key)}
-              style={{
-                background: '#f8fafc',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                padding: '1rem',
-                minHeight: '400px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem'
-              }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: `3px solid ${col.color}`, paddingBottom: '0.5rem', marginBottom: '0.5rem' }}>
-                <h4 style={{ fontSize: '0.78rem', fontWeight: '800', color: '#1e293b', margin: 0 }}>{col.label}</h4>
-                <span style={{ fontSize: '0.725rem', fontWeight: 'bold', background: '#e2e8f0', padding: '2px 8px', borderRadius: '20px' }}>
+              <div className="kanban-col-header" style={{ borderBottom: `3px solid ${col.color}` }}>
+                <h4 className="kanban-col-title">{col.label}</h4>
+                <span className="kanban-col-count">
                   {colOpps.length}
                 </span>
               </div>
               
-              <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}>
+              <div className="kanban-col-total">
                 <span>Total Estimado:</span>
-                <span style={{ color: 'var(--color-brand-primary)' }}>${colSum.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                <span className="kanban-col-total-val">${colSum.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
               </div>
 
-              <div className="kanban-cards-container" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1, overflowY: 'auto' }}>
-                {colOpps.map(opp => {
+              <div className="kanban-cards-container">
+                {colOpps.slice(0, visibleLimits[col.key]).map(opp => {
                   const alertInfo = getInactivityAlert(opp.stage_updated_at);
+                  const borderClass = alertInfo 
+                    ? (alertInfo.level === 'danger' ? 'kanban-card-border-danger' : 'kanban-card-border-warning') 
+                    : 'kanban-card-border-normal';
+
                   return (
                     <div
                       key={opp.id}
-                      className="kanban-card glass"
+                      className={`kanban-card glass kanban-card-item ${borderClass}`}
                       draggable="true"
                       onDragStart={(e) => onDragStart(e, opp.id)}
-                      style={{
-                        padding: '1rem',
-                        background: '#ffffff',
-                        border: alertInfo ? (alertInfo.level === 'danger' ? '1px solid #ef4444' : '1px solid #f59e0b') : '1px solid #cbd5e1',
-                        borderRadius: '10px',
-                        cursor: 'grab',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.03)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '0.45rem'
-                      }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                        <span style={{
-                          fontSize: '0.625rem',
-                          fontWeight: 'bold',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          background: opp.type === 'pedido' ? '#f0fdf4' : '#eff6ff',
-                          color: opp.type === 'pedido' ? '#16a34a' : '#2563eb'
-                        }}>
+                      <div className="card-header-row">
+                        <span className={opp.type === 'pedido' ? 'card-badge-pedido' : 'card-badge-proyecto'}>
                           {opp.type.toUpperCase()}
                         </span>
                         
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          <button onClick={() => handleOpenEdit(opp)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-brand-primary)', fontSize: '0.75rem' }}>
+                        <div className="card-actions">
+                          <button onClick={() => handleOpenEdit(opp)} className="card-btn-edit">
                             <i className="fas fa-edit"></i>
                           </button>
-                          <button onClick={() => handleDelete(opp.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '0.75rem' }}>
+                          <button onClick={() => handleDelete(opp.id)} className="card-btn-delete">
                             <i className="fas fa-trash-alt"></i>
                           </button>
                         </div>
                       </div>
 
-                      <h4 style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#1e293b', fontWeight: '800' }}>{opp.title}</h4>
-                      {opp.description && <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{opp.description}</p>}
+                      <h4 className="card-title">{opp.title}</h4>
+                      {opp.description && <p className="card-desc">{opp.description}</p>}
 
                       {/* Vinculaciones de empresa / contacto */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderTop: '1px solid #f1f5f9', paddingTop: '4px', marginTop: '4px' }}>
+                      <div className="card-links-row">
                         {opp.company && (
-                          <div style={{ fontSize: '0.7rem', color: '#475569' }}>
-                            <i className="fas fa-building" style={{ marginRight: '4px', color: 'var(--color-brand-accent)' }}></i>
+                          <div className="card-link-item">
+                            <i className="fas fa-building card-link-icon"></i>
                             <strong>{opp.company.name}</strong>
                           </div>
                         )}
                         {opp.contact && (
-                          <div style={{ fontSize: '0.7rem', color: '#475569' }}>
-                            <i className="fas fa-user" style={{ marginRight: '4px', color: 'var(--color-brand-accent)' }}></i>
+                          <div className="card-link-item">
+                            <i className="fas fa-user card-link-icon"></i>
                             {opp.contact.name}
                           </div>
                         )}
@@ -411,7 +476,7 @@ export default function OportunidadesPanel() {
 
                       {/* Info adicional cotizaciones */}
                       {opp.quotes && opp.quotes.length > 0 && (
-                        <div style={{ fontSize: '0.675rem', background: '#f8fafc', padding: '4px 8px', borderRadius: '6px', marginTop: '4px' }}>
+                        <div className="card-quotes-badge">
                           <i className="fas fa-file-invoice-dollar" style={{ marginRight: '4px', color: 'var(--color-brand-primary)' }}></i>
                           {opp.quotes.length} Cotiz. vinculadas
                         </div>
@@ -419,22 +484,21 @@ export default function OportunidadesPanel() {
 
                       {/* Alertas de Inactividad */}
                       {alertInfo && (
-                        <div style={{
-                          fontSize: '0.65rem',
-                          fontWeight: 'bold',
-                          padding: '4px 8px',
-                          borderRadius: '6px',
-                          marginTop: '4px',
-                          background: alertInfo.level === 'danger' ? '#fef2f2' : '#fffbeb',
-                          color: alertInfo.level === 'danger' ? '#ef4444' : '#d97706',
-                          textAlign: 'center'
-                        }}>
+                        <div className={`card-alert-badge ${alertInfo.level === 'danger' ? 'card-alert-danger' : 'card-alert-warning'}`}>
                           {alertInfo.label}
                         </div>
                       )}
                     </div>
                   );
                 })}
+                {colOpps.length > visibleLimits[col.key] && (
+                  <button 
+                    className="btn-load-more-kanban" 
+                    onClick={() => handleLoadMore(col.key)}
+                  >
+                    Ver {colOpps.length - visibleLimits[col.key]} más...
+                  </button>
+                )}
               </div>
             </div>
           );
@@ -625,3 +689,4 @@ export default function OportunidadesPanel() {
     </section>
   );
 }
+

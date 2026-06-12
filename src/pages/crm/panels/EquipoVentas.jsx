@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 
 export default function EquipoVentas({
   role,
@@ -9,6 +10,7 @@ export default function EquipoVentas({
   fetchSaeSellers,
   formatDate
 }) {
+  const { showToast, showConfirm } = useUX();
   // Navigation tabs for Super Admin
   const [activeSubTab, setActiveSubTab] = useState('sales'); // 'sales' or 'managers'
 
@@ -221,7 +223,8 @@ export default function EquipoVentas({
       ? `¿Estás seguro de que deseas eliminar la cuenta de ${name}? El vendedor perderá su acceso. Todos sus prospectos y cotizaciones creadas se conservarán y pasarán al panel de Leads Huérfanos como huérfanos sin asignar.`
       : `¿Estás seguro de que deseas eliminar la cuenta del gerente/supervisor ${name}? Perderá todo su acceso al sistema de inmediato.`;
 
-    if (!window.confirm(msg)) {
+    const confirmed = await showConfirm('¿Confirmar Eliminación?', msg, { type: 'danger', confirmText: 'Sí, eliminar' });
+    if (!confirmed) {
       return;
     }
     const token = localStorage.getItem('token');
@@ -234,14 +237,14 @@ export default function EquipoVentas({
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message || 'Usuario eliminado con éxito.');
+        showToast(data.message || 'Usuario eliminado con éxito.', 'success');
         fetchSellers();
       } else {
-        alert('Error: ' + data.message);
+        showToast('Error: ' + data.message, 'error');
       }
     } catch (err) {
       console.error('Delete user error:', err);
-      alert('Error de conexión con el servidor.');
+      showToast('Error de conexión con el servidor.', 'error');
     }
   };
 
@@ -883,3 +886,4 @@ export default function EquipoVentas({
     </section>
   );
 }
+

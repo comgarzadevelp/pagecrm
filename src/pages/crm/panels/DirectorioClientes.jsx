@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-
+import { useUX } from '../../../components/common/UXProvider';
+import useDirectorio from '../hooks/useDirectorio';
+import './Directorio.css';
 export default function DirectorioClientes({
   role,
   API_BASE,
@@ -10,8 +12,11 @@ export default function DirectorioClientes({
   fetchCustomers,
   handleDeleteCustomer,
   handleLoadPastQuote,
-  setActiveTab
+  setActiveTab,
+  onViewCustomerDetails,
+  onViewCompanyDetails
 }) {
+  const { showToast, showConfirm } = useUX();
   const [custSearchTerm, setCustSearchTerm] = useState('');
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
 
@@ -22,13 +27,24 @@ export default function DirectorioClientes({
   const [newCustCompany, setNewCustCompany] = useState('');
   const [newCustProject, setNewCustProject] = useState('');
   const [newCustNotes, setNewCustNotes] = useState('');
+  const [newCustInvoiceFile, setNewCustInvoiceFile] = useState(null);
+  const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
+
+  const [selectedSaeClave, setSelectedSaeClave] = useState(null);
+
+  // Integrate useDirectorio Hook
+  const {
+    allCompanies, loadingCompanies, fetchCrmCompanies,
+    customerQuotes, setCustomerQuotes, loadingCustomerQuotes,
+    linkedContacts, setLinkedContacts, loadingLinkedContacts,
+    fetchCustomerDetails
+  } = useDirectorio(API_BASE, localStorage.getItem('token'));
+
+  const [companySearchSuggestions, setCompanySearchSuggestions] = useState([]);
+  const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
 
   // Selected Customer detail modal states
   const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [customerQuotes, setCustomerQuotes] = useState([]);
-  const [loadingCustomerQuotes, setLoadingCustomerQuotes] = useState(false);
-  const [linkedContacts, setLinkedContacts] = useState([]);
-  const [loadingLinkedContacts, setLoadingLinkedContacts] = useState(false);
   const [activeCustomerTab, setActiveCustomerTab] = useState('profile'); // 'profile', 'quotes', 'history'
 
   // Edit Customer fields
@@ -63,6 +79,17 @@ export default function DirectorioClientes({
     }
     setLocalFiltered(result);
   }, [customers, custSearchTerm]);
+
+  useEffect(() => {
+    if (showAddCustomerModal || selectedCustomer) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showAddCustomerModal, selectedCustomer]);
 
   // Helper to parse structured B2B notes
   const parseCustomerNotes = (notesText) => {
@@ -100,6 +127,14 @@ export default function DirectorioClientes({
 
   // Open customer details modal
   const handleOpenCustomerDetails = (cust) => {
+    if (onViewCustomerDetails) {
+      onViewCustomerDetails(cust);
+      return;
+    }
+    if (onViewCompanyDetails) {
+      onViewCompanyDetails(cust);
+      return;
+    }
     setSelectedCustomer(cust);
     setActiveCustomerTab('profile');
 
@@ -113,58 +148,98 @@ export default function DirectorioClientes({
     setEditCustStatus(cust.status || 'calificado');
 
     // Fetch details
-    fetchCustomerQuotes(cust.id);
-    fetchLinkedContacts(cust.id);
+    fetchCustomerDetails(cust.id, cust.id);
+
+    // Timeline tab calculation
+    calculateHistoryStats(cust);
   };
 
-  const fetchLinkedContacts = async (companyOrCustomerId) => {
-    setLoadingLinkedContacts(true);
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/companies/${companyOrCustomerId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLinkedContacts(data.linkedContacts || []);
-      } else {
-        setLinkedContacts([]);
-      }
-    } catch (err) {
-      console.error('Error fetching linked contacts:', err);
-      setLinkedContacts([]);
-    } finally {
-      setLoadingLinkedContacts(false);
+  // API Call logic extracted to useDirectorio hook.
+
+  useEffect(() => {
+    if (showAddCustomerModal) {
+      fetchCrmCompanies();
     }
+  }, [showAddCustomerModal]);
+
+  const handleCompanyChange = (val) => {
+    setNewCustCompany(val);
+    setSelectedSaeClave(null);
+    if (!val.trim()) {
+      setCompanySearchSuggestions([]);
+      setShowCompanySuggestions(false);
+      return;
+    }
+    const filtered = allCompanies.filter(c => 
+      (c.name && c.name.toLowerCase().includes(val.toLowerCase())) ||
+      (c.alias && c.alias.toLowerCase().includes(val.toLowerCase()))
+    );
+    setCompanySearchSuggestions(filtered.slice(0, 5));
+    setShowCompanySuggestions(true);
   };
 
-  const fetchCustomerQuotes = async (customerId) => {
-    setLoadingCustomerQuotes(true);
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${customerId}/quotes`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCustomerQuotes(data.quotes || []);
-      }
-    } catch (err) {
-      console.error('Error fetching customer quotes:', err);
-    } finally {
-      setLoadingCustomerQuotes(false);
+  const handleNameChange = (val) => {
+    setNewCustName(val);
+    setSelectedSaeClave(null);
+    if (!val.trim()) {
+      setCompanySearchSuggestions([]);
+      setShowCompanySuggestions(false);
+      return;
     }
+    const filtered = allCompanies.filter(c => 
+      (c.name && c.name.toLowerCase().includes(val.toLowerCase())) ||
+      (c.alias && c.alias.toLowerCase().includes(val.toLowerCase())) ||
+      (c.contact_main && c.contact_main.name && c.contact_main.name.toLowerCase().includes(val.toLowerCase()))
+    );
+    setCompanySearchSuggestions(filtered.slice(0, 5));
+    setShowCompanySuggestions(true);
+  };
+
+  const handleSelectCompanySuggestion = (company) => {
+    setNewCustCompany(company.alias || company.name || '');
+    
+    if (company.id && String(company.id).startsWith('sae-')) {
+      const clave = String(company.id).replace('sae-', '').trim();
+      setSelectedSaeClave(clave);
+    } else {
+      setSelectedSaeClave(null);
+    }
+    
+    // Autofill main contact details if present
+    const contact = company.contact_main;
+    if (contact) {
+      setNewCustName(contact.name || company.name || '');
+      setNewCustEmail(contact.email || company.email_main || '');
+      setNewCustPhone(contact.phone || company.phone_main || '');
+    } else {
+      setNewCustName(company.name || '');
+      setNewCustEmail(company.email_main || '');
+      setNewCustPhone(company.phone_main || '');
+    }
+
+    setNewCustProject(company.industry || '');
+    
+    // Format delivery notes with RFC & Address automatically
+    const rfcStr = company.rfc ? `RFC: ${company.rfc}` : 'RFC: N/A';
+    const addressStr = company.address ? `Dirección: ${company.address}, ${company.city || ''}, ${company.state || ''}` : '';
+    setNewCustNotes(`${rfcStr}\n${addressStr}`.trim());
+
+    setShowCompanySuggestions(false);
+    setCompanySearchSuggestions([]);
   };
 
   // Register customer
   const handleCreateCustomerSubmit = async (e) => {
     e.preventDefault();
+    if (!newCustInvoiceFile) {
+      showToast('La factura de primera venta (PDF) es obligatoria para registrar un cliente activo.', 'warning');
+      return;
+    }
+
     const token = localStorage.getItem('token');
+    setIsUploadingInvoice(true);
     try {
+      // 1. Crear el cliente
       const res = await fetch(`${API_BASE}/api/crm/customers`, {
         method: 'POST',
         headers: {
@@ -177,27 +252,54 @@ export default function DirectorioClientes({
           phone: newCustPhone,
           company: newCustCompany,
           project_type: newCustProject,
-          notes: newCustNotes
+          notes: JSON.stringify({
+            general: newCustNotes,
+            timeline: [],
+            invoices: [],
+            sae_clave: selectedSaeClave
+          })
         })
       });
 
       const data = await res.json();
-      if (res.ok) {
-        alert('¡Cliente registrado exitosamente!');
-        setNewCustName('');
-        setNewCustEmail('');
-        setNewCustPhone('');
-        setNewCustCompany('');
-        setNewCustProject('');
-        setNewCustNotes('');
-        setShowAddCustomerModal(false);
-        fetchCustomers();
-      } else {
-        alert('Error: ' + data.message);
+      if (!res.ok) {
+        throw new Error(data.message || 'Error al registrar los datos básicos del cliente.');
       }
+
+      const createdCustomerId = data.customer.id;
+
+      // 2. Subir la factura asociada a este cliente
+      const formData = new FormData();
+      formData.append('invoice', newCustInvoiceFile);
+
+      const fileRes = await fetch(`${API_BASE}/api/crm/customers/${createdCustomerId}/invoices`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const fileData = await fileRes.json();
+      if (!fileRes.ok) {
+        throw new Error(fileData.message || 'El cliente se creó pero no pudimos registrar el PDF de la factura.');
+      }
+
+      showToast('¡Cliente y primera factura registrados exitosamente en la cartera activa!', 'success');
+      setNewCustName('');
+      setNewCustEmail('');
+      setNewCustPhone('');
+      setNewCustCompany('');
+      setNewCustProject('');
+      setNewCustNotes('');
+      setNewCustInvoiceFile(null);
+      setShowAddCustomerModal(false);
+      fetchCustomers();
     } catch (err) {
       console.error('Create customer error:', err);
-      alert('Error de conexión con el servidor.');
+      showToast('Error: ' + err.message, 'error');
+    } finally {
+      setIsUploadingInvoice(false);
     }
   };
 
@@ -232,15 +334,15 @@ export default function DirectorioClientes({
       });
       const data = await res.json();
       if (res.ok) {
-        alert('¡Cliente actualizado exitosamente!');
+        showToast('¡Cliente actualizado exitosamente!', 'success');
         setSelectedCustomer(data.customer);
         fetchCustomers();
       } else {
-        alert('Error: ' + data.message);
+        showToast('Error: ' + data.message, 'error');
       }
     } catch (err) {
       console.error('Update customer error:', err);
-      alert('Error al conectar con el servidor.');
+      showToast('Error al conectar con el servidor.', 'error');
     }
   };
 
@@ -286,11 +388,11 @@ export default function DirectorioClientes({
         setNewHistoryNote('');
         fetchCustomers();
       } else {
-        alert('Error al guardar la nota: ' + data.message);
+        showToast('Error al guardar la nota: ' + data.message, 'error');
       }
     } catch (err) {
       console.error('Add timeline note error:', err);
-      alert('Error de conexión con el servidor.');
+      showToast('Error de conexión con el servidor.', 'error');
     }
   };
 
@@ -336,10 +438,10 @@ export default function DirectorioClientes({
     try {
       const coords = await getCoords();
       setAcquiredCoords(coords);
-      alert('¡Ubicación GPS exacta obtenida y bloqueada con éxito!');
+      showToast('¡Ubicación GPS exacta obtenida y bloqueada con éxito!', 'success');
     } catch (err) {
       console.error('GPS acquisition failed:', err);
-      alert('Error de GPS: No pudimos acceder a tu ubicación exacta.');
+      showToast('Error de GPS: No pudimos acceder a tu ubicación exacta.', 'error');
     } finally {
       setAcquiringGps(false);
     }
@@ -350,11 +452,11 @@ export default function DirectorioClientes({
     e.preventDefault();
     if (!selectedCustomer) return;
     if (!evidenceFile) {
-      alert('Por favor selecciona o toma una foto primero.');
+      showToast('Por favor selecciona o toma una foto primero.', 'warning');
       return;
     }
     if (!acquiredCoords) {
-      alert('La geolocalización es obligatoria. Por favor presiona el botón de validar GPS primero.');
+      showToast('La geolocalización es obligatoria. Por favor presiona el botón de validar GPS primero.', 'warning');
       return;
     }
 
@@ -384,7 +486,7 @@ export default function DirectorioClientes({
 
       const data = await res.json();
       if (res.ok) {
-        alert('¡Evidencia fotográfica subida y geolocalizada con éxito!');
+        showToast('¡Evidencia fotográfica subida y geolocalizada con éxito!', 'success');
         setSelectedCustomer(data.customer);
         setEvidenceFile(null);
         setEvidenceText('');
@@ -393,11 +495,11 @@ export default function DirectorioClientes({
         const fileInput = document.getElementById('evidence-file-input');
         if (fileInput) fileInput.value = '';
       } else {
-        alert('Error al subir la evidencia: ' + data.message);
+        showToast('Error al subir la evidencia: ' + data.message, 'error');
       }
     } catch (err) {
       console.error('Evidence upload error:', err);
-      alert('Error de conexión al subir la evidencia.');
+      showToast('Error de conexión al subir la evidencia.', 'error');
     } finally {
       setUploadingEvidence(false);
     }
@@ -516,7 +618,7 @@ export default function DirectorioClientes({
       </div>
 
       {/* Add Customer Modal */}
-      {showAddCustomerModal && (
+      {showAddCustomerModal && ReactDOM.createPortal(
         <div className="crm-modal-overlay" onClick={() => setShowAddCustomerModal(false)}>
           <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
             <button className="close-modal-btn" onClick={() => setShowAddCustomerModal(false)}>&times;</button>
@@ -527,16 +629,64 @@ export default function DirectorioClientes({
               </p>
             </div>
             <form onSubmit={handleCreateCustomerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.2' }}>
-              <div className="crm-input-group">
+              <div className="crm-input-group" style={{ position: 'relative' }}>
                 <label className="crm-input-label">Nombre del Cliente / Razón Social</label>
                 <input
                   type="text"
                   className="crm-login-input"
-                  placeholder="Ej. Ing. Carlos Mendoza o Aceros S.A."
+                  placeholder="Ej. Ing. Carlos Mendoza o Aceros S.A. (Escribe para buscar...)"
                   value={newCustName}
-                  onChange={(e) => setNewCustName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onFocus={() => { if (newCustName.trim()) setShowCompanySuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowCompanySuggestions(false), 250)}
                   required
                 />
+                
+                {showCompanySuggestions && companySearchSuggestions.length > 0 && (
+                  <ul className="crm-autocomplete-dropdown glass" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.98)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: '4px 0 0 0',
+                    zIndex: 9999,
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    textAlign: 'left'
+                  }}>
+                    {companySearchSuggestions.map((co) => (
+                      <li
+                        key={co.id}
+                        onClick={() => handleSelectCompanySuggestion(co)}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          fontSize: '0.825rem',
+                          transition: 'background 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-brand-primary)' }}>
+                          {co.name} {co.alias ? `(${co.alias})` : ''}
+                        </div>
+                        {co.contact_main && (
+                          <div style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                            <i className="fas fa-user-circle"></i> Contacto: {co.contact_main.name} | <i className="fas fa-phone-alt"></i> {co.contact_main.phone}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="crm-input-group">
                 <label className="crm-input-label">Correo Electrónico</label>
@@ -559,15 +709,63 @@ export default function DirectorioClientes({
                   required
                 />
               </div>
-              <div className="crm-input-group">
+              <div className="crm-input-group" style={{ position: 'relative' }}>
                 <label className="crm-input-label">Empresa / Constructora</label>
                 <input
                   type="text"
                   className="crm-login-input"
-                  placeholder="Ej. Alfa Constructora"
+                  placeholder="Ej. Alfa Constructora (Escribe para buscar...)"
                   value={newCustCompany}
-                  onChange={(e) => setNewCustCompany(e.target.value)}
+                  onChange={(e) => handleCompanyChange(e.target.value)}
+                  onFocus={() => { if (newCustCompany.trim()) setShowCompanySuggestions(true); }}
+                  onBlur={() => setTimeout(() => setShowCompanySuggestions(false), 250)}
                 />
+                
+                {showCompanySuggestions && companySearchSuggestions.length > 0 && (
+                  <ul className="crm-autocomplete-dropdown glass" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    width: '100%',
+                    background: 'rgba(255, 255, 255, 0.98)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '8px',
+                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: '4px 0 0 0',
+                    zIndex: 9999,
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    textAlign: 'left'
+                  }}>
+                    {companySearchSuggestions.map((co) => (
+                      <li
+                        key={co.id}
+                        onClick={() => handleSelectCompanySuggestion(co)}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: '1px solid #f1f5f9',
+                          fontSize: '0.825rem',
+                          transition: 'background 0.2s ease',
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                      >
+                        <div style={{ fontWeight: 'bold', color: 'var(--color-brand-primary)' }}>
+                          {co.name} {co.alias ? `(${co.alias})` : ''}
+                        </div>
+                        {co.contact_main && (
+                          <div style={{ fontSize: '0.725rem', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                            <i className="fas fa-user-circle"></i> Contacto: {co.contact_main.name} | <i className="fas fa-phone-alt"></i> {co.contact_main.phone}
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
               <div className="crm-input-group">
                 <label className="crm-input-label">Giro / Especialidad</label>
@@ -577,6 +775,19 @@ export default function DirectorioClientes({
                   placeholder="Ej. Estructuras metálicas, Edificación, etc."
                   value={newCustProject}
                   onChange={(e) => setNewCustProject(e.target.value)}
+                />
+              </div>
+              <div className="crm-input-group">
+                <label className="crm-input-label" style={{ color: 'var(--color-brand-accent)', fontWeight: 'bold' }}>
+                  <i className="fas fa-file-pdf"></i> Factura de Primera Venta (PDF Obligatorio)
+                </label>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  className="crm-login-input"
+                  onChange={(e) => setNewCustInvoiceFile(e.target.files[0])}
+                  required
+                  style={{ padding: '0.65rem 1rem' }}
                 />
               </div>
               <div className="crm-input-group">
@@ -591,16 +802,21 @@ export default function DirectorioClientes({
                 />
               </div>
 
-              <button type="submit" className="btn-primary-golden" style={{ padding: '0.875rem', width: '100%', marginTop: '0.5rem' }}>
-                Guardar Cliente
+              <button type="submit" className="btn-primary-golden" style={{ padding: '0.875rem', width: '100%', marginTop: '0.5rem' }} disabled={isUploadingInvoice}>
+                {isUploadingInvoice ? (
+                  <><i className="fas fa-spinner fa-spin"></i> Registrando Cliente y Subiendo PDF...</>
+                ) : (
+                  'Guardar Cliente Permanente'
+                )}
               </button>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Customer Details & History Modal */}
-      {selectedCustomer && (
+      {selectedCustomer && ReactDOM.createPortal(
         <div className="crm-modal-overlay" onClick={() => setSelectedCustomer(null)}>
           <div className="crm-modal-content customer-details-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '850px', width: '96%' }}>
             <button className="close-modal-btn" onClick={() => setSelectedCustomer(null)}>&times;</button>
@@ -703,7 +919,7 @@ export default function DirectorioClientes({
                         type="email"
                         className="crm-login-input"
                         value={editCustEmail}
-                        onChange={(e) => setEditCustEmail(e.target.value)}
+                        onChange={(e) => setNewCustEmail(e.target.value)}
                       />
                     </div>
                   </div>
@@ -1412,8 +1628,10 @@ export default function DirectorioClientes({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );
 }
+

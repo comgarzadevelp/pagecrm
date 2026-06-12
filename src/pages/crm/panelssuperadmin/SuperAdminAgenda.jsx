@@ -284,7 +284,24 @@ export default function SuperAdminAgenda() {
                             <div key={event.id} className="timeline-event-row">
                               <div className="event-info-col">
                                 <strong>{event.title}</strong>
-                                {event.description && <p>{getCleanDescription(event.description)}</p>}
+                                
+                                {/* Location & Client Name in High-Fidelity display */}
+                                <div className="event-meta-details-row" style={{ display: 'flex', gap: '1rem', marginTop: '6px', flexWrap: 'wrap' }}>
+                                  {event.client_name && (
+                                    <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px', color: '#e0922b', border: '1px solid rgba(224, 146, 43, 0.2)' }}>
+                                      <i className="fas fa-building" />
+                                      <strong>Cliente:</strong> {event.client_name}
+                                    </span>
+                                  )}
+                                  {event.location && (
+                                    <span style={{ fontSize: '0.8rem', background: 'rgba(255,255,255,0.05)', padding: '3px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '6px', color: '#a5f3fc', border: '1px solid rgba(165, 243, 252, 0.2)' }}>
+                                      <i className="fas fa-map-marker-alt" style={{ color: '#ef4444' }} />
+                                      <strong>Lugar:</strong> {event.location}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {event.description && <p style={{ marginTop: '6px' }}>{getCleanDescription(event.description)}</p>}
                                 
                                 {/* Show audit trails if cancelled */}
                                 {event.status === 'cancelled' && event.cancellation_reason && (

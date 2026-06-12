@@ -25,9 +25,11 @@ router.get('/auth-url', verifyToken, async (req, res) => {
 // GET /api/calendar/callback - Public redirect URI for Google OAuth callback
 router.get('/callback', async (req, res) => {
   const { code, state: userId, error } = req.query;
-  const frontendUrl = process.env.ALLOWED_ORIGINS 
-    ? process.env.ALLOWED_ORIGINS.split(',')[0] 
-    : 'http://localhost:5174';
+  
+  // Detectar dinámicamente el protocolo y host para redirigir de vuelta al entorno correcto (producción, local o ngrok)
+  const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
+  const host = req.headers.host;
+  const frontendUrl = `${protocol}://${host}`;
 
   if (error) {
     console.error('Google OAuth Access Denied by User:', error);
@@ -114,28 +116,57 @@ router.get('/events', verifyToken, async (req, res) => {
   }
 });
 
-// POST /api/calendar/events - Create new Google Calendar event (Resilient with local backup and notifications)
+// POST /api/calendar/events - Create new Google Calendar event (Resilient with local backup and notifications// POST /api/calendar/events - Create new Google Calendar event (Resilient with local backup and notifications)
 router.post('/events', verifyToken, async (req, res) => {
   try {
     const userId = req.user?.userId;
     const userName = req.user?.name || 'Vendedor';
     const companyId = req.user?.companyId;
     const supervisorId = req.user?.supervisorId;
-    const { title, description, startTime, endTime, attendees } = req.body;
+    const { title, description, startTime, endTime, attendees, location, client_name } = req.body;
     
     if (!title || !startTime || !endTime) {
       return res.status(400).json({ success: false, message: 'Título, fecha de inicio y fin son obligatorios.' });
     }
     
-    // 1. Create event in Google Calendar
-    const { createGoogleEvent } = await import('../services/googleCalendarService.js');
+    // 1. Create event in personal Google Calendar
+    const { createGoogleEvent, createCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
     const googleEvent = await createGoogleEvent(userId, {
       title,
       description,
       startTime,
       endTime,
+      location,
       attendees: attendees ? attendees.split(',').map(e => ({ email: e.trim() })) : []
     });
+
+    // 2. Dual Sincronización: check if company has a master calendar
+    let corpEvent = null;
+    let companyCalendarId = null;
+    try {
+      if (companyId) {
+        const { data: comp } = await supabase
+          .from('enterprise_companies')
+          .select('google_calendar_id')
+          .eq('id', companyId)
+          .single();
+        
+        if (comp && comp.google_calendar_id) {
+          companyCalendarId = comp.google_calendar_id;
+          corpEvent = await createCorporateGoogleEvent(companyCalendarId, {
+            title,
+            description,
+            startTime,
+            endTime,
+            location,
+            clientName: client_name,
+            attendees: attendees ? attendees.split(',').map(e => ({ email: e.trim() })) : []
+          }, userName);
+        }
+      }
+    } catch (corpErr) {
+      console.warn('Could not sync event to corporate master calendar:', corpErr.message);
+    }
 
     // Extract category if present
     let category = 'negocios';
@@ -144,7 +175,7 @@ router.post('/events', verifyToken, async (req, res) => {
       if (match && match[1]) category = match[1];
     }
     
-    // 2. Local Backup: save in crm_appointments (Resilient)
+    // 3. Local Backup: save in crm_appointments (Resilient)
     let localAppointment = null;
     try {
       if (companyId) {
@@ -153,6 +184,7 @@ router.post('/events', verifyToken, async (req, res) => {
           .insert([
             {
               google_event_id: googleEvent.id,
+              company_google_event_id: corpEvent ? corpEvent.id : null,
               vendedor_id: userId,
               company_id: companyId,
               title,
@@ -161,6 +193,8 @@ router.post('/events', verifyToken, async (req, res) => {
               start_time: startTime,
               end_time: endTime,
               attendees,
+              location: location || null,
+              client_name: client_name || null,
               status: 'active'
             }
           ])
@@ -187,7 +221,7 @@ router.post('/events', verifyToken, async (req, res) => {
       console.warn('Could not save local backup/audit (tables might not be migrated yet):', dbErr.message);
     }
 
-    // 3. Notify Supervisor (Resilient)
+    // 4. Notify Supervisor (Resilient)
     try {
       if (supervisorId && companyId) {
         await supabase
@@ -239,7 +273,7 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
       if (data) {
         localAppointment = data;
         
-        // Soft delete locally (Try updating cancellation_reason, fallback if column doesn't exist)
+        // Soft delete locally
         try {
           await supabase
             .from('crm_appointments')
@@ -278,9 +312,25 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
       console.warn('Could not query/update local appointment table during cancellation:', dbErr.message);
     }
 
-    // 2. Remove from Google Calendar
-    const { deleteGoogleEvent } = await import('../services/googleCalendarService.js');
+    // 2. Remove from personal Google Calendar & Corporate Calendar
+    const { deleteGoogleEvent, deleteCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
     await deleteGoogleEvent(userId, eventId);
+
+    if (localAppointment && localAppointment.company_google_event_id) {
+      try {
+        const { data: comp } = await supabase
+          .from('enterprise_companies')
+          .select('google_calendar_id')
+          .eq('id', companyId)
+          .single();
+        
+        if (comp && comp.google_calendar_id) {
+          await deleteCorporateGoogleEvent(comp.google_calendar_id, localAppointment.company_google_event_id);
+        }
+      } catch (corpErr) {
+        console.warn('Could not delete from corporate master calendar:', corpErr.message);
+      }
+    }
     
     // 3. Notify Supervisor & Super Admins / Admins of cancellation with reason
     try {
@@ -360,23 +410,24 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
     const companyId = req.user?.companyId;
     const supervisorId = req.user?.supervisorId;
     const { eventId } = req.params;
-    const { title, description, startTime, endTime, attendees, category } = req.body;
+    const { title, description, startTime, endTime, attendees, category, location, client_name } = req.body;
 
     if (!title || !startTime || !endTime) {
       return res.status(400).json({ success: false, message: 'Título, fecha de inicio y fin son obligatorios.' });
     }
 
-    // 1. Update in Google Calendar
-    const { updateGoogleEvent } = await import('../services/googleCalendarService.js');
+    // 1. Update in personal Google Calendar
+    const { updateGoogleEvent, updateCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
     const googleEvent = await updateGoogleEvent(userId, eventId, {
       title,
       description,
       startTime,
       endTime,
+      location,
       attendees: attendees ? attendees.split(',').map(e => ({ email: e.trim() })) : []
     });
 
-    // 2. Local Update in crm_appointments (Resilient)
+    // 2. Local Update in crm_appointments (Resilient) & Dual Sync update
     let localAppointment = null;
     try {
       // Find original local record
@@ -387,6 +438,36 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
         .single();
 
       if (original) {
+        // Sync Corporate Google Calendar event if connected
+        if (original.company_google_event_id) {
+          try {
+            const { data: comp } = await supabase
+              .from('enterprise_companies')
+              .select('google_calendar_id')
+              .eq('id', companyId)
+              .single();
+            
+            if (comp && comp.google_calendar_id) {
+              await updateCorporateGoogleEvent(
+                comp.google_calendar_id,
+                original.company_google_event_id,
+                {
+                  title,
+                  description,
+                  startTime,
+                  endTime,
+                  location,
+                  clientName: client_name || original.client_name,
+                  attendees: attendees ? attendees.split(',').map(e => ({ email: e.trim() })) : []
+                },
+                userName
+              );
+            }
+          } catch (corpErr) {
+            console.warn('Could not reschedule event in corporate master calendar:', corpErr.message);
+          }
+        }
+
         const { data, error } = await supabase
           .from('crm_appointments')
           .update({
@@ -395,6 +476,8 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
             start_time: startTime,
             end_time: endTime,
             attendees,
+            location: location || original.location,
+            client_name: client_name || original.client_name,
             category: category || original.category,
             status: 'rescheduled',
             updated_at: new Date().toISOString()

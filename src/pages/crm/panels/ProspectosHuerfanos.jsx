@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const ProspectosHuerfanos = ({ onAssignSuccess }) => {
+  const { showToast } = useUX();
   const [crmOrphans, setCrmOrphans] = useState([]);
   const [saeOrphans, setSaeOrphans] = useState([]);
   const [sellers, setSellers] = useState([]);
@@ -51,7 +53,7 @@ const ProspectosHuerfanos = ({ onAssignSuccess }) => {
   const handleAssignLead = async (leadId, isSaeOrphan, rawSaeKey) => {
     const sellerId = selectedSellerForLead[leadId];
     if (!sellerId) {
-      alert('Por favor selecciona un vendedor antes de asignar.');
+      showToast('Por favor selecciona un vendedor antes de asignar.', 'warning');
       return;
     }
 
@@ -101,7 +103,7 @@ const ProspectosHuerfanos = ({ onAssignSuccess }) => {
           throw new Error(dataAssign.message || 'Error al asignar prospecto.');
         }
 
-        alert('Cliente del SAE importado y asignado exitosamente al vendedor.');
+        showToast('Cliente del SAE importado y asignado exitosamente al vendedor.', 'success');
       } else {
         // Para prospectos del CRM huérfanos ya existentes, simplemente llamamos al endpoint de asignación normal
         const resAssign = await fetch(`${API_BASE}/api/crm/leads/${leadId}/assign`, {
@@ -118,7 +120,7 @@ const ProspectosHuerfanos = ({ onAssignSuccess }) => {
           throw new Error(dataAssign.message || 'Error al asignar prospecto.');
         }
 
-        alert('Prospecto asignado exitosamente al vendedor.');
+        showToast('Prospecto asignado exitosamente al vendedor.', 'success');
       }
 
       // Volver a cargar la lista de huérfanos
@@ -126,7 +128,7 @@ const ProspectosHuerfanos = ({ onAssignSuccess }) => {
       if (onAssignSuccess) onAssignSuccess();
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Ocurrió un error al realizar la asignación.');
+      showToast(err.message || 'Ocurrió un error al realizar la asignación.', 'error');
     } finally {
       setAssigningId(null);
     }
@@ -317,3 +319,4 @@ const ProspectosHuerfanos = ({ onAssignSuccess }) => {
 };
 
 export default ProspectosHuerfanos;
+

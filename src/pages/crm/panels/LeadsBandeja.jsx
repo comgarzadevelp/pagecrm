@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import useDebounce from '../hooks/useDebounce';
+import './LeadsBandeja.css';
 
 export default function LeadsBandeja({
   role,
@@ -15,6 +17,7 @@ export default function LeadsBandeja({
   formatDate
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   
@@ -61,8 +64,8 @@ export default function LeadsBandeja({
   useEffect(() => {
     let result = [...leads];
 
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
+    if (debouncedSearchTerm.trim()) {
+      const term = debouncedSearchTerm.toLowerCase();
       result = result.filter(l =>
         (l.name && l.name.toLowerCase().includes(term)) ||
         (l.email && l.email.toLowerCase().includes(term)) ||
@@ -80,7 +83,7 @@ export default function LeadsBandeja({
     }
 
     setLocalFiltered(result);
-  }, [leads, searchTerm, typeFilter, statusFilter]);
+  }, [leads, debouncedSearchTerm, typeFilter, statusFilter]);
 
   return (
     <section className="crm-table-container glass">
@@ -141,7 +144,7 @@ export default function LeadsBandeja({
                 <th>Empresa / Giro</th>
                 <th>Contacto</th>
                 <th>Canal</th>
-                {role === 'admin' && <th>Asignado A</th>}
+                {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && <th>Asignado A</th>}
                 <th>Estado</th>
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
@@ -185,7 +188,7 @@ export default function LeadsBandeja({
                       {lead.type === 'popup_whatsapp' ? 'WhatsApp Popup' : 'Formulario Web'}
                     </span>
                   </td>
-                  {role === 'admin' && (
+                  {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
                     <td>
                       {lead.assigned_to ? (
                         <span className="seller-name-badge">
@@ -295,8 +298,8 @@ export default function LeadsBandeja({
                 </div>
               </div>
 
-              {/* ASIGNACIÓN DE VENDEDORES (SOLO ADMIN) */}
-              {role === 'admin' ? (
+              {/* ASIGNACIÓN DE VENDEDORES (ADMIN, SUPERVISOR, SUPER_ADMIN) */}
+              {role === 'admin' || role === 'supervisor' || role === 'super_admin' ? (
                 <div className="modal-section-assign">
                   <span className="action-label"><i className="fas fa-user-plus"></i> Asignar Vendedor de Seguimiento:</span>
                   <div className="action-controls" style={{ marginTop: '6px' }}>

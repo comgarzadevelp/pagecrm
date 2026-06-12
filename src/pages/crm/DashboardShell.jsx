@@ -192,8 +192,18 @@ const DashboardShell = ({
   const formatRoleLabel = (r) => ROLE_LABELS[r] || 'Usuario';
   const getRoleIcon = (r) => ROLE_ICONS[r] || 'fas fa-user';
 
+  const companyCode = localStorage.getItem('companyCode')?.toUpperCase() || '';
+  const isRav = companyCode === 'RAV';
+
   const sidebarItems = enabledModules
-    .map(key => MODULE_REGISTRY[key])
+    .map(key => {
+      const item = MODULE_REGISTRY[key];
+      if (!item) return null;
+      if (key === 'quotes' && isRav) {
+        return { ...item, label: 'Cotizador RAV' };
+      }
+      return item;
+    })
     .filter(Boolean);
 
   const showGlobalStatsGrid = 
@@ -224,12 +234,18 @@ const DashboardShell = ({
           <i className="fas fa-chevron-left"></i>
         </button>
 
-        <div className="crm-sidebar-brand">
-          <img 
-            src={role === 'super_admin' ? '/logo2.png' : '/logo.png'} 
-            alt="Garza Logo" 
-            className="crm-logo-img" 
-          />
+        <div className="crm-sidebar-brand crm-sidebar-brand-centered">
+          {isRav ? (
+            <h2 className="crm-sidebar-brand-rav">
+              RAV <span>Climas</span>
+            </h2>
+          ) : (
+            <img 
+              src={role === 'super_admin' ? '/logo2.png' : '/logo.png'} 
+              alt="Garza Logo" 
+              className="crm-logo-img" 
+            />
+          )}
         </div>
 
         <div className="crm-sidebar-user">
@@ -254,20 +270,9 @@ const DashboardShell = ({
                 onClick={() => setActiveTab(item.key)}
               >
                 {hasPulseBadge ? (
-                  <span className="nav-item-inner" style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%' }}>
+                  <span className="nav-item-inner">
                     <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} /> {item.label}
-                    <span 
-                      className="nav-badge-pulse" 
-                      style={{ 
-                        background: item.key === 'quotes' ? 'var(--color-brand-accent)' : item.badgeColor || '#16a34a', 
-                        color: '#fff', 
-                        fontSize: '0.65rem', 
-                        padding: '2px 6px', 
-                        borderRadius: '4px', 
-                        marginLeft: 'auto', 
-                        fontWeight: 'bold' 
-                      }}
-                    >
+                    <span className="nav-badge-pulse">
                       {item.badge}
                     </span>
                   </span>

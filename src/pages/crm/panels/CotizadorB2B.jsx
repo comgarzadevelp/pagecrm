@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-
+import { useUX } from '../../../components/common/UXProvider';
+import './CotizadorB2B.css';
 export default function CotizadorB2B({
   role,
   userName,
@@ -32,13 +33,31 @@ export default function CotizadorB2B({
   opportunitySearch,
   setOpportunitySearch
 }) {
+  const { showToast, showConfirm } = useUX();
   const [selectedQuoteCustomer, setSelectedQuoteCustomer] = useState('');
   const [savingQuote, setSavingQuote] = useState(false);
   const [showOpportunityDropdown, setShowOpportunityDropdown] = useState(false);
   const [showCatalogModal, setShowCatalogModal] = useState(false);
   const [catalogQuantities, setCatalogQuantities] = useState({});
-  const [showToast, setShowToast] = useState(false);
-  const [toastMsg, setToastMsg] = useState('');
+
+  // Auto-generación de Folio B2B y pre-llenado de Fecha si no existe
+  useEffect(() => {
+    if (activeTab === 'quotes' && !quoteNum) {
+      const today = new Date();
+      
+      // Formatear a YYYYMMDD asegurando el zero-padding
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const datePart = `${year}${month}${day}`;
+      
+      // Generar sufijo aleatorio (XXXX) de 4 dígitos
+      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+      
+      setQuoteNum(`COT-${datePart}-${randomSuffix}`);
+      setQuoteDate(today.toISOString().split('T')[0]);
+    }
+  }, [activeTab, quoteNum, setQuoteNum, setQuoteDate]);
 
   // ---------- PRODUCT CATALOG STATE ----------
   const [catalogProducts, setCatalogProducts] = useState([]);
@@ -208,9 +227,7 @@ export default function CotizadorB2B({
       }
     });
 
-    setToastMsg(`¡${cleanDesc} (x${quantityToAdd}) agregado con éxito!`);
-    setShowToast(true);
-    setTimeout(() => setShowToast(false), 2200);
+    showToast(`¡${cleanDesc} (x${quantityToAdd}) agregado con éxito!`, 'success');
   };
 
   const addQuoteItem = () => {
@@ -264,11 +281,11 @@ export default function CotizadorB2B({
 
   const handleSaveQuoteToDB = async () => {
     if (!selectedOpportunityId) {
-      alert('Por favor selecciona una oportunidad activa antes de guardar la cotización.');
+      showToast('Por favor selecciona una oportunidad activa antes de guardar la cotización.', 'warning');
       return;
     }
     if (quoteItems.length === 0 || (quoteItems.length === 1 && quoteItems[0].description === '')) {
-      alert('La cotización debe tener al menos un producto o partida válida.');
+      showToast('La cotización debe tener al menos un producto o partida válida.', 'warning');
       return;
     }
 
@@ -301,21 +318,22 @@ export default function CotizadorB2B({
 
       const data = await res.json();
       if (res.ok) {
-        alert(`¡Cotización ${quoteNum} guardada exitosamente en el historial de la oportunidad!`);
+        showToast(`¡Cotización ${quoteNum} guardada exitosamente en el historial de la oportunidad!`, 'success');
         fetchOpportunitiesList();
       } else {
-        alert('Error al guardar cotización: ' + (data.message || 'Error desconocido'));
+        showToast('Error al guardar cotización: ' + (data.message || 'Error desconocido'), 'error');
       }
     } catch (err) {
       console.error('Save quote error:', err);
-      alert('Error de conexión con el servidor al intentar guardar.');
+      showToast('Error de conexión con el servidor al intentar guardar.', 'error');
     } finally {
       setSavingQuote(false);
     }
   };
 
-  const handleNewQuote = () => {
-    if (window.confirm('¿Deseas iniciar una nueva cotización limpia? Esto borrará el contenido actual.')) {
+  const handleNewQuote = async () => {
+    const confirmed = await showConfirm('¿Nueva Cotización?', '¿Deseas iniciar una nueva cotización limpia? Esto borrará el contenido actual.', { type: 'warning', confirmText: 'Sí, limpiar' });
+    if (confirmed) {
       setQuoteItems([{ id: Date.now(), description: '', quantity: 1, price: 0, appliedAgreement: 'manual' }]);
       setSelectedQuoteCustomer('');
       setSelectedOpportunityId('');
@@ -997,31 +1015,6 @@ export default function CotizadorB2B({
         document.body
       )}
 
-      {/* Subtle Toast alert */}
-      {showToast && ReactDOM.createPortal(
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          background: '#f0fdf4',
-          border: '1px solid #bbf7d0',
-          color: '#16a34a',
-          padding: '0.85rem 1.25rem',
-          borderRadius: '10px',
-          fontSize: '0.85rem',
-          fontWeight: '700',
-          boxShadow: '0 10px 30px rgba(22, 163, 74, 0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          zIndex: 100000,
-          animation: 'slideUpFade 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
-        }}>
-          <i className="fas fa-check-circle" style={{ fontSize: '1rem' }}></i>
-          <span>{toastMsg}</span>
-        </div>,
-        document.body
-      )}
 
       {/* Tooltip portal */}
       {cardTooltip && ReactDOM.createPortal(
@@ -1064,3 +1057,4 @@ export default function CotizadorB2B({
     </section>
   );
 }
+

@@ -1,0 +1,91 @@
+.lead-date {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.lead-identity {
+  display: flex;
+  flex-direction: column;
+}
+
+.lead-identity strong {
+  font-size: 0.95rem;
+  color: var(--color-brand-primary);
+  font-family: var(--font-primary), sans-serif;
+}
+
+.lead-identity span {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.lead-biz {
+  display: flex;
+  flex-direction: column;
+}
+
+.lead-biz strong {
+  font-size: 0.9rem;
+  color: var(--color-text-dark);
+  font-weight: 600;
+}
+
+.lead-biz span {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.lead-contact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.phone-badge {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--color-text-dark);
+}
+
+.btn-table-wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--color-whatsapp, #25D366);
+  font-size: 0.775rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: var(--transition-smooth);
+  width: fit-content;
+}
+
+.btn-table-wa:hover {
+  color: var(--color-whatsapp-hover, #128C7E);
+  transform: translateX(2px);
+}
+
+/* Badges */
+.channel-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.725rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.channel-badge.popup_whatsapp {
+  background: rgba(22, 163, 74, 0.08);
+  color: var(--color-whatsapp, #16a34a);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+}
+
+.channel-badge.contact_form {
+  background: rgba(224, 146, 43, 0.08);
+  color: var(--color-brand-accent);
+  border: 1px solid rgba(224, 146, 43, 0.15);
+}

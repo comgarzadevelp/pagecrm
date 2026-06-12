@@ -148,11 +148,29 @@
 /* Responsive */
 @media (max-width: 1024px) {
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
   }
   
   .cta-box {
     padding: 3rem 2rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* CORRECCIÓN REPORTE §3.8: Home CTA y 480px */
+@media (max-width: 900px) {
+  .cta-box {
+    padding: 3.5rem 2rem;
+  }
+}
+@media (max-width: 480px) {
+  .cta-box {
+    padding: 2.5rem 1.5rem;
   }
 }

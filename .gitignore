@@ -121,3 +121,9 @@ backend/.env.local
 backend/.env.development.local
 backend/.env.production.local
 backend/migrations/*.FDB
+*.zip
+.agents/
+backend/backend.zip
+backend/productos_servicios_rav_completo.json
+backend/scripts/*.js
+

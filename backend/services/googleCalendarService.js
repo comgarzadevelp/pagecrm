@@ -97,6 +97,29 @@ export const getCalendarClient = async (userId) => {
   
   return google.calendar({ version: 'v3', auth: oauth2Client });
 };
+/**
+ * Instantiates an authorized Calendar API Client for the Super Admin
+ */
+export const getSuperAdminCalendarClient = async () => {
+  const { data: superAdmin, error } = await supabase
+    .from('crm_users')
+    .select('google_refresh_token')
+    .eq('role', 'super_admin')
+    .eq('google_calendar_connected', true)
+    .maybeSingle();
+
+  if (error || !superAdmin || !superAdmin.google_refresh_token) {
+    console.warn('Super Admin Google Calendar is not connected. Skipping corporate calendar sync.');
+    return null;
+  }
+
+  const oauth2Client = getOAuthClient();
+  oauth2Client.setCredentials({
+    refresh_token: superAdmin.google_refresh_token
+  });
+  
+  return google.calendar({ version: 'v3', auth: oauth2Client });
+};
 
 /**
  * Creates an event in the user's primary calendar
@@ -110,6 +133,7 @@ export const createGoogleEvent = async (userId, eventDetails) => {
     requestBody: {
       summary: eventDetails.title,
       description: eventDetails.description,
+      location: eventDetails.location || '',
       start: {
         dateTime: eventDetails.startTime, // ISO 8601 String
         timeZone: eventDetails.timeZone || 'America/Mexico_City'
@@ -129,7 +153,39 @@ export const createGoogleEvent = async (userId, eventDetails) => {
 };
 
 /**
- * Updates an existing event
+ * Creates a duplicate event in the Corporate Company Calendar using Super Admin auth
+ */
+export const createCorporateGoogleEvent = async (companyCalendarId, eventDetails, vendedorName) => {
+  const calendar = await getSuperAdminCalendarClient();
+  if (!calendar) return null;
+
+  const enrichedSummary = `[CORP] ${eventDetails.title} | Cliente: ${eventDetails.clientName || 'Sin Cliente'}`;
+  const enrichedDescription = `${eventDetails.description || ''}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
+
+  const { data } = await calendar.events.insert({
+    calendarId: companyCalendarId,
+    sendUpdates: 'none',
+    requestBody: {
+      summary: enrichedSummary,
+      description: enrichedDescription,
+      location: eventDetails.location || '',
+      start: {
+        dateTime: eventDetails.startTime,
+        timeZone: eventDetails.timeZone || 'America/Mexico_City'
+      },
+      end: {
+        dateTime: eventDetails.endTime,
+        timeZone: eventDetails.timeZone || 'America/Mexico_City'
+      },
+      attendees: eventDetails.attendees || []
+    }
+  });
+
+  return data;
+};
+
+/**
+ * Updates an existing event in the user's primary calendar
  */
 export const updateGoogleEvent = async (userId, googleEventId, eventDetails) => {
   const calendar = await getCalendarClient(userId);
@@ -141,6 +197,7 @@ export const updateGoogleEvent = async (userId, googleEventId, eventDetails) => 
     requestBody: {
       summary: eventDetails.title,
       description: eventDetails.description,
+      location: eventDetails.location || '',
       start: {
         dateTime: eventDetails.startTime,
         timeZone: eventDetails.timeZone || 'America/Mexico_City'
@@ -157,13 +214,60 @@ export const updateGoogleEvent = async (userId, googleEventId, eventDetails) => 
 };
 
 /**
- * Deletes an event
+ * Updates an existing event in the Corporate Company Calendar
+ */
+export const updateCorporateGoogleEvent = async (companyCalendarId, corporateEventId, eventDetails, vendedorName) => {
+  const calendar = await getSuperAdminCalendarClient();
+  if (!calendar || !corporateEventId) return null;
+
+  const enrichedSummary = `[CORP] ${eventDetails.title} | Cliente: ${eventDetails.clientName || 'Sin Cliente'}`;
+  const enrichedDescription = `${eventDetails.description || ''}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
+
+  const { data } = await calendar.events.update({
+    calendarId: companyCalendarId,
+    eventId: corporateEventId,
+    sendUpdates: 'none',
+    requestBody: {
+      summary: enrichedSummary,
+      description: enrichedDescription,
+      location: eventDetails.location || '',
+      start: {
+        dateTime: eventDetails.startTime,
+        timeZone: eventDetails.timeZone || 'America/Mexico_City'
+      },
+      end: {
+        dateTime: eventDetails.endTime,
+        timeZone: eventDetails.timeZone || 'America/Mexico_City'
+      },
+      attendees: eventDetails.attendees || []
+    }
+  });
+
+  return data;
+};
+
+/**
+ * Deletes an event from the user's primary calendar
  */
 export const deleteGoogleEvent = async (userId, googleEventId) => {
   const calendar = await getCalendarClient(userId);
   await calendar.events.delete({
     calendarId: 'primary',
     eventId: googleEventId
+  });
+  return true;
+};
+
+/**
+ * Deletes an event from the Corporate Company Calendar
+ */
+export const deleteCorporateGoogleEvent = async (companyCalendarId, corporateEventId) => {
+  const calendar = await getSuperAdminCalendarClient();
+  if (!calendar || !corporateEventId) return false;
+
+  await calendar.events.delete({
+    calendarId: companyCalendarId,
+    eventId: corporateEventId
   });
   return true;
 };

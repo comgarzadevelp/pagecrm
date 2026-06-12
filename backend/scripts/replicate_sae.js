@@ -20,7 +20,7 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const dbPath = 'C:\\Users\\MARKETING\\SAE90EMPRE03.FDB';
+const dbPath = process.env.SAE_FDB_PATH || 'C:\\Users\\MARKETING\\Downloads\\SAE90EMPRE03.FDB';
 
 const options = {
     host: '127.0.0.1',

@@ -253,6 +253,13 @@
 }
 
 /* Responsive */
+@media (max-width: 768px) {
+  .chat-window {
+    width: 320px;
+    height: 450px;
+  }
+}
+
 @media (max-width: 480px) {
   .chat-window {
     width: calc(100vw - 40px);

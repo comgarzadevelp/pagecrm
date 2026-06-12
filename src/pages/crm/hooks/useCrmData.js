@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCompany } from '../../../contexts/CompanyContext';
 import { applyTheme } from '../../../styles/companyThemes';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export function useCrmData(role, enabledModules = []) {
   const navigate = useNavigate();
+  const { showToast, showConfirm } = useUX();
 
   // Global States
   const [leads, setLeads] = useState([]);
@@ -225,10 +227,10 @@ export function useCrmData(role, enabledModules = []) {
       }
 
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-      alert('¡El prospecto ha sido calificado exitosamente y permanece en tu embudo!');
+      showToast('¡El prospecto ha sido calificado exitosamente y permanece en tu embudo!', 'success');
     } catch (err) {
       console.error('Status change error:', err);
-      alert('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'error');
     }
   };
 
@@ -262,16 +264,22 @@ export function useCrmData(role, enabledModules = []) {
         return l;
       }));
 
-      alert('¡Vendedor asignado correctamente a este prospecto!');
+      showToast('¡Vendedor asignado correctamente a este prospecto!', 'success');
     } catch (err) {
       console.error('Assign seller error:', err);
-      alert('Error: ' + err.message);
+      showToast('Error: ' + err.message, 'error');
     }
   };
 
   // 9. Delete customer
   const handleDeleteCustomer = async (id) => {
-    if (!window.confirm('¿Estás seguro de que deseas eliminar este cliente permanentemente?')) return;
+    const confirmed = await showConfirm(
+      '¿Eliminar Cliente?', 
+      '¿Estás seguro de que deseas eliminar este cliente permanentemente?', 
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
+    if (!confirmed) return;
+
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/crm/customers/${id}`, {
@@ -282,10 +290,10 @@ export function useCrmData(role, enabledModules = []) {
       });
       const data = await res.json();
       if (res.ok) {
-        alert('Cliente eliminado correctamente.');
+        showToast('Cliente eliminado correctamente.', 'success');
         fetchCustomers();
       } else {
-        alert('Error: ' + data.message);
+        showToast('Error: ' + data.message, 'error');
       }
     } catch (err) {
       console.error('Delete customer error:', err);
@@ -316,7 +324,7 @@ export function useCrmData(role, enabledModules = []) {
     if (setActiveTab) {
       setActiveTab('quotes');
     }
-    alert(`¡Cotización ${pastQuote.quote_num} cargada en el Cotizador con éxito!`);
+    showToast(`¡Cotización ${pastQuote.quote_num} cargada en el Cotizador con éxito!`, 'success');
   };
 
   const handleRefreshAll = () => {
@@ -370,7 +378,7 @@ export function useCrmData(role, enabledModules = []) {
     fetchCustomers();
     fetchSaeSellers();
     fetchOpportunitiesList();
-  }, [companyCode, enabledModules.length]);
+  }, [companyCode, enabledModules.join(',')]);
 
   return {
     leads,
@@ -404,6 +412,7 @@ export function useCrmData(role, enabledModules = []) {
     setOpportunitySearch,
     fetchLeads,
     fetchSellers,
+    fetchSaeSellers,
     fetchCustomers,
     fetchProfile,
     fetchOpportunitiesList,

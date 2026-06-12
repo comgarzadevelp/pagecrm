@@ -87,7 +87,6 @@ const ProjectStages = () => {
         <div className="stages-banner glass">
           <div className="banner-content">
             <p>Todo lo que su proyecto de infraestructura requiere, desde la urbanización hasta el equipamiento final, lo encuentra en <span>un mismo lugar.</span></p>
-            <button className="btn-primary">Descargar CV Empresarial</button>
           </div>
         </div>
       </div>

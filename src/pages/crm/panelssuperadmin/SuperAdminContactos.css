@@ -401,3 +401,21 @@
 .sa-contacts-modal-btn-close:hover {
   background: rgba(255, 255, 255, 0.2);
 }
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 2: SUPER ADMIN CONTACTOS RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .sa-contacts-header {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .sa-contacts-stats-wrapper {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 768px) {
+  .sa-contacts-filter-panel {
+    grid-template-columns: 1fr;
+  }
+}

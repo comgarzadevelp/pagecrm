@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import ws from 'ws';
 
 dotenv.config();
 
@@ -11,10 +12,24 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 // Conexión A: Base de datos del CRM (Usuarios, Permisos, Leads, Cotizaciones)
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false
+  },
+  realtime: {
+    transport: ws
+  }
+});
 
 // Conexión B: Copia Espejo del SAE (Tablas clie03, vend03, inve03, etc.)
 const saeSupabaseUrl = process.env.SAE_SUPABASE_URL || supabaseUrl;
 const saeSupabaseKey = process.env.SAE_SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
 
-export const saeSupabase = createClient(saeSupabaseUrl, saeSupabaseKey);
+export const saeSupabase = createClient(saeSupabaseUrl, saeSupabaseKey, {
+  auth: {
+    persistSession: false
+  },
+  realtime: {
+    transport: ws
+  }
+});

@@ -59,6 +59,64 @@ export const getPriceLists = async (req, res) => {
 export const getProducts = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
+    
+    if (companyCode === 'RAV') {
+      const { q } = req.query;
+      const qLower = q ? q.toLowerCase().trim() : '';
+      
+      // Load base catalog
+      let baseProducts = [];
+      const basePath = path.join(process.cwd(), 'productos_servicios_rav_completo.json');
+      if (fs.existsSync(basePath)) {
+        try {
+          const raw = fs.readFileSync(basePath, 'utf8');
+          baseProducts = JSON.parse(raw);
+        } catch (e) {
+          console.error('Error parsing base RAV catalog JSON:', e);
+        }
+      }
+      
+      // Load custom products
+      let customProducts = [];
+      const customPath = path.join(process.cwd(), 'productos_servicios_rav_custom.json');
+      if (fs.existsSync(customPath)) {
+        try {
+          const raw = fs.readFileSync(customPath, 'utf8');
+          customProducts = JSON.parse(raw);
+        } catch (e) {
+          console.error('Error parsing custom RAV JSON:', e);
+        }
+      }
+      
+      const allProducts = [...customProducts, ...baseProducts];
+      
+      // Map properties to match what getProducts returns or what the frontend expects
+      let filtered = allProducts.map(p => ({
+        Clave: p.clave || p.model || 'S/M',
+        Descripción: p.descripci\u00f3n || p.summary || p.description || p.descriptionEs || 'Producto RAV',
+        Descripción_Limpia: p.descripci\u00f3n || p.summary || p.description || p.descriptionEs || 'Producto RAV',
+        descriptionEs: p.descriptionEs || p.descripci\u00f3n || p.summary || p.description || '',
+        descriptionEn: p.descriptionEn || '',
+        precio_publico: parseFloat(p.price) || parseFloat(p.precio) || 0,
+        Existencias: parseInt(p.existencias) || 0,
+        isCustom: p.isCustom || false
+      }));
+      
+      if (qLower) {
+        filtered = filtered.filter(p => 
+          (p.Clave && p.Clave.toLowerCase().includes(qLower)) || 
+          (p.Descripción && p.Descripción.toLowerCase().includes(qLower)) ||
+          (p.descriptionEs && p.descriptionEs.toLowerCase().includes(qLower))
+        );
+      }
+      
+      return res.json({
+        success: true,
+        products: filtered.slice(0, 50),
+        message: 'Búsqueda en catálogo RAV exitosa.'
+      });
+    }
+
     if (companyCode !== 'GARZA') {
       return res.json({ success: true, products: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
@@ -267,7 +325,7 @@ export const getLeads = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (companyId && !String(companyId).startsWith('company-')) {
-      query = query.eq('company_id', companyId);
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`);
     }
 
     const { data, error } = role === 'sales'
@@ -433,7 +491,7 @@ export const getEnterpriseCompanies = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('enterprise_companies')
-      .select('id, name, company_code, color_primary, color_accent, active');
+      .select('id, name, company_code, color_primary, color_accent, active, description, google_calendar_id');
     
     if (error) throw error;
     res.json({ success: true, companies: data });
@@ -725,7 +783,7 @@ export const getCustomers = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (companyId && !String(companyId).startsWith('company-')) {
-      query = query.eq('company_id', companyId);
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`);
     }
 
     const { data: crmCustomers, error: crmError } = role === 'sales'
@@ -1024,8 +1082,42 @@ export const deleteCustomer = async (req, res) => {
 
 // ---------- QUOTES (COTIZACIONES B2B) ----------
 export const getCustomerQuotes = async (req, res) => {
-  const { id: clientId } = req.params;
+  let { id: clientId } = req.params;
   try {
+    // Si es un ID con prefijo de SAE (ej. sae-57), buscar su UUID real migrado en el CRM
+    if (clientId && clientId.startsWith('sae-')) {
+      const saeClave = clientId.replace('sae-', '').trim();
+      
+      const { data: crmCustomers, error: fetchErr } = await supabase
+        .from('leads')
+        .select('id, notes')
+        .eq('type', 'crm_customer');
+
+      if (fetchErr) throw fetchErr;
+
+      let matchedUuid = null;
+      for (const lead of crmCustomers || []) {
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
+              matchedUuid = lead.id;
+              break;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+      }
+
+      // Si no hay un cliente migrado/interactuado en el CRM, no puede tener cotizaciones B2B todavía
+      if (!matchedUuid) {
+        return res.json({ success: true, quotes: [] });
+      }
+
+      clientId = matchedUuid; // Usar el UUID real para la consulta
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select(`
@@ -1211,19 +1303,27 @@ export const uploadCustomerEvidence = async (req, res) => {
       console.error('Reverse geocoding failed:', geoErr);
     }
 
-    // 4. Guardar archivo físico en el servidor
-    const uploadDir = path.join(__dirname, '../public/uploads/evidences');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-
+    // 4. Guardar archivo físico en el servidor o R2
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const fileExtension = path.extname(req.file.originalname) || '.jpg';
     const fileName = `${uniqueSuffix}${fileExtension}`;
-    const filePath = path.join(uploadDir, fileName);
 
-    fs.writeFileSync(filePath, req.file.buffer);
-    const photoUrl = `/uploads/evidences/${fileName}`;
+    let photoUrl = '';
+
+    try {
+      const { uploadToR2 } = await import('../services/r2Service.js');
+      photoUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'evidences');
+    } catch (r2Err) {
+      console.warn('R2 upload failed for evidence photo, saving to local filesystem:', r2Err.message);
+      // Fallback
+      const uploadDir = path.join(__dirname, '../public/uploads/evidences');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      photoUrl = `/uploads/evidences/${fileName}`;
+    }
 
     // 5. Obtener cliente y actualizar su timeline en `notes`
     const { data: customer, error: fetchError } = await supabase
@@ -1294,6 +1394,126 @@ export const uploadCustomerEvidence = async (req, res) => {
   } catch (err) {
     console.error('uploadCustomerEvidence error:', err);
     res.status(500).json({ success: false, message: 'Error interno al subir la evidencia.' });
+  }
+};
+
+export const uploadCustomerInvoice = async (req, res) => {
+  try {
+    const { id: customerId } = req.params;
+    const userId = req.user?.userId;
+    
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se subió ningún archivo de factura.' });
+    }
+
+    // 1. Obtener nombre del uploader (vendedor o admin)
+    let uploaderName = 'Ejecutivo';
+    if (userId) {
+      const { data: user } = await supabase
+        .from('crm_users')
+        .select('name')
+        .eq('id', userId)
+        .single();
+      if (user) uploaderName = user.name;
+    }
+
+    // 2. Guardar archivo físico en el servidor o R2
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const fileExtension = path.extname(req.file.originalname) || '.pdf';
+    const fileName = `${uniqueSuffix}${fileExtension}`;
+
+    let fileUrl = '';
+
+    try {
+      const { uploadToR2 } = await import('../services/r2Service.js');
+      fileUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'invoices');
+    } catch (r2Err) {
+      console.warn('R2 upload failed for invoice, saving to local filesystem:', r2Err.message);
+      // Fallback local
+      const uploadDir = path.join(__dirname, '../public/uploads/invoices');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `/uploads/invoices/${fileName}`;
+    }
+
+    // 3. Obtener cliente y actualizar su timeline y campo `invoices` en `notes`
+    const { data: customer, error: fetchError } = await supabase
+      .from('leads')
+      .select('notes, name, email, phone, company, project_type, status')
+      .eq('id', customerId)
+      .single();
+
+    if (fetchError || !customer) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado.' });
+    }
+
+    // Parser manual de notes para no pisar campos
+    let notesObj = { general: '', timeline: [], invoices: [] };
+    const rawNotes = customer.notes;
+    if (rawNotes) {
+      try {
+        const trimmed = rawNotes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          const parsed = JSON.parse(trimmed);
+          notesObj.general = parsed.general || '';
+          notesObj.timeline = parsed.timeline || [];
+          notesObj.invoices = parsed.invoices || [];
+        } else {
+          notesObj.general = rawNotes;
+        }
+      } catch (err) {
+        notesObj.general = rawNotes;
+      }
+    }
+
+    if (!notesObj.invoices) notesObj.invoices = [];
+    if (!notesObj.timeline) notesObj.timeline = [];
+
+    // Crear nodo de factura
+    const invoiceNode = {
+      fileName: req.file.originalname,
+      fileUrl,
+      uploadedAt: new Date().toISOString(),
+      uploadedBy: uploaderName
+    };
+
+    // Crear nodo de timeline
+    const timelineNode = {
+      date: new Date().toISOString(),
+      text: `Se cargó una nueva factura: ${req.file.originalname}`,
+      author: uploaderName,
+      type: 'invoice'
+    };
+
+    notesObj.invoices.push(invoiceNode);
+    notesObj.timeline.push(timelineNode);
+
+    // Guardar de vuelta en DB y marcar como cliente activo (is_client = true)
+    const { data: updatedCustomer, error: updateError } = await supabase
+      .from('leads')
+      .update({
+        notes: JSON.stringify(notesObj),
+        is_client: true,
+        status: 'calificado' // Mantener o asegurar que esté calificado/ganado
+      })
+      .eq('id', customerId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.status(201).json({
+      success: true,
+      message: 'Factura subida y vinculada correctamente.',
+      invoice: invoiceNode,
+      customer: updatedCustomer
+    });
+  } catch (err) {
+    console.error('uploadCustomerInvoice error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al subir la factura.' });
   }
 };
 
@@ -1447,7 +1667,7 @@ export const getOrphanLeads = async (req, res) => {
       .order('created_at', { ascending: false });
 
     if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
-      orphansQuery = orphansQuery.eq('company_id', companyId);
+      orphansQuery = orphansQuery.or(`company_id.eq.${companyId},company_id.is.null`);
     }
 
     const { data: crmOrphans, error: crmError } = await orphansQuery;
@@ -1495,5 +1715,83 @@ export const getOrphanLeads = async (req, res) => {
   } catch (err) {
     console.error('getOrphanLeads error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener leads huérfanos.' });
+  }
+};
+
+export const translateText = async (req, res) => {
+  const { text } = req.body;
+  if (!text) {
+    return res.status(400).json({ success: false, message: 'El texto es obligatorio.' });
+  }
+  try {
+    const { genAI, GEMINI_MODEL } = await import('../config/gemini.js');
+    const model = genAI.getGenerativeModel({
+      model: GEMINI_MODEL,
+      systemInstruction: 'Translate the following technical HVAC or general commercial description from Spanish to English. Return only the clean translated English text, without adding any introduction, quotes, explanations, prefixes or extra details. Ensure technical HVAC terminology is correct.',
+    });
+    const result = await model.generateContent(text);
+    const translation = result.response.text().trim();
+    res.json({ success: true, translation });
+  } catch (error) {
+    console.error('Translation error:', error);
+    res.status(500).json({ success: false, message: 'Error al traducir el concepto con Inteligencia Artificial.' });
+  }
+};
+
+export const saveRavProduct = async (req, res) => {
+  try {
+    const companyCode = req.user?.companyCode;
+    if (companyCode !== 'RAV') {
+      return res.status(403).json({ success: false, message: 'No autorizado para esta empresa.' });
+    }
+    
+    const { clave, model, summary, descriptionEs, descriptionEn, price } = req.body;
+    
+    const productClave = (clave || model || '').trim().toUpperCase();
+    if (!productClave) {
+      return res.status(400).json({ success: false, message: 'El modelo o clave es obligatorio.' });
+    }
+    
+    const customPath = path.join(process.cwd(), 'productos_servicios_rav_custom.json');
+    let customProducts = [];
+    if (fs.existsSync(customPath)) {
+      try {
+        const raw = fs.readFileSync(customPath, 'utf8');
+        customProducts = JSON.parse(raw);
+      } catch (e) {
+        console.error('Error parsing custom JSON:', e);
+      }
+    }
+    
+    // Check if it already exists, update or insert
+    const existingIndex = customProducts.findIndex(p => p.clave === productClave || (p.model && p.model.toUpperCase() === productClave));
+    
+    const newProduct = {
+      clave: productClave,
+      model: productClave,
+      description: summary || descriptionEs || '',
+      descripción: summary || descriptionEs || '',
+      summary: summary || descriptionEs || '',
+      descriptionEs: descriptionEs || summary || '',
+      descriptionEn: descriptionEn || '',
+      price: parseFloat(price) || 0,
+      precio: parseFloat(price) || 0,
+      existencias: 999.0,
+      isCustom: true,
+      created_at: new Date().toISOString()
+    };
+    
+    if (existingIndex > -1) {
+      customProducts[existingIndex] = newProduct;
+    } else {
+      customProducts.unshift(newProduct); // Add at the beginning
+    }
+    
+    fs.writeFileSync(customPath, JSON.stringify(customProducts, null, 2), 'utf8');
+    
+    res.json({ success: true, message: 'Producto guardado en catálogo RAV con éxito.', product: newProduct });
+  } catch (err) {
+    console.error('saveRavProduct error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al guardar producto.' });
   }
 };

@@ -10,6 +10,7 @@ import CalendarioPanel from '../panels/CalendarioPanel';
 import LeadsBandeja from '../panels/LeadsBandeja';
 import OportunidadesPanel from '../panels/OportunidadesPanel';
 import CotizadorB2B from '../panels/CotizadorB2B';
+import CotizadorRAV from '../panels/CotizadorRAV';
 import GestorCotizaciones from '../panels/GestorCotizaciones';
 import Contenedor from '../panels/Contenedor';
 import ArchivoContactos from '../panels/ArchivoContactos';
@@ -105,37 +106,54 @@ const DashboardSales = ({ enabledModules }) => {
           handleDeleteCustomer={handleDeleteCustomer}
           handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
           setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
         />
       )}
 
       {activeTab === 'quotes' && (
-        <CotizadorB2B
-          role={role}
-          userName={userName}
-          API_BASE={API_BASE}
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          sidebarCollapsed={sidebarCollapsed}
-          setSidebarCollapsed={setSidebarCollapsed}
-          allOpportunities={allOpportunities}
-          currentUserProfile={currentUserProfile}
-          fetchOpportunitiesList={fetchOpportunitiesList}
-          customers={customers}
-          quoteItems={quoteItems}
-          setQuoteItems={setQuoteItems}
-          quoteNotes={quoteNotes}
-          setQuoteNotes={setQuoteNotes}
-          selectedAgreement={selectedAgreement}
-          setSelectedAgreement={setSelectedAgreement}
-          quoteNum={quoteNum}
-          setQuoteNum={setQuoteNum}
-          quoteDate={quoteDate}
-          setQuoteDate={setQuoteDate}
-          selectedOpportunityId={selectedOpportunityId}
-          setSelectedOpportunityId={setSelectedOpportunityId}
-          opportunitySearch={opportunitySearch}
-          setOpportunitySearch={setOpportunitySearch}
-        />
+        localStorage.getItem('companyCode')?.toUpperCase() === 'RAV' ? (
+          <CotizadorRAV
+            role={role}
+            userName={userName}
+            API_BASE={API_BASE}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            allOpportunities={allOpportunities}
+            currentUserProfile={currentUserProfile}
+            fetchOpportunitiesList={fetchOpportunitiesList}
+            customers={customers}
+          />
+        ) : (
+          <CotizadorB2B
+            role={role}
+            userName={userName}
+            API_BASE={API_BASE}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            allOpportunities={allOpportunities}
+            currentUserProfile={currentUserProfile}
+            fetchOpportunitiesList={fetchOpportunitiesList}
+            customers={customers}
+            quoteItems={quoteItems}
+            setQuoteItems={setQuoteItems}
+            quoteNotes={quoteNotes}
+            setQuoteNotes={setQuoteNotes}
+            selectedAgreement={selectedAgreement}
+            setSelectedAgreement={setSelectedAgreement}
+            quoteNum={quoteNum}
+            setQuoteNum={setQuoteNum}
+            quoteDate={quoteDate}
+            setQuoteDate={setQuoteDate}
+            selectedOpportunityId={selectedOpportunityId}
+            setSelectedOpportunityId={setSelectedOpportunityId}
+            opportunitySearch={opportunitySearch}
+            setOpportunitySearch={setOpportunitySearch}
+          />
+        )
       )}
 
       {activeTab === 'contacts' && (

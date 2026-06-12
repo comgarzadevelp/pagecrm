@@ -1,9 +1,11 @@
 // src/pages/crm/panels/MiPerfil.jsx
 import React, { useEffect, useRef, useState } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function MiPerfil() {
+  const { showToast, showConfirm } = useUX();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -115,7 +117,8 @@ export default function MiPerfil() {
   };
 
   const handleDisconnectCalendar = async () => {
-    if (!window.confirm('¿Estás seguro de que deseas desconectar Google Calendar? Se detendrá la sincronización automática de citas.')) return;
+    const confirmed = await showConfirm('¿Confirmar Desconexión?', '¿Estás seguro de que deseas desconectar Google Calendar? Se detendrá la sincronización automática de citas.', { type: 'danger', confirmText: 'Sí, desconectar' });
+    if (!confirmed) return;
     setError('');
     setSuccess('');
     try {
@@ -216,7 +219,12 @@ export default function MiPerfil() {
 
           <div className="profile-identity">
             <h3>{user?.name}</h3>
-            <span className={`user-role-badge ${user?.role}`}>{user?.role === 'admin' ? 'Administrador' : 'Vendedor'}</span>
+            <span className={`user-role-badge ${user?.role}`}>
+              {user?.role === 'super_admin' ? 'Super Admin' : 
+               user?.role === 'admin' ? 'Administrador' : 
+               user?.role === 'supervisor' ? 'Supervisor' : 
+               user?.role === 'technical' ? 'Soporte Técnico' : 'Vendedor'}
+            </span>
             {user?.email && <p className="profile-email"><i className="fas fa-envelope" style={{ marginRight: '6px' }} /> {user.email}</p>}
             
             {/* Resolved company display */}
@@ -387,4 +395,5 @@ export default function MiPerfil() {
     </section>
   );
 }
+
 

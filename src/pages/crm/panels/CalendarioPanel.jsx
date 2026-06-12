@@ -1,10 +1,11 @@
-// src/pages/crm/panels/CalendarioPanel.jsx
 import React, { useEffect, useState } from 'react';
 import './CalendarioPanel.css';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function CalendarioPanel() {
+  const { showToast } = useUX();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notConnected, setNotConnected] = useState(false);
@@ -28,6 +29,8 @@ export default function CalendarioPanel() {
   const [endTime, setEndTime] = useState('');
   const [attendees, setAttendees] = useState('');
   const [category, setCategory] = useState('negocios'); // 'negocios', 'llamada', 'demo', 'seguimiento', 'otro'
+  const [location, setLocation] = useState('');
+  const [clientName, setClientName] = useState('');
   const [creating, setCreating] = useState(false);
   const [formSuccess, setFormSuccess] = useState('');
 
@@ -101,7 +104,7 @@ export default function CalendarioPanel() {
         window.location.href = data.authUrl;
       }
     } catch (err) {
-      alert(err.message || 'Error al conectar con Google.');
+      showToast(err.message || 'Error al conectar con Google.', 'error');
     }
   };
 
@@ -149,6 +152,9 @@ export default function CalendarioPanel() {
       setAttendees('');
     }
 
+    setLocation(event.location || '');
+    setClientName(event.client_name || '');
+
     setIsModalOpen(true);
   };
 
@@ -183,7 +189,9 @@ export default function CalendarioPanel() {
           startTime: startTimeISO,
           endTime: endTimeISO,
           attendees,
-          category
+          category,
+          location,
+          client_name: clientName
         })
       });
 
@@ -201,6 +209,8 @@ export default function CalendarioPanel() {
       setEndTime('');
       setAttendees('');
       setCategory('negocios');
+      setLocation('');
+      setClientName('');
       setEditingEventId(null);
 
       // Refresh listings
@@ -230,7 +240,7 @@ export default function CalendarioPanel() {
   const handleConfirmCancelEvent = async () => {
     if (!eventToCancel) return;
     if (cancellationReason.length < 150) {
-      alert('La justificación comercial debe contener un mínimo de 150 caracteres.');
+      showToast('La justificación comercial debe contener un mínimo de 150 caracteres.', 'warning');
       return;
     }
 
@@ -656,6 +666,22 @@ export default function CalendarioPanel() {
                 </div>
               </div>
 
+              <div className="form-group-expert">
+                <label>Cliente / Prospecto *</label>
+                <div className="input-with-icon">
+                  <i className="fas fa-building input-icon" />
+                  <input required value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Ej: Aceros Garza S.A. o Juan Pérez" disabled={!!editingEventId} />
+                </div>
+              </div>
+
+              <div className="form-group-expert">
+                <label>Lugar / Ubicación *</label>
+                <div className="input-with-icon">
+                  <i className="fas fa-map-marker-alt input-icon" />
+                  <input required value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: Oficinas Cliente, Microsoft Teams, Llamada..." />
+                </div>
+              </div>
+
               <div className="form-row-expert">
                 <div className="form-group-expert">
                   <label>Tipo de Evento</label>
@@ -837,6 +863,13 @@ function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, 
         </div>
         
         {cleanDesc && <p className="event-desc-text">{cleanDesc}</p>}
+
+        {event.location && (
+          <div className="event-card-location" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <i className="fas fa-map-marker-alt" style={{ color: 'var(--color-brand-accent)' }} />
+            <span>📍 {event.location}</span>
+          </div>
+        )}
         
         {event.attendees && event.attendees.length > 0 && (
           <div className="event-attendees-row">
@@ -861,3 +894,4 @@ function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, 
     </div>
   );
 }
+

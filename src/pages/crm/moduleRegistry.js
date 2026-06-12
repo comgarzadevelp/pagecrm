@@ -160,6 +160,13 @@ export const MODULE_REGISTRY = {
     badgeColor: '#98ca3f',
     needsData: [],
   },
+  'chatbot-config': {
+    key: 'chatbot-config',
+    label: 'Configurar Chatbot',
+    icon: 'fa-robot',
+    category: 'superadmin',
+    needsData: [],
+  },
 };
 
 /**
@@ -171,7 +178,7 @@ export const MODULE_REGISTRY = {
  */
 export const ROLE_DEFAULTS = {
   super_admin: [
-    'dashboard', 'contacts', 'enterprise-group', 'module-config', 'personnel', 'agenda', 'notifications', 'profile',
+    'dashboard', 'contacts', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
   ],
   admin: [
     'dashboard', 'contacts', 'companies', 'calendar', 'leads',
@@ -257,7 +264,12 @@ export const ROLE_ICONS = {
  * @returns {string[]} Lista de moduleKeys habilitados
  */
 export function getEnabledModules(role, companyConfig = {}) {
-  const defaults = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.sales;
+  let defaults = ROLE_DEFAULTS[role] || ROLE_DEFAULTS.sales;
+
+  // Si la empresa es RAV, eliminar 'leads' (Asignados) del CRM
+  if (localStorage.getItem('companyCode')?.toUpperCase() === 'RAV') {
+    defaults = defaults.filter(moduleKey => moduleKey !== 'leads');
+  }
 
   // Si no hay config custom de empresa, usar defaults del rol
   if (!companyConfig || Object.keys(companyConfig).length === 0) {

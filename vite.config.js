@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: './', // Asegura que las rutas sean relativas para red local
+  base: '/', // Asegura que las rutas sean relativas para red local
   server: {
     allowedHosts: ['.ngrok-free.app'],
     host: true,        // Expone el servidor a la red local

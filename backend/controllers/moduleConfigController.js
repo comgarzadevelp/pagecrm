@@ -129,7 +129,7 @@ export const createEnterpriseCompany = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Solo super_admin puede crear empresas.' });
     }
 
-    const { name, company_code, description, color_primary, color_accent, logo_url, modules } = req.body;
+    const { name, company_code, description, color_primary, color_accent, logo_url, google_calendar_id, modules } = req.body;
 
     if (!name || !company_code) {
       return res.status(400).json({ success: false, message: 'Nombre y código de empresa son requeridos.' });
@@ -145,6 +145,7 @@ export const createEnterpriseCompany = async (req, res) => {
         color_primary: color_primary || '#05393A',
         color_accent: color_accent || '#E0922B',
         logo_url: logo_url || null,
+        google_calendar_id: google_calendar_id || null,
         active: true,
       }])
       .select()
@@ -180,5 +181,44 @@ export const createEnterpriseCompany = async (req, res) => {
   } catch (err) {
     console.error('createEnterpriseCompany error:', err);
     res.status(500).json({ success: false, message: 'Error al crear empresa.' });
+  }
+};
+
+/**
+ * PUT /api/crm/enterprise-companies/:id
+ * Super admin: update an existing enterprise company.
+ */
+export const updateEnterpriseCompany = async (req, res) => {
+  try {
+    const role = req.user?.role;
+    if (role !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'Solo super_admin puede actualizar empresas.' });
+    }
+
+    const { id } = req.params;
+    const { name, company_code, description, color_primary, color_accent, google_calendar_id, active } = req.body;
+
+    const updatePayload = {};
+    if (name !== undefined) updatePayload.name = name;
+    if (company_code !== undefined) updatePayload.company_code = company_code.toUpperCase();
+    if (description !== undefined) updatePayload.description = description;
+    if (color_primary !== undefined) updatePayload.color_primary = color_primary;
+    if (color_accent !== undefined) updatePayload.color_accent = color_accent;
+    if (google_calendar_id !== undefined) updatePayload.google_calendar_id = google_calendar_id || null;
+    if (active !== undefined) updatePayload.active = Boolean(active);
+
+    const { data, error } = await supabase
+      .from('enterprise_companies')
+      .update(updatePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json({ success: true, company: data, message: 'Empresa actualizada exitosamente.' });
+  } catch (err) {
+    console.error('updateEnterpriseCompany error:', err);
+    res.status(500).json({ success: false, message: 'Error al actualizar la empresa.' });
   }
 };

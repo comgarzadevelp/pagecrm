@@ -49,7 +49,8 @@
 /* Card Design */
 .stage-card {
   position: relative;
-  height: 500px;
+  height: auto;
+  min-height: 500px;
   background: var(--color-black);
   overflow: hidden;
   border-radius: 4px;
@@ -212,9 +213,17 @@
   }
 }
 
+@media (max-width: 900px) {
+  .stages-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
 @media (max-width: 768px) {
   .stage-card {
-    height: 450px;
+    height: auto;
+    min-height: 450px;
   }
   
   .stage-number {
@@ -231,5 +240,15 @@
   
   .banner-content p {
     font-size: 1.3rem;
+  }
+}
+
+/* CORRECCIÓN REPORTE §3.3: ProjectStages 480px */
+@media (max-width: 480px) {
+  .stages-banner {
+    padding: 2rem 1rem;
+  }
+  .banner-content p {
+    font-size: 1.1rem;
   }
 }

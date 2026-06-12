@@ -668,6 +668,7 @@ const Dashboard = () => {
             handleDeleteCustomer={handleDeleteCustomer}
             handleLoadPastQuote={handleLoadPastQuote}
             setActiveTab={setActiveTab}
+            onViewCustomerDetails={setSelectedCustomer}
           />
         )}
 

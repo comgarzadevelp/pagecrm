@@ -1,12 +1,14 @@
 // src/pages/crm/panels/MisContactos.jsx
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 const emptyForm = { name: '', position: '', email: '', phone: '', phone_alt: '', whatsapp: '', notes: '' };
 
 export default function MisContactos({ onViewCompanyDetails }) {
+  const { showToast, showConfirm } = useUX();
   const [contacts, setContacts] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [priceLists, setPriceLists] = useState([]);
@@ -127,18 +129,19 @@ export default function MisContactos({ onViewCompanyDetails }) {
       if (!res.ok) throw new Error(data.message);
       setShowModal(false);
       fetchContacts();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar este contacto permanentemente?')) return;
+    const confirmed = await showConfirm('¿Confirmar Eliminación?', '¿Eliminar este contacto permanentemente?', { type: 'danger', confirmText: 'Sí, eliminar' });
+    if (!confirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/contacts/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       fetchContacts();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
   };
 
   // Archive Modal states
@@ -156,7 +159,7 @@ export default function MisContactos({ onViewCompanyDetails }) {
   const handleArchiveConfirm = async (e) => {
     e.preventDefault();
     if (archiveReason.trim().length < 200) {
-      alert(`Por favor redacta una justificación válida. Llevas ${archiveReason.trim().length} de 200 caracteres mínimos requeridos.`);
+      showToast(`Por favor redacta una justificación válida. Llevas ${archiveReason.trim().length} de 200 caracteres mínimos requeridos.`, 'warning');
       return;
     }
     setArchivingInProgress(true);
@@ -181,10 +184,10 @@ export default function MisContactos({ onViewCompanyDetails }) {
       if (!res.ok) throw new Error(data.message);
       setShowArchiveModal(false);
       setContactForArchive(null);
-      alert('Contacto archivado y depurado exitosamente del directorio activo.');
+      showToast('Contacto archivado y depurado exitosamente del directorio activo.', 'success');
       fetchContacts();
     } catch (err) {
-      alert('Error al archivar contacto: ' + err.message);
+      showToast('Error al archivar contacto: ' + err.message, 'error');
     } finally {
       setArchivingInProgress(false);
     }
@@ -199,7 +202,7 @@ export default function MisContactos({ onViewCompanyDetails }) {
 
   const handleLinkSave = async (e) => {
     e.preventDefault();
-    if (!linkCompanyId) { alert('Selecciona una empresa.'); return; }
+    if (!linkCompanyId) { showToast('Selecciona una empresa.', 'warning'); return; }
     try {
       const res = await fetch(`${API_BASE}/api/crm/contacts/${selectedContact.id}/link-company`, {
         method: 'POST',
@@ -210,11 +213,12 @@ export default function MisContactos({ onViewCompanyDetails }) {
       if (!res.ok) throw new Error(data.message);
       setShowLinkModal(false);
       fetchContacts();
-    } catch (err) { alert('Error: ' + err.message); }
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
   };
 
   const handleUnlink = async (contactId, companyId) => {
-    if (!confirm('¿Desvincular este contacto de la empresa?')) return;
+    const confirmed = await showConfirm('¿Desvincular?', '¿Desvincular este contacto de la empresa?', { type: 'warning', confirmText: 'Desvincular' });
+    if (!confirmed) return;
     try {
       await fetch(`${API_BASE}/api/crm/contacts/${contactId}/link-company/${companyId}`, {
         method: 'DELETE', headers: { Authorization: `Bearer ${token()}` }
@@ -612,3 +616,4 @@ export default function MisContactos({ onViewCompanyDetails }) {
     </section>
   );
 }
+

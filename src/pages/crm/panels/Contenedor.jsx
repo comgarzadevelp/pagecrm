@@ -1,5 +1,6 @@
 // src/pages/crm/panels/Contenedor.jsx
 import React, { useEffect, useRef, useState } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -26,6 +27,7 @@ const formatDate = (ds) => {
 };
 
 export default function Contenedor() {
+  const { showToast, showConfirm } = useUX();
   const [files, setFiles] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +73,7 @@ export default function Contenedor() {
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!uploadFile) { alert('Selecciona un archivo.'); return; }
+    if (!uploadFile) { showToast('Selecciona un archivo.', 'warning'); return; }
     setUploading(true);
     const formData = new FormData();
     formData.append('file', uploadFile);
@@ -90,18 +92,21 @@ export default function Contenedor() {
       setUploadFile(null); setUploadName(''); setUploadDesc(''); setUploadCategory('general');
       if (fileInputRef.current) fileInputRef.current.value = '';
       fetchFiles();
-    } catch (err) { alert('Error: ' + err.message); }
+      showToast('Archivo subido con éxito', 'success');
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
     finally { setUploading(false); }
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('¿Eliminar este archivo permanentemente del servidor?')) return;
+    const confirmed = await showConfirm('¿Eliminar Archivo?', '¿Eliminar este archivo permanentemente del servidor?', { type: 'danger', confirmText: 'Eliminar' });
+    if (!confirmed) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/files/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       fetchFiles();
-    } catch (err) { alert('Error: ' + err.message); }
+      showToast('Archivo eliminado', 'success');
+    } catch (err) { showToast('Error: ' + err.message, 'error'); }
   };
 
   const getFileIcon = (type) => FILE_TYPES[type] || FILE_TYPES.other;
@@ -237,3 +242,4 @@ export default function Contenedor() {
     </section>
   );
 }
+

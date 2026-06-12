@@ -1,4 +1,4 @@
-.navbar-ref {
+﻿.navbar-ref {
   position: fixed;
   top: 0;
   left: 0;
@@ -132,7 +132,7 @@
 }
 
 .desktop-only {
-  display: flex !important;
+  display: flex;
 }
 
 .navbar-mobile-footer {
@@ -184,7 +184,7 @@
   }
 
   .desktop-only {
-    display: none !important;
+    display: none;
   }
 
   .hamburger {
@@ -207,6 +207,7 @@
     box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
     z-index: 1050;
     padding: 2rem;
+    overflow-y: auto;
   }
 
   .navbar-menu-wrapper.active {
@@ -268,3 +269,6 @@
     height: 35px;
   }
 }
+/* -------------------------------------------------------------
+   CORRECCI�N REPORTE �3.1: NAVBAR OVERFLOW SCROLL
+   ------------------------------------------------------------- */

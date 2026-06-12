@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 import './SuperAdminPersonnel.css';
+import '../panels/AdminPanels.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function SuperAdminPersonnel() {
+  const { showToast, showConfirm } = useUX();
   const [users, setUsers] = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,19 +15,21 @@ export default function SuperAdminPersonnel() {
 
   // Selected user for modification
   const [selectedUser, setSelectedUser] = useState(null);
+  const [isCreateMode, setIsCreateMode] = useState(false);
 
   // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState('all');
   const [filterCompany, setFilterCompany] = useState('all');
 
-  // Form states for modifications
-  const [editRole, setEditRole] = useState('');
+  // Form states for modifications / creation
+  const [editRole, setEditRole] = useState('sales');
   const [editCompanyId, setEditCompanyId] = useState('');
   const [editSupervisorId, setEditSupervisorId] = useState('');
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editSaeKey, setEditSaeKey] = useState('');
+  const [createPassword, setCreatePassword] = useState('');
 
   const [saving, setSaving] = useState(false);
   const token = localStorage.getItem('token');
@@ -59,7 +64,22 @@ export default function SuperAdminPersonnel() {
     }
   };
 
+  const handleAddNewClick = () => {
+    setIsCreateMode(true);
+    setSelectedUser(null);
+    setEditName('');
+    setEditEmail('');
+    setEditRole('sales');
+    setEditCompanyId('');
+    setEditSupervisorId('');
+    setEditSaeKey('');
+    setCreatePassword('');
+    setSuccessMsg('');
+    setError('');
+  };
+
   const handleSelectUser = (user) => {
+    setIsCreateMode(false);
     setSelectedUser(user);
     setEditName(user.name || '');
     setEditEmail(user.email || '');
@@ -67,45 +87,77 @@ export default function SuperAdminPersonnel() {
     setEditCompanyId(user.company_id || '');
     setEditSupervisorId(user.supervisor_id || '');
     setEditSaeKey(user.sae_vendor_key || '');
+    setCreatePassword('');
     setSuccessMsg('');
     setError('');
   };
 
   const handleSaveChanges = async (e) => {
     e.preventDefault();
-    if (!selectedUser) return;
+    if (!isCreateMode && !selectedUser) return;
     
     setSaving(true);
     setSuccessMsg('');
     setError('');
 
+    const url = isCreateMode
+      ? `${API_BASE}/api/crm/sellers`
+      : `${API_BASE}/api/crm/sellers/${selectedUser.id}`;
+
+    const method = isCreateMode ? 'POST' : 'PUT';
+
+    const bodyPayload = {
+      name: editName,
+      email: editEmail,
+      role: editRole,
+      company_id: editCompanyId || null,
+      supervisor_id: editSupervisorId || null,
+      sae_vendor_key: editSaeKey || null
+    };
+
+    if (isCreateMode) {
+      if (!createPassword || createPassword.length < 6) {
+        setError('La contraseña inicial es obligatoria y debe tener al menos 6 caracteres.');
+        setSaving(false);
+        return;
+      }
+      bodyPayload.password = createPassword;
+    }
+
     try {
-      const res = await fetch(`${API_BASE}/api/crm/sellers/${selectedUser.id}`, {
-        method: 'PUT',
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          name: editName,
-          email: editEmail,
-          role: editRole,
-          company_id: editCompanyId || null,
-          supervisor_id: editSupervisorId || null,
-          sae_vendor_key: editSaeKey || null
-        })
+        body: JSON.stringify(bodyPayload)
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al actualizar el usuario.');
+      if (!res.ok) throw new Error(data.message || 'Error al procesar la solicitud.');
 
-      // Update local state list
-      setUsers(prev => prev.map(u => u.id === selectedUser.id ? data.seller : u));
-      setSelectedUser(data.seller);
-      setSuccessMsg('¡Usuario actualizado exitosamente!');
+      if (isCreateMode) {
+        // Add new user to state list
+        const newUser = data.seller || data.user;
+        if (newUser) {
+          setUsers(prev => [newUser, ...prev]);
+          handleSelectUser(newUser);
+          setSuccessMsg('¡Usuario creado y registrado exitosamente!');
+        } else {
+          fetchInitialData();
+          setIsCreateMode(false);
+          setSuccessMsg('¡Usuario registrado exitosamente!');
+        }
+      } else {
+        // Update local state list
+        setUsers(prev => prev.map(u => u.id === selectedUser.id ? data.seller : u));
+        setSelectedUser(data.seller);
+        setSuccessMsg('¡Usuario actualizado exitosamente!');
+      }
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Error de comunicación al actualizar.');
+      setError(err.message || 'Error de comunicación al guardar.');
     } finally {
       setSaving(false);
     }
@@ -113,7 +165,7 @@ export default function SuperAdminPersonnel() {
 
   const handleResetPassword = async () => {
     if (!selectedUser) return;
-    const confirmReset = window.confirm(`¿Estás seguro de restablecer la contraseña de ${selectedUser.name}? La nueva contraseña por defecto será "123456".`);
+    const confirmReset = await showConfirm(`¿Estás seguro de restablecer la contraseña de ${selectedUser.name}? La nueva contraseña por defecto será "123456".`);
     if (!confirmReset) return;
 
     try {
@@ -135,7 +187,7 @@ export default function SuperAdminPersonnel() {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-    const confirmDelete = window.confirm(`¿ESTÁS SEGURO DE DAR DE BAJA DEFINITIVA A ${selectedUser.name.toUpperCase()}? Esta acción desvinculará sus prospectos y eliminará su cuenta de forma permanente.`);
+    const confirmDelete = await showConfirm(`¿ESTÁS SEGURO DE DAR DE BAJA DEFINITIVA A ${selectedUser.name.toUpperCase()}? Esta acción desvinculará sus prospectos y eliminará su cuenta de forma permanente.`);
     if (!confirmDelete) return;
 
     try {
@@ -258,9 +310,18 @@ export default function SuperAdminPersonnel() {
         
         {/* LEFT COLUMN: INTERACTIVE PERSONNEL LIST */}
         <div className="sa-pers-list-card glass">
-          <div className="sa-pers-list-header">
-            <h3>Lista de Colaboradores</h3>
-            <span className="sa-pers-counter">{filteredUsers.length} registros</span>
+          <div className="sa-pers-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3>Lista de Colaboradores</h3>
+              <span className="sa-pers-counter">{filteredUsers.length} registros</span>
+            </div>
+            <button 
+              className="crm-btn-primary" 
+              style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+              onClick={handleAddNewClick}
+            >
+              <i className="fas fa-user-plus" /> Agregar Nuevo
+            </button>
           </div>
 
           <div className="sa-pers-scroll-wrapper">
@@ -321,17 +382,19 @@ export default function SuperAdminPersonnel() {
 
         {/* RIGHT COLUMN: PERMISSION AND ROLE CONFIG PANEL */}
         <div className="sa-pers-config-card glass">
-          {!selectedUser ? (
+          {!selectedUser && !isCreateMode ? (
             <div className="sa-pers-config-placeholder">
               <i className="fas fa-sliders-h placeholder-icon" />
               <h3>Consola de Configuración</h3>
-              <p>Selecciona un colaborador de la lista de la izquierda para promover su rol, reasignar su filial o cambiar su supervisor comercial.</p>
+              <p>Selecciona un colaborador de la lista de la izquierda o haz clic en "Agregar Nuevo" para dar de alta un nuevo miembro de tu equipo comercial.</p>
             </div>
           ) : (
             <form onSubmit={handleSaveChanges} className="sa-pers-form animate-fade-in">
               <div className="sa-pers-form-header">
-                <h3>Editar Perfil de Colaborador</h3>
-                <span className="user-uuid">ID: {selectedUser.id.substring(0, 8)}...</span>
+                <h3>{isCreateMode ? "Registrar Nuevo Colaborador" : "Editar Perfil de Colaborador"}</h3>
+                <span className="user-uuid">
+                  {isCreateMode ? "Nuevo Registro" : `ID: ${selectedUser?.id?.substring(0, 8)}...`}
+                </span>
               </div>
 
               {error && (
@@ -351,31 +414,53 @@ export default function SuperAdminPersonnel() {
               <div className="sa-pers-form-fields">
                 {/* Name */}
                 <div className="sa-pers-field-group">
-                  <label>Nombre Completo</label>
+                  <label>Nombre Completo *</label>
                   <div className="field-input-wrapper">
                     <i className="fas fa-user field-icon" />
                     <input 
                       type="text" 
                       value={editName} 
                       onChange={e => setEditName(e.target.value)} 
+                      placeholder="Nombre y Apellidos"
                       required 
+                      disabled={saving}
                     />
                   </div>
                 </div>
 
                 {/* Email */}
                 <div className="sa-pers-field-group">
-                  <label>Correo Electrónico</label>
+                  <label>Correo Electrónico *</label>
                   <div className="field-input-wrapper">
                     <i className="fas fa-envelope field-icon" />
                     <input 
                       type="email" 
                       value={editEmail} 
                       onChange={e => setEditEmail(e.target.value)} 
+                      placeholder="usuario@comgarza.com"
                       required 
+                      disabled={saving}
                     />
                   </div>
                 </div>
+
+                {/* Password (Only for creation) */}
+                {isCreateMode && (
+                  <div className="sa-pers-field-group animate-slide-up">
+                    <label>Contraseña Inicial *</label>
+                    <div className="field-input-wrapper">
+                      <i className="fas fa-lock field-icon" />
+                      <input 
+                        type="password" 
+                        value={createPassword} 
+                        onChange={e => setCreatePassword(e.target.value)} 
+                        placeholder="Mínimo 6 caracteres"
+                        required 
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Role Switch / Promotion */}
                 <div className="sa-pers-field-group">
@@ -386,6 +471,7 @@ export default function SuperAdminPersonnel() {
                       value={editRole} 
                       onChange={e => setEditRole(e.target.value)}
                       style={{ color: '#00f2fe', fontWeight: 'bold' }}
+                      disabled={saving}
                     >
                       <option value="sales">Vendedor (Nivel 2)</option>
                       <option value="supervisor">Supervisor (Nivel 1)</option>
@@ -395,7 +481,7 @@ export default function SuperAdminPersonnel() {
                     </select>
                   </div>
                   <span className="field-hint">
-                    Promover el perfil cambiará las pestañas visibles, niveles de acceso y reportes de inmediato.
+                    Determina qué módulos, jerarquías y reportes tendrá activos el colaborador.
                   </span>
                 </div>
 
@@ -407,6 +493,7 @@ export default function SuperAdminPersonnel() {
                     <select 
                       value={editCompanyId} 
                       onChange={e => setEditCompanyId(e.target.value)}
+                      disabled={saving}
                     >
                       <option value="">N/A — Sin Empresa Vinculada</option>
                       {companies.map(c => (
@@ -425,6 +512,7 @@ export default function SuperAdminPersonnel() {
                       <select 
                         value={editSupervisorId} 
                         onChange={e => setEditSupervisorId(e.target.value)}
+                        disabled={saving}
                       >
                         <option value="">Ninguno — Sin Supervisor</option>
                         {elegibleSupervisors.map(sup => (
@@ -446,6 +534,7 @@ export default function SuperAdminPersonnel() {
                         value={editSaeKey} 
                         onChange={e => setEditSaeKey(e.target.value)}
                         placeholder="Ej: 3"
+                        disabled={saving}
                       />
                     </div>
                   </div>
@@ -454,41 +543,64 @@ export default function SuperAdminPersonnel() {
 
               {/* ACTION BUTTONS */}
               <div className="sa-pers-form-actions">
-                <button 
-                  type="submit" 
-                  className="btn-save-pers crm-btn-primary" 
-                  disabled={saving}
-                >
-                  {saving ? (
-                    <>
-                      <i className="fas fa-spinner fa-spin" /> Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <i className="fas fa-save" /> Guardar Configuración
-                    </>
+                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                  <button 
+                    type="submit" 
+                    className="btn-save-pers crm-btn-primary" 
+                    style={{ flex: 2 }}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <i className="fas fa-spinner fa-spin" /> Guardando...
+                      </>
+                    ) : isCreateMode ? (
+                      <>
+                        <i className="fas fa-user-plus" /> Registrar en Base de Datos
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-save" /> Guardar Configuración
+                      </>
+                    )}
+                  </button>
+                  
+                  {isCreateMode && (
+                    <button 
+                      type="button" 
+                      className="btn-pers-secondary"
+                      style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
+                      onClick={() => setIsCreateMode(false)}
+                      disabled={saving}
+                    >
+                      Cancelar
+                    </button>
                   )}
-                </button>
-
-                <div className="sa-pers-actions-divider" />
-
-                <div className="sa-pers-danger-actions-row">
-                  <button 
-                    type="button" 
-                    className="btn-pers-secondary text-glow-cyan"
-                    onClick={handleResetPassword}
-                  >
-                    <i className="fas fa-key" /> Reset Password
-                  </button>
-
-                  <button 
-                    type="button" 
-                    className="btn-pers-danger text-glow-red"
-                    onClick={handleDeleteUser}
-                  >
-                    <i className="fas fa-user-minus" /> Dar de Baja
-                  </button>
                 </div>
+
+                {!isCreateMode && (
+                  <>
+                    <div className="sa-pers-actions-divider" />
+
+                    <div className="sa-pers-danger-actions-row">
+                      <button 
+                        type="button" 
+                        className="btn-pers-secondary text-glow-cyan"
+                        onClick={handleResetPassword}
+                      >
+                        <i className="fas fa-key" /> Reset Password
+                      </button>
+
+                      <button 
+                        type="button" 
+                        className="btn-pers-danger text-glow-red"
+                        onClick={handleDeleteUser}
+                      >
+                        <i className="fas fa-user-minus" /> Dar de Baja
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </form>
           )}
@@ -497,3 +609,4 @@ export default function SuperAdminPersonnel() {
     </div>
   );
 }
+

@@ -341,3 +341,24 @@
   color: #ef4444;
   border: 1px solid rgba(239, 68, 68, 0.2);
 }
+
+/* CORRECCIÓN REPORTE §4.4: EnterpriseGroupPanel móvil */
+@media (max-width: 768px) {
+  .sa-group-grid {
+    grid-template-columns: 1fr;
+  }
+  .sa-group-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sa-group-form .form-row {
+    grid-template-columns: 1fr;
+  }
+  .sa-group-table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sa-group-table {
+    min-width: 500px;
+  }
+}

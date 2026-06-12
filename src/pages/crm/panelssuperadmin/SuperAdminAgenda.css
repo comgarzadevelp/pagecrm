@@ -630,3 +630,27 @@
     padding-right: 0;
   }
 }
+
+/* CORRECCIÓN REPORTE §4.4: SuperAdminAgenda móvil */
+@media (max-width: 768px) {
+  .sa-agenda-filter-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sa-agenda-search-box {
+    min-width: 100%;
+  }
+  .sa-agenda-seller-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .seller-right-meta {
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 480px) {
+  .sa-agenda-seller-timeline {
+    padding: 15px;
+  }
+}

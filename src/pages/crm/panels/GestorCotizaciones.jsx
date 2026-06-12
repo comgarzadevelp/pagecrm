@@ -103,7 +103,6 @@ export default function GestorCotizaciones() {
                 </div>
               </div>
               <div className="quote-card-meta">
-                <span className="quote-agreement-badge">{AGREEMENT_LABELS[q.agreement] || q.agreement}</span>
                 {q.seller?.name && <span className="quote-seller"><i className="fas fa-user-tie" /> {q.seller.name}</span>}
               </div>
               <div className="quote-card-total">
@@ -127,7 +126,7 @@ export default function GestorCotizaciones() {
                 <th>Cliente</th>
                 <th>Empresa</th>
                 <th>Vendedor</th>
-                <th>Convenio</th>
+
                 <th>Partidas</th>
                 <th>Subtotal</th>
                 <th>IVA</th>
@@ -146,7 +145,7 @@ export default function GestorCotizaciones() {
                   </td>
                   <td>{q.client?.company || '—'}</td>
                   <td>{q.seller?.name || '—'}</td>
-                  <td><span className="quote-agreement-badge">{AGREEMENT_LABELS[q.agreement] || q.agreement}</span></td>
+
                   <td style={{ textAlign: 'center' }}>{q.items?.length || 0}</td>
                   <td>{formatCurrency(q.subtotal)}</td>
                   <td>{formatCurrency(q.iva)}</td>
@@ -190,7 +189,7 @@ export default function GestorCotizaciones() {
                   <div className="info-item"><span className="info-label">Empresa</span><span className="info-value">{selected.client.company}</span></div>
                 )}
                 <div className="info-item"><span className="info-label">Vendedor</span><span className="info-value">{selected.seller?.name}</span></div>
-                <div className="info-item"><span className="info-label">Convenio</span><span className="info-value">{AGREEMENT_LABELS[selected.agreement] || selected.agreement}</span></div>
+
               </div>
 
               {/* Items table */}

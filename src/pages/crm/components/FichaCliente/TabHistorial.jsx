@@ -353,6 +353,11 @@ export default function TabHistorial({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
             {[...parsedNotes.timeline].reverse().map((note, idx) => {
               const isEvidence = note.type === 'evidence';
+              const photoUrl = note.photoUrl || note.photo_url;
+              const latitude = note.latitude || note.gps?.lat;
+              const longitude = note.longitude || note.gps?.lng;
+              const deviceInfo = note.deviceInfo || note.device_info;
+
               return isEvidence ? (
                 <div key={idx} style={{ padding: '1rem', background: '#ffffff', borderRadius: '12px', border: '1px solid var(--color-brand-accent)', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -365,24 +370,24 @@ export default function TabHistorial({
                   </div>
                   <p style={{ fontSize: '0.85rem', color: 'var(--color-text-dark)', margin: 0, fontWeight: '500' }}>{note.text}</p>
                   
-                  {note.photo_url && (
-                    <a href={note.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                      <img src={note.photo_url} alt="Evidencia GPS" style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block' }} />
+                  {photoUrl && (
+                    <a href={photoUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                      <img src={photoUrl} alt="Evidencia GPS" style={{ width: '100%', height: '120px', objectFit: 'cover', display: 'block' }} />
                     </a>
                   )}
                   
-                  {(note.latitude && note.longitude) && (
+                  {(latitude && longitude) && (
                     <a 
-                      href={`https://www.google.com/maps/search/?api=1&query=${note.latitude},${note.longitude}`}
+                      href={`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ fontSize: '0.75rem', color: '#2563eb', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}
                     >
-                      <i className="fas fa-map-marker-alt"></i> Ver en mapa ({parseFloat(note.latitude).toFixed(4)}, {parseFloat(note.longitude).toFixed(4)})
+                      <i className="fas fa-map-marker-alt"></i> Ver en mapa ({parseFloat(latitude).toFixed(4)}, {parseFloat(longitude).toFixed(4)})
                     </a>
                   )}
                   <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="fas fa-user-circle"></i> Reportó: {note.author || 'Ejecutivo'} {note.device_info ? `(${note.device_info})` : ''}
+                    <i className="fas fa-user-circle"></i> Reportó: {note.author || 'Ejecutivo'} {deviceInfo ? `(${deviceInfo})` : ''}
                   </div>
                 </div>
               ) : (

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MODULE_REGISTRY, ROLE_LABELS, ROLE_ICONS } from './moduleRegistry';
 import './Dashboard.css';
+import './MobileApp.css';
 
 // Sleek Global Bell Notifications Component (Fixed in top-right, solid high-contrast neon styling)
 const GlobalBellNotifications = ({ setActiveTab, role }) => {
@@ -206,6 +207,24 @@ const DashboardShell = ({
     })
     .filter(Boolean);
 
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  // Mobile quick access tabs setup
+  const preferredMobileKeys = ['leads', 'contacts', 'companies', 'quotes', 'pipeline', 'dashboard'];
+  
+  // Sort sidebarItems: preferred ones first, then others
+  const sortedMobileItems = [...sidebarItems].sort((a, b) => {
+    const idxA = preferredMobileKeys.indexOf(a.key);
+    const idxB = preferredMobileKeys.indexOf(b.key);
+    if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+    if (idxA !== -1) return -1;
+    if (idxB !== -1) return 1;
+    return 0;
+  });
+
+  const primaryMobileTabs = sortedMobileItems.slice(0, 4);
+  const secondaryMobileTabs = sortedMobileItems.slice(4);
+
   const showGlobalStatsGrid = 
     activeTab !== 'quotes' &&
     activeTab !== 'dashboard' &&
@@ -346,6 +365,87 @@ const DashboardShell = ({
 
         {children}
       </main>
+
+      {/* MOBILE BOTTOM NAVIGATION BAR */}
+      <nav className="crm-mobile-bottom-nav hide-on-print">
+        {primaryMobileTabs.map(item => {
+          const isActive = activeTab === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              className={`mobile-nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab(item.key);
+                setShowMoreMenu(false);
+              }}
+            >
+              <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} />
+              <span>{item.label.split(' ')[0]}</span>
+            </button>
+          );
+        })}
+        {secondaryMobileTabs.length > 0 && (
+          <button
+            type="button"
+            className={`mobile-nav-item ${showMoreMenu ? 'active' : ''}`}
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+          >
+            <i className="fas fa-ellipsis-h" />
+            <span>Más</span>
+          </button>
+        )}
+      </nav>
+
+      {/* MOBILE MORE MENU DRAWER (BOTTOM SHEET) */}
+      {showMoreMenu && (
+        <div className="crm-mobile-more-overlay" onClick={() => setShowMoreMenu(false)}>
+          <div className="crm-mobile-more-sheet glass" onClick={e => e.stopPropagation()}>
+            <div className="sheet-header">
+              <div className="sheet-handle" />
+              <h3>Menú de Módulos</h3>
+              <button type="button" className="btn-close-sheet" onClick={() => setShowMoreMenu(false)}>
+                <i className="fas fa-times" />
+              </button>
+            </div>
+            
+            <div className="sheet-content">
+              {secondaryMobileTabs.length > 0 && (
+                <div className="sheet-grid">
+                  {secondaryMobileTabs.map(item => {
+                    const isActive = activeTab === item.key;
+                    return (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={`sheet-grid-item ${isActive ? 'active' : ''}`}
+                        onClick={() => {
+                          setActiveTab(item.key);
+                          setShowMoreMenu(false);
+                        }}
+                      >
+                        <div className="icon-box">
+                          <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} />
+                        </div>
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="sheet-actions">
+                <button type="button" className="btn-sheet-action btn-refresh" onClick={() => { handleRefreshAll(); setShowMoreMenu(false); }}>
+                  <i className="fas fa-sync-alt"></i> Actualizar Datos
+                </button>
+                <button type="button" className="btn-sheet-action btn-logout" onClick={() => { handleLogout(); setShowMoreMenu(false); }}>
+                  <i className="fas fa-sign-out-alt"></i> Cerrar Sesión
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

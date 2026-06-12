@@ -38,6 +38,31 @@ const TYPE_LABELS = {
 };
 const STATUS_COLORS = { activo: '#10b981', inactivo: '#94a3b8', prospecto: '#f59e0b' };
 
+const parseNotes = (notes) => {
+  const result = { general: '', timeline: [] };
+  if (!notes) return result;
+  if (typeof notes === 'object') {
+    result.general = notes.general || '';
+    result.timeline = notes.timeline || [];
+    return result;
+  }
+  if (typeof notes === 'string') {
+    try {
+      const trimmed = notes.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        const parsed = JSON.parse(trimmed);
+        result.general = parsed.general || '';
+        result.timeline = parsed.timeline || [];
+        return result;
+      }
+      result.general = trimmed;
+    } catch (e) {
+      result.general = notes;
+    }
+  }
+  return result;
+};
+
 export default function Empresas({ onViewCompanyDetails }) {
   const { showToast, showConfirm } = useUX();
   const role = localStorage.getItem('role');
@@ -81,6 +106,7 @@ export default function Empresas({ onViewCompanyDetails }) {
   const [editMode, setEditMode] = useState(false);
   const [selected, setSelected] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [mapSearchQuery, setMapSearchQuery] = useState('Monterrey, Nuevo León');
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('general'); // 'general' | 'contactos' | 'notas'
 
@@ -194,19 +220,7 @@ export default function Empresas({ onViewCompanyDetails }) {
     });
 
     // Parse notes safely
-    let parsedNotes = { general: c.notes || '', timeline: [] };
-    if (c.notes) {
-      try {
-        const trimmed = c.notes.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-          const parsed = JSON.parse(trimmed);
-          parsedNotes.general = parsed.general || '';
-          parsedNotes.timeline = parsed.timeline || [];
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
+    const parsedNotes = parseNotes(c.notes);
 
     // Blank Giro o industria if it's SAE sync default
     const ind = c.industry || '';
@@ -252,19 +266,11 @@ export default function Empresas({ onViewCompanyDetails }) {
       let notesPayload = form.notes;
       if (selected && String(selected.id).startsWith('sae-')) {
         const saeClave = selected.id.replace('sae-', '').trim();
-        let timeline = [];
-        if (selected.notes) {
-          try {
-            const parsed = JSON.parse(selected.notes.trim());
-            timeline = parsed.timeline || [];
-          } catch (e) {
-            // ignore
-          }
-        }
+        const parsedNotes = parseNotes(selected.notes);
         notesPayload = JSON.stringify({
           general: form.notes,
           sae_clave: saeClave,
-          timeline
+          timeline: parsedNotes.timeline
         });
       }
 
@@ -1121,7 +1127,17 @@ export default function Empresas({ onViewCompanyDetails }) {
               {detailCompany.email_payments && <div className="detail-row"><i className="fas fa-envelope" /><span>{detailCompany.email_payments}</span><em>Pagos</em></div>}
               {detailCompany.maps_url && <div className="detail-row"><a href={detailCompany.maps_url} target="_blank" rel="noopener noreferrer" className="company-maps-link"><i className="fas fa-map-marked-alt" /> Ver en Google Maps</a></div>}
               {detailCompany.website && <div className="detail-row"><i className="fas fa-globe" /><a href={detailCompany.website} target="_blank" rel="noopener noreferrer">{detailCompany.website}</a></div>}
-              {detailCompany.notes && <div className="detail-notes"><h4>Notas</h4><p>{detailCompany.notes}</p></div>}
+              {detailCompany.notes && (
+                <div className="detail-notes">
+                  <h4>Notas</h4>
+                  <p style={{ whiteSpace: 'pre-wrap' }}>
+                    {(() => {
+                      const parsed = parseNotes(detailCompany.notes);
+                      return parsed.general || (typeof detailCompany.notes === 'string' ? detailCompany.notes : '');
+                    })()}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="form-actions" style={{ marginTop: '1.5rem' }}>
               <button className="btn-primary-golden" onClick={() => { setShowDetail(false); openEdit(detailCompany); }}>
@@ -1239,32 +1255,16 @@ export default function Empresas({ onViewCompanyDetails }) {
                   setTiSending(true);
                   
                   // Log to timeline automatically inside selected.notes JSON
-                  let timeline = [];
-                  let general = '';
-                  if (selected.notes) {
-                    try {
-                      const trimmed = selected.notes.trim();
-                      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-                        const parsed = JSON.parse(trimmed);
-                        general = parsed.general || '';
-                        timeline = parsed.timeline || [];
-                      } else {
-                        general = selected.notes;
-                      }
-                    } catch (e) {
-                      general = selected.notes;
-                    }
-                  }
-
+                  const parsedNotes = parseNotes(selected.notes);
                   const newNoteObj = {
                     date: new Date().toISOString(),
                     text: `[SOLICITUD TI] Solicitud de cambio en campo "${tiField}" (Valor: "${tiVal}"). Motivo: ${tiReason}`,
                     author: `Sistemas (TI)`
                   };
 
-                  const updatedTimeline = [...timeline, newNoteObj];
+                  const updatedTimeline = [...parsedNotes.timeline, newNoteObj];
                   const notesPayload = JSON.stringify({
-                    general,
+                    general: parsedNotes.general,
                     sae_clave: selected.id.replace('sae-', '').trim(),
                     timeline: updatedTimeline
                   });

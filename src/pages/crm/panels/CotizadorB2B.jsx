@@ -70,20 +70,105 @@ export default function CotizadorB2B({
   const [showOnlyInStock, setShowOnlyInStock] = useState(false);
   const [cardTooltip, setCardTooltip] = useState(null); // { text, x, y }
   const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState('');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(window.innerWidth > 768);
 
   const printableRef = useRef(null);
 
   const handleDownloadPdf = async () => {
     if (!printableRef.current) return;
-    const canvas = await html2canvas(printableRef.current, { scale: 2 });
-    const imgData = canvas.toDataURL('image/png');
-    const pdf = new jsPDF('p', 'mm', 'letter');
-    const imgProps = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-    const fileName = quoteNum ? `cotizacion_${quoteNum}.pdf` : 'cotizacion.pdf';
-    pdf.save(fileName);
+
+    const LETTER_WIDTH_PX = 816;
+    const offScreen = document.createElement('div');
+    offScreen.style.cssText = [
+      'position:fixed',
+      'top:-9999px',
+      'left:-9999px',
+      `width:${LETTER_WIDTH_PX}px`,
+      'background:#ffffff',
+      'z-index:-1',
+      'padding:0',
+      'margin:0',
+      'overflow:visible',
+    ].join(';');
+
+    const clone = printableRef.current.cloneNode(true);
+    clone.style.cssText = [
+      `width:${LETTER_WIDTH_PX}px`,
+      'max-width:none',
+      'overflow:visible',
+      'transform:none',
+      'box-shadow:none',
+      'border:none',
+      'padding:40px',
+      'box-sizing:border-box',
+      'background:#ffffff',
+    ].join(';');
+
+    // Eliminar elementos con clase hide-on-print del clon
+    clone.querySelectorAll('.hide-on-print').forEach(el => el.remove());
+
+    // Chrome: Font Awesome (CDN cross-origin) taintea el canvas.
+    // Reemplazar iconos <i> por su glyph Unicode inline para evitar dependencia del webfont.
+    clone.querySelectorAll('i[class*="fa-"]').forEach(icon => {
+      const computed = window.getComputedStyle(icon, '::before');
+      const content = computed.getPropertyValue('content');
+      if (content && content !== 'none' && content !== 'normal') {
+        const span = document.createElement('span');
+        // Extraer el carácter Unicode del content (viene como '"X"')
+        span.textContent = content.replace(/"/g, '');
+        span.style.cssText = `font-family:'Font Awesome 6 Free','Font Awesome 5 Free',sans-serif;font-weight:900;font-size:${window.getComputedStyle(icon).fontSize};color:${window.getComputedStyle(icon).color};margin-right:4px;`;
+        icon.replaceWith(span);
+      } else {
+        icon.remove();
+      }
+    });
+
+    offScreen.appendChild(clone);
+    document.body.appendChild(offScreen);
+
+    try {
+      const canvas = await html2canvas(offScreen, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: false,
+        backgroundColor: '#ffffff',
+        width: LETTER_WIDTH_PX,
+        windowWidth: LETTER_WIDTH_PX,
+        logging: false,
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const pdf = new jsPDF('p', 'mm', 'letter');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+
+      const imgWidthMm = pdfWidth;
+      const imgHeightMm = (canvas.height * pdfWidth) / canvas.width;
+
+      let yOffset = 0;
+      while (yOffset < imgHeightMm) {
+        if (yOffset > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, -yOffset, imgWidthMm, imgHeightMm);
+        yOffset += pdfHeight;
+      }
+
+      const fileName = quoteNum ? `cotizacion_${quoteNum}.pdf` : 'cotizacion.pdf';
+      // Descarga manual — Chrome pierde el filename con pdf.save() en contextos async
+      const blob = pdf.output('blob');
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 100);
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      showToast('Error al generar el PDF. Intenta de nuevo.', 'error');
+    } finally {
+      document.body.removeChild(offScreen);
+    }
   };
 
   const fetchCatalogProducts = async (searchQuery) => {
@@ -147,6 +232,7 @@ export default function CotizadorB2B({
   useEffect(() => {
     if (showCatalogModal) {
       document.body.style.overflow = 'hidden';
+      setShowAdvancedFilters(window.innerWidth > 768);
     } else {
       document.body.style.overflow = '';
     }
@@ -495,11 +581,7 @@ export default function CotizadorB2B({
                       <td style={{ textAlign: 'center', fontWeight: 'bold', padding: '0.55rem', fontSize: '0.75rem' }}>{idx + 1}</td>
                       <td style={{ padding: '0.55rem', fontSize: '0.75rem' }}>
                         {item.description || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Artículo vacío</span>}
-                        {item.appliedAgreement && item.appliedAgreement !== 'manual' && item.appliedAgreement !== 'public' && (
-                          <span style={{ fontSize: '0.6rem', color: 'var(--color-brand-accent)', fontWeight: 'bold', marginLeft: '6px' }}>
-                            ({item.appliedAgreement.toUpperCase()})
-                          </span>
-                        )}
+
                         {item.originalProduct && (parseInt(item.originalProduct.Existencias) || 0) <= 0 && (
                           <span style={{ display: 'block', fontSize: '0.65rem', color: '#d97706', fontWeight: 'bold', fontStyle: 'italic', marginTop: '2px' }}>
                             * Artículo bajo pedido. Aplican restricciones.
@@ -717,41 +799,7 @@ export default function CotizadorB2B({
               </div>
             </div>
 
-            {/* AGREEMENT SELECTOR */}
-            <div className="crm-input-group" style={{ marginBottom: '0.75rem' }}>
-              <label className="crm-input-label" style={{ marginBottom: '0.5rem', fontSize: '0.78rem' }}>
-                <i className="fas fa-percent" style={{ color: 'var(--color-brand-accent)' }}></i> Convenio para Nuevos Artículos
-              </label>
-              <div className="agreements-btn-grid">
-                {[
-                  { id: 'public', name: 'Público', desc: 'Estándar' },
-                  { id: 'ruba', name: 'Ruba', desc: '15% Desc.' },
-                  { id: 'javer', name: 'Javer', desc: '18% Desc.' },
-                  { id: 'casitas', name: 'Casitas', desc: '20% Desc.' },
-                  { id: 'bienestar', name: 'Bienestar', desc: '20% Desc.' },
-                  { id: 'davisa', name: 'Davisa', desc: '17% Desc.' }
-                ].map(agr => (
-                  <button
-                    key={agr.id}
-                    type="button"
-                    className={`agreement-btn-select ${selectedAgreement === agr.id ? 'active' : ''}`}
-                    onClick={() => setSelectedAgreement(agr.id)}
-                  >
-                    <span>{agr.name}</span>
-                    <span style={{ fontSize: '0.65rem', fontWeight: 'normal', opacity: 0.85 }}>
-                      {agr.desc}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
 
-            <div className="freeze-info-banner">
-              <i className="fas fa-info-circle"></i>
-              <span>
-                <strong>Tarifas Congeladas:</strong> Al agregar productos, su precio se congela según el convenio activo. Puedes cambiar de convenio en cualquier momento para aplicar diferentes precios a artículos nuevos.
-              </span>
-            </div>
 
             <div className="quote-items-grid">
               {quoteItems.map((item, idx) => (
@@ -759,10 +807,7 @@ export default function CotizadorB2B({
                   <div className="row-header" style={{ marginBottom: '0.65rem' }}>
                     <div>
                       <span className="row-num" style={{ fontWeight: '800' }}>Artículo {idx + 1}</span>
-                      <span className={`item-agreement-tag ${item.appliedAgreement || 'manual'}`}>
-                        {item.appliedAgreement === 'public' ? 'Público' :
-                          item.appliedAgreement === 'manual' ? 'Precio Libre' : `Conv. ${item.appliedAgreement.toUpperCase()}`}
-                      </span>
+
                     </div>
                     <button
                       type="button"
@@ -840,73 +885,142 @@ export default function CotizadorB2B({
             <div className="modal-header" style={{ paddingBottom: '0.75rem', marginBottom: '0.5rem', borderBottom: '1px solid #e2e8f0' }}>
               <h2 style={{ fontSize: '1.25rem', fontFamily: 'var(--font-primary)' }}>Catálogo de Suministros Garza (Aspel SAE 9.0)</h2>
               <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
-                Buscador optimizado con filtros inteligentes y tarifas por convenio ({selectedAgreement.toUpperCase()}).
+                Buscador optimizado con filtros inteligentes.
               </p>
             </div>
 
             {/* Catalog Filters */}
             <div className="catalog-search-filters" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem 0', marginBottom: '0.75rem' }}>
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                 <div className="search-box" style={{ flex: 1 }}>
                   <i className="fas fa-search"></i>
                   <input
                     type="text"
-                    placeholder="Buscar por clave, material o descripción del acero..."
+                    placeholder="Buscar por clave o descripción..."
                     value={catalogSearch}
                     onChange={(e) => setCatalogSearch(e.target.value)}
+                    onFocus={() => {
+                      if (window.innerWidth <= 768) {
+                        setShowAdvancedFilters(false);
+                      }
+                    }}
                   />
                 </div>
-                <button type="button" className="btn-refresh" onClick={clearCatalogFilters} style={{ padding: '0 1rem', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>
-                  <i className="fas fa-eraser"></i> Limpiar Filtros
+                
+                <button
+                  type="button"
+                  className={`btn-filter-toggle ${showAdvancedFilters ? 'active' : ''}`}
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '0 12px',
+                    height: '42px',
+                    borderRadius: '10px',
+                    border: '1px solid #cbd5e1',
+                    background: showAdvancedFilters ? '#fef3c7' : '#ffffff',
+                    color: showAdvancedFilters ? '#d97706' : '#475569',
+                    fontWeight: 'bold',
+                    fontSize: '0.8rem',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <i className="fas fa-filter"></i>
+                  <span className="hide-on-mobile">Filtros</span>
+                  {(catFilterCategory || catFilterMaterial || catFilterMeasure || showOnlyInStock) && (
+                    <span style={{
+                      width: '8px',
+                      height: '8px',
+                      background: '#d97706',
+                      borderRadius: '50%',
+                      display: 'inline-block'
+                    }} />
+                  )}
                 </button>
+
+                {(catalogSearch || catFilterCategory || catFilterMaterial || catFilterMeasure || showOnlyInStock) && (
+                  <button
+                    type="button"
+                    onClick={clearCatalogFilters}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: '42px',
+                      height: '42px',
+                      borderRadius: '10px',
+                      border: '1px solid #fee2e2',
+                      background: '#fef2f2',
+                      color: '#ef4444',
+                      cursor: 'pointer'
+                    }}
+                    title="Limpiar filtros"
+                  >
+                    <i className="fas fa-trash-alt"></i>
+                  </button>
+                )}
               </div>
 
-              <div className="catalog-filters-select-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
-                <div className="filter-item">
-                  <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Categoría</label>
-                  <select value={catFilterCategory} onChange={(e) => setCatFilterCategory(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                    <option value="">Todas</option>
-                    {catFilterOptions.categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
+              {showAdvancedFilters && (
+                <div className="catalog-filters-collapsible" style={{
+                  background: '#f8fafc',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem'
+                }}>
+                  <div className="catalog-filters-select-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+                    <div className="filter-item">
+                      <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Categoría</label>
+                      <select value={catFilterCategory} onChange={(e) => setCatFilterCategory(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}>
+                        <option value="">Todas</option>
+                        {catFilterOptions.categories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="filter-item">
-                  <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Material</label>
-                  <select value={catFilterMaterial} onChange={(e) => setCatFilterMaterial(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                    <option value="">Todos</option>
-                    {catFilterOptions.materials.map(mat => (
-                      <option key={mat} value={mat}>{mat}</option>
-                    ))}
-                  </select>
-                </div>
+                    <div className="filter-item">
+                      <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Material</label>
+                      <select value={catFilterMaterial} onChange={(e) => setCatFilterMaterial(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}>
+                        <option value="">Todos</option>
+                        {catFilterOptions.materials.map(mat => (
+                          <option key={mat} value={mat}>{mat}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                <div className="filter-item">
-                  <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Medida</label>
-                  <select value={catFilterMeasure} onChange={(e) => setCatFilterMeasure(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1' }}>
-                    <option value="">Todas</option>
-                    {catFilterOptions.measures.map(meas => (
-                      <option key={meas} value={meas}>{meas}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
+                    <div className="filter-item">
+                      <label style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--color-text-muted)', display: 'block', marginBottom: '2px' }}>Medida</label>
+                      <select value={catFilterMeasure} onChange={(e) => setCatFilterMeasure(e.target.value)} style={{ padding: '0.4rem', fontSize: '0.8rem', width: '100%', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#fff' }}>
+                        <option value="">Todas</option>
+                        {catFilterOptions.measures.map(meas => (
+                          <option key={meas} value={meas}>{meas}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
 
-            {/* In Stock toggle */}
-            <div className="catalog-stock-toggle-container" style={{ marginBottom: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0 0.5rem' }}>
-              <input
-                type="checkbox"
-                id="stock-only-toggle"
-                className="stock-toggle-checkbox"
-                checked={showOnlyInStock}
-                onChange={(e) => setShowOnlyInStock(e.target.checked)}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <label htmlFor="stock-only-toggle" style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-brand-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', userSelect: 'none' }}>
-                <i className="fas fa-warehouse" style={{ color: 'var(--color-brand-accent)', fontSize: '0.85rem' }}></i> Mostrar solo productos con stock
-              </label>
+                  <div className="catalog-stock-toggle-container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="stock-only-toggle"
+                      className="stock-toggle-checkbox"
+                      checked={showOnlyInStock}
+                      onChange={(e) => setShowOnlyInStock(e.target.checked)}
+                      style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="stock-only-toggle" style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--color-brand-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem', userSelect: 'none' }}>
+                      <i className="fas fa-warehouse" style={{ color: 'var(--color-brand-accent)', fontSize: '0.85rem' }}></i> Mostrar solo productos con stock
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Product list */}
@@ -959,7 +1073,7 @@ export default function CotizadorB2B({
                         {p.Medida !== 'N/A' && <span className="badge-meas" style={{ fontSize: '0.6rem' }}>{p.Medida}</span>}
                       </div>
 
-                      <div className="card-price-action" style={{ paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div className="card-price-action">
                         <div className="price-info">
                           <span className="price-label" style={{ fontSize: '0.65rem' }}>
                             {selectedAgreement === 'public' ? 'Precio Público' : `Tarifa Conv. ${selectedAgreement.toUpperCase()}`}
@@ -968,7 +1082,7 @@ export default function CotizadorB2B({
                             ${activePrice.toFixed(2)} <span className="currency" style={{ fontSize: '0.65rem' }}>MXN</span>
                           </strong>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                        <div className="card-actions-row">
                           <div className="catalog-qty-input-box">
                             <span className="catalog-qty-label">Cant.</span>
                             <input
@@ -985,13 +1099,12 @@ export default function CotizadorB2B({
                               }}
                             />
                           </div>
-
                           <button
                             type="button"
                             onClick={() => addProductToQuote(p, currentQty)}
                             className="btn-add-to-quote"
                             title={isOutOfStock ? "Añadir artículo bajo pedido" : "Añadir artículo"}
-                            style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', height: '34px', background: isOutOfStock ? '#e0922b' : 'var(--color-brand-primary)' }}
+                            style={{ background: isOutOfStock ? '#e0922b' : 'var(--color-brand-primary)' }}
                           >
                             {isOutOfStock ? (
                               <>

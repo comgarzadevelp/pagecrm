@@ -1118,6 +1118,26 @@ export const getCustomerQuotes = async (req, res) => {
       clientId = matchedUuid; // Usar el UUID real para la consulta
     }
 
+    // Si clientId es el ID de una empresa, obtener todas las cotizaciones asociadas a clientes de esta empresa
+    let clientIds = [clientId];
+    const { data: companyCheck } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('id', clientId)
+      .maybeSingle();
+
+    if (companyCheck) {
+      const { data: companyCustomers } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('company_id', clientId)
+        .eq('type', 'crm_customer');
+
+      if (companyCustomers && companyCustomers.length > 0) {
+        clientIds = [...clientIds, ...companyCustomers.map(c => c.id)];
+      }
+    }
+
     const { data, error } = await supabase
       .from('quotes')
       .select(`
@@ -1134,7 +1154,7 @@ export const getCustomerQuotes = async (req, res) => {
         created_at,
         seller:crm_users(id, name)
       `)
-      .eq('client_id', clientId)
+      .in('client_id', clientIds)
       .order('created_at', { ascending: false });
 
     if (error) throw error;

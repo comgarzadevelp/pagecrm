@@ -32,6 +32,11 @@ export default function FichaClienteModal({
   }, [selectedCustomer]);
 
   const fetchLinkedContacts = async (companyOrCustomerId) => {
+    const isCompany = currentCustomer?.isCompany || selectedCustomer?.isCompany;
+    if (!isCompany) {
+      setLinkedContacts([]);
+      return;
+    }
     setLoadingLinkedContacts(true);
     const token = localStorage.getItem('token');
     try {

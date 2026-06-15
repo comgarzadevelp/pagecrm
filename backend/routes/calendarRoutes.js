@@ -26,10 +26,10 @@ router.get('/auth-url', verifyToken, async (req, res) => {
 router.get('/callback', async (req, res) => {
   const { code, state: userId, error } = req.query;
   
-  // Detectar dinámicamente el protocolo y host para redirigir de vuelta al entorno correcto (producción, local o ngrok)
-  const protocol = req.headers['x-forwarded-proto'] || (req.secure ? 'https' : 'http');
-  const host = req.headers.host;
-  const frontendUrl = `${protocol}://${host}`;
+  // Use explicit FRONTEND_URL env var. Production falls back to canonical domain.
+  // This avoids the bug where host header points to port 5000 (backend) instead of 5174 (frontend).
+  const frontendUrl = process.env.FRONTEND_URL
+    || (process.env.NODE_ENV === 'production' ? 'https://www.comgarza.com' : 'http://localhost:5174');
 
   if (error) {
     console.error('Google OAuth Access Denied by User:', error);

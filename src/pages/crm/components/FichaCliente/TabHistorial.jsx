@@ -61,14 +61,25 @@ export default function TabHistorial({
       timeline: updatedTimeline
     });
 
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${currentCustomer.id}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+    const isCompany = currentCustomer.isCompany;
+    const updateUrl = isCompany
+      ? `${API_BASE}/api/crm/companies/${currentCustomer.id}`
+      : `${API_BASE}/api/crm/customers/${currentCustomer.id}`;
+
+    const updatePayload = isCompany
+      ? {
+          name: currentCustomer.name,
+          alias: currentCustomer.company || currentCustomer.name,
+          rfc: currentCustomer.rfc || '',
+          address: currentCustomer.calle || currentCustomer.address || '',
+          city: currentCustomer.municipio || currentCustomer.city || '',
+          state: currentCustomer.estado || currentCustomer.state || '',
+          phone_main: currentCustomer.phone,
+          email_main: currentCustomer.email,
+          status: currentCustomer.status === 'pendiente_revision' ? 'activo' : (currentCustomer.status || 'activo'),
+          notes: notesPayload
+        }
+      : {
           name: currentCustomer.name,
           email: currentCustomer.email,
           phone: currentCustomer.phone,
@@ -76,12 +87,21 @@ export default function TabHistorial({
           project_type: currentCustomer.project_type,
           notes: notesPayload,
           status: currentCustomer.status || 'calificado'
-        })
+        };
+
+    try {
+      const res = await fetch(updateUrl, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(updatePayload)
       });
       const data = await res.json();
       if (res.ok) {
         showToast('¡Nota agregada exitosamente!', 'success');
-        setCurrentCustomer(data.customer);
+        setCurrentCustomer(isCompany ? data.company : data.customer);
         setNewHistoryNote('');
         if (fetchCustomers) fetchCustomers();
       } else {
@@ -170,8 +190,13 @@ export default function TabHistorial({
     formData.append('longitude', acquiredCoords.lng.toString());
     formData.append('deviceInfo', deviceName);
 
+    const isCompany = currentCustomer.isCompany;
+    const uploadUrl = isCompany
+      ? `${API_BASE}/api/crm/companies/${currentCustomer.id}/evidence`
+      : `${API_BASE}/api/crm/customers/${currentCustomer.id}/evidence`;
+
     try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${currentCustomer.id}/evidence`, {
+      const res = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -182,7 +207,7 @@ export default function TabHistorial({
       const data = await res.json();
       if (res.ok) {
         showToast('¡Evidencia fotográfica subida y geolocalizada con éxito!', 'success');
-        setCurrentCustomer(data.customer);
+        setCurrentCustomer(isCompany ? data.company || data.customer : data.customer);
         setEvidenceFile(null);
         setEvidenceText('');
         setAcquiredCoords(null);
@@ -241,7 +266,6 @@ export default function TabHistorial({
               type="file"
               id="evidence-file-input"
               accept="image/*"
-              capture="environment"
               onChange={(e) => setEvidenceFile(e.target.files[0])}
               style={{ fontSize: '0.75rem' }}
             />

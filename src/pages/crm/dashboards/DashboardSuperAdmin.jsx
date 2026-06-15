@@ -190,6 +190,7 @@ const DashboardSuperAdmin = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',
@@ -218,6 +219,7 @@ const DashboardSuperAdmin = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',

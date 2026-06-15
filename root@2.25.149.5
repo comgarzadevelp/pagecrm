@@ -10,7 +10,7 @@ import {
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
-  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest
+  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct
 } from '../controllers/crmController.js';
 
 import {
@@ -95,7 +95,6 @@ router.delete('/files/:id', deleteFile);
 router.get('/profile', getExtendedProfile);
 router.put('/profile', upload.single('avatar'), updateProfile);
 router.put('/profile/password', changeOwnPassword);
-router.post('/ti-request', createTiRequest);
 
 // ── PRODUCTOS CATÁLOGO ────────────────────────────────────────
 router.get('/products', getProducts);

@@ -118,12 +118,27 @@ export default function Empresas({ onViewCompanyDetails }) {
     let r = [...companies];
     if (search.trim()) {
       const t = search.toLowerCase();
-      r = r.filter(c =>
-        (c.name && c.name.toLowerCase().includes(t)) ||
-        (c.alias && c.alias.toLowerCase().includes(t)) ||
-        (c.industry && c.industry.toLowerCase().includes(t)) ||
-        (c.city && c.city.toLowerCase().includes(t))
-      );
+      r = r.filter(c => {
+        // Company fields
+        if (
+          (c.name && c.name.toLowerCase().includes(t)) ||
+          (c.alias && c.alias.toLowerCase().includes(t)) ||
+          (c.industry && c.industry.toLowerCase().includes(t)) ||
+          (c.city && c.city.toLowerCase().includes(t)) ||
+          (c.phone_main && c.phone_main.includes(t)) ||
+          (c.email_main && c.email_main.toLowerCase().includes(t)) ||
+          (c.rfc && c.rfc.toLowerCase().includes(t))
+        ) return true;
+
+        // Linked contact names / phones / emails (contact_main, contact_purchases, contact_payments)
+        const linkedContacts = [c.contact_main, c.contact_purchases, c.contact_payments].filter(Boolean);
+        return linkedContacts.some(ct =>
+          (ct.name && ct.name.toLowerCase().includes(t)) ||
+          (ct.phone && ct.phone.includes(t)) ||
+          (ct.email && ct.email.toLowerCase().includes(t)) ||
+          (ct.position && ct.position.toLowerCase().includes(t))
+        );
+      });
     }
     if (typeFilter !== 'all') r = r.filter(c => c.type === typeFilter);
     setFiltered(r);

@@ -17,6 +17,17 @@ export default function DirectorioClientes({
   onViewCompanyDetails
 }) {
   const { showToast, showConfirm } = useUX();
+
+  const resolveMediaUrl = (url) => {
+    if (!url) return '';
+    let cleanUrl = url;
+    if (cleanUrl.includes('/uploads/')) {
+      const idx = cleanUrl.indexOf('/uploads/');
+      cleanUrl = '/api' + cleanUrl.substring(idx);
+    }
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+    return `${API_BASE}${cleanUrl}`;
+  };
   const [custSearchTerm, setCustSearchTerm] = useState('');
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
 
@@ -1460,10 +1471,10 @@ export default function DirectorioClientes({
                                 {note.photoUrl && (
                                   <div style={{ position: 'relative', overflow: 'hidden', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                                     <img
-                                      src={`${API_BASE}${note.photoUrl}`}
+                                      src={resolveMediaUrl(note.photoUrl)}
                                       alt="Evidencia fotográfica"
                                       style={{ width: '100%', maxHeight: '180px', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
-                                      onClick={() => window.open(`${API_BASE}${note.photoUrl}`, '_blank')}
+                                      onClick={() => window.open(resolveMediaUrl(note.photoUrl), '_blank')}
                                       title="Ver foto a tamaño completo"
                                     />
                                   </div>
@@ -1565,10 +1576,10 @@ export default function DirectorioClientes({
                               {isEvidence && note.photoUrl && (
                                 <div style={{ marginTop: '8px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1', maxWidth: '240px' }}>
                                   <img
-                                    src={`${API_BASE}${note.photoUrl}`}
+                                    src={resolveMediaUrl(note.photoUrl)}
                                     alt="Evidencia de Visita"
                                     style={{ width: '100%', maxHeight: '140px', objectFit: 'cover', cursor: 'pointer', display: 'block' }}
-                                    onClick={() => window.open(`${API_BASE}${note.photoUrl}`, '_blank')}
+                                    onClick={() => window.open(resolveMediaUrl(note.photoUrl), '_blank')}
                                     title="Ver a tamaño completo"
                                   />
                                 </div>

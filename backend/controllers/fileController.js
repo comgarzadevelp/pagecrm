@@ -36,16 +36,13 @@ export const getFiles = async (req, res) => {
 // POST /api/crm/files — admin only
 export const uploadFile = async (req, res) => {
   try {
-    if (req.user?.role !== 'admin') {
-      return res.status(403).json({ success: false, message: 'Solo el administrador puede subir archivos.' });
-    }
-
     if (!req.file) {
       return res.status(400).json({ success: false, message: 'No se recibió ningún archivo.' });
     }
 
     const { name, description, category } = req.body;
     const userId = req.user?.userId;
+    const companyId = req.user?.companyId;
 
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const ext = path.extname(req.file.originalname) || '';
@@ -66,7 +63,7 @@ export const uploadFile = async (req, res) => {
       }
       const filePath = path.join(uploadDir, fileName);
       fs.writeFileSync(filePath, req.file.buffer);
-      fileUrl = `/uploads/container/${fileName}`;
+      fileUrl = `/api/uploads/container/${fileName}`;
     }
 
     // Detect file type
@@ -86,7 +83,8 @@ export const uploadFile = async (req, res) => {
         file_type: fileType,
         file_size: req.file.size,
         category: category || 'general',
-        uploaded_by: userId
+        uploaded_by: userId,
+        company_id: companyId
       }])
       .select();
 

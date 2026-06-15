@@ -4,6 +4,17 @@ import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  let cleanUrl = url;
+  if (cleanUrl.includes('/uploads/')) {
+    const idx = cleanUrl.indexOf('/uploads/');
+    cleanUrl = '/api' + cleanUrl.substring(idx);
+  }
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+  return `${API_BASE}${cleanUrl}`;
+};
+
 export default function MiPerfil() {
   const { showToast, showConfirm } = useUX();
   const [user, setUser] = useState(null);
@@ -77,7 +88,7 @@ export default function MiPerfil() {
       setPhone(u.phone || '');
       setWhatsapp(u.whatsapp || '');
       setBio(u.bio || '');
-      if (u.avatar_url) setAvatarPreview(`${API_BASE}${u.avatar_url}`);
+      if (u.avatar_url) setAvatarPreview(resolveMediaUrl(u.avatar_url));
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
@@ -166,7 +177,7 @@ export default function MiPerfil() {
       setSuccess('¡Perfil actualizado correctamente!');
       setUser(data.user);
       setAvatarFile(null);
-      if (data.user?.avatar_url) setAvatarPreview(`${API_BASE}${data.user.avatar_url}`);
+      if (data.user?.avatar_url) setAvatarPreview(resolveMediaUrl(data.user.avatar_url));
       localStorage.setItem('userName', data.user.name || name);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err) { setError(err.message); }

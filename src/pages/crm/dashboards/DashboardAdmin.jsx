@@ -87,6 +87,12 @@ const DashboardAdmin = ({ enabledModules }) => {
       handleRefreshAll={handleRefreshAll}
       handleLogout={handleLogout}
       stats={stats}
+      API_BASE={API_BASE}
+      allOpportunities={allOpportunities}
+      currentUserProfile={currentUserProfile}
+      fetchCustomers={fetchCustomers}
+      fetchOpportunitiesList={fetchOpportunitiesList}
+      customers={customers}
     >
       {activeTab === 'dashboard' && <StatsDashboard />}
 
@@ -184,6 +190,7 @@ const DashboardAdmin = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',
@@ -212,6 +219,7 @@ const DashboardAdmin = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',

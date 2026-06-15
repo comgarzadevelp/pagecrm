@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { MODULE_REGISTRY, ROLE_LABELS, ROLE_ICONS } from './moduleRegistry';
+import QuickCreateFab from './components/QuickCreate/QuickCreateFab';
 import './Dashboard.css';
 import './MobileApp.css';
 
@@ -188,7 +189,14 @@ const DashboardShell = ({
   handleRefreshAll,
   handleLogout,
   stats,
-  children
+  children,
+  // Props para el FAB de creación rápida móvil
+  API_BASE = '',
+  allOpportunities = [],
+  currentUserProfile = null,
+  fetchCustomers,
+  fetchOpportunitiesList,
+  customers = []
 }) => {
   const formatRoleLabel = (r) => ROLE_LABELS[r] || 'Usuario';
   const getRoleIcon = (r) => ROLE_ICONS[r] || 'fas fa-user';
@@ -224,6 +232,12 @@ const DashboardShell = ({
 
   const primaryMobileTabs = sortedMobileItems.slice(0, 4);
   const secondaryMobileTabs = sortedMobileItems.slice(4);
+
+  // Determinar si el FAB es visible para este rol
+  const hasQuotes = enabledModules.includes('quotes');
+  const hasCustomers = enabledModules.includes('customers');
+  const hasCompanies = enabledModules.includes('companies');
+  const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
   const showGlobalStatsGrid = 
     activeTab !== 'quotes' &&
@@ -385,6 +399,8 @@ const DashboardShell = ({
             </button>
           );
         })}
+
+        {/* Botón "Más" */}
         {secondaryMobileTabs.length > 0 && (
           <button
             type="button"
@@ -445,6 +461,22 @@ const DashboardShell = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Botón FAB flotante para Creación Rápida Móvil (Fijado a la derecha, arriba de la barra inferior) */}
+      {showFab && (
+        <QuickCreateFab
+          API_BASE={API_BASE}
+          role={role}
+          userName={userName}
+          setActiveTab={setActiveTab}
+          allOpportunities={allOpportunities}
+          currentUserProfile={currentUserProfile}
+          fetchCustomers={fetchCustomers}
+          fetchOpportunitiesList={fetchOpportunitiesList}
+          enabledModules={enabledModules}
+          customers={customers}
+        />
       )}
     </div>
   );

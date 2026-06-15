@@ -4,6 +4,17 @@ import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  let cleanUrl = url;
+  if (cleanUrl.includes('/uploads/')) {
+    const idx = cleanUrl.indexOf('/uploads/');
+    cleanUrl = '/api' + cleanUrl.substring(idx);
+  }
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+  return `${API_BASE}${cleanUrl}`;
+};
+
 const FILE_TYPES = {
   image: { icon: 'fa-image', color: '#8b5cf6', label: 'Imagen' },
   pdf: { icon: 'fa-file-pdf', color: '#ef4444', label: 'PDF' },
@@ -161,7 +172,7 @@ export default function Contenedor() {
               <div className="file-card glass" key={file.id}>
                 {isImage ? (
                   <div className="file-preview-img">
-                    <img src={`${API_BASE}${file.file_url}`} alt={file.name} />
+                    <img src={resolveMediaUrl(file.file_url)} alt={file.name} />
                   </div>
                 ) : (
                   <div className="file-icon-wrap" style={{ background: `${ft.color}15`, color: ft.color }}>
@@ -179,10 +190,10 @@ export default function Contenedor() {
                   {file.uploaded_by && <p className="file-uploader"><i className="fas fa-user" /> {file.uploaded_by.name}</p>}
                 </div>
                 <div className="file-card-actions">
-                  <a href={`${API_BASE}${file.file_url}`} target="_blank" rel="noopener noreferrer" className="btn-view-details">
+                  <a href={resolveMediaUrl(file.file_url)} target="_blank" rel="noopener noreferrer" className="btn-view-details">
                     <i className="fas fa-external-link-alt" /> Abrir
                   </a>
-                  <a href={`${API_BASE}${file.file_url}`} download={file.name} className="btn-view-details">
+                  <a href={resolveMediaUrl(file.file_url)} download={file.name} className="btn-view-details">
                     <i className="fas fa-download" /> Descargar
                   </a>
                   {role === 'admin' && (

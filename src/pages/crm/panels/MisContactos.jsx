@@ -5,6 +5,17 @@ import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
+const resolveMediaUrl = (url) => {
+  if (!url) return '';
+  let cleanUrl = url;
+  if (cleanUrl.includes('/uploads/')) {
+    const idx = cleanUrl.indexOf('/uploads/');
+    cleanUrl = '/api' + cleanUrl.substring(idx);
+  }
+  if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+  return `${API_BASE}${cleanUrl}`;
+};
+
 const emptyForm = { name: '', position: '', email: '', phone: '', phone_alt: '', whatsapp: '', notes: '' };
 
 export default function MisContactos({ onViewCompanyDetails }) {
@@ -47,12 +58,22 @@ export default function MisContactos({ onViewCompanyDetails }) {
   useEffect(() => {
     if (!search.trim()) { setFiltered(contacts); return; }
     const t = search.toLowerCase();
-    setFiltered(contacts.filter(c =>
-      (c.name && c.name.toLowerCase().includes(t)) ||
-      (c.email && c.email.toLowerCase().includes(t)) ||
-      (c.phone && c.phone.includes(t)) ||
-      (c.position && c.position.toLowerCase().includes(t))
-    ));
+    setFiltered(contacts.filter(c => {
+      if (
+        (c.name && c.name.toLowerCase().includes(t)) ||
+        (c.email && c.email.toLowerCase().includes(t)) ||
+        (c.phone && c.phone.includes(t)) ||
+        (c.position && c.position.toLowerCase().includes(t)) ||
+        (c.whatsapp && c.whatsapp.includes(t))
+      ) return true;
+
+      // Also search by linked company name
+      const linkedCompanies = (c.contact_companies || []).map(cc => cc.company).filter(Boolean);
+      return linkedCompanies.some(co =>
+        (co.name && co.name.toLowerCase().includes(t)) ||
+        (co.industry && co.industry.toLowerCase().includes(t))
+      );
+    }));
   }, [contacts, search]);
 
   const token = () => localStorage.getItem('token');
@@ -300,7 +321,7 @@ export default function MisContactos({ onViewCompanyDetails }) {
                 {/* Avatar */}
                 <div className="contact-card-avatar" style={{ position: 'relative' }}>
                   {c.avatar_url
-                    ? <img src={`${API_BASE}${c.avatar_url}`} alt={c.name} />
+                    ? <img src={resolveMediaUrl(c.avatar_url)} alt={c.name} />
                     : <span>{c.name?.charAt(0).toUpperCase()}</span>}
                 </div>
 

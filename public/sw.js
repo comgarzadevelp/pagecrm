@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garza-crm-v1';
+const CACHE_NAME = 'garza-crm-v2';
 
 // Shell mínimo para carga rápida
 const PRECACHE_URLS = [
@@ -35,6 +35,12 @@ self.addEventListener('activate', (event) => {
 // Fetch: Network-first para API, Cache-first para assets estáticos
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  
+  // Ignorar esquemas que no sean http o https (como chrome-extension, etc.)
+  if (!request.url.startsWith('http:') && !request.url.startsWith('https:')) {
+    return;
+  }
+
   const url = new URL(request.url);
 
   // Las llamadas al API siempre van a red (nunca cachear datos del CRM)

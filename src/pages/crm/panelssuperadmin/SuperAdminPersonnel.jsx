@@ -30,6 +30,7 @@ export default function SuperAdminPersonnel() {
   const [editEmail, setEditEmail] = useState('');
   const [editSaeKey, setEditSaeKey] = useState('');
   const [createPassword, setCreatePassword] = useState('');
+  const [editPassword, setEditPassword] = useState('');
 
   const [saving, setSaving] = useState(false);
   const token = localStorage.getItem('token');
@@ -74,6 +75,7 @@ export default function SuperAdminPersonnel() {
     setEditSupervisorId('');
     setEditSaeKey('');
     setCreatePassword('');
+    setEditPassword('');
     setSuccessMsg('');
     setError('');
   };
@@ -88,6 +90,7 @@ export default function SuperAdminPersonnel() {
     setEditSupervisorId(user.supervisor_id || '');
     setEditSaeKey(user.sae_vendor_key || '');
     setCreatePassword('');
+    setEditPassword('');
     setSuccessMsg('');
     setError('');
   };
@@ -99,6 +102,32 @@ export default function SuperAdminPersonnel() {
     setSaving(true);
     setSuccessMsg('');
     setError('');
+
+    // If editing and custom password was entered, update it first
+    if (!isCreateMode && editPassword) {
+      if (editPassword.length < 6) {
+        setError('La nueva contraseña debe tener al menos 6 caracteres.');
+        setSaving(false);
+        return;
+      }
+      try {
+        const pwdRes = await fetch(`${API_BASE}/api/crm/sellers/${selectedUser.id}/password`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ password: editPassword })
+        });
+        const pwdData = await pwdRes.json();
+        if (!pwdRes.ok) throw new Error(pwdData.message || 'Error al cambiar la contraseña del colaborador.');
+      } catch (pwdErr) {
+        console.error(pwdErr);
+        setError(pwdErr.message || 'Error al actualizar la contraseña.');
+        setSaving(false);
+        return;
+      }
+    }
 
     const url = isCreateMode
       ? `${API_BASE}/api/crm/sellers`
@@ -137,6 +166,7 @@ export default function SuperAdminPersonnel() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Error al procesar la solicitud.');
 
+      setEditPassword(''); // clear custom edit password input
       if (isCreateMode) {
         // Add new user to state list
         const newUser = data.seller || data.user;
@@ -153,7 +183,7 @@ export default function SuperAdminPersonnel() {
         // Update local state list
         setUsers(prev => prev.map(u => u.id === selectedUser.id ? data.seller : u));
         setSelectedUser(data.seller);
-        setSuccessMsg('¡Usuario actualizado exitosamente!');
+        setSuccessMsg('¡Usuario y perfil actualizados exitosamente!');
       }
     } catch (err) {
       console.error(err);
@@ -174,7 +204,8 @@ export default function SuperAdminPersonnel() {
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
-        }
+        },
+        body: JSON.stringify({ password: '123456' })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
@@ -456,6 +487,23 @@ export default function SuperAdminPersonnel() {
                         onChange={e => setCreatePassword(e.target.value)} 
                         placeholder="Mínimo 6 caracteres"
                         required 
+                        disabled={saving}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Password (Only for modification) */}
+                {!isCreateMode && (
+                  <div className="sa-pers-field-group">
+                    <label>Cambiar Contraseña (Dejar en blanco para mantener la actual)</label>
+                    <div className="field-input-wrapper">
+                      <i className="fas fa-key field-icon" />
+                      <input 
+                        type="password" 
+                        value={editPassword} 
+                        onChange={e => setEditPassword(e.target.value)} 
+                        placeholder="Escribe la nueva contraseña para cambiarla"
                         disabled={saving}
                       />
                     </div>

@@ -6,6 +6,7 @@ export const getCompanies = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const companyId = req.user?.companyId;
 
     // 1. Fetch archived companies to exclude them
     const { data: archivedRecs, error: archError } = await supabase
@@ -28,6 +29,14 @@ export const getCompanies = async (req, res) => {
       `)
       .order('name', { ascending: true });
 
+    // 1. Tenant Isolation: non-super_admins only see companies of their own enterprise/company
+    if (role !== 'super_admin') {
+      if (companyId && !String(companyId).startsWith('company-')) {
+        query = query.eq('company_id', companyId);
+      }
+    }
+
+    // 2. Seller Isolation: salespeople only see companies they created themselves
     if (role === 'sales') {
       query = query.eq('created_by', userId);
     }
@@ -353,19 +362,26 @@ export const createCompany = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre de la empresa es obligatorio.' });
     }
 
+    const insertPayload = {
+      name, alias, type, rfc, address, city, state, maps_url, website, industry,
+      phone_main, phone_purchases, phone_payments,
+      email_main, email_purchases, email_payments,
+      contact_main: contact_main || null,
+      contact_purchases: contact_purchases || null,
+      contact_payments: contact_payments || null,
+      status: status || 'activo',
+      notes,
+      created_by: userId
+    };
+
+    const companyId = req.user?.companyId;
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertPayload.company_id = companyId;
+    }
+
     const { data, error } = await supabase
       .from('companies')
-      .insert([{
-        name, alias, type, rfc, address, city, state, maps_url, website, industry,
-        phone_main, phone_purchases, phone_payments,
-        email_main, email_purchases, email_payments,
-        contact_main: contact_main || null,
-        contact_purchases: contact_purchases || null,
-        contact_payments: contact_payments || null,
-        status: status || 'activo',
-        notes,
-        created_by: userId
-      }])
+      .insert([insertPayload])
       .select();
 
     if (error) throw error;
@@ -461,34 +477,39 @@ export const updateCompany = async (req, res) => {
         if (error) throw error;
         res.json({ success: true, company: { ...data[0], id } });
       } else {
+        const insertPayload = {
+          name,
+          alias,
+          type,
+          rfc,
+          address,
+          city,
+          state,
+          maps_url,
+          website,
+          industry,
+          phone_main,
+          phone_purchases,
+          phone_payments,
+          email_main,
+          email_purchases,
+          email_payments,
+          contact_main: contact_main || null,
+          contact_purchases: contact_purchases || null,
+          contact_payments: contact_payments || null,
+          status: status || 'activo',
+          notes: notesPayload,
+          created_by: userId
+        };
+
+        const companyId = req.user?.companyId;
+        if (companyId && !String(companyId).startsWith('company-')) {
+          insertPayload.company_id = companyId;
+        }
+
         const { data, error } = await supabase
           .from('companies')
-          .insert([
-            {
-              name,
-              alias,
-              type,
-              rfc,
-              address,
-              city,
-              state,
-              maps_url,
-              website,
-              industry,
-              phone_main,
-              phone_purchases,
-              phone_payments,
-              email_main,
-              email_purchases,
-              email_payments,
-              contact_main: contact_main || null,
-              contact_purchases: contact_purchases || null,
-              contact_payments: contact_payments || null,
-              status: status || 'activo',
-              notes: notesPayload,
-              created_by: userId
-            }
-          ])
+          .insert([insertPayload])
           .select();
 
         if (error) throw error;

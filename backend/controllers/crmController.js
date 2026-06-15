@@ -1242,6 +1242,147 @@ export const getProfile = async (req, res) => {
   }
 };
 
+const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId) => {
+  const targetTable = isCompany ? 'companies' : 'leads';
+  let realId = customerId;
+  let customerData = null;
+
+  if (customerId.startsWith('sae-')) {
+    const saeClave = customerId.replace('sae-', '').trim();
+    // 1. Check if we have an existing record in targetTable that matches this SAE key in its notes JSON
+    const { data: existingRecords, error: fetchErr } = await supabase
+      .from(targetTable)
+      .select('id, notes');
+
+    if (!fetchErr && existingRecords) {
+      for (const rec of existingRecords) {
+        if (rec.notes) {
+          try {
+            const parsed = JSON.parse(rec.notes.trim());
+            if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
+              realId = rec.id;
+              customerData = rec;
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    // 2. If not found in our CRM, fetch from SAE mirror clie03 and insert
+    if (!customerData) {
+      const { data: client, error: clientError } = await saeSupabase
+        .from('clie03')
+        .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
+        .eq('clave', saeClave)
+        .single();
+
+      if (clientError || !client) {
+        throw new Error(isCompany ? 'Empresa SAE no encontrada.' : 'Cliente SAE no encontrado.');
+      }
+
+      if (isCompany) {
+        const notesPayload = JSON.stringify({
+          general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+          sae_clave: saeClave,
+          timeline: []
+        });
+
+        const insertPayload = {
+          name: client.nombre ? client.nombre.trim() : 'Empresa SAE Sin Nombre',
+          alias: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
+          type: 'cliente',
+          rfc: client.rfc ? client.rfc.trim() : '',
+          address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+          city: client.municipio ? client.municipio.trim() : '',
+          state: client.estado ? client.estado.trim() : '',
+          maps_url: '',
+          website: client.pag_web ? client.pag_web.trim() : '',
+          industry: 'Sincronizado SAE',
+          phone_main: client.telefono ? client.telefono.trim() : '',
+          phone_purchases: '',
+          phone_payments: '',
+          email_main: client.mail ? client.mail.trim() : '',
+          email_purchases: '',
+          email_payments: '',
+          status: 'activo',
+          notes: notesPayload,
+          created_by: userId
+        };
+
+        if (companyId && !String(companyId).startsWith('company-')) {
+          insertPayload.company_id = companyId;
+        }
+
+        const { data: newCo, error: insertErr } = await supabase
+          .from('companies')
+          .insert([insertPayload])
+          .select()
+          .single();
+
+        if (insertErr || !newCo) {
+          console.error('Error inserting SAE company:', insertErr);
+          throw new Error('Error al registrar empresa en el CRM.');
+        }
+
+        realId = newCo.id;
+        customerData = newCo;
+      } else {
+        // It's a Customer (leads table)
+        const notesPayload = JSON.stringify({
+          general: `Cliente de Aspel SAE. Clave: ${saeClave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+          sae_clave: saeClave,
+          timeline: []
+        });
+
+        const insertPayload = {
+          name: client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre',
+          email: client.mail ? client.mail.trim() : '',
+          phone: client.telefono ? client.telefono.trim() : '',
+          company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
+          project_type: '',
+          status: 'pendiente_revision',
+          type: 'crm_customer',
+          notes: notesPayload,
+          assigned_to: userId
+        };
+
+        if (companyId && !String(companyId).startsWith('company-')) {
+          insertPayload.company_id = companyId;
+        }
+
+        const { data: newCust, error: insertErr } = await supabase
+          .from('leads')
+          .insert([insertPayload])
+          .select()
+          .single();
+
+        if (insertErr || !newCust) {
+          console.error('Error inserting SAE customer:', insertErr);
+          throw new Error('Error al registrar cliente en el CRM.');
+        }
+
+        realId = newCust.id;
+        customerData = newCust;
+      }
+    }
+  } else {
+    // Standard CRM lead/company lookup
+    const { data, error } = await supabase
+      .from(targetTable)
+      .select('*')
+      .eq('id', customerId)
+      .single();
+
+    if (error || !data) {
+      throw new Error(isCompany ? 'Empresa no encontrada.' : 'Cliente no encontrado.');
+    }
+    customerData = data;
+  }
+
+  return { realId, customerData };
+};
+
 export const uploadCustomerEvidence = async (req, res) => {
   try {
     const { id: customerId } = req.params;
@@ -1289,11 +1430,17 @@ export const uploadCustomerEvidence = async (req, res) => {
     }
 
     // Fallbacks del cliente si no están en EXIF
-    if (!lat && req.body.latitude) lat = parseFloat(req.body.latitude);
-    if (!lng && req.body.longitude) lng = parseFloat(req.body.longitude);
+    if ((lat === null || lat === undefined || isNaN(lat)) && req.body.latitude) {
+      const parsedLat = parseFloat(req.body.latitude);
+      if (!isNaN(parsedLat)) lat = parsedLat;
+    }
+    if ((lng === null || lng === undefined || isNaN(lng)) && req.body.longitude) {
+      const parsedLng = parseFloat(req.body.longitude);
+      if (!isNaN(parsedLng)) lng = parsedLng;
+    }
 
-    // Si NO se obtuvieron coordenadas reales, bloquear la subida (obligatorio)
-    if (!lat || !lng) {
+    // Si NO se obtuvieron coordenadas reales o válidas, bloquear la subida (obligatorio)
+    if (lat === null || lat === undefined || isNaN(lat) || lng === null || lng === undefined || isNaN(lng)) {
       return res.status(400).json({ 
         success: false, 
         message: 'La ubicación GPS real es obligatoria. Asegúrate de activar el GPS en tu celular y otorgar permisos de localización en el navegador.' 
@@ -1342,19 +1489,20 @@ export const uploadCustomerEvidence = async (req, res) => {
       }
       const filePath = path.join(uploadDir, fileName);
       fs.writeFileSync(filePath, req.file.buffer);
-      photoUrl = `/uploads/evidences/${fileName}`;
+      photoUrl = `/api/uploads/evidences/${fileName}`;
     }
 
-    // 5. Obtener cliente y actualizar su timeline en `notes`
-    const { data: customer, error: fetchError } = await supabase
-      .from('leads')
-      .select('notes, name, email, phone, company, project_type, status')
-      .eq('id', customerId)
-      .single();
+    // 5. Obtener cliente/empresa y actualizar su timeline en `notes`
+    const isCompany = req.originalUrl.includes('/companies/');
+    const targetTable = isCompany ? 'companies' : 'leads';
 
-    if (fetchError || !customer) {
-      return res.status(404).json({ success: false, message: 'Cliente no encontrado.' });
+    let resolved;
+    try {
+      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+    } catch (resolveErr) {
+      return res.status(404).json({ success: false, message: resolveErr.message });
     }
+    const { realId, customerData: customer } = resolved;
 
     // Parser manual para no pisar notas
     let notesObj = { general: '', timeline: [] };
@@ -1366,6 +1514,10 @@ export const uploadCustomerEvidence = async (req, res) => {
           const parsed = JSON.parse(trimmed);
           notesObj.general = parsed.general || '';
           notesObj.timeline = parsed.timeline || [];
+          // Preserve sae_clave if it exists
+          if (parsed.sae_clave) {
+            notesObj.sae_clave = parsed.sae_clave;
+          }
         } else {
           notesObj.general = rawNotes;
         }
@@ -1393,11 +1545,11 @@ export const uploadCustomerEvidence = async (req, res) => {
 
     // Guardar de vuelta en DB
     const { data: updatedCustomer, error: updateError } = await supabase
-      .from('leads')
+      .from(targetTable)
       .update({
         notes: JSON.stringify(notesObj)
       })
-      .eq('id', customerId)
+      .eq('id', realId)
       .select()
       .single();
 
@@ -1409,7 +1561,7 @@ export const uploadCustomerEvidence = async (req, res) => {
       success: true,
       message: 'Evidencia subida y procesada correctamente.',
       evidence: evidenceNode,
-      customer: updatedCustomer
+      customer: { ...updatedCustomer, id: customerId }
     });
   } catch (err) {
     console.error('uploadCustomerEvidence error:', err);
@@ -1456,19 +1608,20 @@ export const uploadCustomerInvoice = async (req, res) => {
       }
       const filePath = path.join(uploadDir, fileName);
       fs.writeFileSync(filePath, req.file.buffer);
-      fileUrl = `/uploads/invoices/${fileName}`;
+      fileUrl = `/api/uploads/invoices/${fileName}`;
     }
 
-    // 3. Obtener cliente y actualizar su timeline y campo `invoices` en `notes`
-    const { data: customer, error: fetchError } = await supabase
-      .from('leads')
-      .select('notes, name, email, phone, company, project_type, status')
-      .eq('id', customerId)
-      .single();
+    // 3. Obtener cliente/empresa y actualizar su timeline y campo `invoices` en `notes`
+    const isCompany = req.originalUrl.includes('/companies/');
+    const targetTable = isCompany ? 'companies' : 'leads';
 
-    if (fetchError || !customer) {
-      return res.status(404).json({ success: false, message: 'Cliente no encontrado.' });
+    let resolved;
+    try {
+      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+    } catch (resolveErr) {
+      return res.status(404).json({ success: false, message: resolveErr.message });
     }
+    const { realId, customerData: customer } = resolved;
 
     // Parser manual de notes para no pisar campos
     let notesObj = { general: '', timeline: [], invoices: [] };
@@ -1481,6 +1634,9 @@ export const uploadCustomerInvoice = async (req, res) => {
           notesObj.general = parsed.general || '';
           notesObj.timeline = parsed.timeline || [];
           notesObj.invoices = parsed.invoices || [];
+          if (parsed.sae_clave) {
+            notesObj.sae_clave = parsed.sae_clave;
+          }
         } else {
           notesObj.general = rawNotes;
         }
@@ -1511,15 +1667,21 @@ export const uploadCustomerInvoice = async (req, res) => {
     notesObj.invoices.push(invoiceNode);
     notesObj.timeline.push(timelineNode);
 
-    // Guardar de vuelta en DB y marcar como cliente activo (is_client = true)
+    // Guardar de vuelta en DB
+    const updatePayload = {
+      notes: JSON.stringify(notesObj)
+    };
+    
+    // Solo leads tiene is_client y status
+    if (!isCompany) {
+      updatePayload.is_client = true;
+      updatePayload.status = 'calificado';
+    }
+
     const { data: updatedCustomer, error: updateError } = await supabase
-      .from('leads')
-      .update({
-        notes: JSON.stringify(notesObj),
-        is_client: true,
-        status: 'calificado' // Mantener o asegurar que esté calificado/ganado
-      })
-      .eq('id', customerId)
+      .from(targetTable)
+      .update(updatePayload)
+      .eq('id', realId)
       .select()
       .single();
 
@@ -1529,7 +1691,7 @@ export const uploadCustomerInvoice = async (req, res) => {
       success: true,
       message: 'Factura subida y vinculada correctamente.',
       invoice: invoiceNode,
-      customer: updatedCustomer
+      customer: { ...updatedCustomer, id: customerId }
     });
   } catch (err) {
     console.error('uploadCustomerInvoice error:', err);
@@ -1813,5 +1975,38 @@ export const saveRavProduct = async (req, res) => {
   } catch (err) {
     console.error('saveRavProduct error:', err);
     res.status(500).json({ success: false, message: 'Error interno al guardar producto.' });
+  }
+};
+
+export const createTiRequest = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const userRole = req.user?.role;
+    const userName = req.user?.name || 'Un ejecutivo';
+    const companyId = req.user?.companyId;
+
+    const { customer_id, customer_name, field_requested, current_value, reason } = req.body;
+
+    if (!reason || !field_requested) {
+      return res.status(400).json({ success: false, message: 'El motivo y el campo a editar son requeridos.' });
+    }
+
+    const title = 'Solicitud de Cambio TI 🛠️';
+    const message = `El ejecutivo ${userName} (${userRole}) solicita modificar el campo "${field_requested}" (valor actual: "${current_value || 'ninguno'}") para el cliente/empresa "${customer_name || 'N/A'}" (ID: ${customer_id}). Motivo: ${reason}`;
+
+    await notifySuperAdmins(
+      companyId,
+      title,
+      message,
+      'ti_request'
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Solicitud enviada a TI con éxito. Los administradores han sido notificados.'
+    });
+  } catch (err) {
+    console.error('createTiRequest error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al enviar solicitud a TI.' });
   }
 };

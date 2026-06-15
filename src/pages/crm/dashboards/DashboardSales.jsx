@@ -79,6 +79,12 @@ const DashboardSales = ({ enabledModules }) => {
       handleRefreshAll={handleRefreshAll}
       handleLogout={handleLogout}
       stats={stats}
+      API_BASE={API_BASE}
+      allOpportunities={allOpportunities}
+      currentUserProfile={currentUserProfile}
+      fetchCustomers={fetchCustomers}
+      fetchOpportunitiesList={fetchOpportunitiesList}
+      customers={customers}
     >
       {activeTab === 'leads' && (
         <LeadsBandeja
@@ -161,6 +167,7 @@ const DashboardSales = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',
@@ -189,6 +196,7 @@ const DashboardSales = ({ enabledModules }) => {
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
+              isCompany: true,
               name: comp.name,
               email: comp.email_main || '',
               phone: comp.phone_main || '',

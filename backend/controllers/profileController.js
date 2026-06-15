@@ -88,7 +88,7 @@ export const updateProfile = async (req, res) => {
         }
         const filePath = path.join(uploadDir, fileName);
         fs.writeFileSync(filePath, req.file.buffer);
-        updateData.avatar_url = `/uploads/avatars/${fileName}`;
+        updateData.avatar_url = `/api/uploads/avatars/${fileName}`;
       }
     }
 

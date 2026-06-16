@@ -1,6 +1,6 @@
-const CACHE_NAME = 'garza-crm-v2';
+const CACHE_NAME = 'garza-crm-v3';
 
-// Shell mínimo para carga rápida
+// Shell mínimo para fallback offline
 const PRECACHE_URLS = [
   '/',
   '/index.html',
@@ -18,6 +18,13 @@ self.addEventListener('install', (event) => {
   self.skipWaiting();
 });
 
+// Escuchar mensajes para forzar activación inmediata
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.action === 'skipWaiting') {
+    self.skipWaiting();
+  }
+});
+
 // Activate: limpiar caches viejos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -32,48 +39,48 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch: Network-first para API, Cache-first para assets estáticos
+// Fetch: Network-First para todo (garantiza actualizaciones en producción)
+// Con fallback a Cache si no hay red (modo offline).
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   
-  // Ignorar esquemas que no sean http o https (como chrome-extension, etc.)
+  // Ignorar esquemas que no sean http o https
   if (!request.url.startsWith('http:') && !request.url.startsWith('https:')) {
     return;
   }
 
   const url = new URL(request.url);
 
-  // Las llamadas al API siempre van a red (nunca cachear datos del CRM)
+  // Excluir llamadas al API y subidas de archivos (siempre a red, nunca cachear)
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) {
     event.respondWith(fetch(request));
     return;
   }
 
-  // Para navegación (HTML), network-first con fallback a cache
-  if (request.mode === 'navigate') {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
-          return response;
-        })
-        .catch(() => caches.match('/index.html'))
-    );
-    return;
-  }
-
-  // Para assets estáticos (JS, CSS, imágenes): cache-first
+  // Network-First con fallback a Caché para todos los assets y HTML de navegación
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).then((response) => {
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+    fetch(request)
+      .then((response) => {
+        // Si la respuesta es válida, clonar y guardar en caché
+        if (response && response.status === 200 && response.type === 'basic') {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
         }
         return response;
-      });
-    })
+      })
+      .catch(() => {
+        // Si falla la red, intentar responder desde la caché
+        return caches.match(request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Si es una petición de navegación y no hay caché, retornar el index.html base
+          if (request.mode === 'navigate') {
+            return caches.match('/index.html');
+          }
+        });
+      })
   );
 });

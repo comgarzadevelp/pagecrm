@@ -25,8 +25,9 @@ if ('serviceWorker' in navigator) {
           if (installingWorker) {
             installingWorker.onstatechange = () => {
               if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                console.log('[PWA] Nueva versión disponible. Recargando...');
-                window.location.reload();
+                console.log('[PWA] Nueva versión disponible. Forzando skipWaiting...');
+                // Enviamos señal de skipWaiting para activar el nuevo worker
+                installingWorker.postMessage({ action: 'skipWaiting' });
               }
             };
           }
@@ -35,5 +36,15 @@ if ('serviceWorker' in navigator) {
       .catch((error) => {
         console.log('[PWA] Error registrando Service Worker:', error);
       });
+
+    // Detectar cuando el Service Worker toma el control y recargar la página inmediatamente
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) {
+        refreshing = true;
+        console.log('[PWA] Service Worker activo y controlando. Recargando app...');
+        window.location.reload();
+      }
+    });
   });
 }

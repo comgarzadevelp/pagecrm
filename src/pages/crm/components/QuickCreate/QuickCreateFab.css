@@ -1,10 +1,10 @@
 /* Estilos para el Botón FAB "NUEVO" y Creación Rápida Móvil */
 
-/* FAB flotando fijo a 50px de la derecha y a 30px arriba de la barra inferior (que mide 56px) */
+/* FAB flotando fijo a 20px de la derecha (estándar móvil) y a 86px arriba para librar la barra inferior */
 .crm-fab-container {
   position: fixed;
   bottom: 86px;
-  right: 50px;
+  right: 20px;
   z-index: 9999;
   display: flex;
   align-items: center;
@@ -115,11 +115,11 @@
   text-align: center;
 }
 
-/* Grid de opciones rápidas (4 columnas ahora para incluir Nota Rápida) */
+/* Grid de opciones rápidas (se ajusta dinámicamente centrado) */
 .quick-create-options-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
   width: 100%;
   margin-bottom: 0.5rem;
 }
@@ -127,9 +127,11 @@
 .quick-create-option-btn {
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  padding: 1rem 0.25rem;
+  border-radius: 16px;
+  padding: 1.15rem 0.5rem;
   display: flex;
+  flex: 1;
+  max-width: 110px;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -174,23 +176,15 @@
   color: #ffffff;
 }
 
-.quick-create-option-btn.client .icon-box-fab {
-  background-color: rgba(37, 99, 235, 0.1);
-  color: #2563eb;
+.quick-create-option-btn.prospect .icon-box-fab {
+  background-color: rgba(224, 146, 43, 0.1);
+  color: var(--color-brand-accent, #E0922B);
 }
-.quick-create-option-btn.client:active .icon-box-fab {
-  background-color: #2563eb;
+.quick-create-option-btn.prospect:active .icon-box-fab {
+  background-color: var(--color-brand-accent, #E0922B);
   color: #ffffff;
 }
 
-.quick-create-option-btn.company .icon-box-fab {
-  background-color: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-}
-.quick-create-option-btn.company:active .icon-box-fab {
-  background-color: #10b981;
-  color: #ffffff;
-}
 
 .quick-create-option-btn.note .icon-box-fab {
   background-color: rgba(139, 92, 246, 0.1);

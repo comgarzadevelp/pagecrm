@@ -64,6 +64,7 @@ import crmRoutes from './routes/crmRoutes.js';
 import saeRoutes from './routes/saeRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import { startLeadNotificationJob } from './services/leadNotificationJob.js';
 
 // Variable de entorno para orígenes permitidos
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['*'];
@@ -144,6 +145,9 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(` Modo: ${process.env.NODE_ENV || 'development'}`);
   console.log(` URL de Supabase: ${process.env.SUPABASE_URL}`);
   console.log(`====================================================`);
+  
+  // Iniciar Job de Notificaciones de inactividad SLA
+  startLeadNotificationJob();
 });
 
 // Manejo de apagado seguro (Graceful Shutdown) para PM2 Cluster

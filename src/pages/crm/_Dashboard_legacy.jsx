@@ -479,7 +479,7 @@ const Dashboard = () => {
               className={`nav-item-btn ${activeTab === 'leads' ? 'active' : ''}`}
               onClick={() => setActiveTab('leads')}
             >
-              <i className="fas fa-envelope-open-text" /> Asignados (Leads)
+              <i className="fas fa-envelope-open-text" /> Primer contacto
             </button>
           )}
 
@@ -598,47 +598,47 @@ const Dashboard = () => {
 
       {/* MAIN CONTAINER CONTENT AREA */}
       <main className={`crm-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        
+
         {/* Global stats grid (hidden on dashboard, quotes B2B, manager, profile, files, archive, etc.) */}
         {activeTab !== 'quotes' &&
-         activeTab !== 'dashboard' &&
-         activeTab !== 'contacts' &&
-         activeTab !== 'companies' &&
-         activeTab !== 'quotes-manager' &&
-         activeTab !== 'files' &&
-         activeTab !== 'profile' &&
-         activeTab !== 'calendar' && (
-          <section className="crm-stats-grid hide-on-print">
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.total}</h3>
-                <p>Total Prospectos</p>
+          activeTab !== 'dashboard' &&
+          activeTab !== 'contacts' &&
+          activeTab !== 'companies' &&
+          activeTab !== 'quotes-manager' &&
+          activeTab !== 'files' &&
+          activeTab !== 'profile' &&
+          activeTab !== 'calendar' && (
+            <section className="crm-stats-grid hide-on-print">
+              <div className="crm-stat-card glass">
+                <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
+                <div className="stat-val-box">
+                  <h3>{stats.total}</h3>
+                  <p>Total Prospectos</p>
+                </div>
               </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box whatsapp"><i className="fab fa-whatsapp"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.popup}</h3>
-                <p>Popup WhatsApp</p>
+              <div className="crm-stat-card glass">
+                <div className="stat-icon-box whatsapp"><i className="fab fa-whatsapp"></i></div>
+                <div className="stat-val-box">
+                  <h3>{stats.popup}</h3>
+                  <p>Popup WhatsApp</p>
+                </div>
               </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box contact"><i className="fas fa-file-invoice"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.contact}</h3>
-                <p>Formularios Web</p>
+              <div className="crm-stat-card glass">
+                <div className="stat-icon-box contact"><i className="fas fa-file-invoice"></i></div>
+                <div className="stat-val-box">
+                  <h3>{stats.contact}</h3>
+                  <p>Formularios Web</p>
+                </div>
               </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box qualified"><i className="fas fa-check-double"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.qualified}</h3>
-                <p>Contactados / Calificados</p>
+              <div className="crm-stat-card glass">
+                <div className="stat-icon-box qualified"><i className="fas fa-check-double"></i></div>
+                <div className="stat-val-box">
+                  <h3>{stats.qualified}</h3>
+                  <p>Contactados / Calificados</p>
+                </div>
               </div>
-            </div>
-          </section>
-        )}
+            </section>
+          )}
 
         {/* Modular Routers Rendering */}
         {activeTab === 'leads' && (
@@ -715,7 +715,7 @@ const Dashboard = () => {
         )}
 
         {activeTab === 'dashboard' && <StatsDashboard />}
-        
+
         {activeTab === 'contacts' && (
           <MisContactos
             onViewCompanyDetails={(comp) => {

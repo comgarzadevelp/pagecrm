@@ -33,3 +33,13 @@ export const saeSupabase = createClient(saeSupabaseUrl, saeSupabaseKey, {
     transport: ws
   }
 });
+
+// Helper to filter out fake company IDs (e.g. 'company-1') and validate UUID format
+export const cleanCompanyId = (id) => {
+  if (!id) return null;
+  const str = String(id);
+  if (str.startsWith('company-')) return null;
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(str)) return null;
+  return str;
+};

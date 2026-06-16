@@ -1,4 +1,4 @@
-import { supabase, saeSupabase } from '../supabaseClient.js';
+import { supabase, saeSupabase, cleanCompanyId } from '../supabaseClient.js';
 
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
@@ -359,10 +359,42 @@ export const getLeadById = async (req, res) => {
 
 export const updateLeadStage = async (req, res) => {
   const { id } = req.params;
-  const { stage } = req.body; // new stage
+  const { stage } = req.body;
 
   try {
-    const updateData = { status: stage };
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('id, notes, status')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !lead) {
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    }
+
+    let notesData = { general: '', timeline: [] };
+    if (lead.notes) {
+      try {
+        notesData = JSON.parse(lead.notes);
+        if (!notesData.timeline) notesData.timeline = [];
+      } catch (e) {
+        notesData.general = lead.notes;
+        notesData.timeline = [];
+      }
+    }
+
+    const newEntry = {
+      date: new Date().toISOString(),
+      text: `Cambio de estatus: de "${lead.status || 'nuevo'}" a "${stage}".`,
+      author: req.user?.name || 'Ejecutivo',
+      type: 'status_change'
+    };
+    notesData.timeline.push(newEntry);
+
+    const updateData = { 
+      status: stage,
+      notes: JSON.stringify(notesData)
+    };
 
     const { data, error } = await supabase
       .from('leads')
@@ -377,6 +409,632 @@ export const updateLeadStage = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al actualizar lead' });
   }
 };
+
+export const promoteLeadToContact = async (req, res) => {
+  const { id: leadId } = req.params;
+  const { 
+    contactName, 
+    position, 
+    email, 
+    phone, 
+    phone_alt, 
+    whatsapp, 
+    notes,
+    linkExistingCompanyId,
+    newCompanyDetails 
+  } = req.body;
+  const userId = req.user?.userId;
+  const companyId = req.user?.companyId;
+
+  try {
+    // 1. Get the original lead to verify existence and get details
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
+
+    if (leadError || !lead) {
+      return res.status(404).json({ success: false, message: 'Lead no encontrado.' });
+    }
+
+    // 2. Create the Contact
+    const contactPayload = {
+      name: contactName || lead.name,
+      position: position || 'Contacto',
+      email: email || lead.email || '',
+      phone: phone || lead.phone || '',
+      phone_alt: phone_alt || '',
+      whatsapp: whatsapp || '',
+      notes: notes || `Contacto promovido desde el lead original: ${lead.name}`,
+      created_by: userId
+    };
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      contactPayload.company_id = companyId;
+    }
+
+    const { data: contact, error: contactError } = await supabase
+      .from('contacts')
+      .insert([contactPayload])
+      .select()
+      .single();
+
+    if (contactError || !contact) {
+      console.error('promoteLeadToContact contact creation error:', contactError);
+      return res.status(500).json({ success: false, message: 'Error al crear el contacto.' });
+    }
+
+    let resolvedCompanyId = linkExistingCompanyId || null;
+
+    // 3. Create new Company if requested
+    if (!resolvedCompanyId && newCompanyDetails && newCompanyDetails.name) {
+      const companyPayload = {
+        name: newCompanyDetails.name,
+        alias: newCompanyDetails.alias || newCompanyDetails.name,
+        type: newCompanyDetails.type || 'cliente',
+        rfc: newCompanyDetails.rfc || '',
+        address: newCompanyDetails.address || '',
+        city: newCompanyDetails.city || '',
+        state: newCompanyDetails.state || '',
+        phone_main: newCompanyDetails.phone_main || phone || lead.phone || '',
+        email_main: newCompanyDetails.email_main || email || lead.email || '',
+        status: 'activo',
+        notes: JSON.stringify({
+          general: newCompanyDetails.notes || `Empresa creada automáticamente al promover el lead ${lead.name}`,
+          timeline: []
+        }),
+        created_by: userId
+      };
+
+      if (companyId && !String(companyId).startsWith('company-')) {
+        companyPayload.company_id = companyId;
+      }
+
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .insert([companyPayload])
+        .select()
+        .single();
+
+      if (!companyError && company) {
+        resolvedCompanyId = company.id;
+      } else {
+        console.error('promoteLeadToContact company creation error:', companyError);
+      }
+    }
+
+    // 4. Link Contact to Company if we have a resolved company ID
+    if (resolvedCompanyId) {
+      await supabase
+        .from('contact_companies')
+        .insert([{
+          contact_id: contact.id,
+          company_id: resolvedCompanyId,
+          role: position || 'Representante'
+        }]);
+    }
+
+    // 5. Update the Lead: change status/type and add to notes timeline
+    let notesObj = { general: '', timeline: [] };
+    if (lead.notes) {
+      try {
+        const trimmed = lead.notes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          notesObj = JSON.parse(trimmed);
+        } else {
+          notesObj.general = lead.notes;
+        }
+      } catch (e) {
+        notesObj.general = lead.notes;
+      }
+    }
+
+    if (!notesObj.timeline) notesObj.timeline = [];
+    notesObj.timeline.push({
+      date: new Date().toISOString(),
+      text: `Lead promovido a Contacto: ${contact.name}${resolvedCompanyId ? ' y vinculado a Empresa.' : '.'}`,
+      author: req.user?.name || 'Sistema',
+      type: 'status_change'
+    });
+
+    const { data: updatedLead, error: updateLeadError } = await supabase
+      .from('leads')
+      .update({
+        type: 'crm_customer', // Promotes to Customer so it exits the leads view and enters customer view
+        status: 'calificado',
+        notes: JSON.stringify(notesObj)
+      })
+      .eq('id', leadId)
+      .select()
+      .single();
+
+    res.json({
+      success: true,
+      message: 'Lead promovido a Contacto con éxito.',
+      contact,
+      companyId: resolvedCompanyId,
+      lead: updatedLead
+    });
+
+  } catch (err) {
+    console.error('promoteLeadToContact error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al promover el lead.' });
+  }
+};
+
+export const discardLead = async (req, res) => {
+  const { id: leadId } = req.params;
+  const { reason, comment } = req.body;
+  const userId = req.user?.userId;
+
+  if (!reason) {
+    return res.status(400).json({ success: false, message: 'El motivo de descarte es obligatorio.' });
+  }
+
+  try {
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', leadId)
+      .single();
+
+    if (leadError || !lead) {
+      return res.status(404).json({ success: false, message: 'Lead no encontrado.' });
+    }
+
+    let notesObj = { general: '', timeline: [] };
+    if (lead.notes) {
+      try {
+        const trimmed = lead.notes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          notesObj = JSON.parse(trimmed);
+        } else {
+          notesObj.general = lead.notes;
+        }
+      } catch (e) {
+        notesObj.general = lead.notes;
+      }
+    }
+
+    if (!notesObj.timeline) notesObj.timeline = [];
+    notesObj.timeline.push({
+      date: new Date().toISOString(),
+      text: `Lead descartado. Motivo: ${reason}. Comentario: ${comment || 'Sin detalles adicionales.'}`,
+      author: req.user?.name || 'Sistema',
+      type: 'status_change'
+    });
+
+    notesObj.discard_reason = reason;
+    notesObj.discard_comment = comment || '';
+
+    const { data: updatedLead, error: updateLeadError } = await supabase
+      .from('leads')
+      .update({
+        status: 'descartado',
+        notes: JSON.stringify(notesObj)
+      })
+      .eq('id', leadId)
+      .select()
+      .single();
+
+    if (updateLeadError) throw updateLeadError;
+
+    res.json({
+      success: true,
+      message: 'Lead descartado con éxito.',
+      lead: updatedLead
+    });
+
+  } catch (err) {
+    console.error('discardLead error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al descartar el lead.' });
+  }
+};
+
+export const createManualLead = async (req, res) => {
+  const { name, email, phone, company, project_type, notes } = req.body;
+  const userId = req.user?.userId;
+  const companyId = req.user?.companyId;
+
+  if (!name || !phone) {
+    return res.status(400).json({ success: false, message: 'El nombre y teléfono del prospecto son obligatorios.' });
+  }
+
+  try {
+    const cleanPhone = phone.trim();
+    // Validate phone number formatting (should be unique in active leads)
+    const { data: duplicateLead } = await supabase
+      .from('leads')
+      .select('id, name, assigned_to (name)')
+      .eq('phone', cleanPhone)
+      .neq('status', 'descartado')
+      .maybeSingle();
+
+    if (duplicateLead) {
+      const owner = duplicateLead.assigned_to?.name || 'otro ejecutivo';
+      return res.status(400).json({ 
+        success: false, 
+        message: `El número telefónico ${cleanPhone} ya está asignado y activo con ${owner}.` 
+      });
+    }
+
+    const notesPayload = JSON.stringify({
+      general: notes || 'Lead creado manualmente por el vendedor.',
+      timeline: [{
+        date: new Date().toISOString(),
+        text: 'Prospecto registrado manualmente en el CRM.',
+        author: req.user?.name || 'Vendedor',
+        type: 'status_change'
+      }]
+    });
+
+    const insertPayload = {
+      name: name.trim(),
+      email: email ? email.trim() : null,
+      phone: cleanPhone,
+      company: company ? company.trim() : null,
+      project_type: project_type ? project_type.trim() : null,
+      notes: notesPayload,
+      assigned_to: userId,
+      status: 'nuevo',
+      type: 'vendedor_manual'
+    };
+
+    if (companyId && !String(companyId).startsWith('company-')) {
+      insertPayload.company_id = companyId;
+    }
+
+    const { data, error } = await supabase
+      .from('leads')
+      .insert([insertPayload])
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ success: true, lead: data });
+  } catch (err) {
+    console.error('createManualLead error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al registrar el prospecto.' });
+  }
+};
+
+export const checkDuplicatePhone = async (req, res) => {
+  const { phone } = req.query;
+  if (!phone) {
+    return res.status(400).json({ success: false, message: 'Número de teléfono requerido.' });
+  }
+
+  try {
+    const cleanPhone = phone.trim();
+    const { data: lead, error } = await supabase
+      .from('leads')
+      .select('id, name, assigned_to (name)')
+      .eq('phone', cleanPhone)
+      .neq('status', 'descartado')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (lead) {
+      return res.json({ 
+        success: true, 
+        duplicate: true, 
+        message: `Este número ya está asignado a ${lead.assigned_to?.name || 'otro ejecutivo'}.`,
+        lead: {
+          id: lead.id,
+          name: lead.name,
+          assignedSeller: lead.assigned_to?.name || 'N/A'
+        }
+      });
+    }
+
+    res.json({ success: true, duplicate: false });
+  } catch (err) {
+    console.error('checkDuplicatePhone error:', err);
+    res.status(500).json({ success: false, message: 'Error al verificar duplicidad.' });
+  }
+};
+
+export const getCustomStages = async (req, res) => {
+  const userId = req.user?.userId;
+  try {
+    const { data, error } = await supabase
+      .from('crm_custom_stages')
+      .select('id, name, color')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, stages: data || [] });
+  } catch (err) {
+    console.error('getCustomStages error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener etapas personalizadas.' });
+  }
+};
+
+export const createCustomStage = async (req, res) => {
+  const { name, color, root_stage } = req.body;
+  const userId = req.user?.userId;
+
+  if (!name) {
+    return res.status(400).json({ success: false, message: 'El nombre de la etapa es obligatorio.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('crm_custom_stages')
+      .insert([{
+        user_id: userId,
+        name: name.trim(),
+        color: color || '#10b981',
+        root_stage: root_stage || 'nuevo'
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === '23505') {
+        return res.status(400).json({ success: false, message: 'Ya tienes una etapa con este nombre.' });
+      }
+      throw error;
+    }
+
+    res.status(201).json({ success: true, stage: data });
+  } catch (err) {
+    console.error('createCustomStage error:', err);
+    res.status(500).json({ success: false, message: 'Error al registrar la etapa personalizada.' });
+  }
+};
+
+export const deleteCustomStage = async (req, res) => {
+  const { id } = req.params;
+  const { transferTo } = req.body;
+  const userId = req.user?.userId;
+
+  try {
+    // 1. Get the custom stage details (we need its name)
+    const { data: stage, error: stageError } = await supabase
+      .from('crm_custom_stages')
+      .select('name')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (stageError || !stage) {
+      return res.status(404).json({ success: false, message: 'Etapa no encontrada o no autorizada.' });
+    }
+
+    const stageName = stage.name.toLowerCase();
+    const destinationStage = (transferTo || 'nuevo').toLowerCase();
+
+    // 2. Fetch all leads currently in this custom stage
+    const { data: leads, error: leadsError } = await supabase
+      .from('leads')
+      .select('id, notes')
+      .eq('status', stageName)
+      .eq('assigned_to', userId);
+
+    if (leadsError) throw leadsError;
+
+    // 3. For each lead, append a timeline entry and update its status
+    if (leads && leads.length > 0) {
+      const updatePromises = leads.map(async (lead) => {
+        let notesData = { general: '', timeline: [] };
+        if (lead.notes) {
+          try {
+            notesData = JSON.parse(lead.notes);
+            if (!notesData.timeline) notesData.timeline = [];
+          } catch (e) {
+            notesData.general = lead.notes;
+            notesData.timeline = [];
+          }
+        }
+
+        notesData.timeline.push({
+          date: new Date().toISOString(),
+          text: `Estatus reubicado de "${stage.name}" a "${destinationStage}" debido a la eliminación de la etapa personalizada.`,
+          author: req.user?.name || 'Sistema',
+          type: 'status_change'
+        });
+
+        return supabase
+          .from('leads')
+          .update({
+            status: destinationStage,
+            notes: JSON.stringify(notesData)
+          })
+          .eq('id', lead.id);
+      });
+
+      await Promise.all(updatePromises);
+    }
+
+    // 4. Delete the custom stage
+    const { error: deleteError } = await supabase
+      .from('crm_custom_stages')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId);
+
+    if (deleteError) throw deleteError;
+
+    res.json({ success: true, message: 'Etapa eliminada y prospectos reubicados con éxito.' });
+  } catch (err) {
+    console.error('deleteCustomStage error:', err);
+    res.status(500).json({ success: false, message: 'Error al eliminar la etapa.' });
+  }
+};
+
+export const getKanbanColumnOrder = async (req, res) => {
+  const userId = req.user?.userId;
+  if (!userId) return res.status(401).json({ success: false, message: 'No autenticado.' });
+
+  try {
+    const { data, error } = await supabase
+      .from('crm_kanban_column_order')
+      .select('column_order')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!error && data && Array.isArray(data.column_order)) {
+      let order = data.column_order;
+      order = order.filter(k => k !== 'descartado');
+      order.push('descartado');
+      return res.json({ success: true, columnOrder: order });
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('crm_users')
+      .select('bio')
+      .eq('id', userId)
+      .single();
+
+    if (!userError && userData && userData.bio && userData.bio.startsWith('__kanban_config__:')) {
+      try {
+        const jsonStr = userData.bio.substring('__kanban_config__:'.length);
+        const parsed = JSON.parse(jsonStr);
+        if (Array.isArray(parsed)) {
+          let order = parsed;
+          order = order.filter(k => k !== 'descartado');
+          order.push('descartado');
+          return res.json({ success: true, columnOrder: order });
+        }
+      } catch (jsonErr) {
+        console.warn('Failed to parse kanban config from bio:', jsonErr.message);
+      }
+    }
+
+    const baseStages = ['nuevo', 'contactado', 'calificado'];
+    const { data: customStages } = await supabase
+      .from('crm_custom_stages')
+      .select('name')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true });
+
+    const customKeys = (customStages || []).map(s => s.name.toLowerCase());
+    const finalOrder = [...baseStages, ...customKeys, 'descartado'];
+    
+    res.json({ success: true, columnOrder: finalOrder });
+  } catch (err) {
+    console.error('getKanbanColumnOrder error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener orden de columnas.' });
+  }
+};
+
+export const saveKanbanColumnOrder = async (req, res) => {
+  const userId = req.user?.userId;
+  const { columnOrder } = req.body;
+
+  if (!userId) return res.status(401).json({ success: false, message: 'No autenticado.' });
+  if (!Array.isArray(columnOrder)) {
+    return res.status(400).json({ success: false, message: 'Se requiere un array "columnOrder".' });
+  }
+
+  let orderToSave = columnOrder.filter(k => k !== 'descartado');
+  orderToSave.push('descartado');
+
+  try {
+    const { error: upsertError } = await supabase
+      .from('crm_kanban_column_order')
+      .upsert({ user_id: userId, column_order: orderToSave, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+
+    if (!upsertError) {
+      return res.json({ success: true, message: 'Orden de columnas guardado exitosamente.' });
+    }
+
+    console.log('crm_kanban_column_order table upsert failed, using bio fallback:', upsertError.message);
+
+    const configStr = `__kanban_config__:${JSON.stringify(orderToSave)}`;
+    const { error: userUpdateError } = await supabase
+      .from('crm_users')
+      .update({ bio: configStr, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+
+    if (userUpdateError) throw userUpdateError;
+
+    res.json({ success: true, message: 'Orden de columnas guardado exitosamente (en bio).' });
+  } catch (err) {
+    console.error('saveKanbanColumnOrder error:', err);
+    res.status(500).json({ success: false, message: 'Error al guardar orden de columnas.' });
+  }
+};
+
+export const addLeadTimelineEntry = async (req, res) => {
+  const { id } = req.params;
+  const { text, type } = req.body;
+  const userId = req.user?.userId;
+  const userName = req.user?.name || 'Ejecutivo';
+
+  if (!text) {
+    return res.status(400).json({ success: false, message: 'El texto de la nota es obligatorio.' });
+  }
+
+  try {
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('id, notes, name, assigned_to')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !lead) {
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    }
+
+    let notesData = { general: '', timeline: [] };
+    if (lead.notes) {
+      try {
+        notesData = JSON.parse(lead.notes);
+        if (!notesData.timeline) notesData.timeline = [];
+      } catch (e) {
+        notesData.general = lead.notes;
+        notesData.timeline = [];
+      }
+    }
+
+    const newEntry = {
+      date: new Date().toISOString(),
+      text: text.trim(),
+      author: userName,
+      type: type || 'note'
+    };
+    notesData.timeline.push(newEntry);
+
+    const { error: updateError } = await supabase
+      .from('leads')
+      .update({
+        notes: JSON.stringify(notesData)
+      })
+      .eq('id', id);
+
+    if (updateError) throw updateError;
+
+    // Notify the assigned seller if someone else (e.g. supervisor) leaves a note
+    if (lead.assigned_to && lead.assigned_to !== userId) {
+      try {
+        await supabase.from('crm_notifications').insert([
+          {
+            user_id: lead.assigned_to,
+            sender_id: userId,
+            company_id: cleanCompanyId(req.user?.companyId),
+            title: 'Nueva Nota en tu Lead 📝',
+            message: `${userName} agregó una nota en ${lead.name || 'un prospecto'}: "${text.trim().substring(0, 60)}${text.trim().length > 60 ? '...' : ''}"`,
+            type: 'timeline_note',
+            read: false
+          }
+        ]);
+      } catch (notifErr) {
+        console.warn('Error sending notification on timeline entry:', notifErr.message);
+      }
+    }
+
+    res.json({ success: true, timeline: notesData.timeline });
+  } catch (err) {
+    console.error('addLeadTimelineEntry error:', err);
+    res.status(500).json({ success: false, message: 'Error al registrar la nota de seguimiento.' });
+  }
+};
+
 
 // ---------- OPPORTUNITIES ----------
 export const getOpportunities = async (req, res) => {
@@ -617,6 +1275,27 @@ export const assignLead = async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    // Notify the seller about the new assignment
+    if (sellerId && data && data[0]) {
+      try {
+        const leadName = data[0].name || 'un nuevo prospecto';
+        await supabase.from('crm_notifications').insert([
+          {
+            user_id: sellerId,
+            sender_id: req.user?.userId || null,
+            company_id: cleanCompanyId(req.user?.companyId),
+            title: 'Nuevo Lead Asignado 👤',
+            message: `Se te ha asignado el prospecto "${leadName}". ¡Por favor ponte en contacto pronto! [ID: ${id}]`,
+            type: 'lead_assigned',
+            read: false
+          }
+        ]);
+      } catch (notifErr) {
+        console.warn('Error sending notification on lead assignment:', notifErr.message);
+      }
+    }
+
     res.json({ success: true, lead: data[0] });
   } catch (err) {
     console.error('assignLead error:', err);

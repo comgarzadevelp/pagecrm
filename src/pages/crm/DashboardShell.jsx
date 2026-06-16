@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY, ROLE_LABELS, ROLE_ICONS } from './moduleRegistry';
 import QuickCreateFab from './components/QuickCreate/QuickCreateFab';
+import { useUX } from '../../components/common/UXProvider';
 import './Dashboard.css';
 import './MobileApp.css';
 
@@ -13,32 +14,53 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
   const [isBtnHovered, setIsBtnHovered] = useState(false);
   const API_BASE = import.meta.env.VITE_API_URL || '';
 
+  const { showToast } = useUX();
+  const knownNotifsRef = useRef(new Set());
+  const isFirstLoadRef = useRef(true);
+
   // Get active company information
   const companyCode = localStorage.getItem('companyCode')?.toUpperCase() || '';
   const isSuperAdmin = role === 'super_admin';
   const isRav = companyCode === 'RAV';
 
   // Dynamic branding colors depending on company & role
-  let bellColor = '#00f2fe'; // Super Admin Masters (Cyan neon)
-  let glowColor = 'rgba(0, 242, 254, 0.35)';
-  let glowHover = 'rgba(0, 242, 254, 0.6)';
+  let bellColor = '#0ea5e9'; // Sky blue for Super Admin
+  let glowColor = 'rgba(14, 165, 233, 0.15)';
+  let glowHover = 'rgba(14, 165, 233, 0.3)';
 
   if (!isSuperAdmin) {
     if (isRav) {
       bellColor = '#10b981'; // RAV Green
-      glowColor = 'rgba(16, 185, 129, 0.35)';
-      glowHover = 'rgba(16, 185, 129, 0.6)';
+      glowColor = 'rgba(16, 185, 129, 0.15)';
+      glowHover = 'rgba(16, 185, 129, 0.3)';
     } else {
       bellColor = '#dc2626'; // GARZA Red
-      glowColor = 'rgba(220, 38, 38, 0.35)';
-      glowHover = 'rgba(220, 38, 38, 0.6)';
+      glowColor = 'rgba(220, 38, 38, 0.15)';
+      glowHover = 'rgba(220, 38, 38, 0.3)';
     }
   }
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
+
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    }, 30000); // Poll every 30 seconds to prevent server/database overloading
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifications();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const fetchNotifications = async () => {
@@ -53,6 +75,25 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
         const notifs = data.notifications || [];
         setNotifications(notifs);
         setUnreadCount(notifs.filter(n => !n.read).length);
+
+        // Real-time toast alert logic for new unread notifications
+        notifs.forEach(notif => {
+          if (!notif.read && !knownNotifsRef.current.has(notif.id)) {
+            knownNotifsRef.current.add(notif.id);
+            if (!isFirstLoadRef.current) {
+              // Trigger a beautiful visual alert
+              showToast(`🔔 ${notif.title}: ${notif.message}`, 'info');
+            }
+          }
+        });
+
+        // Initialize known notification IDs on first load
+        if (isFirstLoadRef.current) {
+          notifs.forEach(notif => {
+            knownNotifsRef.current.add(notif.id);
+          });
+          isFirstLoadRef.current = false;
+        }
       }
     } catch (err) {
       console.error('Error fetching global notifications:', err);
@@ -61,8 +102,18 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
 
   const handleNotifClick = async (notif) => {
     setShowDropdown(false);
-    setActiveTab('notifications');
-    
+
+    // Check if the notification message contains a lead ID [ID: UUID]
+    const idRegex = /\[ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/i;
+    const match = notif.message.match(idRegex);
+    const leadId = match ? match[1] : null;
+
+    if (leadId) {
+      setActiveTab(`leads?leadId=${leadId}`);
+    } else {
+      setActiveTab('notifications');
+    }
+
     if (!notif.read) {
       try {
         const token = localStorage.getItem('token');
@@ -70,7 +121,7 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
           method: 'PUT',
           headers: { Authorization: `Bearer ${token}` }
         });
-        setNotifications(prev => 
+        setNotifications(prev =>
           prev.map(n => n.id === notif.id ? { ...n, read: true } : n)
         );
         setUnreadCount(prev => Math.max(prev - 1, 0));
@@ -86,27 +137,25 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
   };
 
   // Inline styles for high-fidelity dynamic coloring
+  // Inline styles for high-fidelity dynamic coloring and glassmorphic integrations
   const btnStyle = {
-    borderColor: isHovered ? '#ffffff' : bellColor,
-    color: isHovered ? '#ffffff' : bellColor,
-    boxShadow: isHovered ? `0 0 20px ${glowHover}` : `0 0 15px ${glowColor}`,
-    transform: isHovered ? 'scale(1.05)' : 'scale(1)',
+    borderColor: isHovered ? bellColor : 'rgba(0, 0, 0, 0.08)',
+    color: isHovered ? bellColor : '#475569',
+    backgroundColor: isHovered ? '#ffffff' : 'rgba(255, 255, 255, 0.8)',
+    boxShadow: isHovered
+      ? `0 6px 20px rgba(0, 0, 0, 0.06), 0 0 12px ${glowHover}`
+      : '0 4px 12px rgba(0, 0, 0, 0.04)',
+    transform: isHovered ? 'translateY(-2px) scale(1.05)' : 'translateY(0) scale(1)',
   };
 
   const dropdownStyle = {
-    borderColor: bellColor,
+    borderTop: `3px solid ${bellColor}`,
   };
 
-  const unreadBadgeStyle = {
-    border: `1.5px solid #071012`,
-    background: isSuperAdmin ? '#dc2626' : (isRav ? '#10b981' : '#dc2626'),
-    boxShadow: isSuperAdmin ? '0 0 8px rgba(220, 38, 38, 0.9)' : (isRav ? '0 0 8px rgba(16, 185, 129, 0.9)' : '0 0 8px rgba(220, 38, 38, 0.9)')
-  };
+
 
   const viewAllStyle = {
-    borderTop: `1px solid rgba(255, 255, 255, 0.08)`,
-    color: isBtnHovered ? '#fff' : bellColor,
-    background: isBtnHovered ? 'rgba(255, 255, 255, 0.04)' : 'transparent',
+    color: isBtnHovered ? bellColor : '#475569',
   };
 
   return (
@@ -122,7 +171,7 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
       >
         <i className="fas fa-bell" />
         {unreadCount > 0 && (
-          <span className="crm-global-bell-badge" style={unreadBadgeStyle}>
+          <span className="crm-global-bell-badge">
             {unreadCount}
           </span>
         )}
@@ -132,19 +181,27 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
         <div className="crm-global-bell-dropdown glass animate-slide-up" style={dropdownStyle}>
           <div className="dropdown-header">
             <h4>Actividad del CRM</h4>
-            {unreadCount > 0 && <span style={{ background: isRav ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)', borderColor: isRav ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)', color: isRav ? '#10b981' : '#f87171' }}>{unreadCount} nuevas</span>}
+            {unreadCount > 0 && (
+              <span style={{
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.15)',
+                color: '#ef4444'
+              }}>
+                {unreadCount} nuevas
+              </span>
+            )}
           </div>
 
           <div className="dropdown-list">
             {notifications.length === 0 ? (
               <div className="dropdown-empty">
-                <i className="far fa-bell-slash" style={{ color: bellColor }} />
+                <i className="far fa-bell-slash" style={{ color: bellColor, opacity: 0.6 }} />
                 <p>Sin alertas comerciales recientes</p>
               </div>
             ) : (
               notifications.slice(0, 5).map(notif => (
-                <div 
-                  key={notif.id} 
+                <div
+                  key={notif.id}
                   className={`dropdown-item ${notif.read ? 'read' : 'unread'}`}
                   style={!notif.read ? { borderLeft: `4px solid ${bellColor}` } : {}}
                   onClick={() => handleNotifClick(notif)}
@@ -162,9 +219,9 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
             )}
           </div>
 
-          <button 
-            type="button" 
-            className="dropdown-view-all" 
+          <button
+            type="button"
+            className="dropdown-view-all"
             style={viewAllStyle}
             onMouseEnter={() => setIsBtnHovered(true)}
             onMouseLeave={() => setIsBtnHovered(false)}
@@ -216,10 +273,18 @@ const DashboardShell = ({
     .filter(Boolean);
 
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false);
 
+  const closeMoreMenu = () => {
+    setIsClosingMoreMenu(true);
+    setTimeout(() => {
+      setShowMoreMenu(false);
+      setIsClosingMoreMenu(false);
+    }, 250); // Mismo tiempo que la animación de salida
+  };
   // Mobile quick access tabs setup
-  const preferredMobileKeys = ['leads', 'contacts', 'companies', 'quotes', 'pipeline', 'dashboard'];
-  
+  const preferredMobileKeys = ['leads', 'pipeline', 'contacts', 'companies', 'quotes', 'dashboard'];
+
   // Sort sidebarItems: preferred ones first, then others
   const sortedMobileItems = [...sidebarItems].sort((a, b) => {
     const idxA = preferredMobileKeys.indexOf(a.key);
@@ -239,7 +304,9 @@ const DashboardShell = ({
   const hasCompanies = enabledModules.includes('companies');
   const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
-  const showGlobalStatsGrid = 
+  const showGlobalStatsGrid =
+    activeTab !== 'leads' &&
+    activeTab !== 'pipeline' &&
     activeTab !== 'quotes' &&
     activeTab !== 'dashboard' &&
     activeTab !== 'contacts' &&
@@ -261,39 +328,31 @@ const DashboardShell = ({
         <button
           type="button"
           className="btn-close-sidebar hide-on-print"
-          onClick={() => setSidebarCollapsed(true)}
-          title="Colapsar menú lateral"
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          title={sidebarCollapsed ? "Expandir menú lateral" : "Colapsar menú lateral"}
         >
-          <i className="fas fa-chevron-left"></i>
+          <i className={`fas ${sidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`}></i>
         </button>
 
         <div className="crm-sidebar-brand crm-sidebar-brand-centered">
           {isRav ? (
-            <h2 className="crm-sidebar-brand-rav">
-              RAV <span>Climas</span>
-            </h2>
+            sidebarCollapsed ? (
+              <h2 className="crm-sidebar-brand-rav-mini" style={{ color: '#CC3333', fontWeight: 900, fontSize: '1.5rem', margin: 0 }}>R</h2>
+            ) : (
+              <h2 className="crm-sidebar-brand-rav">
+                RAV <span>Climas</span>
+              </h2>
+            )
           ) : (
-            <img 
-              src={role === 'super_admin' ? '/logo2.png' : '/logo.png'} 
-              alt="Garza Logo" 
-              className="crm-logo-img" 
+            <img
+              src={sidebarCollapsed ? '/ISOTIPO .png' : (role === 'super_admin' ? '/logo2.png' : '/logo.png')}
+              alt="Garza Logo"
+              className="crm-logo-img"
             />
           )}
         </div>
 
-        <div className="crm-sidebar-user">
-          <div className="user-avatar">
-            <i className={getRoleIcon(role)}></i>
-          </div>
-          <div className="user-details">
-            <h3>{userName || formatRoleLabel(role)}</h3>
-            <span className="user-role-badge">
-              {formatRoleLabel(role)}
-            </span>
-          </div>
-        </div>
-
-        <nav className="crm-sidebar-nav">
+        <nav className="crm-sidebar-nav" style={{ marginTop: '1.5rem' }}>
           {sidebarItems.map(item => {
             const hasPulseBadge = item.badge === 'LIVE' || item.badge === 'NEW';
             return (
@@ -301,17 +360,20 @@ const DashboardShell = ({
                 key={item.key}
                 className={`nav-item-btn ${activeTab === item.key ? 'active' : ''}`}
                 onClick={() => setActiveTab(item.key)}
+                data-tooltip={item.label}
               >
                 {hasPulseBadge ? (
                   <span className="nav-item-inner">
-                    <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} /> {item.label}
+                    <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} />
+                    <span className="nav-item-label">{item.label}</span>
                     <span className="nav-badge-pulse">
                       {item.badge}
                     </span>
                   </span>
                 ) : (
                   <>
-                    <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} /> {item.label}
+                    <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} />
+                    <span className="nav-item-label">{item.label}</span>
                   </>
                 )}
               </button>
@@ -320,29 +382,35 @@ const DashboardShell = ({
         </nav>
 
         <div className="crm-sidebar-footer">
-          <button className="btn-sidebar-refresh" onClick={handleRefreshAll} title="Sincronizar Datos">
-            <i className="fas fa-sync-alt"></i> Actualizar
-          </button>
-          <button className="btn-sidebar-logout" onClick={handleLogout}>
-            <i className="fas fa-sign-out-alt"></i> Cerrar Sesión
+          <div className="crm-sidebar-user" data-tooltip={`${userName || formatRoleLabel(role)} (${formatRoleLabel(role)})`}>
+            <div className="user-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {currentUserProfile?.avatar_url ? (
+                <img
+                  src={currentUserProfile.avatar_url.startsWith('http') ? currentUserProfile.avatar_url : `${API_BASE}${currentUserProfile.avatar_url}`}
+                  alt={userName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <i className={getRoleIcon(role)}></i>
+              )}
+            </div>
+            <div className="user-details">
+              <h3>{userName || formatRoleLabel(role)}</h3>
+              <span className="user-role-badge">
+                {formatRoleLabel(role)}
+              </span>
+            </div>
+          </div>
+
+          <button className="btn-sidebar-logout" onClick={handleLogout} data-tooltip="Cerrar Sesión">
+            <i className="fas fa-sign-out-alt"></i> <span className="logout-text">Cerrar Sesión</span>
           </button>
         </div>
       </aside>
 
-      {sidebarCollapsed && (
-        <button
-          type="button"
-          className="btn-sidebar-toggle-floating hide-on-print"
-          onClick={() => setSidebarCollapsed(false)}
-          title="Mostrar menú lateral"
-        >
-          <i className="fas fa-bars"></i>
-        </button>
-      )}
-
       {/* MAIN CONTAINER CONTENT AREA */}
       <main className={`crm-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        
+
         {/* Global stats grid (hidden on certain tabs) */}
         {showGlobalStatsGrid && (
           <section className="crm-stats-grid hide-on-print">
@@ -391,7 +459,7 @@ const DashboardShell = ({
               className={`mobile-nav-item ${isActive ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab(item.key);
-                setShowMoreMenu(false);
+                closeMoreMenu();
               }}
             >
               <i className={`${item.iconPrefix || 'fas'} ${item.icon}`} />
@@ -415,16 +483,16 @@ const DashboardShell = ({
 
       {/* MOBILE MORE MENU DRAWER (BOTTOM SHEET) */}
       {showMoreMenu && (
-        <div className="crm-mobile-more-overlay" onClick={() => setShowMoreMenu(false)}>
-          <div className="crm-mobile-more-sheet glass" onClick={e => e.stopPropagation()}>
+        <div className={`crm-mobile-more-overlay ${isClosingMoreMenu ? 'closing' : ''}`} onClick={closeMoreMenu}>
+          <div className={`crm-mobile-more-sheet glass ${isClosingMoreMenu ? 'closing' : ''}`} onClick={e => e.stopPropagation()}>
             <div className="sheet-header">
               <div className="sheet-handle" />
               <h3>Menú de Módulos</h3>
-              <button type="button" className="btn-close-sheet" onClick={() => setShowMoreMenu(false)}>
+              <button type="button" className="btn-close-sheet" onClick={closeMoreMenu}>
                 <i className="fas fa-times" />
               </button>
             </div>
-            
+
             <div className="sheet-content">
               {secondaryMobileTabs.length > 0 && (
                 <div className="sheet-grid">
@@ -437,7 +505,7 @@ const DashboardShell = ({
                         className={`sheet-grid-item ${isActive ? 'active' : ''}`}
                         onClick={() => {
                           setActiveTab(item.key);
-                          setShowMoreMenu(false);
+                          closeMoreMenu();
                         }}
                       >
                         <div className="icon-box">
@@ -451,10 +519,8 @@ const DashboardShell = ({
               )}
 
               <div className="sheet-actions">
-                <button type="button" className="btn-sheet-action btn-refresh" onClick={() => { handleRefreshAll(); setShowMoreMenu(false); }}>
-                  <i className="fas fa-sync-alt"></i> Actualizar Datos
-                </button>
-                <button type="button" className="btn-sheet-action btn-logout" onClick={() => { handleLogout(); setShowMoreMenu(false); }}>
+
+                <button type="button" className="btn-sheet-action btn-logout" onClick={() => { handleLogout(); closeMoreMenu(); }}>
                   <i className="fas fa-sign-out-alt"></i> Cerrar Sesión
                 </button>
               </div>

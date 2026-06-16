@@ -327,13 +327,24 @@ export function useCrmData(role, enabledModules = []) {
     showToast(`¡Cotización ${pastQuote.quote_num} cargada en el Cotizador con éxito!`, 'success');
   };
 
-  const handleRefreshAll = () => {
+  const handleRefreshAll = (currentTab = '') => {
     fetchProfile();
-    fetchLeads();
+    
+    // Si no se especifica tab o es 'leads', refrescar prospectos
+    if (!currentTab || currentTab === 'leads') {
+      fetchLeads();
+    }
+    // Si es 'customers' o 'contacts' o 'companies', refrescar directorio y clientes
+    if (!currentTab || currentTab === 'customers' || currentTab === 'contacts' || currentTab === 'companies') {
+      fetchCustomers();
+    }
+    // Si es 'pipeline' o 'quotes', refrescar oportunidades
+    if (!currentTab || currentTab === 'pipeline' || currentTab === 'quotes' || currentTab === 'quotes-manager') {
+      fetchOpportunitiesList();
+    }
+    
     fetchSellers();
-    fetchCustomers();
     fetchSaeSellers();
-    fetchOpportunitiesList();
   };
 
   const handleLogout = () => {

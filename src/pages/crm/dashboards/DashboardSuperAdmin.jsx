@@ -10,7 +10,7 @@ import SuperAdminContactos from '../panelssuperadmin/SuperAdminContactos';
 import Empresas from '../panels/Empresas';
 import CalendarioPanel from '../panels/CalendarioPanel';
 import LeadsBandeja from '../panels/LeadsBandeja';
-import OportunidadesPanel from '../panels/OportunidadesPanel';
+import ProspectosKanban from '../panels/ProspectosKanban';
 import CotizadorB2B from '../panels/CotizadorB2B';
 import CotizadorRAV from '../panels/CotizadorRAV';
 import GestorCotizaciones from '../panels/GestorCotizaciones';
@@ -244,7 +244,7 @@ const DashboardSuperAdmin = ({ enabledModules }) => {
       )}
 
       {activeTab === 'calendar' && <CalendarioPanel />}
-      {activeTab === 'pipeline' && <OportunidadesPanel />}
+      {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'files' && <Contenedor />}
       {activeTab === 'archive-contacts' && <ArchivoContactos />}

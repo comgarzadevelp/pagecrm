@@ -1,7 +1,7 @@
 // backend/routes/calendarRoutes.js
 import express from 'express';
 import { verifyToken } from '../middleware/authMiddleware.js';
-import { supabase } from '../supabaseClient.js';
+import { supabase, cleanCompanyId } from '../supabaseClient.js';
 import { getAuthUrl, handleAuthCallback } from '../services/googleCalendarService.js';
 
 const router = express.Router();
@@ -230,7 +230,7 @@ router.post('/events', verifyToken, async (req, res) => {
             {
               user_id: supervisorId,
               sender_id: userId,
-              company_id: companyId,
+              company_id: cleanCompanyId(companyId),
               title: 'Nueva Cita Agendada 💼',
               message: `El vendedor ${userName} ha agendado una nueva cita: "${title}" para el ${new Date(startTime).toLocaleString('es-MX')}.`,
               type: 'appointment_created',
@@ -354,7 +354,7 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
         const notifPayloads = Array.from(recipients).map(recId => ({
           user_id: recId,
           sender_id: userId,
-          company_id: companyId,
+          company_id: cleanCompanyId(companyId),
           title: 'Cita Cancelada ⚠️',
           message: `El vendedor ${userName} ha cancelado la cita: "${titleText}". Motivo: "${cancellationReason}".`,
           type: 'appointment_deleted',
@@ -516,7 +516,7 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
             {
               user_id: supervisorId,
               sender_id: userId,
-              company_id: companyId,
+              company_id: cleanCompanyId(companyId),
               title: 'Cita Reprogramada ⏳',
               message: `El vendedor ${userName} ha reprogramado la cita: "${title}" para el ${new Date(startTime).toLocaleString('es-MX')}.`,
               type: 'appointment_rescheduled',

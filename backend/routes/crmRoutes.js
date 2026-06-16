@@ -10,7 +10,10 @@ import {
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
-  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest
+  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest,
+  promoteLeadToContact, discardLead, createManualLead, checkDuplicatePhone,
+  getCustomStages, createCustomStage, deleteCustomStage, addLeadTimelineEntry,
+  getKanbanColumnOrder, saveKanbanColumnOrder
 } from '../controllers/crmController.js';
 
 import {
@@ -47,9 +50,19 @@ router.get('/stats', getPipelineStats);
 
 // ── LEADS (Asignados) ─────────────────────────────────────────
 router.get('/leads', getLeads);
+router.post('/leads', createManualLead);
+router.get('/leads/check-duplicate', checkDuplicatePhone);
+router.get('/leads/custom-stages', getCustomStages);
+router.post('/leads/custom-stages', createCustomStage);
+router.delete('/leads/custom-stages/:id', deleteCustomStage);
+router.get('/leads/kanban-column-order', getKanbanColumnOrder);
+router.put('/leads/kanban-column-order', saveKanbanColumnOrder);
+router.post('/leads/:id/timeline', addLeadTimelineEntry);
 router.get('/leads/:id', getLeadById);
 router.put('/leads/:id/stage', updateLeadStage);
 router.put('/leads/:id/assign', assignLead);
+router.post('/leads/:id/promote', promoteLeadToContact);
+router.post('/leads/:id/discard', discardLead);
 
 // ── CLIENTES (Customers Directory) ───────────────────────────
 router.get('/customers', getCustomers);

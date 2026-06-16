@@ -9,7 +9,7 @@ import MisContactos from '../panels/MisContactos';
 import Empresas from '../panels/Empresas';
 import CalendarioPanel from '../panels/CalendarioPanel';
 import LeadsBandeja from '../panels/LeadsBandeja';
-import OportunidadesPanel from '../panels/OportunidadesPanel';
+import ProspectosKanban from '../panels/ProspectosKanban';
 import GestorCotizaciones from '../panels/GestorCotizaciones';
 import NotificationsPanel from '../panels/NotificationsPanel';
 import MiPerfil from '../panels/MiPerfil';
@@ -150,7 +150,7 @@ const DashboardSupervisor = ({ enabledModules }) => {
       )}
 
       {activeTab === 'calendar' && <CalendarioPanel />}
-      {activeTab === 'pipeline' && <OportunidadesPanel />}
+      {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'notifications' && <NotificationsPanel />}
       {activeTab === 'profile' && <MiPerfil />}

@@ -8,7 +8,7 @@ import MisContactos from '../panels/MisContactos';
 import Empresas from '../panels/Empresas';
 import CalendarioPanel from '../panels/CalendarioPanel';
 import LeadsBandeja from '../panels/LeadsBandeja';
-import OportunidadesPanel from '../panels/OportunidadesPanel';
+import ProspectosKanban from '../panels/ProspectosKanban';
 import CotizadorB2B from '../panels/CotizadorB2B';
 import CotizadorRAV from '../panels/CotizadorRAV';
 import GestorCotizaciones from '../panels/GestorCotizaciones';
@@ -17,6 +17,7 @@ import ArchivoContactos from '../panels/ArchivoContactos';
 import MiPerfil from '../panels/MiPerfil';
 import DirectorioClientes from '../panels/DirectorioClientes';
 import FichaClienteModal from '../panels/FichaClienteModal';
+import NotificationsPanel from '../panels/NotificationsPanel';
 
 const DashboardSales = ({ enabledModules }) => {
   const role = 'sales';
@@ -221,11 +222,12 @@ const DashboardSales = ({ enabledModules }) => {
       )}
 
       {activeTab === 'calendar' && <CalendarioPanel />}
-      {activeTab === 'pipeline' && <OportunidadesPanel />}
+      {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'files' && <Contenedor />}
       {activeTab === 'profile' && <MiPerfil />}
       {activeTab === 'archive-contacts' && <ArchivoContactos />}
+      {activeTab === 'notifications' && <NotificationsPanel />}
 
       {selectedCustomer && (
         <FichaClienteModal

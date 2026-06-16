@@ -20,6 +20,13 @@
  *             Usado por useCrmData para lazy-loading inteligente
  */
 export const MODULE_REGISTRY = {
+  leads: {
+    key: 'leads',
+    label: 'Prospectos',
+    icon: 'fa-envelope-open-text',
+    category: 'sales',
+    needsData: ['leads', 'sellers'],
+  },
   dashboard: {
     key: 'dashboard',
     label: 'Dashboard',
@@ -43,7 +50,7 @@ export const MODULE_REGISTRY = {
   },
   calendar: {
     key: 'calendar',
-    label: 'Mi Calendario',
+    label: 'Calendario',
     icon: 'fa-calendar-alt',
     iconPrefix: 'far',
     category: 'productivity',
@@ -51,23 +58,17 @@ export const MODULE_REGISTRY = {
     badgeColor: '#16a34a',
     needsData: [],
   },
-  leads: {
-    key: 'leads',
-    label: 'Asignados (Leads)',
-    icon: 'fa-envelope-open-text',
-    category: 'sales',
-    needsData: ['leads', 'sellers'],
-  },
+
   pipeline: {
     key: 'pipeline',
-    label: 'Oportunidades',
+    label: 'Etapas',
     icon: 'fa-columns',
     category: 'sales',
     needsData: ['opportunities'],
   },
   quotes: {
     key: 'quotes',
-    label: 'Cotizador B2B',
+    label: 'Cotizador',
     icon: 'fa-calculator',
     category: 'sales',
     badge: 'NEW',
@@ -75,21 +76,21 @@ export const MODULE_REGISTRY = {
   },
   'quotes-manager': {
     key: 'quotes-manager',
-    label: 'Gestor de Cots.',
+    label: 'Cotizaciones',
     icon: 'fa-receipt',
     category: 'sales',
     needsData: [],
   },
   customers: {
     key: 'customers',
-    label: 'Directorio Clientes',
+    label: 'Clientes',
     icon: 'fa-id-badge',
     category: 'sales',
     needsData: ['customers'],
   },
   files: {
     key: 'files',
-    label: 'Contenedor',
+    label: 'Documentos',
     icon: 'fa-folder-open',
     category: 'shared',
     needsData: [],
@@ -153,10 +154,10 @@ export const MODULE_REGISTRY = {
   },
   agenda: {
     key: 'agenda',
-    label: 'Agenda Corporativa',
+    label: 'Agenda',
     icon: 'fa-calendar-check',
     category: 'superadmin',
-    badge: 'LIVE',
+    badge: 'en vivo',
     badgeColor: '#98ca3f',
     needsData: [],
   },
@@ -191,8 +192,7 @@ export const ROLE_DEFAULTS = {
     'pipeline', 'quotes-manager', 'notifications', 'profile', 'sellers',
   ],
   sales: [
-    'contacts', 'companies', 'calendar', 'leads',
-    'pipeline', 'quotes', 'quotes-manager', 'customers',
+    'leads', 'pipeline', 'contacts', 'companies', 'calendar', 'quotes', 'quotes-manager', 'customers',
     'files', 'archive-contacts', 'profile',
   ],
   sistemas: [

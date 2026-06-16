@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import QuickNewClient from './QuickNewClient';
-import QuickNewCompany from './QuickNewCompany';
+import QuickNewProspect from './QuickNewProspect';
 import QuickNewNote from './QuickNewNote';
 import './QuickCreateFab.css';
 
@@ -17,17 +16,10 @@ export default function QuickCreateFab({
   customers = []
 }) {
   const [showSheet, setShowSheet] = useState(false);
-  const [activeModal, setActiveModal] = useState(null); // null | 'client' | 'company' | 'note'
+  const [activeModal, setActiveModal] = useState(null); // null | 'prospect' | 'note'
 
   // Controlar visibilidad de opciones por enabledModules del rol activo
   const hasQuotes = enabledModules.includes('quotes');
-  const hasCustomers = enabledModules.includes('customers');
-  const hasCompanies = enabledModules.includes('companies');
-
-  // Si no tiene acceso a ningún módulo básico, no renderizar nada
-  if (!hasQuotes && !hasCustomers && !hasCompanies) {
-    return null;
-  }
 
   // Filtrar roles no permitidos (super_admin y sistemas no ven el FAB)
   if (role === 'super_admin' || role === 'sistemas') {
@@ -76,39 +68,20 @@ export default function QuickCreateFab({
                 </button>
               )}
 
-              {/* Opción Contacto */}
-              {hasCustomers && (
-                <button
-                  type="button"
-                  className="quick-create-option-btn client"
-                  onClick={() => {
-                    setActiveModal('client');
-                    setShowSheet(false);
-                  }}
-                >
-                  <div className="icon-box-fab">
-                    <i className="fas fa-user-plus"></i>
-                  </div>
-                  <span>Nuevo Contacto</span>
-                </button>
-              )}
-
-              {/* Opción Empresa */}
-              {hasCompanies && (
-                <button
-                  type="button"
-                  className="quick-create-option-btn company"
-                  onClick={() => {
-                    setActiveModal('company');
-                    setShowSheet(false);
-                  }}
-                >
-                  <div className="icon-box-fab">
-                    <i className="fas fa-building"></i>
-                  </div>
-                  <span>Nueva Empresa</span>
-                </button>
-              )}
+              {/* Opción Prospecto */}
+              <button
+                type="button"
+                className="quick-create-option-btn prospect"
+                onClick={() => {
+                  setActiveModal('prospect');
+                  setShowSheet(false);
+                }}
+              >
+                <div className="icon-box-fab">
+                  <i className="fas fa-user-tie"></i>
+                </div>
+                <span>Nuevo Prospecto</span>
+              </button>
 
               {/* Opción Nota Rápida (Abierto para todos los usuarios autenticados) */}
               <button
@@ -130,17 +103,8 @@ export default function QuickCreateFab({
       )}
 
       {/* Modales Fullscreen Condicionales */}
-      {activeModal === 'client' && (
-        <QuickNewClient
-          API_BASE={API_BASE}
-          onClose={() => setActiveModal(null)}
-          fetchCustomers={fetchCustomers}
-          setActiveTab={setActiveTab}
-        />
-      )}
-
-      {activeModal === 'company' && (
-        <QuickNewCompany
+      {activeModal === 'prospect' && (
+        <QuickNewProspect
           API_BASE={API_BASE}
           onClose={() => setActiveModal(null)}
         />
@@ -158,3 +122,4 @@ export default function QuickCreateFab({
     </>
   );
 }
+

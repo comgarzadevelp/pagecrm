@@ -11,7 +11,13 @@ function StatusDropdown({ currentStatus, onChange, customStages = [] }) {
   const options = [
     { value: 'nuevo', label: 'Nuevo', color: '#0086c0' },
     { value: 'contactado', label: 'Contactado', color: '#ffcb00', textColor: '#000' },
-    { value: 'calificado', label: 'Calificado', color: '#00c875' },
+    { value: 'calificado', label: 'Calificado', color: '#06b6d4' },
+    { value: 'cotizando', label: 'Cotizando', color: '#7c3aed' },
+    { value: 'en_negociacion', label: 'En Negociación', color: '#f97316' },
+    { value: 'reunion_agendada', label: 'Reunión Agendada', color: '#0891b2' },
+    { value: 'cierre_ganado', label: 'Cierre Ganado', color: '#16a34a' },
+    { value: 'cierre_perdido', label: 'Cierre Perdido', color: '#dc2626' },
+    { value: 'en_pausa', label: 'En Pausa', color: '#707070' },
     ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name, color: s.color })),
     { value: 'descartado', label: 'Descartado', color: '#e2445c' }
   ];
@@ -764,10 +770,18 @@ export default function LeadsBandeja({
         </div>
 
         <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('calificado')}>
-          <div className="stat-icon-box qualified" style={{ color: '#00c875', background: 'rgba(0, 200, 117, 0.08)' }}><i className="fas fa-user-check"></i></div>
+          <div className="stat-icon-box qualified" style={{ color: '#06b6d4', background: 'rgba(6, 182, 212, 0.08)' }}><i className="fas fa-user-check"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'calificado').length}</h3>
             <p>Calificados</p>
+          </div>
+        </div>
+
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cierre_ganado')}>
+          <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
+            <p>Ganados</p>
           </div>
         </div>
 
@@ -971,6 +985,12 @@ export default function LeadsBandeja({
                   { value: 'nuevo', label: 'Nuevos' },
                   { value: 'contactado', label: 'Contactados' },
                   { value: 'calificado', label: 'Calificados' },
+                  { value: 'cotizando', label: 'Cotizando' },
+                  { value: 'en_negociacion', label: 'En Negociación' },
+                  { value: 'reunion_agendada', label: 'Reunión Agendada' },
+                  { value: 'cierre_ganado', label: 'Cierres Ganados' },
+                  { value: 'cierre_perdido', label: 'Cierres Perdidos' },
+                  { value: 'en_pausa', label: 'En Pausa' },
                   { value: 'descartado', label: 'Descartados' },
                   ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name }))
                 ]}

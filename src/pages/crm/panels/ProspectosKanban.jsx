@@ -379,6 +379,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
       nuevo: { key: 'nuevo', label: 'Nuevo', color: '#0086c0', isDeletable: false },
       contactado: { key: 'contactado', label: 'Contactado', color: '#ffcb00', isDeletable: false },
       calificado: { key: 'calificado', label: 'Calificado', color: '#00c875', isDeletable: false },
+      en_pausa: { key: 'en_pausa', label: 'En Pausa', color: '#f59e0b', icon: 'fa-pause-circle', isDeletable: false },
       descartado: { key: 'descartado', label: 'Descartado', color: '#e2445c', isDeletable: false }
     };
 
@@ -397,7 +398,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
     let order = [...columnOrder];
 
     // Ensure base stages are in order
-    ['nuevo', 'contactado', 'calificado', 'descartado'].forEach(k => {
+    ['nuevo', 'contactado', 'calificado', 'en_pausa', 'descartado'].forEach(k => {
       if (!order.includes(k)) {
         if (k === 'descartado') {
           order.push(k);
@@ -409,6 +410,10 @@ export default function ProspectosKanban({ role, API_BASE }) {
           } else if (k === 'calificado') {
             const idx = order.indexOf('contactado');
             order.splice(idx === -1 ? 1 : idx + 1, 0, k);
+          } else if (k === 'en_pausa') {
+            const descIdx = order.indexOf('descartado');
+            if (descIdx !== -1) order.splice(descIdx, 0, k);
+            else order.push(k);
           }
         }
       }

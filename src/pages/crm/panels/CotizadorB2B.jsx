@@ -31,7 +31,15 @@ export default function CotizadorB2B({
   selectedOpportunityId,
   setSelectedOpportunityId,
   opportunitySearch,
-  setOpportunitySearch
+  setOpportunitySearch,
+
+  // New Phase 1 fields for Bidirectional Kanban sync
+  allLeads = [],
+  selectedLeadId,
+  setSelectedLeadId,
+  leadSearch,
+  setLeadSearch,
+  onQuoteSaved
 }) {
   const { showToast, showConfirm } = useUX();
   const [selectedQuoteCustomer, setSelectedQuoteCustomer] = useState('');
@@ -163,6 +171,11 @@ export default function CotizadorB2B({
       link.click();
       document.body.removeChild(link);
       setTimeout(() => URL.revokeObjectURL(url), 100);
+
+      // Trigger de Kanban automático
+      if (selectedLeadId && typeof onQuoteSaved === 'function') {
+        onQuoteSaved(selectedLeadId);
+      }
     } catch (err) {
       console.error('PDF generation error:', err);
       showToast('Error al generar el PDF. Intenta de nuevo.', 'error');
@@ -406,6 +419,11 @@ export default function CotizadorB2B({
       if (res.ok) {
         showToast(`¡Cotización ${quoteNum} guardada exitosamente en el historial de la oportunidad!`, 'success');
         fetchOpportunitiesList();
+
+        // Trigger de Kanban automático
+        if (selectedLeadId && typeof onQuoteSaved === 'function') {
+          onQuoteSaved(selectedLeadId);
+        }
       } else {
         showToast('Error al guardar cotización: ' + (data.message || 'Error desconocido'), 'error');
       }
@@ -424,6 +442,8 @@ export default function CotizadorB2B({
       setSelectedQuoteCustomer('');
       setSelectedOpportunityId('');
       setOpportunitySearch('');
+      if (typeof setSelectedLeadId === 'function') setSelectedLeadId('');
+      if (typeof setLeadSearch === 'function') setLeadSearch('');
       setSelectedAgreement('public');
       setQuoteNotes('Condiciones comerciales:\n• Precios más 16% de IVA.\n• Pago: 50% de anticipo y 50% contra entrega de suministro.\n• Tiempo de entrega: 3-5 días hábiles sujeto a disponibilidad.\n• Flete incluido en área metropolitana de Monterrey.');
       setQuoteNum('CG-' + Math.floor(100000 + Math.random() * 900000));
@@ -670,7 +690,109 @@ export default function CotizadorB2B({
             </h3>
 
             <div className="crm-input-group" style={{ marginBottom: '1rem' }}>
-              <label className="crm-input-label">Vincular Oportunidad Activa</label>
+              <label className="crm-input-label">Vincular Prospecto de Kanban (CRM)</label>
+              {selectedLeadId ? (
+                (() => {
+                  const lead = allLeads.find(x => String(x.id) === String(selectedLeadId));
+                  return lead ? (
+                    <div className="selected-client-badge-card">
+                      <div className="selected-client-details">
+                        <strong style={{ color: 'var(--color-brand-primary)', fontFamily: 'var(--font-primary)', fontSize: '0.95rem' }}>{lead.name}</strong>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', display: 'block' }}>
+                          Etapa actual: {lead.status?.toUpperCase()}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn-clear-client"
+                        onClick={() => {
+                          setSelectedLeadId('');
+                          setLeadSearch('');
+                        }}
+                        title="Desvincular Prospecto"
+                      >
+                        <i className="fas fa-times-circle"></i>
+                      </button>
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>El prospecto vinculado ya no existe.</p>
+                  );
+                })()
+              ) : (
+                <div style={{ display: 'flex', gap: '0.65rem' }}>
+                  <div className="client-search-autocomplete-container" style={{ flex: 1 }}>
+                    {allLeads.length === 0 ? (
+                      <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '8px 0' }}>Sin prospectos disponibles en este tablero.</p>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          className="crm-login-input"
+                          placeholder="Buscar prospecto por nombre..."
+                          value={leadSearch}
+                          onChange={(e) => {
+                            setLeadSearch(e.target.value);
+                            // Usaremos showOpportunityDropdown para la simplicidad visual pero filtrando leads si queremos, o creamos un nuevo state.
+                            // Mejor usamos un componente inline:
+                          }}
+                        />
+                        {leadSearch && leadSearch.trim() && (
+                          <div className="autocomplete-dropdown" style={{ display: 'block' }}>
+                            {(() => {
+                              const filtered = allLeads.filter(l => l.name?.toLowerCase().includes(leadSearch.toLowerCase()));
+                              return filtered.length === 0 ? (
+                                <div className="autocomplete-option" style={{ color: 'var(--color-text-muted)', cursor: 'default' }}>
+                                  No se encontraron prospectos
+                                </div>
+                              ) : (
+                                filtered.map(l => (
+                                  <div
+                                    key={l.id}
+                                    className="autocomplete-option"
+                                    onMouseDown={() => {
+                                      setSelectedLeadId(l.id);
+                                      setLeadSearch('');
+                                    }}
+                                  >
+                                    <strong>{l.name}</strong>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block' }}>
+                                      Etapa: {l.status}
+                                    </span>
+                                  </div>
+                                ))
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+
+                  <select
+                    className="crm-login-input"
+                    style={{ width: '45%', cursor: 'pointer', height: '46px', borderRadius: '10px' }}
+                    value={selectedLeadId || ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setSelectedLeadId(e.target.value);
+                        setLeadSearch('');
+                      }
+                    }}
+                    disabled={allLeads.length === 0}
+                  >
+                    <option value="">-- O Seleccionar de Lista --</option>
+                    {allLeads.map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.name} ({l.status})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="crm-input-group" style={{ marginBottom: '1rem' }}>
+              <label className="crm-input-label">Vincular Oportunidad Activa (Opcional)</label>
               {selectedOpportunityId ? (
                 (() => {
                   const opp = allOpportunities.find(x => x.id === selectedOpportunityId);

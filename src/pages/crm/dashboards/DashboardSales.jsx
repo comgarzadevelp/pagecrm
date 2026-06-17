@@ -67,6 +67,8 @@ const DashboardSales = ({ enabledModules }) => {
   const setActiveTab = (newTab) => navigate(`/crm/dashboard/${newTab}`);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState('');
+  const [leadSearch, setLeadSearch] = useState('');
 
   return (
     <DashboardShell
@@ -159,6 +161,21 @@ const DashboardSales = ({ enabledModules }) => {
             setSelectedOpportunityId={setSelectedOpportunityId}
             opportunitySearch={opportunitySearch}
             setOpportunitySearch={setOpportunitySearch}
+            allLeads={leads || []}
+            selectedLeadId={selectedLeadId}
+            setSelectedLeadId={setSelectedLeadId}
+            leadSearch={leadSearch}
+            setLeadSearch={setLeadSearch}
+            onQuoteSaved={async (leadId) => {
+              const token = localStorage.getItem('token');
+              try {
+                await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+                  method: 'PUT',
+                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ stage: 'cotizado' })
+                });
+              } catch(e) { console.error(e); }
+            }}
           />
         )
       )}
@@ -221,7 +238,7 @@ const DashboardSales = ({ enabledModules }) => {
         />
       )}
 
-      {activeTab === 'calendar' && <CalendarioPanel />}
+      {activeTab === 'calendar' && <CalendarioPanel leads={leads || []} />}
       {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'files' && <Contenedor />}

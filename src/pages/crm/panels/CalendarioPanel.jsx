@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import './CalendarioPanel.css';
 import { useUX } from '../../../components/common/UXProvider';
+import EventCreatorModal from './EventCreatorModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-export default function CalendarioPanel() {
+export default function CalendarioPanel({ leads = [] }) {
   const { showToast } = useUX();
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,27 +14,14 @@ export default function CalendarioPanel() {
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEventId, setEditingEventId] = useState(null); // google_event_id for reschedule
+  const [editingEventId, setEditingEventId] = useState(null);
+  const [prefillData, setPrefillData] = useState(null);
 
   // Custom Cancellation Modal State
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
   
-  // Create / Edit Event Form states
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [attendees, setAttendees] = useState('');
-  const [category, setCategory] = useState('negocios'); // 'negocios', 'llamada', 'demo', 'seguimiento', 'otro'
-  const [location, setLocation] = useState('');
-  const [clientName, setClientName] = useState('');
-  const [creating, setCreating] = useState(false);
-  const [formSuccess, setFormSuccess] = useState('');
-
   // UI state
   const [filterText, setFilterText] = useState('');
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all');
@@ -111,15 +99,11 @@ export default function CalendarioPanel() {
   // Prepopulate form for rescheduling
   const triggerReschedule = (event) => {
     setEditingEventId(event.id);
-    setTitle(event.summary || '');
     
     // Parse description and category
     const desc = event.description || '';
     const cleanDesc = desc.replace(/\[CAT:[a-z]+\]\s*/g, '');
     const catMatch = desc.match(/\[CAT:([a-z]+)\]/);
-    
-    setDescription(cleanDesc);
-    setCategory(catMatch ? catMatch[1] : getEventCategory(desc));
 
     // Convert start and end times to localized YYYY-MM-DD and HH:MM
     const startObj = new Date(event.start?.dateTime || event.start?.date);
@@ -140,94 +124,22 @@ export default function CalendarioPanel() {
       return `${hour}:${min}`;
     };
 
-    setStartDate(formatDateForInput(startObj));
-    setStartTime(formatTimeForInput(startObj));
-    setEndDate(formatDateForInput(endObj));
-    setEndTime(formatTimeForInput(endObj));
-
-    // Attendees parsing
-    if (event.attendees && event.attendees.length > 0) {
-      setAttendees(event.attendees.map(a => a.email).join(', '));
-    } else {
-      setAttendees('');
-    }
-
-    setLocation(event.location || '');
-    setClientName(event.client_name || '');
+    setPrefillData({
+      title: event.summary || '',
+      description: cleanDesc,
+      category: catMatch ? catMatch[1] : getEventCategory(desc),
+      startDate: formatDateForInput(startObj),
+      startTime: formatTimeForInput(startObj),
+      endDate: formatDateForInput(endObj),
+      endTime: formatTimeForInput(endObj),
+      attendees: (event.attendees && event.attendees.length > 0) ? event.attendees.map(a => a.email).join(', ') : '',
+      location: event.location || '',
+      clientName: event.client_name || ''
+    });
 
     setIsModalOpen(true);
   };
 
-  const handleCreateOrUpdateEvent = async (e) => {
-    e.preventDefault();
-    setCreating(true);
-    setError('');
-    setFormSuccess('');
-
-    try {
-      const startTimeISO = new Date(`${startDate}T${startTime}`).toISOString();
-      const endTimeISO = new Date(`${endDate}T${endTime}`).toISOString();
-      const descriptionWithMeta = `[CAT:${category}] ${description}`;
-
-      let url = `${API_BASE}/api/calendar/events`;
-      let method = 'POST';
-
-      if (editingEventId) {
-        url = `${API_BASE}/api/calendar/events/${editingEventId}`;
-        method = 'PUT';
-      }
-
-      const res = await fetch(url, {
-        method: method,
-        headers: {
-          'Authorization': `Bearer ${token()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          title,
-          description: descriptionWithMeta,
-          startTime: startTimeISO,
-          endTime: endTimeISO,
-          attendees,
-          category,
-          location,
-          client_name: clientName
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-
-      setFormSuccess(editingEventId ? '¡Cita reprogramada con éxito!' : '¡Evento programado con éxito!');
-      
-      // Reset form states
-      setTitle('');
-      setDescription('');
-      setStartDate('');
-      setStartTime('');
-      setEndDate('');
-      setEndTime('');
-      setAttendees('');
-      setCategory('negocios');
-      setLocation('');
-      setClientName('');
-      setEditingEventId(null);
-
-      // Refresh listings
-      fetchEvents();
-      if (isSupervisorOrAdmin) fetchTeamAppointments();
-
-      setTimeout(() => {
-        setFormSuccess('');
-        setIsModalOpen(false);
-      }, 1500);
-    } catch (err) {
-      console.error('Error saving event:', err);
-      setError(err.message || 'No se pudo guardar la cita en Google Calendar.');
-    } finally {
-      setCreating(false);
-    }
-  };
 
   // Triggers the custom cancellation modal instead of prompt
   const handleDeleteEvent = (event) => {
@@ -642,116 +554,23 @@ export default function CalendarioPanel() {
         </div>
       )}
 
-      {/* POP-UP SCHEDULER MODAL (Handles Create & Update) */}
-      {isModalOpen && (
-        <div className="calendar-modal-backdrop">
-          <div className="calendar-modal-card animate-slide-up">
-            <button className="calendar-modal-close" onClick={() => { setEditingEventId(null); setIsModalOpen(false); }}>
-              <i className="fas fa-times" />
-            </button>
-            
-            <div className="calendar-modal-header">
-              <h3>{editingEventId ? 'Reprogramar Cita' : 'Programar Cita'}</h3>
-              <p>{editingEventId ? 'Modifica la fecha y hora de esta cita. El resto de los datos están bloqueados por Dirección.' : 'Se creará el evento en tu calendario y se enviará la invitación por correo.'}</p>
-            </div>
-
-            {formSuccess && <div className="calendar-success-msg"><i className="fas fa-check-circle" /> {formSuccess}</div>}
-
-            <form onSubmit={handleCreateOrUpdateEvent} className="calendar-modal-form">
-              <div className="form-group-expert">
-                <label>Título del Evento *</label>
-                <div className="input-with-icon">
-                  <i className="far fa-edit input-icon" />
-                  <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Demostración ERP o Seguimiento Comercial" disabled={!!editingEventId} />
-                </div>
-              </div>
-
-              <div className="form-group-expert">
-                <label>Cliente / Prospecto *</label>
-                <div className="input-with-icon">
-                  <i className="fas fa-building input-icon" />
-                  <input required value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Ej: Aceros Garza S.A. o Juan Pérez" disabled={!!editingEventId} />
-                </div>
-              </div>
-
-              <div className="form-group-expert">
-                <label>Lugar / Ubicación *</label>
-                <div className="input-with-icon">
-                  <i className="fas fa-map-marker-alt input-icon" />
-                  <input required value={location} onChange={e => setLocation(e.target.value)} placeholder="Ej: Oficinas Cliente, Microsoft Teams, Llamada..." />
-                </div>
-              </div>
-
-              <div className="form-row-expert">
-                <div className="form-group-expert">
-                  <label>Tipo de Evento</label>
-                  <div className="input-with-icon">
-                    <i className="fas fa-tags input-icon" />
-                    <select value={category} onChange={e => setCategory(e.target.value)} className="modal-select" disabled={!!editingEventId}>
-                      <option value="negocios">💼 Reunión de Negocios</option>
-                      <option value="llamada">📞 Llamada Comercial</option>
-                      <option value="demo">🖥️ Demostración</option>
-                      <option value="seguimiento">⏳ Seguimiento</option>
-                      <option value="otro">🌟 Otro / Personal</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-row-expert">
-                <div className="form-group-expert">
-                  <label>Fecha de Inicio *</label>
-                  <div className="input-with-icon">
-                    <i className="far fa-calendar input-icon" />
-                    <input type="date" required value={startDate} onChange={e => setStartDate(e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group-expert">
-                  <label>Hora de Inicio *</label>
-                  <div className="input-with-icon">
-                    <i className="far fa-clock input-icon" />
-                    <input type="time" required value={startTime} onChange={e => setStartTime(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-row-expert">
-                <div className="form-group-expert">
-                  <label>Fecha de Fin *</label>
-                  <div className="input-with-icon">
-                    <i className="far fa-calendar input-icon" />
-                    <input type="date" required value={endDate} onChange={e => setEndDate(e.target.value)} />
-                  </div>
-                </div>
-                <div className="form-group-expert">
-                  <label>Hora de Fin *</label>
-                  <div className="input-with-icon">
-                    <i className="far fa-clock input-icon" />
-                    <input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-group-expert">
-                <label>Invitados (Correos separados por comas)</label>
-                <div className="input-with-icon">
-                  <i className="far fa-envelope input-icon" />
-                  <input value={attendees} onChange={e => setAttendees(e.target.value)} placeholder="cliente@correo.com, gerente@garza.com" disabled={!!editingEventId} />
-                </div>
-              </div>
-
-              <div className="form-group-expert">
-                <label>Descripción / Notas</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Agrega ligas de videollamada, notas o temas clave a tratar..." disabled={!!editingEventId} />
-              </div>
-
-              <button type="submit" className="btn-calendar-primary btn-modal-submit" disabled={creating}>
-                {creating ? <><i className="fas fa-spinner fa-spin" /> Guardando...</> : <><i className="far fa-calendar-check" /> {editingEventId ? 'Confirmar Reprogramación' : 'Agendar en Google Calendar'}</>}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* POP-UP SCHEDULER MODAL (Handles Create & Update) via Extracted Component */}
+      <EventCreatorModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setEditingEventId(null);
+          setIsModalOpen(false);
+          setPrefillData(null);
+        }}
+        onSave={() => {
+          fetchEvents();
+          if (isSupervisorOrAdmin) fetchTeamAppointments();
+        }}
+        editingEventId={editingEventId}
+        prefillData={prefillData}
+        leads={leads}
+        API_BASE={API_BASE}
+      />
 
       {/* ⚠️ HIGHLY PREMIUM CUSTOM CANCELLATION MODAL */}
       {isCancelModalOpen && (

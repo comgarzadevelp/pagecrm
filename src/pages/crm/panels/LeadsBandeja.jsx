@@ -777,11 +777,51 @@ export default function LeadsBandeja({
           </div>
         </div>
 
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cotizando')}>
+          <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
+            <p>Cotizando</p>
+          </div>
+        </div>
+
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('en_negociacion')}>
+          <div className="stat-icon-box" style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.08)' }}><i className="fas fa-handshake"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'en_negociacion').length}</h3>
+            <p>En Negociación</p>
+          </div>
+        </div>
+
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('reunion_agendada')}>
+          <div className="stat-icon-box" style={{ color: '#0891b2', background: 'rgba(8, 145, 178, 0.08)' }}><i className="fas fa-calendar-alt"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'reunion_agendada').length}</h3>
+            <p>Reunión Agendada</p>
+          </div>
+        </div>
+
         <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cierre_ganado')}>
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
             <p>Ganados</p>
+          </div>
+        </div>
+
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cierre_perdido')}>
+          <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
+            <p>Perdidos</p>
+          </div>
+        </div>
+
+        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('en_pausa')}>
+          <div className="stat-icon-box" style={{ color: '#707070', background: 'rgba(112, 112, 112, 0.08)' }}><i className="fas fa-pause-circle"></i></div>
+          <div className="stat-val-box">
+            <h3>{leads.filter(l => l.status === 'en_pausa').length}</h3>
+            <p>En Pausa</p>
           </div>
         </div>
 

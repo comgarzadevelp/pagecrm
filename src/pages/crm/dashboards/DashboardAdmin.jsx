@@ -182,7 +182,7 @@ const DashboardAdmin = ({ enabledModules }) => {
                 await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
                   method: 'PUT',
                   headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ stage: 'cotizado' })
+                  body: JSON.stringify({ stage: 'cotizando' })
                 });
               } catch(e) { console.error(e); }
             }}

@@ -387,11 +387,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
   // ── Columns Builder ──
   const columns = useMemo(() => {
     const baseStagesMap = {
-      nuevo: { key: 'nuevo', label: 'Nuevo', color: '#0086c0', isDeletable: false },
-      contactado: { key: 'contactado', label: 'Contactado', color: '#ffcb00', isDeletable: false },
-      calificado: { key: 'calificado', label: 'Calificado', color: '#23533fff', isDeletable: false },
-      en_pausa: { key: 'en_pausa', label: 'En Pausa', color: '#707070ff', icon: 'fa-pause-circle', isDeletable: false },
-      descartado: { key: 'descartado', label: 'Descartado', color: '#e2445c', isDeletable: false }
+      nuevo:            { key: 'nuevo',            label: 'Nuevo',             color: '#0086c0', isDeletable: false },
+      contactado:       { key: 'contactado',        label: 'Contactado',        color: '#ffcb00', isDeletable: false },
+      calificado:       { key: 'calificado',        label: 'Calificado',        color: '#06b6d4', isDeletable: false },
+      cotizando:        { key: 'cotizando',         label: 'Cotizando',         color: '#7c3aed', isDeletable: false },
+      en_negociacion:   { key: 'en_negociacion',    label: 'En Negociación',    color: '#f97316', isDeletable: false },
+      reunion_agendada: { key: 'reunion_agendada',  label: 'Reunión Agendada',  color: '#0891b2', isDeletable: false },
+      cierre_ganado:    { key: 'cierre_ganado',     label: 'Cierre Ganado',     color: '#16a34a', isDeletable: false },
+      cierre_perdido:   { key: 'cierre_perdido',    label: 'Cierre Perdido',    color: '#dc2626', isDeletable: false },
+      en_pausa:         { key: 'en_pausa',          label: 'En Pausa',          color: '#707070', icon: 'fa-pause-circle', isDeletable: false },
+      descartado:       { key: 'descartado',        label: 'Descartado',        color: '#e2445c', isDeletable: false }
     };
 
     const allColMap = { ...baseStagesMap };
@@ -409,19 +414,19 @@ export default function ProspectosKanban({ role, API_BASE }) {
     let order = [...columnOrder];
 
     // Ensure base stages are in order
-    ['nuevo', 'contactado', 'calificado', 'en_pausa', 'descartado'].forEach(k => {
+    const baseKeysOrder = ['nuevo', 'contactado', 'calificado', 'cotizando', 'en_negociacion', 'reunion_agendada', 'cierre_ganado', 'cierre_perdido', 'en_pausa', 'descartado'];
+    baseKeysOrder.forEach((k, index) => {
       if (!order.includes(k)) {
         if (k === 'descartado') {
           order.push(k);
+        } else if (k === 'nuevo') {
+          order.unshift(k);
         } else {
-          if (k === 'nuevo') order.unshift(k);
-          else if (k === 'contactado') {
-            const idx = order.indexOf('nuevo');
-            order.splice(idx === -1 ? 0 : idx + 1, 0, k);
-          } else if (k === 'calificado') {
-            const idx = order.indexOf('contactado');
-            order.splice(idx === -1 ? 1 : idx + 1, 0, k);
-          } else if (k === 'en_pausa') {
+          const prevKey = baseKeysOrder[index - 1];
+          const idx = order.indexOf(prevKey);
+          if (idx !== -1) {
+            order.splice(idx + 1, 0, k);
+          } else {
             const descIdx = order.indexOf('descartado');
             if (descIdx !== -1) order.splice(descIdx, 0, k);
             else order.push(k);
@@ -753,56 +758,67 @@ export default function ProspectosKanban({ role, API_BASE }) {
     const leadToMove = leads.find(l => String(l.id) === String(leadId));
     if (!leadToMove || (leadToMove.status || '').toLowerCase() === targetColKey.toLowerCase()) return;
 
-    if (targetColKey === 'descartado') {
-      setLeadToDiscard(leadToMove);
-      setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-      setDiscardModalOpen(true);
-    } else if (targetColKey === 'calificado') {
-      setLeadToPromote(leadToMove);
-      setPromoteForm({
-        contactName: leadToMove.name || '',
-        position: 'Contacto Comercial',
-        email: leadToMove.email || '',
-        phone: leadToMove.phone || '',
-        phone_alt: '',
-        whatsapp: leadToMove.phone || '',
-        notes: leadToMove.notes || '',
-        companyMode: 'none',
-        linkExistingCompanyId: '',
-        newCompanyName: leadToMove.company || '',
-        newCompanyRfc: '',
-        newCompanyAddress: '',
-        newCompanyCity: '',
-        newCompanyState: '',
-        newCompanyNotes: ''
-      });
-      fetchCompanies();
-      setPromoteModalOpen(true);
-    } else if (targetColKey === 'reunion') {
-      setPendingReunionLead(leadToMove);
-      return;
-    } else if (targetColKey === 'cotizado') {
-      let hasInternalQuote = false;
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-      try {
-        const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          hasInternalQuote = (data.quotes || []).length > 0;
+    switch (targetColKey) {
+      case 'descartado':
+        setLeadToDiscard(leadToMove);
+        setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+        setDiscardModalOpen(true);
+        break;
+
+      case 'cierre_ganado':
+        setLeadToPromote(leadToMove);
+        setPromoteForm({
+          contactName: leadToMove.name || '',
+          position: 'Contacto Comercial',
+          email: leadToMove.email || '',
+          phone: leadToMove.phone || '',
+          phone_alt: '',
+          whatsapp: leadToMove.phone || '',
+          notes: leadToMove.notes || '',
+          companyMode: 'none',
+          linkExistingCompanyId: '',
+          newCompanyName: leadToMove.company || '',
+          newCompanyRfc: '',
+          newCompanyAddress: '',
+          newCompanyCity: '',
+          newCompanyState: '',
+          newCompanyNotes: ''
+        });
+        fetchCompanies();
+        setPromoteModalOpen(true);
+        break;
+
+      case 'reunion_agendada':
+        setPendingReunionLead(leadToMove);
+        return; // El return es intencional: no ejecutar el default
+
+      case 'cotizando': {
+        let hasInternalQuote = false;
+        const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+        try {
+          const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
+          if (res.ok) {
+            const data = await res.json();
+            hasInternalQuote = (data.quotes || []).length > 0;
+          }
+        } catch (e) {
+          console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
+          hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
         }
-      } catch (e) {
-        console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
-        hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
+
+        if (hasInternalQuote) {
+          await executeStageUpdate(leadId, targetColKey);
+        } else {
+          setEvidenceLeadId(leadId);
+          setShowEvidenceModal(true);
+        }
+        break;
       }
 
-      if (hasInternalQuote) {
+      default:
+        // Todas las demás etapas: movimiento libre
         await executeStageUpdate(leadId, targetColKey);
-      } else {
-        setEvidenceLeadId(leadId);
-        setShowEvidenceModal(true);
-      }
-    } else {
-      await executeStageUpdate(leadId, targetColKey);
+        break;
     }
   };
 
@@ -1084,6 +1100,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
       const data = await handleFetchResponse(res);
       if (data && data.success) {
         showToast('¡Lead promovido a Contacto exitosamente!', 'success');
+        await executeStageUpdate(leadToPromote.id, 'cierre_ganado');
         setPromoteModalOpen(false);
         setLeadToPromote(null);
         fetchAllData();
@@ -1938,7 +1955,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
         <div className="modal-overlay-glass" style={{ zIndex: 11000 }}>
           <div className="modal-content-glass" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
-              <h2>Promover Prospecto a Contacto</h2>
+              <h2>Registrar Cierre Ganado</h2>
               <button className="modal-close-btn" onClick={() => setPromoteModalOpen(false)}>&times;</button>
             </div>
 

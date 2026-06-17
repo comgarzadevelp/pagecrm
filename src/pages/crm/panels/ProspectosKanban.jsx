@@ -4,6 +4,8 @@ import useDebounce from '../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
 import { getLeadAgeInfo, getChannelBadgeInfo } from '../utils/leadHelpers';
 import './ProspectosKanban.css';
+import { validateQuotePDF } from '../utils/pdfValidator';
+import EventCreatorModal from './EventCreatorModal';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {
@@ -78,7 +80,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
   const draggingColKeyRef = useRef(null);
 
   // ── Pagination State ──
-  const CARDS_PER_PAGE = 15;
+  const CARDS_PER_PAGE = 30;
   const [colLimits, setColLimits] = useState({});
 
   // ── Animation States ──
@@ -109,7 +111,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [leadToDiscard, setLeadToDiscard] = useState(null);
   const [discardForm, setDiscardForm] = useState({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-  
+
   // Custom stages deletion states moved to top
   const [stageToDelete, setStageToDelete] = useState(null);
   const [transferTargetStage, setTransferTargetStage] = useState('nuevo');
@@ -133,6 +135,15 @@ export default function ProspectosKanban({ role, API_BASE }) {
     newCompanyState: '',
     newCompanyNotes: ''
   });
+
+  const [pendingReunionLead, setPendingReunionLead] = useState(null);
+
+  // Evidence Modal states
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceLeadId, setEvidenceLeadId] = useState(null);
+  const [evidenceFile, setEvidenceFile] = useState(null);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
+  const [evidenceError, setEvidenceError] = useState('');
   const [existingCompanies, setExistingCompanies] = useState([]);
   const [companySearchQuery, setCompanySearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -219,12 +230,12 @@ export default function ProspectosKanban({ role, API_BASE }) {
         fetch(`${API_BASE}/api/crm/leads/custom-stages`, { headers }),
         fetch(`${API_BASE}/api/crm/leads/kanban-column-order`, { headers })
       ];
-      
+
       const isAdminOrSupervisor = role === 'admin' || role === 'supervisor' || role === 'super_admin';
       if (isAdminOrSupervisor) {
         urls.push(fetch(`${API_BASE}/api/crm/sellers`, { headers }));
       }
-      
+
       const responses = await Promise.all(urls);
       const expiredRes = responses.find(r => r.status === 401);
       if (expiredRes) {
@@ -232,7 +243,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
         return;
       }
       const [resLeads, resStages, resOrder, resSellers] = await Promise.all(responses.map(r => r.json()));
-      
+
       if (resLeads?.success) {
         setLeads(resLeads.leads || []);
       }
@@ -378,8 +389,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
     const baseStagesMap = {
       nuevo: { key: 'nuevo', label: 'Nuevo', color: '#0086c0', isDeletable: false },
       contactado: { key: 'contactado', label: 'Contactado', color: '#ffcb00', isDeletable: false },
-      calificado: { key: 'calificado', label: 'Calificado', color: '#00c875', isDeletable: false },
-      en_pausa: { key: 'en_pausa', label: 'En Pausa', color: '#f59e0b', icon: 'fa-pause-circle', isDeletable: false },
+      calificado: { key: 'calificado', label: 'Calificado', color: '#23533fff', isDeletable: false },
+      en_pausa: { key: 'en_pausa', label: 'En Pausa', color: '#707070ff', icon: 'fa-pause-circle', isDeletable: false },
       descartado: { key: 'descartado', label: 'Descartado', color: '#e2445c', isDeletable: false }
     };
 
@@ -678,7 +689,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
   // Card DnD handlers (legacy HTML5 — desactivados, se usa el Custom Pointer DnD arriba)
   const handleDragStart = (e) => { e.preventDefault(); };
-  const handleDragEnd = () => {};
+  const handleDragEnd = () => { };
 
   const handleDragOverCol = (e, colKey) => {
     e.preventDefault();
@@ -740,36 +751,58 @@ export default function ProspectosKanban({ role, API_BASE }) {
   // Actualizar el ref callback de drop para que siempre tenga el closure más reciente
   handleDropActionRef.current = async (leadId, targetColKey) => {
     const leadToMove = leads.find(l => String(l.id) === String(leadId));
-    if (leadToMove && (leadToMove.status || '').toLowerCase() !== targetColKey.toLowerCase()) {
-      // Ejecutar cambio de etapa
-      if (targetColKey === 'descartado') {
-        setLeadToDiscard(leadToMove);
-        setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-        setDiscardModalOpen(true);
-      } else if (targetColKey === 'calificado') {
-        setLeadToPromote(leadToMove);
-        setPromoteForm({
-          contactName: leadToMove.name || '',
-          position: 'Contacto Comercial',
-          email: leadToMove.email || '',
-          phone: leadToMove.phone || '',
-          phone_alt: '',
-          whatsapp: leadToMove.phone || '',
-          notes: leadToMove.notes || '',
-          companyMode: 'none',
-          linkExistingCompanyId: '',
-          newCompanyName: leadToMove.company || '',
-          newCompanyRfc: '',
-          newCompanyAddress: '',
-          newCompanyCity: '',
-          newCompanyState: '',
-          newCompanyNotes: ''
-        });
-        fetchCompanies();
-        setPromoteModalOpen(true);
-      } else {
-        await executeStageUpdate(leadId, targetColKey);
+    if (!leadToMove || (leadToMove.status || '').toLowerCase() === targetColKey.toLowerCase()) return;
+
+    if (targetColKey === 'descartado') {
+      setLeadToDiscard(leadToMove);
+      setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+      setDiscardModalOpen(true);
+    } else if (targetColKey === 'calificado') {
+      setLeadToPromote(leadToMove);
+      setPromoteForm({
+        contactName: leadToMove.name || '',
+        position: 'Contacto Comercial',
+        email: leadToMove.email || '',
+        phone: leadToMove.phone || '',
+        phone_alt: '',
+        whatsapp: leadToMove.phone || '',
+        notes: leadToMove.notes || '',
+        companyMode: 'none',
+        linkExistingCompanyId: '',
+        newCompanyName: leadToMove.company || '',
+        newCompanyRfc: '',
+        newCompanyAddress: '',
+        newCompanyCity: '',
+        newCompanyState: '',
+        newCompanyNotes: ''
+      });
+      fetchCompanies();
+      setPromoteModalOpen(true);
+    } else if (targetColKey === 'reunion') {
+      setPendingReunionLead(leadToMove);
+      return;
+    } else if (targetColKey === 'cotizado') {
+      let hasInternalQuote = false;
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+      try {
+        const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
+        if (res.ok) {
+          const data = await res.json();
+          hasInternalQuote = (data.quotes || []).length > 0;
+        }
+      } catch (e) {
+        console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
+        hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
       }
+
+      if (hasInternalQuote) {
+        await executeStageUpdate(leadId, targetColKey);
+      } else {
+        setEvidenceLeadId(leadId);
+        setShowEvidenceModal(true);
+      }
+    } else {
+      await executeStageUpdate(leadId, targetColKey);
     }
   };
 
@@ -779,16 +812,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
       e.preventDefault();
       return;
     }
-    
+
     try {
       e.dataTransfer.setData('text/colkey', colKey);
       e.dataTransfer.effectAllowed = 'move';
     } catch (err) {
       console.warn('dataTransfer not supported or blocked:', err);
     }
-    
+
     draggingColKeyRef.current = colKey;
-    
+
     // Se difiere con setTimeout para evitar la cancelación del drag por modificación síncrona del DOM/estilos
     const target = e.currentTarget;
     setTimeout(() => {
@@ -801,10 +834,10 @@ export default function ProspectosKanban({ role, API_BASE }) {
   const handleColDragOver = (e, targetColKey) => {
     e.preventDefault();
     if (!isReorderMode || targetColKey === 'descartado' || draggingColKeyRef.current === targetColKey) return;
-    
+
     const sourceColKey = draggingColKeyRef.current;
     if (!sourceColKey) return;
-    
+
     if (draggingOverColReorder !== targetColKey) {
       setDraggingOverColReorder(targetColKey);
       // Calcular preview order
@@ -1125,14 +1158,14 @@ export default function ProspectosKanban({ role, API_BASE }) {
         showToast('Nota de seguimiento guardada.', 'success');
         setTimelineNote('');
         setVisitPhotos([]);
-        
+
         let notesData = { general: '', timeline: [] };
         try {
           notesData = JSON.parse(selectedLead.notes);
         } catch (e) {
           notesData.general = selectedLead.notes || '';
         }
-        
+
         const updatedLeadObj = {
           ...selectedLead,
           notes: JSON.stringify({
@@ -1142,7 +1175,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
           updated_at: new Date().toISOString()
         };
         setSelectedLead(updatedLeadObj);
-        
+
         // Update leads local list
         setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(selectedLead.id) ? updatedLeadObj : l));
       }
@@ -1189,7 +1222,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
   return (
     <div className="prospectos-kanban-root">
-      
+
       {/* ── HEADER ── */}
       <div className="kanban-header-section">
         <div className="kanban-title-group">
@@ -1206,17 +1239,17 @@ export default function ProspectosKanban({ role, API_BASE }) {
         <div className="filters-left">
           <div className="search-input-wrapper">
             <i className="fas fa-search"></i>
-            <input 
-              type="text" 
-              placeholder="Buscar por nombre, teléfono, empresa..." 
+            <input
+              type="text"
+              placeholder="Buscar por nombre, teléfono, empresa..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
           <div className="filter-dropdown-wrapper" style={{ position: 'relative' }}>
-            <select 
-              value={filterChannel} 
+            <select
+              value={filterChannel}
               onChange={(e) => setFilterChannel(e.target.value)}
               className="organize-btn"
               style={{ padding: '0.65rem 1rem', cursor: 'pointer', appearance: 'none', paddingRight: '2rem' }}
@@ -1231,8 +1264,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
           {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
             <div className="filter-dropdown-wrapper" style={{ position: 'relative' }}>
-              <select 
-                value={filterSeller} 
+              <select
+                value={filterSeller}
                 onChange={(e) => setFilterSeller(e.target.value)}
                 className="organize-btn"
                 style={{ padding: '0.65rem 1rem', cursor: 'pointer', appearance: 'none', paddingRight: '2rem' }}
@@ -1249,8 +1282,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
         </div>
 
         <div className="filters-right">
-          <button 
-            className={`organize-btn ${isReorderMode ? 'active' : ''}`} 
+          <button
+            className={`organize-btn ${isReorderMode ? 'active' : ''}`}
             onClick={() => setIsReorderMode(!isReorderMode)}
             title="Reordenar las columnas del tablero"
           >
@@ -1266,7 +1299,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
       {/* ── PIPELINE SUMMARY BAND (Zoom) ── */}
       <div className="pipeline-summary-band glass">
         <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', marginRight: '6px' }}>Zoom:</span>
-        <div 
+        <div
           className={`summary-pill ${zoomColumnKey === null ? 'active' : ''}`}
           onClick={() => setZoomColumnKey(null)}
         >
@@ -1275,7 +1308,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
         {columns.map(col => {
           const count = columnCounts[col.key] || 0;
           return (
-            <div 
+            <div
               key={col.key}
               className={`summary-pill ${zoomColumnKey === col.key ? 'active' : ''}`}
               onClick={() => setZoomColumnKey(zoomColumnKey === col.key ? null : col.key)}
@@ -1329,7 +1362,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
               const isAnyZoomActive = zoomColumnKey !== null;
 
               return (
-                <div 
+                <div
                   key={col.key}
                   data-col-key={col.key}
                   className={`kanban-col glass ${isZoomed ? 'zoomed-in' : ''} ${draggingOverColReorder === col.key ? 'col-drag-over-reorder' : ''}`}
@@ -1372,16 +1405,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
                         <i className="fas fa-lock col-header-grip" style={{ fontSize: '0.65rem', marginRight: '6px' }}></i>
                       )}
                       <span className="col-title">{col.label}</span>
-                      <span 
+                      <span
                         className={`col-badge-count ${countPulseCol === col.key ? 'animate-bounce' : ''}`}
                         style={{ backgroundColor: `${col.color}20`, color: col.color }}
                       >
                         {colLeads.length}
                       </span>
                     </div>
-                    
+
                     <div className="col-header-actions">
-                      <button 
+                      <button
                         className="col-action-btn"
                         onClick={() => {
                           setCreateForm(prev => ({ ...prev, notes: `Etapa preseleccionada: ${col.label}` }));
@@ -1392,7 +1425,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                         <i className="fas fa-plus"></i>
                       </button>
                       {col.isDeletable && (
-                        <button 
+                        <button
                           className="col-action-btn"
                           onClick={() => handleDeleteStage(col)}
                           title="Eliminar etapa"
@@ -1403,7 +1436,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                     </div>
                   </div>
 
-                  <div 
+                  <div
                     className="kanban-cards-list"
                     onDragEnter={(e) => {
                       e.preventDefault();
@@ -1420,8 +1453,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
                     {paginatedLeads.map((lead, index) => {
                       const channel = getChannelBadgeInfo(lead.type);
                       const ageInfo = getLeadAgeInfo(lead.created_at, lead.notes);
-                      
-                      const slaClass = ageInfo.warning 
+
+                      const slaClass = ageInfo.warning
                         ? (new Date() - new Date(lead.created_at) > 7 * 24 * 60 * 60 * 1000 ? 'sla-warning-high' : 'sla-warning-medium')
                         : '';
 
@@ -1435,7 +1468,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                           key={lead.id}
                           className={`kanban-card glass ${slaClass} ${isPulseActive ? 'drop-pulse' : ''}`}
                           onMouseDown={(e) => handleCardPointerDown(e, lead.id)}
-                          style={{ 
+                          style={{
                             cursor: 'grab',
                             animationDelay: staggerDelay,
                             '--drop-color': isPulseActive ? droppedCardPulse.color : 'transparent'
@@ -1445,7 +1478,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                             <span className="channel-badge" style={{ backgroundColor: channel.color }}>
                               {channel.label}
                             </span>
-                            <button 
+                            <button
                               className="card-menu-btn"
                               onClick={(e) => openCardMenu(e, lead)}
                             >
@@ -1454,7 +1487,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                           </div>
 
                           <h3 className="card-lead-name">{lead.name || 'Prospecto Anónimo'}</h3>
-                          
+
                           {lead.phone && (
                             <p className="card-info-item">
                               <i className="fas fa-phone"></i>
@@ -1484,7 +1517,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                                       </span>
                                     );
                                   }
-                                } catch (e) {}
+                                } catch (e) { }
                                 return null;
                               })()}
 
@@ -1496,8 +1529,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
                             {/* Assignee initials */}
                             {lead.assigned_to && (role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
-                              <div 
-                                className="card-assignee-avatar" 
+                              <div
+                                className="card-assignee-avatar"
                                 title={`Asignado a: ${lead.assigned_to.name}`}
                               >
                                 {lead.assigned_to.name.substring(0, 1)}
@@ -1516,7 +1549,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                     )}
 
                     {hasMore && (
-                      <button 
+                      <button
                         className="load-more-col-btn"
                         onClick={() => setColLimits(prev => ({ ...prev, [col.key]: limit + CARDS_PER_PAGE }))}
                       >
@@ -1537,8 +1570,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 const channel = getChannelBadgeInfo(lead.type);
                 const ageInfo = getLeadAgeInfo(lead.created_at, lead.notes);
                 return (
-                  <div 
-                    key={lead.id} 
+                  <div
+                    key={lead.id}
                     className="mobile-lead-item"
                     onClick={() => setSelectedLead(lead)}
                   >
@@ -1580,7 +1613,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   </div>
                 );
               })}
-            
+
             {filteredLeads.filter(l => (l.status || 'nuevo').toLowerCase() === mobileActiveTab).length === 0 && (
               <div style={{ textAlign: 'center', padding: '3rem 1rem', opacity: 0.4 }}>
                 <i className="fas fa-inbox" style={{ fontSize: '2rem', marginBottom: '8px' }}></i>
@@ -1595,15 +1628,15 @@ export default function ProspectosKanban({ role, API_BASE }) {
       {cardMenuState && (
         <>
           <div className="context-menu-backdrop" />
-          <div 
+          <div
             className="context-menu-popover glass"
-            style={{ 
-              top: `${cardMenuState.y}px`, 
+            style={{
+              top: `${cardMenuState.y}px`,
               left: `${cardMenuState.x}px`
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <button 
+            <button
               className="menu-item-btn"
               onClick={() => {
                 setSelectedLead(cardMenuState.lead);
@@ -1613,13 +1646,13 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <i className="fas fa-eye"></i> Ver detalle
             </button>
 
-            <div 
+            <div
               className="menu-item-btn"
               onMouseEnter={() => setShowStatusSubmenu(true)}
               onMouseLeave={() => setShowStatusSubmenu(false)}
             >
               <i className="fas fa-exchange-alt"></i> Cambiar etapa <i className="fas fa-chevron-right submenu-arrow"></i>
-              
+
               {showStatusSubmenu && (
                 <div className="nested-submenu-popover glass">
                   {columns
@@ -1632,7 +1665,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                           const lead = cardMenuState.lead;
                           setCardMenuState(null);
                           setShowStatusSubmenu(false);
-                          
+
                           if (col.key === 'descartado') {
                             setLeadToDiscard(lead);
                             setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
@@ -1663,7 +1696,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
               )}
             </div>
 
-            <button 
+            <button
               className="menu-item-btn"
               onClick={() => {
                 setLeadToPromote(cardMenuState.lead);
@@ -1684,7 +1717,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <i className="fas fa-user-check"></i> Promover a Contacto
             </button>
 
-            <button 
+            <button
               className="menu-item-btn destructive"
               onClick={() => {
                 setLeadToDiscard(cardMenuState.lead);
@@ -1709,12 +1742,12 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <h2>Registrar Nuevo Prospecto</h2>
               <button className="modal-close-btn" onClick={() => setCreateModalOpen(false)}>&times;</button>
             </div>
-            
+
             <form onSubmit={handleCreateLeadSubmit} className="modal-body-form">
               <div className="form-group-custom">
                 <label>Nombre Completo *</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={createForm.name}
                   onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
                   placeholder="Ej: Juan Pérez"
@@ -1724,8 +1757,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Teléfono Celular *</label>
-                <input 
-                  type="tel" 
+                <input
+                  type="tel"
                   value={createForm.phone}
                   onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
                   placeholder="Ej: 8112345678"
@@ -1740,8 +1773,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Correo Electrónico</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={createForm.email}
                   onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
                   placeholder="Ej: juan@empresa.com"
@@ -1750,8 +1783,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Empresa / Constructora</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={createForm.company}
                   onChange={(e) => setCreateForm({ ...createForm, company: e.target.value })}
                   placeholder="Ej: Constructora Garza"
@@ -1760,8 +1793,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Giro / Tipo de Obra</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={createForm.project_type}
                   onChange={(e) => setCreateForm({ ...createForm, project_type: e.target.value })}
                   placeholder="Ej: Residencial, Industrial..."
@@ -1770,7 +1803,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Requerimientos Iniciales</label>
-                <textarea 
+                <textarea
                   rows="3"
                   value={createForm.notes}
                   onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
@@ -1797,12 +1830,12 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <h2>Crear Etapa Personalizada</h2>
               <button className="modal-close-btn" onClick={() => setNewStageModalOpen(false)}>&times;</button>
             </div>
-            
+
             <form onSubmit={handleCreateStage} className="modal-body-form">
               <div className="form-group-custom">
                 <label>Nombre de la Etapa *</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={newStageForm.name}
                   onChange={(e) => setNewStageForm({ ...newStageForm, name: e.target.value })}
                   maxLength={30}
@@ -1815,16 +1848,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 <label>Color de la Etapa</label>
                 <div className="color-picker-grid">
                   {['#10b981', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#64748b'].map(c => (
-                    <div 
+                    <div
                       key={c}
                       className={`color-option-pill ${newStageForm.color === c ? 'selected' : ''}`}
                       style={{ backgroundColor: c }}
                       onClick={() => setNewStageForm({ ...newStageForm, color: c })}
                     />
                   ))}
-                  <input 
-                    type="color" 
-                    value={newStageForm.color} 
+                  <input
+                    type="color"
+                    value={newStageForm.color}
                     onChange={(e) => setNewStageForm({ ...newStageForm, color: e.target.value })}
                     style={{ padding: 0, width: '28px', height: '28px', border: 'none', borderRadius: '50%', cursor: 'pointer' }}
                   />
@@ -1833,7 +1866,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Etapa Origen (Para reubicación por defecto)</label>
-                <select 
+                <select
                   value={newStageForm.root_stage}
                   onChange={(e) => setNewStageForm({ ...newStageForm, root_stage: e.target.value })}
                 >
@@ -1860,7 +1893,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <h2>Descartar Prospecto</h2>
               <button className="modal-close-btn" onClick={() => setDiscardModalOpen(false)}>&times;</button>
             </div>
-            
+
             <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
               Indica por qué no se dará seguimiento a <strong>{leadToDiscard.name}</strong>.
             </p>
@@ -1868,8 +1901,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
             <form onSubmit={handleDiscardSubmit} className="modal-body-form">
               <div className="form-group-custom">
                 <label>Motivo de Descarte</label>
-                <select 
-                  value={discardForm.reason} 
+                <select
+                  value={discardForm.reason}
                   onChange={(e) => setDiscardForm({ ...discardForm, reason: e.target.value })}
                 >
                   <option value="Sin presupuesto / Muy caro">Sin presupuesto / Muy caro</option>
@@ -1883,7 +1916,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Comentarios adicionales</label>
-                <textarea 
+                <textarea
                   rows="3"
                   value={discardForm.comment}
                   onChange={(e) => setDiscardForm({ ...discardForm, comment: e.target.value })}
@@ -1915,8 +1948,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div className="form-group-custom">
                   <label>Nombre Completo</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={promoteForm.contactName}
                     onChange={(e) => setPromoteForm({ ...promoteForm, contactName: e.target.value })}
                     required
@@ -1924,8 +1957,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 </div>
                 <div className="form-group-custom">
                   <label>Puesto</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={promoteForm.position}
                     onChange={(e) => setPromoteForm({ ...promoteForm, position: e.target.value })}
                     required
@@ -1933,16 +1966,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 </div>
                 <div className="form-group-custom">
                   <label>Correo Electrónico</label>
-                  <input 
-                    type="email" 
+                  <input
+                    type="email"
                     value={promoteForm.email}
                     onChange={(e) => setPromoteForm({ ...promoteForm, email: e.target.value })}
                   />
                 </div>
                 <div className="form-group-custom">
                   <label>Teléfono Principal</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={promoteForm.phone}
                     onChange={(e) => setPromoteForm({ ...promoteForm, phone: e.target.value })}
                     required
@@ -1950,16 +1983,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 </div>
                 <div className="form-group-custom">
                   <label>Teléfono Alterno</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={promoteForm.phone_alt}
                     onChange={(e) => setPromoteForm({ ...promoteForm, phone_alt: e.target.value })}
                   />
                 </div>
                 <div className="form-group-custom">
                   <label>WhatsApp Linkable</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={promoteForm.whatsapp}
                     onChange={(e) => setPromoteForm({ ...promoteForm, whatsapp: e.target.value })}
                   />
@@ -1968,7 +2001,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="form-group-custom">
                 <label>Observaciones / Notas de Promoción</label>
-                <textarea 
+                <textarea
                   rows="2"
                   value={promoteForm.notes}
                   onChange={(e) => setPromoteForm({ ...promoteForm, notes: e.target.value })}
@@ -1976,33 +2009,33 @@ export default function ProspectosKanban({ role, API_BASE }) {
               </div>
 
               <h4 style={{ color: 'var(--color-brand-primary)', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '4px', margin: '12px 0 4px 0' }}>Vínculo Organizacional</h4>
-              
+
               <div style={{ display: 'flex', gap: '16px', margin: '4px 0' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input 
-                    type="radio" 
-                    name="companyMode" 
-                    value="none" 
+                  <input
+                    type="radio"
+                    name="companyMode"
+                    value="none"
                     checked={promoteForm.companyMode === 'none'}
                     onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'none' })}
                   />
                   Ninguna
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input 
-                    type="radio" 
-                    name="companyMode" 
-                    value="existing" 
+                  <input
+                    type="radio"
+                    name="companyMode"
+                    value="existing"
                     checked={promoteForm.companyMode === 'existing'}
                     onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'existing' })}
                   />
                   Empresa existente
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input 
-                    type="radio" 
-                    name="companyMode" 
-                    value="new" 
+                  <input
+                    type="radio"
+                    name="companyMode"
+                    value="new"
                     checked={promoteForm.companyMode === 'new'}
                     onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'new' })}
                   />
@@ -2013,8 +2046,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
               {promoteForm.companyMode === 'existing' && (
                 <div className="form-group-custom" style={{ position: 'relative' }}>
                   <label>Buscar Empresa</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     placeholder="Escribe para buscar..."
                     value={companySearchQuery}
                     onChange={(e) => {
@@ -2025,14 +2058,14 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   />
                   {showSuggestions && companySearchQuery.trim() && (
                     <div style={{
-                      position: 'absolute', top: '100%', left: 0, right: 0, 
+                      position: 'absolute', top: '100%', left: 0, right: 0,
                       background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
                       zIndex: 12000, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
                     }}>
                       {existingCompanies
                         .filter(c => c.name && c.name.toLowerCase().includes(companySearchQuery.toLowerCase()))
                         .map(c => (
-                          <div 
+                          <div
                             key={c.id}
                             onClick={() => {
                               setPromoteForm({ ...promoteForm, linkExistingCompanyId: c.id });
@@ -2055,8 +2088,8 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group-custom">
                     <label>Nombre de la Empresa</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={promoteForm.newCompanyName}
                       onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyName: e.target.value })}
                       required
@@ -2064,32 +2097,32 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   </div>
                   <div className="form-group-custom">
                     <label>RFC (Opcional)</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={promoteForm.newCompanyRfc}
                       onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyRfc: e.target.value })}
                     />
                   </div>
                   <div className="form-group-custom" style={{ gridColumn: 'span 2' }}>
                     <label>Dirección completa</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={promoteForm.newCompanyAddress}
                       onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyAddress: e.target.value })}
                     />
                   </div>
                   <div className="form-group-custom">
                     <label>Ciudad</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={promoteForm.newCompanyCity}
                       onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyCity: e.target.value })}
                     />
                   </div>
                   <div className="form-group-custom">
                     <label>Estado</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={promoteForm.newCompanyState}
                       onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyState: e.target.value })}
                     />
@@ -2114,7 +2147,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
               <h2>Eliminar Etapa - Transferir Prospectos</h2>
               <button className="modal-close-btn" onClick={() => setStageToDelete(null)}>&times;</button>
             </div>
-            
+
             <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
               La etapa <strong>{stageToDelete.label}</strong> tiene prospectos activos. Selecciona a qué etapa reubicarlos:
             </p>
@@ -2122,7 +2155,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
             <div className="modal-body-form">
               <div className="form-group-custom">
                 <label>Reubicar prospectos en:</label>
-                <select 
+                <select
                   value={transferTargetStage}
                   onChange={(e) => setTransferTargetStage(e.target.value)}
                 >
@@ -2136,9 +2169,9 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
               <div className="modal-footer-actions">
                 <button type="button" className="cancel-modal-btn" onClick={() => setStageToDelete(null)}>Cancelar</button>
-                <button 
-                  type="button" 
-                  className="submit-modal-btn" 
+                <button
+                  type="button"
+                  className="submit-modal-btn"
                   style={{ backgroundColor: '#ef4444' }}
                   onClick={() => executeDeleteStage(stageToDelete.stageId, transferTargetStage)}
                 >
@@ -2236,7 +2269,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   {(role === 'admin' || role === 'supervisor' || role === 'super_admin') ? (
                     <div>
                       <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}><i className="fas fa-user-plus"></i> Asignación de Vendedor:</span>
-                      <select 
+                      <select
                         className="seller-assign-select"
                         value={selectedLead.assigned_to?.id || ''}
                         onChange={(e) => handleAssignSeller(selectedLead.id, e.target.value)}
@@ -2331,11 +2364,11 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   <div className="bitacora-form-col">
                     <form onSubmit={handleAddTimelineNote} className="modal-body-form">
                       <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-brand-primary)' }}>Registrar Interacción</h4>
-                      
+
                       <div className="form-group-custom">
                         <label>Tipo de Interacción</label>
-                        <select 
-                          value={timelineNoteType} 
+                        <select
+                          value={timelineNoteType}
                           onChange={(e) => {
                             setTimelineNoteType(e.target.value);
                             if (e.target.value !== 'visit') {
@@ -2353,7 +2386,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
                       <div className="form-group-custom">
                         <label>Comentario / Resumen *</label>
-                        <textarea 
+                        <textarea
                           placeholder="Escribe el resumen de la llamada, WhatsApp o visita..."
                           value={timelineNote}
                           onChange={(e) => setTimelineNote(e.target.value)}
@@ -2366,23 +2399,23 @@ export default function ProspectosKanban({ role, API_BASE }) {
                       {timelineNoteType === 'visit' && (
                         <div className="form-group-custom">
                           <label>Fotos de Visita (Máximo 2, máx. 800KB c/u)</label>
-                          <input 
-                            type="file" 
-                            accept="image/*" 
-                            multiple 
-                            onChange={handleFileChange} 
+                          <input
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleFileChange}
                             disabled={visitPhotos.length >= 2}
                             style={{ fontSize: '0.8rem' }}
                           />
-                          
+
                           {visitPhotos.length > 0 && (
                             <div className="visit-photos-preview-grid">
                               {visitPhotos.map((photo, pIdx) => (
                                 <div key={pIdx} className="visit-photo-preview-item">
                                   <img src={photo} alt={`Preview ${pIdx + 1}`} />
-                                  <button 
-                                    type="button" 
-                                    className="delete-preview-btn" 
+                                  <button
+                                    type="button"
+                                    className="delete-preview-btn"
                                     onClick={() => setVisitPhotos(prev => prev.filter((_, idx) => idx !== pIdx))}
                                   >
                                     &times;
@@ -2408,11 +2441,11 @@ export default function ProspectosKanban({ role, API_BASE }) {
                         try {
                           const parsed = parseLeadNotes(selectedLead.notes);
                           const interactions = parsed.timeline.filter(evt => ['note', 'call', 'whatsapp', 'visit'].includes(evt.type));
-                          
+
                           if (interactions.length === 0) {
                             return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px 0' }}>Sin interacciones registradas.</p>;
                           }
-                          
+
                           const sortedInteractions = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
 
                           return sortedInteractions.map((evt, idx) => {
@@ -2430,7 +2463,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                                 textContent = innerParsed.comment || '';
                                 imgUrls = Array.isArray(innerParsed.images) ? innerParsed.images : [];
                               }
-                            } catch (err) {}
+                            } catch (err) { }
 
                             return (
                               <div key={`${evt.date}-${evt.type}-${idx}`} className={`bitacora-bubble ${bubbleClass}`}>
@@ -2441,15 +2474,15 @@ export default function ProspectosKanban({ role, API_BASE }) {
                                   </span>
                                 </div>
                                 <p className="bubble-text">{textContent}</p>
-                                
+
                                 {imgUrls.length > 0 && (
                                   <div className="bubble-images-grid">
                                     {imgUrls.map((imgUrl, imgIdx) => (
-                                      <img 
-                                        key={imgIdx} 
-                                        src={imgUrl} 
-                                        alt="Visita" 
-                                        className="bubble-img-thumbnail" 
+                                      <img
+                                        key={imgIdx}
+                                        src={imgUrl}
+                                        alt="Visita"
+                                        className="bubble-img-thumbnail"
                                         onClick={() => setActiveLightboxImg(imgUrl)}
                                       />
                                     ))}
@@ -2475,7 +2508,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                       if (!parsed.timeline || parsed.timeline.length === 0) {
                         return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px 0' }}>Sin historial registrado.</p>;
                       }
-                      
+
                       const sortedTimeline = [...parsed.timeline].sort((a, b) => new Date(b.date) - new Date(a.date));
 
                       return (
@@ -2511,7 +2544,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                                 textContent = innerParsed.comment || '';
                                 hasImages = Array.isArray(innerParsed.images) && innerParsed.images.length > 0;
                               }
-                            } catch (err) {}
+                            } catch (err) { }
 
                             return (
                               <div key={`${evt.date}-${evt.type}-${idx}`} className="timeline-node">
@@ -2561,7 +2594,96 @@ export default function ProspectosKanban({ role, API_BASE }) {
           </div>
         </div>
       )}
-      
+
+      {/* EVENT CREATOR MODAL FOR REUNION */}
+      <EventCreatorModal
+        isOpen={!!pendingReunionLead}
+        onClose={() => setPendingReunionLead(null)}
+        onSave={() => {
+          if (pendingReunionLead) {
+            executeStageUpdate(pendingReunionLead.id, 'reunion');
+            setPendingReunionLead(null);
+          }
+        }}
+        prefillData={pendingReunionLead ? {
+          title: `Reunión: ${pendingReunionLead.name}`,
+          clientName: pendingReunionLead.name,
+        } : null}
+        leads={leads}
+        API_BASE={API_BASE}
+      />
+
+      {/* EVIDENCE UPLOAD MODAL FOR COTIZADO */}
+      {showEvidenceModal && (
+        <div className="crm-modal-backdrop">
+          <div className="crm-modal-card animate-slide-up">
+            <button className="crm-modal-close" onClick={() => {
+              setShowEvidenceModal(false);
+              setEvidenceLeadId(null);
+              setEvidenceFile(null);
+              setEvidenceError('');
+            }}>
+              <i className="fas fa-times" />
+            </button>
+            <div className="crm-modal-header">
+              <h3><i className="fas fa-file-pdf" style={{ color: '#e2445c' }} /> Evidencia de Cotización</h3>
+              <p>El sistema no detecta ninguna cotización interna generada para este prospecto. Por favor, sube el PDF de la cotización externa (ej. de ASPEL SAE) para validarlo y autorizar el avance de etapa.</p>
+            </div>
+            <div className="crm-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+              <input
+                type="file"
+                accept="application/pdf"
+                className="crm-login-input"
+                onChange={e => {
+                  setEvidenceFile(e.target.files[0] || null);
+                  setEvidenceError('');
+                }}
+              />
+              {evidenceError && <p style={{ color: 'red', fontSize: '0.9rem', marginTop: '5px' }}>{evidenceError}</p>}
+            </div>
+            <div className="crm-modal-footer">
+              <button
+                className="btn-modal-cancel"
+                onClick={() => {
+                  setShowEvidenceModal(false);
+                  setEvidenceLeadId(null);
+                  setEvidenceFile(null);
+                  setEvidenceError('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                className="btn-modal-submit"
+                disabled={!evidenceFile || isUploadingEvidence}
+                onClick={async () => {
+                  if (!evidenceFile) return;
+                  setIsUploadingEvidence(true);
+                  setEvidenceError('');
+                  try {
+                    const validation = await validateQuotePDF(evidenceFile);
+                    if (validation.isValid) {
+                      await executeStageUpdate(evidenceLeadId, 'cotizado');
+                      setShowEvidenceModal(false);
+                      setEvidenceLeadId(null);
+                      setEvidenceFile(null);
+                    } else {
+                      setEvidenceError(validation.reason);
+                    }
+                  } catch (e) {
+                    setEvidenceError('Ocurrió un error al analizar el PDF.');
+                  } finally {
+                    setIsUploadingEvidence(false);
+                  }
+                }}
+              >
+                {isUploadingEvidence ? 'Analizando...' : 'Validar y Continuar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -21,6 +21,8 @@ export default function CalendarioPanel({ leads = [] }) {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
   const [cancellationReason, setCancellationReason] = useState('');
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState('');
   
   // UI state
   const [filterText, setFilterText] = useState('');
@@ -156,8 +158,8 @@ export default function CalendarioPanel({ leads = [] }) {
       return;
     }
 
-    setCreating(true);
-    setError('');
+    setCancelLoading(true);
+    setCancelError('');
 
     try {
       const res = await fetch(`${API_BASE}/api/calendar/events/${eventToCancel.id}?reason=${encodeURIComponent(cancellationReason)}`, {
@@ -175,9 +177,9 @@ export default function CalendarioPanel({ leads = [] }) {
       if (isSupervisorOrAdmin) fetchTeamAppointments();
     } catch (err) {
       console.error('Error deleting event:', err);
-      setError('Fallo de servidor al cancelar la cita: ' + err.message);
+      setCancelError('Fallo de servidor al cancelar la cita: ' + err.message);
     } finally {
-      setCreating(false);
+      setCancelLoading(false);
     }
   };
 
@@ -622,7 +624,7 @@ export default function CalendarioPanel({ leads = [] }) {
               </button>
               <button
                 className="btn-cancel-modal-confirm"
-                disabled={cancellationReason.length < 150 || creating}
+                disabled={cancellationReason.length < 150 || cancelLoading}
                 onClick={handleConfirmCancelEvent}
               >
                 <i className="far fa-trash-alt" /> Cancelar y Descartar Cita

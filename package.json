@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "node-firebird": "^2.3.2",
+    "pdfjs-dist": "^3.11.174",
     "prop-types": "^15.8.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

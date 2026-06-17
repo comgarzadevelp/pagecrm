@@ -79,6 +79,8 @@ function StatusDropdown({ currentStatus, onChange, customStages = [] }) {
             display: 'flex',
             flexDirection: 'column',
             gap: '4px',
+            maxHeight: '280px',
+            overflowY: 'auto',
             animation: 'popoverScale 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
           }}
         >

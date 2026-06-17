@@ -717,6 +717,10 @@ export default function ProspectosKanban({ role, API_BASE }) {
         // Rollback
         setLeads(prevLeads => prevLeads.map(l => l.id === leadId ? { ...l, status: prevStatus } : l));
       } else {
+        // Update local state with returned lead data to refresh notes/timeline and reset inactivity counter
+        if (data.lead) {
+          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(leadId) ? { ...l, ...data.lead } : l));
+        }
         showToast('Etapa del prospecto actualizada.', 'success');
         setCountPulseCol(targetStage);
         setTimeout(() => setCountPulseCol(null), 400);

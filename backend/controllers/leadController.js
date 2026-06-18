@@ -58,7 +58,7 @@ export const createPopupLead = async (req, res) => {
  */
 export const createContactFormLead = async (req, res) => {
   try {
-    const { name, email, company, phone, projectType, message } = req.body;
+    const { name, email, company, phone, message } = req.body;
 
     console.log(`\n====================================================`);
     console.log(`[NUEVA SOLICITUD - FORMULARIO DE CONTACTO PREMIUM]`);
@@ -66,7 +66,6 @@ export const createContactFormLead = async (req, res) => {
     console.log(`Correo: ${email}`);
     console.log(`Empresa: ${company}`);
     console.log(`Teléfono: ${phone}`);
-    console.log(`Giro del Proyecto: ${projectType}`);
     console.log(`Mensaje: ${message}`);
     console.log(`====================================================`);
 
@@ -86,7 +85,6 @@ export const createContactFormLead = async (req, res) => {
           email: email,
           company: company || null,
           phone: phone,
-          project_type: projectType || null,
           notes: message || 'Formulario de contacto premium completado.',
           status: 'nuevo'
         }

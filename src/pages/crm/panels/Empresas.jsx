@@ -410,7 +410,7 @@ export default function Empresas({ onViewCompanyDetails }) {
       <div className="crm-filters-bar" style={{ marginBottom: '1.5rem' }}>
         <div className="search-box">
           <i className="fas fa-search" />
-          <input type="text" placeholder="Buscar empresa, giro, ciudad..." value={search} onChange={e => setSearch(e.target.value)} />
+          <input type="text" placeholder="Buscar empresa, ciudad..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <div className="filter-select-group">
           <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
@@ -500,7 +500,6 @@ export default function Empresas({ onViewCompanyDetails }) {
 
               <div className="company-card-meta">
                 <span className="company-type-badge">{TYPE_LABELS[co.type] || co.type}</span>
-                {co.industry && <span className="company-industry">{co.industry}</span>}
                 {co.city && <span className="company-city"><i className="fas fa-map-marker-alt" /> {co.city}, {co.state}</span>}
                 {/* Convenio / Lista de Precios — solo para empresas SAE */}
                 {co.lista_prec && (() => {
@@ -684,14 +683,6 @@ export default function Empresas({ onViewCompanyDetails }) {
                         readOnly={isRfcLocked}
                         style={isRfcLocked ? { background: '#f8fafc', color: '#64748b', cursor: 'pointer', border: '1px dashed #cbd5e1', fontWeight: '600' } : {}}
                         placeholder="RDE123456XXX" 
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>Giro / Industria</label>
-                      <input 
-                        value={form.industry} 
-                        onChange={f('industry')} 
-                        placeholder="Ej: Estructuras metálicas, Edificación, Terracerías..." 
                       />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1', position: 'relative' }}>

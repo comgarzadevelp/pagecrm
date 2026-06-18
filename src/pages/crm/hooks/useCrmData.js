@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCompany } from '../../../contexts/CompanyContext';
 import { applyTheme } from '../../../styles/companyThemes';
@@ -12,6 +12,7 @@ export function useCrmData(role, enabledModules = []) {
 
   // Global States
   const [leads, setLeads] = useState([]);
+  const prevLeadsStrRef = useRef('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [stats, setStats] = useState({ total: 0, popup: 0, contact: 0, qualified: 0 });
@@ -59,9 +60,9 @@ export function useCrmData(role, enabledModules = []) {
   };
 
   // 1. Fetch leads API
-  const fetchLeads = async () => {
+  const fetchLeads = async (silent = false) => {
     if (!enabledModules.includes('leads') && !enabledModules.includes('orphans')) return;
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError('');
     const token = localStorage.getItem('token');
     if (!token) {
@@ -91,13 +92,19 @@ export function useCrmData(role, enabledModules = []) {
       }
 
       const leadsList = data.leads || [];
-      setLeads(leadsList);
-      calculateStats(leadsList);
+      // Solo actualizar estado si los datos cambiaron — evita re-renders innecesarios
+      // que propagan hacia componentes hijos (CalendarioPanel, modales, etc.)
+      const leadsStr = JSON.stringify(leadsList);
+      if (leadsStr !== prevLeadsStrRef.current) {
+        prevLeadsStrRef.current = leadsStr;
+        setLeads(leadsList);
+        calculateStats(leadsList);
+      }
     } catch (err) {
       console.error('Fetch leads error:', err);
       setError(err.message || 'Fallo de conexión con el servidor.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -144,9 +151,9 @@ export function useCrmData(role, enabledModules = []) {
   };
 
   // 4. Fetch customers directory
-  const fetchCustomers = async () => {
+  const fetchCustomers = async (silent = false) => {
     if (!enabledModules.includes('customers') && !enabledModules.includes('quotes')) return;
-    setLoadingCustomers(true);
+    if (!silent) setLoadingCustomers(true);
     setCustomerError('');
     const token = localStorage.getItem('token');
     try {
@@ -167,7 +174,7 @@ export function useCrmData(role, enabledModules = []) {
       console.error('Fetch customers error:', err);
       setCustomerError('Fallo de conexión con el servidor.');
     } finally {
-      setLoadingCustomers(false);
+      if (!silent) setLoadingCustomers(false);
     }
   };
 
@@ -327,16 +334,16 @@ export function useCrmData(role, enabledModules = []) {
     showToast(`¡Cotización ${pastQuote.quote_num} cargada en el Cotizador con éxito!`, 'success');
   };
 
-  const handleRefreshAll = (currentTab = '') => {
+  const handleRefreshAll = (currentTab = '', silent = false) => {
     fetchProfile();
     
     // Si no se especifica tab o es 'leads', refrescar prospectos
     if (!currentTab || currentTab === 'leads') {
-      fetchLeads();
+      fetchLeads(silent);
     }
     // Si es 'customers' o 'contacts' o 'companies', refrescar directorio y clientes
     if (!currentTab || currentTab === 'customers' || currentTab === 'contacts' || currentTab === 'companies') {
-      fetchCustomers();
+      fetchCustomers(silent);
     }
     // Si es 'pipeline' o 'quotes', refrescar oportunidades
     if (!currentTab || currentTab === 'pipeline' || currentTab === 'quotes' || currentTab === 'quotes-manager') {

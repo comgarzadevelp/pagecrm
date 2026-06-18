@@ -564,7 +564,6 @@ export default function CotizadorB2B({
                         <>
                           <strong style={{ fontSize: '0.9rem' }}>{c.name}</strong>
                           {c.company && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Empresa: {c.company}</p>}
-                          <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Giro: {c.project_type || 'General B2B'}</p>
                           {c.phone && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Tel: {c.phone}</p>}
                           {c.email && <p style={{ fontSize: '0.75rem', margin: '2px 0' }}>Email: {c.email}</p>}
                         </>

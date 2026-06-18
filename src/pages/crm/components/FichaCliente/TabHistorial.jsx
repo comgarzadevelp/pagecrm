@@ -84,7 +84,6 @@ export default function TabHistorial({
           email: currentCustomer.email,
           phone: currentCustomer.phone,
           company: currentCustomer.company,
-          project_type: currentCustomer.project_type,
           notes: notesPayload,
           status: currentCustomer.status || 'calificado'
         };

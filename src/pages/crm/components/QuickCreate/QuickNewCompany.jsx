@@ -10,7 +10,6 @@ export default function QuickNewCompany({ API_BASE, onClose }) {
   const [phoneMain, setPhoneMain] = useState('');
   const [emailMain, setEmailMain] = useState('');
   const [city, setCity] = useState('Monterrey');
-  const [industry, setIndustry] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e) => {
@@ -39,7 +38,6 @@ export default function QuickNewCompany({ API_BASE, onClose }) {
           email_main: emailMain.trim() || null,
           city: city.trim() || 'Monterrey',
           state: 'Nuevo León',
-          industry: industry.trim() || null,
           status: 'activo',
           notes: 'Registrada vía móvil rápido'
         })
@@ -155,16 +153,7 @@ export default function QuickNewCompany({ API_BASE, onClose }) {
             />
           </div>
 
-          <div className="quick-input-group">
-            <label className="quick-input-label">Giro / Industria</label>
-            <input
-              type="text"
-              className="quick-input"
-              placeholder="Ej: Estructuras metálicas, Climaflex..."
-              value={industry}
-              onChange={(e) => setIndustry(e.target.value)}
-            />
-          </div>
+
         </form>
       </div>
 

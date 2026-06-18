@@ -183,14 +183,14 @@ export default function CalendarioPanel({ leads = [] }) {
     }
   };
 
-  // Helper to extract category from description
-  const getEventCategory = (desc) => {
-    if (!desc) return 'negocios';
-    const match = desc.match(/\[CAT:([a-z]+)\]/);
+  // Helper to extract category from description or title
+  const getEventCategory = (desc, eventTitle) => {
+    if (!desc && !eventTitle) return 'negocios';
+    const match = desc ? desc.match(/\[CAT:([a-z]+)\]/) : null;
     if (match && match[1]) {
       return match[1];
     }
-    const lower = desc.toLowerCase() + ' ' + (title || '').toLowerCase();
+    const lower = `${desc || ''} ${eventTitle || ''}`.toLowerCase();
     if (lower.includes('llamada') || lower.includes('llamar') || lower.includes('phone')) return 'llamada';
     if (lower.includes('demo') || lower.includes('present') || lower.includes('mostrar')) return 'demo';
     if (lower.includes('seguimiento') || lower.includes('feed')) return 'seguimiento';
@@ -221,7 +221,7 @@ export default function CalendarioPanel({ leads = [] }) {
       const evDesc = (event.description || '').toLowerCase();
       const matchesSearch = evTitle.includes(filterText.toLowerCase()) || evDesc.includes(filterText.toLowerCase());
       
-      const cat = getEventCategory(event.description);
+      const cat = getEventCategory(event.description, event.summary);
       const matchesCategory = selectedCategoryFilter === 'all' || cat === selectedCategoryFilter;
 
       return matchesSearch && matchesCategory;
@@ -402,7 +402,26 @@ export default function CalendarioPanel({ leads = [] }) {
                         </div>
                         <div className="col-detalles">
                           <strong>{app.title}</strong>
-                          {app.description && <p>{getCleanDescription(app.description)}</p>}
+                          {app.client_name && (
+                            <div className="audit-client-badge" style={{
+                              fontSize: '0.75rem',
+                              color: '#0f766e',
+                              fontWeight: '600',
+                              marginTop: '4px',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              background: 'rgba(13, 148, 136, 0.08)',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(13, 148, 136, 0.15)',
+                              width: 'fit-content'
+                            }}>
+                              <i className="fas fa-user-circle" style={{ color: '#0d9488', fontSize: '0.8rem' }} />
+                              <span>{app.client_name}</span>
+                            </div>
+                          )}
+                          {app.description && <p style={{ marginTop: '4px' }}>{getCleanDescription(app.description)}</p>}
                           {app.status === 'cancelled' && app.cancellation_reason && (
                             <div className="audit-cancel-reason">
                               <i className="fas fa-comment-dots" /> <em>Motivo: "{app.cancellation_reason}"</em>
@@ -510,7 +529,7 @@ export default function CalendarioPanel({ leads = [] }) {
                       <span className="section-count">{grouped.hoy.length} {grouped.hoy.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
                     <div className="timeline-cards-grid">
-                      {grouped.hoy.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig))}
+                      {grouped.hoy.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, null, null, leads))}
                     </div>
                   </div>
                 )}
@@ -524,7 +543,7 @@ export default function CalendarioPanel({ leads = [] }) {
                       <span className="section-count">{grouped.manana.length} {grouped.manana.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
                     <div className="timeline-cards-grid">
-                      {grouped.manana.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig))}
+                      {grouped.manana.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, null, null, leads))}
                     </div>
                   </div>
                 )}
@@ -538,7 +557,7 @@ export default function CalendarioPanel({ leads = [] }) {
                       <span className="section-count">{grouped.proximos.length} {grouped.proximos.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
                     <div className="timeline-cards-grid">
-                      {grouped.proximos.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, formatEventDay, formatEventNumber))}
+                      {grouped.proximos.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, formatEventDay, formatEventNumber, leads))}
                     </div>
                   </div>
                 )}
@@ -639,13 +658,49 @@ export default function CalendarioPanel({ leads = [] }) {
 }
 
 // Sub-component for rendering event card
-function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, getCategory, getCleanDesc, categoriesConfig, formatDay, formatNumber) {
+function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, getCategory, getCleanDesc, categoriesConfig, formatDay, formatNumber, leads = []) {
   const startTime = event.start?.dateTime || event.start?.date;
   const endTime = event.end?.dateTime || event.end?.date;
   const isAllDay = !event.start?.dateTime;
-  const catKey = getCategory(event.description);
+  const catKey = getCategory(event.description, event.summary);
   const cat = categoriesConfig[catKey] || categoriesConfig.negocios;
   const cleanDesc = getCleanDesc(event.description);
+
+  // Intentar asociar heurísticamente por correo o nombre si no viene client_name nativo
+  let matchedLead = null;
+  if (!event.client_name && event.attendees && event.attendees.length > 0 && leads && leads.length > 0) {
+    for (const attendee of event.attendees) {
+      if (attendee.email) {
+        const found = leads.find(l => l.email && l.email.toLowerCase().trim() === attendee.email.toLowerCase().trim());
+        if (found) {
+          matchedLead = found;
+          break;
+        }
+      }
+    }
+  }
+
+  if (!event.client_name && !matchedLead && event.summary && leads && leads.length > 0) {
+    const summaryLower = event.summary.toLowerCase();
+    matchedLead = leads.find(l => l.name && l.name.length > 4 && summaryLower.includes(l.name.toLowerCase()));
+  }
+
+  const clientToShow = event.client_name || (matchedLead ? matchedLead.name : null);
+  
+  // Buscar información de contacto complementaria
+  let associatedCompany = null;
+  let associatedPhone = null;
+  
+  if (matchedLead) {
+    associatedCompany = matchedLead.company;
+    associatedPhone = matchedLead.phone;
+  } else if (clientToShow && leads && leads.length > 0) {
+    const found = leads.find(l => l.name && l.name.toLowerCase().trim() === clientToShow.toLowerCase().trim());
+    if (found) {
+      associatedCompany = found.company;
+      associatedPhone = found.phone;
+    }
+  }
 
   return (
     <div key={event.id} className="event-timeline-card" style={{ borderLeft: `5px solid ${cat.color}` }}>
@@ -682,6 +737,51 @@ function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, 
             </span>
           )}
         </div>
+        
+        {clientToShow && (
+          <div className="event-card-client-container" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="event-card-client" style={{
+              fontSize: '0.8rem',
+              color: '#0f766e',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'rgba(13, 148, 136, 0.08)',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              width: 'fit-content',
+              border: '1px solid rgba(13, 148, 136, 0.15)'
+            }}>
+              <i className="fas fa-user-circle" style={{ color: '#0d9488' }} />
+              <span>Prospecto / Cliente: {clientToShow}</span>
+            </div>
+            
+            {(associatedCompany || associatedPhone) && (
+              <div className="event-card-client-details" style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '8px',
+                fontSize: '0.72rem',
+                color: 'var(--color-text-muted)',
+                paddingLeft: '4px'
+              }}>
+                {associatedCompany && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <i className="fas fa-building" style={{ fontSize: '0.75rem', opacity: 0.7 }} />
+                    {associatedCompany}
+                  </span>
+                )}
+                {associatedPhone && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <i className="fas fa-phone" style={{ fontSize: '0.75rem', opacity: 0.7 }} />
+                    {associatedPhone}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         
         {cleanDesc && <p className="event-desc-text">{cleanDesc}</p>}
 

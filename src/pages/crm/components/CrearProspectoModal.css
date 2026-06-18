@@ -1,0 +1,211 @@
+/* src/pages/crm/components/CrearProspectoModal.css */
+
+.crm-modal-overlay {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  z-index: 99999999 !important; /* Stand completely above sidebar */
+  backdrop-filter: blur(8px) !important;
+  margin: 0 !important;
+  padding: 1rem !important;
+}
+
+.crm-modal-content {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  max-height: 92vh !important;
+  background: #ffffff !important;
+  border-radius: 16px !important;
+  padding: 2rem !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  position: relative !important;
+  overflow: hidden !important;
+}
+
+/* Screen adaptation for low-resolution devices */
+@media (max-width: 1366px) {
+  .crm-modal-content {
+    padding: 1.5rem !important;
+    max-height: 95vh !important;
+  }
+  
+  .crm-modal-content h2 {
+    font-size: 1.35rem !important;
+  }
+  
+  .modal-form-grid {
+    gap: 0.75rem !important;
+  }
+  
+  .modal-input-group label {
+    font-size: 0.75rem !important;
+  }
+  
+  .modal-input-group input,
+  .modal-input-group select,
+  .modal-input-group textarea {
+    padding: 0.55rem 0.75rem !important;
+    font-size: 0.8rem !important;
+  }
+}
+
+.crm-modal-content form {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  overflow: hidden !important;
+}
+
+.crm-modal-content .modal-body {
+  flex: 1 !important;
+  overflow-y: auto !important;
+  padding-right: 12px !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+/* Custom scrollbar for modal body */
+.crm-modal-content .modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.crm-modal-content .modal-body::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.crm-modal-content .modal-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.crm-modal-content .modal-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
+.crm-modal-content .modal-footer {
+  margin-top: auto !important;
+  padding-top: 1rem !important;
+  border-top: 1px solid #e2e8f0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 0.5rem !important;
+}
+
+.modal-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 600px) {
+  .modal-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.modal-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.modal-input-group label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-brand-primary, #05393a);
+}
+
+.modal-input-group input,
+.modal-input-group select,
+.modal-input-group textarea {
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.modal-input-group input:focus,
+.modal-input-group select:focus,
+.modal-input-group textarea:focus {
+  border-color: var(--color-brand-accent, #d4a359);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(212, 163, 89, 0.15);
+}
+
+/* Close button and CTAs */
+.close-modal-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #64748b;
+  transition: color 0.15s ease;
+}
+
+.close-modal-btn:hover {
+  color: #0f172a;
+}
+
+.btn-secondary {
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: transparent;
+  color: #334155;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.btn-secondary:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.btn-primary {
+  padding: 0.65rem 1.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--color-brand-accent, #d4a359);
+  background: linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #c2781b 100%);
+  color: white;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.btn-primary:hover {
+  opacity: 0.95;
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.phone-warning-message {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 2px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}

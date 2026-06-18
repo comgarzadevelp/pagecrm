@@ -176,7 +176,6 @@ ${content.trim()}
               email: selectedEntity.original.email,
               phone: selectedEntity.original.phone,
               company: selectedEntity.original.company,
-              project_type: selectedEntity.original.project_type,
               notes: updatedNotesPayload,
               status: selectedEntity.original.status || 'calificado'
             })

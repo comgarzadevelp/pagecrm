@@ -6,6 +6,8 @@ import { getLeadAgeInfo, getChannelBadgeInfo } from '../utils/leadHelpers';
 import './ProspectosKanban.css';
 import { validateQuotePDF } from '../utils/pdfValidator';
 import EventCreatorModal from './EventCreatorModal';
+import DetallesProspecto from '../components/DetallesProspecto';
+import CrearProspectoModal from '../components/CrearProspectoModal';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {
@@ -51,8 +53,14 @@ const compressImage = (file) => {
   });
 };
 
-export default function ProspectosKanban({ role, API_BASE }) {
+export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const { showToast, showConfirm } = useUX();
+
+  // Guardar ref para evitar que actualizaciones del callback de fetchLeads causen loops o invaliden closures
+  const fetchLeadsRef = useRef(fetchLeads);
+  useEffect(() => {
+    fetchLeadsRef.current = fetchLeads;
+  }, [fetchLeads]);
 
   // ── Core State ──
   const [leads, setLeads] = useState([]);
@@ -93,17 +101,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
   // ── Modals State ──
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    company: '',
-    project_type: '',
-    notes: ''
-  });
-  const [phoneWarning, setPhoneWarning] = useState('');
-  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
-  const debouncedPhone = useDebounce(createForm.phone, 500);
+  const [createLeadInitialNotes, setCreateLeadInitialNotes] = useState('');
 
   const [newStageModalOpen, setNewStageModalOpen] = useState(false);
   const [newStageForm, setNewStageForm] = useState({ name: '', color: '#10b981', root_stage: 'nuevo' });
@@ -137,6 +135,27 @@ export default function ProspectosKanban({ role, API_BASE }) {
   });
 
   const [pendingReunionLead, setPendingReunionLead] = useState(null);
+  const [isCancelReunionModalOpen, setIsCancelReunionModalOpen] = useState(false);
+  const [cancelReunionReason, setCancelReunionReason] = useState('');
+  const [cancelReunionLoading, setCancelReunionLoading] = useState(false);
+  const [reunionAppointment, setReunionAppointment] = useState(null);
+  const [pendingCancelLeadData, setPendingCancelLeadData] = useState(null);
+
+  const [isOutcomeModalOpen, setIsOutcomeModalOpen] = useState(false);
+  const [meetingOutcome, setMeetingOutcome] = useState('concretada');
+  const [meetingComments, setMeetingComments] = useState('');
+  const [outcomeLoading, setOutcomeLoading] = useState(false);
+
+  // Memoizar prefillData para evitar crear nueva referencia de objeto en cada re-render
+  // del Kanban, lo que dispararía el useEffect de EventCreatorModal y borraría el formulario.
+  const reunionPrefillData = useMemo(() => {
+    if (!pendingReunionLead) return null;
+    return {
+      title: `Reunión: ${pendingReunionLead.name}`,
+      clientName: pendingReunionLead.name,
+      attendees: pendingReunionLead.email || '',
+    };
+  }, [pendingReunionLead?.id, pendingReunionLead?.name, pendingReunionLead?.email]);
 
   // Evidence Modal states
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
@@ -150,13 +169,6 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
   // ── Lead Detail Modal State ──
   const [selectedLead, setSelectedLead] = useState(null);
-  const [activeModalTab, setActiveModalTab] = useState('info'); // 'info' | 'bitacora' | 'timeline'
-  const [timelineNote, setTimelineNote] = useState('');
-  const [timelineNoteType, setTimelineNoteType] = useState('note');
-  const [leadQuotes, setLeadQuotes] = useState([]);
-  const [loadingLeadQuotes, setLoadingLeadQuotes] = useState(false);
-  const [visitPhotos, setVisitPhotos] = useState([]);
-  const [activeLightboxImg, setActiveLightboxImg] = useState(null);
 
   // ── Mobile Specific State ──
   const [mobileActiveTab, setMobileActiveTab] = useState('nuevo');
@@ -246,6 +258,12 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
       if (resLeads?.success) {
         setLeads(resLeads.leads || []);
+        // Solo notificar al padre en fetches explícitos (no silenciosos).
+        // En el polling de fondo (silent=true) NO propagar al componente padre,
+        // evitando que DashboardSales/Admin re-renderice CalendarioPanel y modales.
+        if (!silent && fetchLeadsRef.current) {
+          fetchLeadsRef.current(true);
+        }
       }
       if (resStages?.success) {
         setCustomStages(resStages.stages || []);
@@ -293,10 +311,17 @@ export default function ProspectosKanban({ role, API_BASE }) {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
+      // Pausar si el usuario tiene un modal abierto o está escribiendo en un input
+      const hasOpenModal = document.querySelector(
+        '.evc-modal-overlay, .modal-overlay-glass, .modal-overlay, [role="dialog"]'
+      );
+      const isUserTyping = document.activeElement &&
+        ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName);
+
+      if (document.visibilityState === 'visible' && !hasOpenModal && !isUserTyping) {
         fetchAllData(true);
       }
-    }, 45000); // 45s polling
+    }, 90000); // 90s — reducido desde 45s para menor saturación del servidor
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
@@ -319,70 +344,9 @@ export default function ProspectosKanban({ role, API_BASE }) {
     }
   }, [API_BASE, getAuthHeaders, handleFetchResponse]);
 
-  // Fetch Quotes for detailed lead view
-  const fetchLeadQuotes = useCallback(async (leadId) => {
-    if (!leadId) return;
-    setLoadingLeadQuotes(true);
-    const headers = getAuthHeaders();
-    if (!headers) {
-      setLoadingLeadQuotes(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
-      const data = await handleFetchResponse(res);
-      if (data && data.success) {
-        setLeadQuotes(data.quotes || []);
-      }
-    } catch (err) {
-      console.error('Fetch lead quotes error:', err);
-    } finally {
-      setLoadingLeadQuotes(false);
-    }
-  }, [API_BASE, getAuthHeaders, handleFetchResponse]);
 
-  const prevLeadIdRef = useRef(null);
-  useEffect(() => {
-    if (selectedLead?.id !== prevLeadIdRef.current) {
-      prevLeadIdRef.current = selectedLead?.id || null;
-      if (selectedLead) {
-        fetchLeadQuotes(selectedLead.id);
-        setActiveModalTab('info');
-        setTimelineNote('');
-        setVisitPhotos([]);
-      } else {
-        setLeadQuotes([]);
-        setTimelineNote('');
-        setVisitPhotos([]);
-      }
-    }
-  }, [selectedLead?.id, fetchLeadQuotes]);
 
-  // Duplicate phone warning logic
-  useEffect(() => {
-    const checkPhone = async () => {
-      if (!debouncedPhone || debouncedPhone.trim().length < 10) {
-        setPhoneWarning('');
-        return;
-      }
-      const headers = getAuthHeaders(null);
-      if (!headers) return;
-      try {
-        const res = await fetch(`${API_BASE}/api/crm/leads/check-duplicate?phone=${encodeURIComponent(debouncedPhone.trim())}`, {
-          headers
-        });
-        const data = await handleFetchResponse(res);
-        if (data && data.success && data.duplicate) {
-          setPhoneWarning(data.message || 'Este número ya está asignado a otro ejecutivo.');
-        } else {
-          setPhoneWarning('');
-        }
-      } catch (err) {
-        console.error('Error checking duplicate phone:', err);
-      }
-    };
-    checkPhone();
-  }, [debouncedPhone, API_BASE, getAuthHeaders, handleFetchResponse]);
+
 
   // ── Columns Builder ──
   const columns = useMemo(() => {
@@ -711,6 +675,41 @@ export default function ProspectosKanban({ role, API_BASE }) {
   };
 
 
+  const checkActiveAppointment = async (lead, targetStage, onNoAppointment) => {
+    if ((lead.status || '').toLowerCase() === 'reunion_agendada' && targetStage.toLowerCase() !== 'reunion_agendada') {
+      try {
+        const res = await fetch(`${API_BASE}/api/calendar/appointments/check?client_name=${encodeURIComponent(lead.name)}&include_past=true`, {
+          headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.appointment) {
+            setReunionAppointment(data.appointment);
+            setPendingCancelLeadData({ id: lead.id, targetStage });
+            
+            const apptTime = new Date(data.appointment.end_time || data.appointment.start_time);
+            const now = new Date();
+            const isPast = apptTime < now;
+            
+            if (isPast) {
+              setMeetingOutcome('concretada');
+              setMeetingComments('');
+              setIsOutcomeModalOpen(true);
+            } else {
+              setCancelReunionReason('');
+              setIsCancelReunionModalOpen(true);
+            }
+            return true; // Intercepted
+          }
+        }
+      } catch (err) {
+        console.warn('Error checking existing appointment:', err);
+      }
+    }
+    onNoAppointment();
+    return false; // Not intercepted
+  };
+
   const executeStageUpdate = async (leadId, targetStage) => {
     const leadToMove = leads.find(l => String(l.id) === String(leadId));
     if (!leadToMove) return;
@@ -745,6 +744,9 @@ export default function ProspectosKanban({ role, API_BASE }) {
         showToast('Etapa del prospecto actualizada.', 'success');
         setCountPulseCol(targetStage);
         setTimeout(() => setCountPulseCol(null), 400);
+        if (fetchLeadsRef.current) {
+          fetchLeadsRef.current();
+        }
       }
     } catch (err) {
       console.error(err);
@@ -753,73 +755,147 @@ export default function ProspectosKanban({ role, API_BASE }) {
     }
   };
 
+  const handleConfirmCancelReunionFromKanban = async () => {
+    if (!reunionAppointment || !pendingCancelLeadData) return;
+    if (cancelReunionReason.length < 150) {
+      showToast('La justificación comercial debe contener un mínimo de 150 caracteres.', 'warning');
+      return;
+    }
+
+    setCancelReunionLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/events/${reunionAppointment.google_event_id}?reason=${encodeURIComponent(cancelReunionReason)}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      await executeStageUpdate(pendingCancelLeadData.id, pendingCancelLeadData.targetStage);
+
+      setIsCancelReunionModalOpen(false);
+      setReunionAppointment(null);
+      setPendingCancelLeadData(null);
+      setCancelReunionReason('');
+    } catch (err) {
+      console.error('Error canceling appointment from Kanban:', err);
+      showToast('Fallo al cancelar la cita: ' + err.message, 'error');
+    } finally {
+      setCancelReunionLoading(false);
+    }
+  };
+
+  const handleConfirmMeetingOutcome = async () => {
+    if (!reunionAppointment || !pendingCancelLeadData) return;
+    if (!meetingOutcome) {
+      showToast('Por favor, selecciona un resultado para la reunión.', 'warning');
+      return;
+    }
+
+    setOutcomeLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/appointments/${reunionAppointment.id}/outcome`, {
+        method: 'PUT',
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          outcome: meetingOutcome,
+          comments: meetingComments,
+          targetStage: pendingCancelLeadData.targetStage
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+
+      // El backend ya actualiza el lead y la cita, solo actualizamos localmente
+      await fetchAllData(true);
+
+      showToast('Resultado de reunión registrado y prospecto actualizado.', 'success');
+
+      setIsOutcomeModalOpen(false);
+      setReunionAppointment(null);
+      setPendingCancelLeadData(null);
+      setMeetingOutcome('concretada');
+      setMeetingComments('');
+    } catch (err) {
+      console.error('Error registering meeting outcome:', err);
+      showToast('Fallo al registrar el resultado: ' + err.message, 'error');
+    } finally {
+      setOutcomeLoading(false);
+    }
+  };
+
   // Actualizar el ref callback de drop para que siempre tenga el closure más reciente
   handleDropActionRef.current = async (leadId, targetColKey) => {
     const leadToMove = leads.find(l => String(l.id) === String(leadId));
     if (!leadToMove || (leadToMove.status || '').toLowerCase() === targetColKey.toLowerCase()) return;
 
-    switch (targetColKey) {
-      case 'descartado':
-        setLeadToDiscard(leadToMove);
-        setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-        setDiscardModalOpen(true);
-        break;
+    await checkActiveAppointment(leadToMove, targetColKey, async () => {
+      switch (targetColKey) {
+        case 'descartado':
+          setLeadToDiscard(leadToMove);
+          setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+          setDiscardModalOpen(true);
+          break;
 
-      case 'cierre_ganado':
-        setLeadToPromote(leadToMove);
-        setPromoteForm({
-          contactName: leadToMove.name || '',
-          position: 'Contacto Comercial',
-          email: leadToMove.email || '',
-          phone: leadToMove.phone || '',
-          phone_alt: '',
-          whatsapp: leadToMove.phone || '',
-          notes: leadToMove.notes || '',
-          companyMode: 'none',
-          linkExistingCompanyId: '',
-          newCompanyName: leadToMove.company || '',
-          newCompanyRfc: '',
-          newCompanyAddress: '',
-          newCompanyCity: '',
-          newCompanyState: '',
-          newCompanyNotes: ''
-        });
-        fetchCompanies();
-        setPromoteModalOpen(true);
-        break;
+        case 'cierre_ganado':
+          setLeadToPromote(leadToMove);
+          setPromoteForm({
+            contactName: leadToMove.name || '',
+            position: 'Contacto Comercial',
+            email: leadToMove.email || '',
+            phone: leadToMove.phone || '',
+            phone_alt: '',
+            whatsapp: leadToMove.phone || '',
+            notes: leadToMove.notes || '',
+            companyMode: 'none',
+            linkExistingCompanyId: '',
+            newCompanyName: leadToMove.company || '',
+            newCompanyRfc: '',
+            newCompanyAddress: '',
+            newCompanyCity: '',
+            newCompanyState: '',
+            newCompanyNotes: ''
+          });
+          fetchCompanies();
+          setPromoteModalOpen(true);
+          break;
 
-      case 'reunion_agendada':
-        setPendingReunionLead(leadToMove);
-        return; // El return es intencional: no ejecutar el default
+        case 'reunion_agendada':
+          setPendingReunionLead(leadToMove);
+          break;
 
-      case 'cotizando': {
-        let hasInternalQuote = false;
-        const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-        try {
-          const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
-          if (res.ok) {
-            const data = await res.json();
-            hasInternalQuote = (data.quotes || []).length > 0;
+        case 'cotizando': {
+          let hasInternalQuote = false;
+          const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
+          try {
+            const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
+            if (res.ok) {
+              const data = await res.json();
+              hasInternalQuote = (data.quotes || []).length > 0;
+            }
+          } catch (e) {
+            console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
+            hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
           }
-        } catch (e) {
-          console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
-          hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
+
+          if (hasInternalQuote) {
+            await executeStageUpdate(leadId, targetColKey);
+          } else {
+            setEvidenceLeadId(leadId);
+            setShowEvidenceModal(true);
+          }
+          break;
         }
 
-        if (hasInternalQuote) {
+        default:
+          // Todas las demás etapas: movimiento libre
           await executeStageUpdate(leadId, targetColKey);
-        } else {
-          setEvidenceLeadId(leadId);
-          setShowEvidenceModal(true);
-        }
-        break;
+          break;
       }
-
-      default:
-        // Todas las demás etapas: movimiento libre
-        await executeStageUpdate(leadId, targetColKey);
-        break;
-    }
+    });
   };
 
   // Column Reorder DnD
@@ -936,45 +1012,6 @@ export default function ProspectosKanban({ role, API_BASE }) {
   };
 
   // ── API Modals Workflows ──
-
-  // Manual Lead Creation
-  const handleCreateLeadSubmit = async (e) => {
-    e.preventDefault();
-    if (!createForm.name || !createForm.phone) {
-      showToast('Nombre y teléfono son requeridos.', 'error');
-      return;
-    }
-    if (phoneWarning) {
-      showToast(phoneWarning, 'error');
-      return;
-    }
-
-    setIsSubmittingLead(true);
-    const headers = getAuthHeaders();
-    if (!headers) {
-      setIsSubmittingLead(false);
-      return;
-    }
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/leads`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(createForm)
-      });
-      const data = await handleFetchResponse(res);
-      if (data && data.success) {
-        showToast('¡Prospecto registrado exitosamente!', 'success');
-        setCreateModalOpen(false);
-        setCreateForm({ name: '', phone: '', email: '', company: '', project_type: '', notes: '' });
-        fetchAllData();
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Error de conexión.', 'error');
-    } finally {
-      setIsSubmittingLead(false);
-    }
-  };
 
   // Create Custom Stage
   const handleCreateStage = async (e) => {
@@ -1139,103 +1176,9 @@ export default function ProspectosKanban({ role, API_BASE }) {
     }
   };
 
-  // Add Timeline Note
-  const handleAddTimelineNote = async (e) => {
-    e.preventDefault();
-    if (!timelineNote.trim() || !selectedLead) return;
 
-    let textToSend = timelineNote.trim();
-    if (timelineNoteType === 'visit' && visitPhotos.length > 0) {
-      // PENDIENTE DE MIGRAR A CARGA REAL DE ARCHIVOS CUANDO EL BACKEND LO SOPORTE:
-      // Actualmente serializamos las imágenes en Base64 dentro del JSON del campo de texto
-      const totalSize = visitPhotos.reduce((acc, img) => acc + img.length, 0);
-      if (totalSize > 1.5 * 1024 * 1024) {
-        showToast('El tamaño total de las imágenes supera el límite de 1.5MB. Intenta con imágenes más pequeñas.', 'error');
-        return;
-      }
-      textToSend = JSON.stringify({
-        comment: timelineNote.trim(),
-        images: visitPhotos
-      });
-    }
 
-    const headers = getAuthHeaders();
-    if (!headers) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${selectedLead.id}/timeline`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          text: textToSend,
-          type: timelineNoteType
-        })
-      });
-      const data = await handleFetchResponse(res);
-      if (data && data.success) {
-        showToast('Nota de seguimiento guardada.', 'success');
-        setTimelineNote('');
-        setVisitPhotos([]);
 
-        let notesData = { general: '', timeline: [] };
-        try {
-          notesData = JSON.parse(selectedLead.notes);
-        } catch (e) {
-          notesData.general = selectedLead.notes || '';
-        }
-
-        const updatedLeadObj = {
-          ...selectedLead,
-          notes: JSON.stringify({
-            ...notesData,
-            timeline: data.timeline
-          }),
-          updated_at: new Date().toISOString()
-        };
-        setSelectedLead(updatedLeadObj);
-
-        // Update leads local list
-        setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(selectedLead.id) ? updatedLeadObj : l));
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Error de conexión.', 'error');
-    }
-  };
-
-  const handleFileChange = async (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length + visitPhotos.length > 2) {
-      showToast('Máximo 2 fotos permitidas para el registro de visita.', 'error');
-      return;
-    }
-
-    const newPhotos = [];
-    for (const file of files) {
-      if (file.size > 800 * 1024) {
-        showToast(`La foto "${file.name}" supera el límite de 800KB.`, 'error');
-        continue;
-      }
-      try {
-        const base64Str = await compressImage(file);
-        newPhotos.push(base64Str);
-      } catch (err) {
-        console.error(err);
-        showToast(`Error al procesar la imagen "${file.name}".`, 'error');
-      }
-    }
-    setVisitPhotos(prev => [...prev, ...newPhotos]);
-  };
-
-  // Safe JSON extraction for general notes field
-  const selectedLeadNotesText = useMemo(() => {
-    if (!selectedLead) return '';
-    try {
-      const parsed = JSON.parse(selectedLead.notes);
-      return parsed.general || selectedLead.notes || '';
-    } catch (e) {
-      return selectedLead.notes || '';
-    }
-  }, [selectedLead]);
 
   return (
     <div className="prospectos-kanban-root">
@@ -1246,7 +1189,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
           <h1>Etapas de Prospección</h1>
           <p>Organiza visualmente tus prospectos en el embudo comercial</p>
         </div>
-        <button className="new-lead-btn" onClick={() => setCreateModalOpen(true)}>
+        <button className="new-lead-btn" onClick={() => { setCreateLeadInitialNotes(''); setCreateModalOpen(true); }}>
           <i className="fas fa-plus"></i> Nuevo Prospecto
         </button>
       </div>
@@ -1434,7 +1377,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                       <button
                         className="col-action-btn"
                         onClick={() => {
-                          setCreateForm(prev => ({ ...prev, notes: `Etapa preseleccionada: ${col.label}` }));
+                          setCreateLeadInitialNotes(`Etapa preseleccionada: ${col.label}`);
                           setCreateModalOpen(true);
                         }}
                         title="Agregar prospecto a esta etapa"
@@ -1517,6 +1460,34 @@ export default function ProspectosKanban({ role, API_BASE }) {
                               <i className="fas fa-building"></i>
                               <span>{lead.company}</span>
                             </p>
+                          )}
+
+                          {lead.active_appointment && (
+                            <div className="card-reunion-time" style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              fontSize: '0.78rem',
+                              color: '#0891b2',
+                              background: 'rgba(8, 145, 178, 0.06)',
+                              padding: '6px 10px',
+                              borderRadius: '6px',
+                              marginTop: '8px',
+                              fontWeight: '600',
+                              border: '1px solid rgba(8, 145, 178, 0.15)',
+                              width: 'fit-content'
+                            }}>
+                              <i className="far fa-calendar-alt" style={{ fontSize: '0.85rem' }}></i>
+                              <span>
+                                {new Date(lead.active_appointment.start_time).toLocaleString('es-MX', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                }).replace('.', '')}
+                              </span>
+                            </div>
                           )}
 
                           <hr className="card-footer-divider" />
@@ -1606,6 +1577,33 @@ export default function ProspectosKanban({ role, API_BASE }) {
                       {lead.company && (
                         <span><i className="fas fa-building" style={{ marginRight: '4px' }}></i>{lead.company}</span>
                       )}
+                      {lead.active_appointment && (
+                        <span className="card-reunion-time" style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          fontSize: '0.72rem',
+                          color: '#0891b2',
+                          background: 'rgba(8, 145, 178, 0.06)',
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontWeight: '600',
+                          border: '1px solid rgba(8, 145, 178, 0.15)',
+                          width: 'fit-content',
+                          marginTop: '4px'
+                        }}>
+                          <i className="far fa-calendar-alt"></i>
+                          <span>
+                            {new Date(lead.active_appointment.start_time).toLocaleString('es-MX', {
+                              day: 'numeric',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true
+                            }).replace('.', '')}
+                          </span>
+                        </span>
+                      )}
                     </div>
 
                     <div className="mobile-lead-actions-row" onClick={(e) => e.stopPropagation()}>
@@ -1617,7 +1615,12 @@ export default function ProspectosKanban({ role, API_BASE }) {
                       <div style={{ position: 'relative' }}>
                         <select
                           value={lead.status}
-                          onChange={(e) => executeStageUpdate(lead.id, e.target.value)}
+                          onChange={(e) => {
+                            const targetVal = e.target.value;
+                            checkActiveAppointment(lead, targetVal, async () => {
+                              await executeStageUpdate(lead.id, targetVal);
+                            });
+                          }}
                           className="mobile-action-trigger"
                           style={{ cursor: 'pointer' }}
                         >
@@ -1683,26 +1686,28 @@ export default function ProspectosKanban({ role, API_BASE }) {
                           setCardMenuState(null);
                           setShowStatusSubmenu(false);
 
-                          if (col.key === 'descartado') {
-                            setLeadToDiscard(lead);
-                            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-                            setDiscardModalOpen(true);
-                          } else if (col.key === 'calificado') {
-                            setLeadToPromote(lead);
-                            setPromoteForm(prev => ({
-                              ...prev,
-                              contactName: lead.name || '',
-                              email: lead.email || '',
-                              phone: lead.phone || '',
-                              whatsapp: lead.phone || '',
-                              notes: lead.notes || '',
-                              newCompanyName: lead.company || ''
-                            }));
-                            fetchCompanies();
-                            setPromoteModalOpen(true);
-                          } else {
-                            await executeStageUpdate(lead.id, col.key);
-                          }
+                          await checkActiveAppointment(lead, col.key, async () => {
+                            if (col.key === 'descartado') {
+                              setLeadToDiscard(lead);
+                              setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+                              setDiscardModalOpen(true);
+                            } else if (col.key === 'calificado') {
+                              setLeadToPromote(lead);
+                              setPromoteForm(prev => ({
+                                ...prev,
+                                contactName: lead.name || '',
+                                email: lead.email || '',
+                                phone: lead.phone || '',
+                                whatsapp: lead.phone || '',
+                                notes: lead.notes || '',
+                                newCompanyName: lead.company || ''
+                              }));
+                              fetchCompanies();
+                              setPromoteModalOpen(true);
+                            } else {
+                              await executeStageUpdate(lead.id, col.key);
+                            }
+                          });
                         }}
                       >
                         <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col.color }}></span>
@@ -1751,93 +1756,16 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
       {/* ── MODALS SECTION ── */}
 
-      {/* 1. Create Lead Modal */}
-      {createModalOpen && (
-        <div className="modal-overlay-glass">
-          <div className="modal-content-glass" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-row">
-              <h2>Registrar Nuevo Prospecto</h2>
-              <button className="modal-close-btn" onClick={() => setCreateModalOpen(false)}>&times;</button>
-            </div>
-
-            <form onSubmit={handleCreateLeadSubmit} className="modal-body-form">
-              <div className="form-group-custom">
-                <label>Nombre Completo *</label>
-                <input
-                  type="text"
-                  value={createForm.name}
-                  onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                  placeholder="Ej: Juan Pérez"
-                  required
-                />
-              </div>
-
-              <div className="form-group-custom">
-                <label>Teléfono Celular *</label>
-                <input
-                  type="tel"
-                  value={createForm.phone}
-                  onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                  placeholder="Ej: 8112345678"
-                  required
-                />
-                {phoneWarning && (
-                  <span style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: '600', marginTop: '2px' }}>
-                    <i className="fas fa-exclamation-triangle"></i> {phoneWarning}
-                  </span>
-                )}
-              </div>
-
-              <div className="form-group-custom">
-                <label>Correo Electrónico</label>
-                <input
-                  type="email"
-                  value={createForm.email}
-                  onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                  placeholder="Ej: juan@empresa.com"
-                />
-              </div>
-
-              <div className="form-group-custom">
-                <label>Empresa / Constructora</label>
-                <input
-                  type="text"
-                  value={createForm.company}
-                  onChange={(e) => setCreateForm({ ...createForm, company: e.target.value })}
-                  placeholder="Ej: Constructora Garza"
-                />
-              </div>
-
-              <div className="form-group-custom">
-                <label>Giro / Tipo de Obra</label>
-                <input
-                  type="text"
-                  value={createForm.project_type}
-                  onChange={(e) => setCreateForm({ ...createForm, project_type: e.target.value })}
-                  placeholder="Ej: Residencial, Industrial..."
-                />
-              </div>
-
-              <div className="form-group-custom">
-                <label>Requerimientos Iniciales</label>
-                <textarea
-                  rows="3"
-                  value={createForm.notes}
-                  onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                  placeholder="Especifica productos o servicios solicitados..."
-                />
-              </div>
-
-              <div className="modal-footer-actions">
-                <button type="button" className="cancel-modal-btn" onClick={() => setCreateModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="submit-modal-btn" disabled={isSubmittingLead || !!phoneWarning}>
-                  {isSubmittingLead ? 'Guardando...' : 'Crear Prospecto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* REUSABLE CREATE LEAD MODAL */}
+      <CrearProspectoModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => {
+          fetchAllData();
+        }}
+        API_BASE={API_BASE}
+        initialNotes={createLeadInitialNotes}
+      />
 
       {/* 2. Create Custom Stage Modal */}
       {newStageModalOpen && (
@@ -2201,416 +2129,52 @@ export default function ProspectosKanban({ role, API_BASE }) {
       )}
 
       {/* 6. Lead Detail Modal */}
-      {selectedLead && (
-        <div className="modal-overlay-glass" style={{ zIndex: 10000 }}>
-          <div className="modal-content-glass" style={{ maxWidth: '750px', width: '96%' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-row">
-              <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span className="channel-badge" style={{ backgroundColor: getChannelBadgeInfo(selectedLead.type).color }}>
-                  {getChannelBadgeInfo(selectedLead.type).label}
-                </span>
-                {selectedLead.name || 'Prospecto Anónimo'}
-              </h2>
-              <button className="modal-close-btn" onClick={() => setSelectedLead(null)}>&times;</button>
-            </div>
-
-            {/* Modal Tabs */}
-            <div style={{ display: 'flex', gap: '1.25rem', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('info')}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700',
-                  padding: '8px 4px', color: activeModalTab === 'info' ? 'var(--color-brand-primary)' : '#64748b',
-                  borderBottom: activeModalTab === 'info' ? '3px solid var(--color-brand-primary)' : '3px solid transparent'
-                }}
-              >
-                Información General
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('bitacora')}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700',
-                  padding: '8px 4px', color: activeModalTab === 'bitacora' ? 'var(--color-brand-primary)' : '#64748b',
-                  borderBottom: activeModalTab === 'bitacora' ? '3px solid var(--color-brand-primary)' : '3px solid transparent'
-                }}
-              >
-                Bitácora
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('timeline')}
-                style={{
-                  background: 'transparent', border: 'none', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '700',
-                  padding: '8px 4px', color: activeModalTab === 'timeline' ? 'var(--color-brand-primary)' : '#64748b',
-                  borderBottom: activeModalTab === 'timeline' ? '3px solid var(--color-brand-primary)' : '3px solid transparent'
-                }}
-              >
-                Historial de Seguimiento
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
-              {activeModalTab === 'info' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '12px', borderRadius: '10px' }}>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Nombre:</span>
-                      <p style={{ margin: '2px 0 0 0', fontWeight: '700', fontSize: '0.9rem' }}>{selectedLead.name || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Empresa:</span>
-                      <p style={{ margin: '2px 0 0 0', fontWeight: '600', fontSize: '0.85rem' }}>{selectedLead.company || 'Sin Empresa'}</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Celular:</span>
-                      <p style={{ margin: '2px 0 0 0', fontWeight: '600', fontSize: '0.85rem' }}>{selectedLead.phone || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Email:</span>
-                      <p style={{ margin: '2px 0 0 0', fontWeight: '600', fontSize: '0.85rem' }}>{selectedLead.email || 'N/A'}</p>
-                    </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Giro / Obra:</span>
-                      <p style={{ margin: '2px 0 0 0', fontWeight: '600', fontSize: '0.85rem' }}>{selectedLead.project_type || 'N/A'}</p>
-                    </div>
-                  </div>
-
-                  <div style={{ border: '1px solid rgba(0,0,0,0.06)', borderRadius: '10px', padding: '12px' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Mensaje Inicial</span>
-                    <p style={{ margin: '6px 0 0 0', fontSize: '0.85rem', lineHeight: 1.4 }}>{selectedLeadNotesText || 'Sin observaciones.'}</p>
-                  </div>
-
-                  {/* Seller Assignment */}
-                  {(role === 'admin' || role === 'supervisor' || role === 'super_admin') ? (
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}><i className="fas fa-user-plus"></i> Asignación de Vendedor:</span>
-                      <select
-                        className="seller-assign-select"
-                        value={selectedLead.assigned_to?.id || ''}
-                        onChange={(e) => handleAssignSeller(selectedLead.id, e.target.value)}
-                        style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', marginTop: '6px' }}
-                      >
-                        <option value="">-- Sin asignar / Liberar Lead --</option>
-                        {sellers.map(s => (
-                          <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-                        ))}
-                      </select>
-                    </div>
-                  ) : (
-                    <div>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}><i className="fas fa-user-tie"></i> Vendedor Asignado:</span>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-brand-primary)' }}>
-                        {selectedLead.assigned_to ? selectedLead.assigned_to.name : 'Sin asignar'}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Stage changer in Detail */}
-                  <div>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Estatus de Prospección:</span>
-                    <div style={{ marginTop: '6px' }}>
-                      <select
-                        value={selectedLead.status}
-                        onChange={async (e) => {
-                          const val = e.target.value;
-                          if (val === 'descartado') {
-                            setLeadToDiscard(selectedLead);
-                            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-                            setDiscardModalOpen(true);
-                            setSelectedLead(null);
-                          } else if (val === 'calificado') {
-                            setLeadToPromote(selectedLead);
-                            setPromoteForm(prev => ({
-                              ...prev,
-                              contactName: selectedLead.name || '',
-                              email: selectedLead.email || '',
-                              phone: selectedLead.phone || '',
-                              whatsapp: selectedLead.phone || '',
-                              notes: selectedLead.notes || '',
-                              newCompanyName: selectedLead.company || ''
-                            }));
-                            fetchCompanies();
-                            setPromoteModalOpen(true);
-                            setSelectedLead(null);
-                          } else {
-                            await executeStageUpdate(selectedLead.id, val);
-                            setSelectedLead(prev => ({ ...prev, status: val }));
-                          }
-                        }}
-                        style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.85rem', width: '100%', cursor: 'pointer' }}
-                      >
-                        {columns.map(col => (
-                          <option key={col.key} value={col.key}>{col.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Quotes History */}
-                  <div style={{ marginTop: '10px' }}>
-                    <h4 style={{ fontSize: '0.8rem', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
-                      <i className="fas fa-file-invoice-dollar"></i> Cotizaciones Emitidas ({leadQuotes.length})
-                    </h4>
-                    {loadingLeadQuotes ? (
-                      <p style={{ fontSize: '0.8rem', color: '#64748b' }}>Cargando cotizaciones...</p>
-                    ) : leadQuotes.length === 0 ? (
-                      <p style={{ fontSize: '0.8rem', color: '#94a3b8', margin: 0 }}>Sin cotizaciones emitidas.</p>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {leadQuotes.map(q => (
-                          <div key={q.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', border: '1px solid rgba(0,0,0,0.04)', borderRadius: '8px', fontSize: '0.8rem', background: '#f8fafc' }}>
-                            <div>
-                              <strong>{q.quote_num}</strong> <span style={{ color: '#64748b', fontSize: '0.75rem' }}>({new Date(q.created_at).toLocaleDateString()})</span>
-                            </div>
-                            <div style={{ fontWeight: '700' }}>
-                              ${parseFloat(q.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {activeModalTab === 'bitacora' && (
-                <div className="bitacora-container">
-                  {/* Left Column: Log interaction */}
-                  <div className="bitacora-form-col">
-                    <form onSubmit={handleAddTimelineNote} className="modal-body-form">
-                      <h4 style={{ margin: 0, fontSize: '0.85rem', color: 'var(--color-brand-primary)' }}>Registrar Interacción</h4>
-
-                      <div className="form-group-custom">
-                        <label>Tipo de Interacción</label>
-                        <select
-                          value={timelineNoteType}
-                          onChange={(e) => {
-                            setTimelineNoteType(e.target.value);
-                            if (e.target.value !== 'visit') {
-                              setVisitPhotos([]);
-                            }
-                          }}
-                          style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                        >
-                          <option value="note">Nota General</option>
-                          <option value="call">Llamada Telefónica</option>
-                          <option value="whatsapp">Mensaje WhatsApp</option>
-                          <option value="visit">Visita Comercial</option>
-                        </select>
-                      </div>
-
-                      <div className="form-group-custom">
-                        <label>Comentario / Resumen *</label>
-                        <textarea
-                          placeholder="Escribe el resumen de la llamada, WhatsApp o visita..."
-                          value={timelineNote}
-                          onChange={(e) => setTimelineNote(e.target.value)}
-                          required
-                          rows={4}
-                          style={{ padding: '8px', fontSize: '0.85rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontFamily: 'inherit', resize: 'vertical' }}
-                        />
-                      </div>
-
-                      {timelineNoteType === 'visit' && (
-                        <div className="form-group-custom">
-                          <label>Fotos de Visita (Máximo 2, máx. 800KB c/u)</label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleFileChange}
-                            disabled={visitPhotos.length >= 2}
-                            style={{ fontSize: '0.8rem' }}
-                          />
-
-                          {visitPhotos.length > 0 && (
-                            <div className="visit-photos-preview-grid">
-                              {visitPhotos.map((photo, pIdx) => (
-                                <div key={pIdx} className="visit-photo-preview-item">
-                                  <img src={photo} alt={`Preview ${pIdx + 1}`} />
-                                  <button
-                                    type="button"
-                                    className="delete-preview-btn"
-                                    onClick={() => setVisitPhotos(prev => prev.filter((_, idx) => idx !== pIdx))}
-                                  >
-                                    &times;
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      <button type="submit" className="submit-modal-btn" style={{ width: '100%' }}>
-                        Guardar Interacción
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Right Column: Interaction Feed */}
-                  <div className="bitacora-feed-col">
-                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#64748b' }}>Diario de Interacciones</h4>
-                    <div className="bitacora-feed-scroll">
-                      {(() => {
-                        try {
-                          const parsed = parseLeadNotes(selectedLead.notes);
-                          const interactions = parsed.timeline.filter(evt => ['note', 'call', 'whatsapp', 'visit'].includes(evt.type));
-
-                          if (interactions.length === 0) {
-                            return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px 0' }}>Sin interacciones registradas.</p>;
-                          }
-
-                          const sortedInteractions = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                          return sortedInteractions.map((evt, idx) => {
-                            let bubbleClass = 'bubble-note';
-                            let iconClass = 'fas fa-sticky-note';
-                            if (evt.type === 'call') { bubbleClass = 'bubble-call'; iconClass = 'fas fa-phone-alt'; }
-                            else if (evt.type === 'whatsapp') { bubbleClass = 'bubble-whatsapp'; iconClass = 'fab fa-whatsapp'; }
-                            else if (evt.type === 'visit') { bubbleClass = 'bubble-visit'; iconClass = 'fas fa-handshake'; }
-
-                            let textContent = evt.text;
-                            let imgUrls = [];
-                            try {
-                              const innerParsed = JSON.parse(evt.text);
-                              if (innerParsed && typeof innerParsed === 'object') {
-                                textContent = innerParsed.comment || '';
-                                imgUrls = Array.isArray(innerParsed.images) ? innerParsed.images : [];
-                              }
-                            } catch (err) { }
-
-                            return (
-                              <div key={`${evt.date}-${evt.type}-${idx}`} className={`bitacora-bubble ${bubbleClass}`}>
-                                <div className="bubble-header">
-                                  <span className="bubble-author"><i className={iconClass} style={{ marginRight: '4px' }}></i>{evt.author}</span>
-                                  <span className="bubble-date">
-                                    {new Date(evt.date).toLocaleDateString([], { day: 'numeric', month: 'short' })} {new Date(evt.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </div>
-                                <p className="bubble-text">{textContent}</p>
-
-                                {imgUrls.length > 0 && (
-                                  <div className="bubble-images-grid">
-                                    {imgUrls.map((imgUrl, imgIdx) => (
-                                      <img
-                                        key={imgIdx}
-                                        src={imgUrl}
-                                        alt="Visita"
-                                        className="bubble-img-thumbnail"
-                                        onClick={() => setActiveLightboxImg(imgUrl)}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          });
-                        } catch (e) {
-                          return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>Error al cargar bitácora.</p>;
-                        }
-                      })()}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeModalTab === 'timeline' && (
-                <div className="vertical-timeline-container">
-                  {(() => {
-                    try {
-                      const parsed = parseLeadNotes(selectedLead.notes);
-                      if (!parsed.timeline || parsed.timeline.length === 0) {
-                        return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem', padding: '20px 0' }}>Sin historial registrado.</p>;
-                      }
-
-                      const sortedTimeline = [...parsed.timeline].sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                      return (
-                        <div className="timeline-trail">
-                          {sortedTimeline.map((evt, idx) => {
-                            let icon = 'fas fa-sticky-note';
-                            let badgeColor = '#64748b';
-                            let title = 'Nota de Seguimiento';
-
-                            if (evt.type === 'call') {
-                              icon = 'fas fa-phone-alt';
-                              badgeColor = '#2563eb';
-                              title = 'Llamada Telefónica';
-                            } else if (evt.type === 'whatsapp') {
-                              icon = 'fab fa-whatsapp';
-                              badgeColor = '#16a34a';
-                              title = 'Mensaje WhatsApp';
-                            } else if (evt.type === 'visit') {
-                              icon = 'fas fa-handshake';
-                              badgeColor = '#8b5cf6';
-                              title = 'Visita Comercial';
-                            } else if (evt.type === 'status_change') {
-                              icon = 'fas fa-exchange-alt';
-                              badgeColor = '#d97706';
-                              title = 'Cambio de Estado';
-                            }
-
-                            let textContent = evt.text;
-                            let hasImages = false;
-                            try {
-                              const innerParsed = JSON.parse(evt.text);
-                              if (innerParsed && typeof innerParsed === 'object') {
-                                textContent = innerParsed.comment || '';
-                                hasImages = Array.isArray(innerParsed.images) && innerParsed.images.length > 0;
-                              }
-                            } catch (err) { }
-
-                            return (
-                              <div key={`${evt.date}-${evt.type}-${idx}`} className="timeline-node">
-                                <div className="timeline-node-dot" style={{ backgroundColor: badgeColor }}>
-                                  <i className={icon}></i>
-                                </div>
-                                <div className="timeline-node-content glass">
-                                  <div className="timeline-node-header">
-                                    <span className="node-title" style={{ color: badgeColor }}>{title}</span>
-                                    <span className="node-meta">
-                                      Por <strong>{evt.author}</strong> el {new Date(evt.date).toLocaleDateString()} a las {new Date(evt.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </span>
-                                  </div>
-                                  <p className="node-text">{textContent}</p>
-                                  {hasImages && (
-                                    <span className="node-attachments-label">
-                                      <i className="fas fa-paperclip"></i> Tiene imágenes adjuntas (ver en Bitácora)
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    } catch (e) {
-                      return <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.8rem' }}>Sin historial de notas.</p>;
-                    }
-                  })()}
-                </div>
-              )}
-            </div>
-
-            <div className="modal-footer-actions" style={{ marginTop: '12px' }}>
-              <button type="button" className="cancel-modal-btn" onClick={() => setSelectedLead(null)}>Cerrar Detalle</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lightbox Modal Overlay */}
-      {activeLightboxImg && (
-        <div className="lightbox-overlay" onClick={() => setActiveLightboxImg(null)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <img src={activeLightboxImg} alt="Enlarged visit view" />
-            <button className="lightbox-close-btn" onClick={() => setActiveLightboxImg(null)}>&times;</button>
-          </div>
-        </div>
-      )}
+      <DetallesProspecto
+        isOpen={!!selectedLead}
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onUpdateLead={(updatedLead) => {
+          setSelectedLead(updatedLead);
+          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(updatedLead.id) ? updatedLead : l));
+          if (fetchLeadsRef.current) {
+            fetchLeadsRef.current();
+          }
+        }}
+        role={role}
+        sellers={sellers}
+        customStages={customStages}
+        API_BASE={API_BASE}
+        onStageSpecialAction={(leadObj, specialStage) => {
+          if (specialStage === 'descartado') {
+            setLeadToDiscard(leadObj);
+            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+            setDiscardModalOpen(true);
+            setSelectedLead(null);
+          } else if (specialStage === 'calificado') {
+            setLeadToPromote(leadObj);
+            setPromoteForm({
+              contactName: leadObj.name || '',
+              position: 'Contacto Comercial',
+              email: leadObj.email || '',
+              phone: leadObj.phone || '',
+              phone_alt: '',
+              whatsapp: leadObj.phone || '',
+              notes: leadObj.notes || '',
+              companyMode: 'none',
+              linkExistingCompanyId: '',
+              newCompanyName: leadObj.company || '',
+              newCompanyRfc: '',
+              newCompanyAddress: '',
+              newCompanyCity: '',
+              newCompanyState: '',
+              newCompanyNotes: ''
+            });
+            fetchCompanies();
+            setPromoteModalOpen(true);
+            setSelectedLead(null);
+          }
+        }}
+      />
 
       {/* EVENT CREATOR MODAL FOR REUNION */}
       <EventCreatorModal
@@ -2618,49 +2182,128 @@ export default function ProspectosKanban({ role, API_BASE }) {
         onClose={() => setPendingReunionLead(null)}
         onSave={() => {
           if (pendingReunionLead) {
-            executeStageUpdate(pendingReunionLead.id, 'reunion');
+            executeStageUpdate(pendingReunionLead.id, 'reunion_agendada');
             setPendingReunionLead(null);
           }
         }}
-        prefillData={pendingReunionLead ? {
-          title: `Reunión: ${pendingReunionLead.name}`,
-          clientName: pendingReunionLead.name,
-        } : null}
+        prefillData={reunionPrefillData}
         leads={leads}
         API_BASE={API_BASE}
       />
 
-      {/* EVIDENCE UPLOAD MODAL FOR COTIZADO */}
+      {/* EVIDENCE UPLOAD MODAL FOR COTIZANDO */}
       {showEvidenceModal && (
-        <div className="crm-modal-backdrop">
-          <div className="crm-modal-card animate-slide-up">
-            <button className="crm-modal-close" onClick={() => {
-              setShowEvidenceModal(false);
-              setEvidenceLeadId(null);
-              setEvidenceFile(null);
-              setEvidenceError('');
-            }}>
-              <i className="fas fa-times" />
-            </button>
-            <div className="crm-modal-header">
-              <h3><i className="fas fa-file-pdf" style={{ color: '#e2445c' }} /> Evidencia de Cotización</h3>
-              <p>El sistema no detecta ninguna cotización interna generada para este prospecto. Por favor, sube el PDF de la cotización externa (ej. de ASPEL SAE) para validarlo y autorizar el avance de etapa.</p>
-            </div>
-            <div className="crm-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
-              <input
-                type="file"
-                accept="application/pdf"
-                className="crm-login-input"
-                onChange={e => {
-                  setEvidenceFile(e.target.files[0] || null);
+        <div className="modal-overlay-glass" style={{ zIndex: 11000 }}>
+          <div className="modal-content-glass" style={{ height: 'auto', minHeight: 'unset', maxHeight: '90vh', maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h2>
+                <i className="fas fa-file-pdf" style={{ color: '#e2445c', marginRight: '8px' }} />
+                Evidencia de Cotización
+              </h2>
+              <button 
+                className="modal-close-btn" 
+                onClick={() => {
+                  setShowEvidenceModal(false);
+                  setEvidenceLeadId(null);
+                  setEvidenceFile(null);
                   setEvidenceError('');
                 }}
-              />
-              {evidenceError && <p style={{ color: 'red', fontSize: '0.9rem', marginTop: '5px' }}>{evidenceError}</p>}
+              >
+                &times;
+              </button>
             </div>
-            <div className="crm-modal-footer">
+
+            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
+              El sistema no detecta ninguna cotización interna generada para este prospecto. Por favor, sube el PDF de la cotización externa (ej. de ASPEL SAE) para validarlo y autorizar el avance de etapa.
+            </p>
+
+            <div className="modal-body-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
+              <div 
+                className="premium-file-upload-zone"
+                style={{
+                  border: '2px dashed rgba(124, 58, 237, 0.3)',
+                  borderRadius: '12px',
+                  padding: '2rem',
+                  textAlign: 'center',
+                  background: 'rgba(124, 58, 237, 0.02)',
+                  cursor: 'pointer',
+                  position: 'relative',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.6)';
+                  e.currentTarget.style.background = 'rgba(124, 58, 237, 0.04)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.3)';
+                  e.currentTarget.style.background = 'rgba(124, 58, 237, 0.02)';
+                }}
+              >
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => {
+                    setEvidenceFile(e.target.files[0] || null);
+                    setEvidenceError('');
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'pointer'
+                  }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                  <div style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    background: 'rgba(226, 68, 92, 0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#e2445c',
+                    fontSize: '1.5rem'
+                  }}>
+                    <i className={evidenceFile ? "fas fa-file-pdf" : "fas fa-cloud-upload-alt"} />
+                  </div>
+                  {evidenceFile ? (
+                    <div>
+                      <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--color-text-main, #1e293b)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px' }}>
+                        {evidenceFile.name}
+                      </p>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted, #64748b)', marginTop: '4px', marginBottom: 0 }}>
+                        {(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB
+                      </p>
+                    </div>
+                  ) : (
+                    <div>
+                      <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--color-text-main, #1e293b)', margin: 0 }}>
+                        Haz clic o arrastra el PDF aquí
+                      </p>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted, #64748b)', marginTop: '4px', marginBottom: 0 }}>
+                        Solo archivos PDF de cotizaciones
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {evidenceError && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.85rem', marginTop: '4px' }}>
+                  <i className="fas fa-exclamation-circle" />
+                  <span>{evidenceError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer-actions">
               <button
-                className="btn-modal-cancel"
+                type="button"
+                className="cancel-modal-btn"
                 onClick={() => {
                   setShowEvidenceModal(false);
                   setEvidenceLeadId(null);
@@ -2671,7 +2314,9 @@ export default function ProspectosKanban({ role, API_BASE }) {
                 Cancelar
               </button>
               <button
-                className="btn-modal-submit"
+                type="button"
+                className="submit-modal-btn"
+                style={{ backgroundColor: 'var(--color-brand-primary, #7c3aed)' }}
                 disabled={!evidenceFile || isUploadingEvidence}
                 onClick={async () => {
                   if (!evidenceFile) return;
@@ -2680,7 +2325,7 @@ export default function ProspectosKanban({ role, API_BASE }) {
                   try {
                     const validation = await validateQuotePDF(evidenceFile);
                     if (validation.isValid) {
-                      await executeStageUpdate(evidenceLeadId, 'cotizado');
+                      await executeStageUpdate(evidenceLeadId, 'cotizando');
                       setShowEvidenceModal(false);
                       setEvidenceLeadId(null);
                       setEvidenceFile(null);
@@ -2700,6 +2345,244 @@ export default function ProspectosKanban({ role, API_BASE }) {
           </div>
         </div>
       )}
+      {/* MODAL DE CANCELACIÓN DE REUNIÓN DESDE EL KANBAN */}
+      {isCancelReunionModalOpen && (
+        <div className="calendar-modal-backdrop" style={{ zIndex: 11000 }}>
+          <div className="calendar-modal-card animate-slide-up cancel-modal-custom" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="calendar-modal-close" 
+              onClick={() => { 
+                setIsCancelReunionModalOpen(false); 
+                setReunionAppointment(null);
+                setPendingCancelLeadData(null);
+                setCancelReunionReason(''); 
+              }}
+            >
+              <i className="fas fa-times" />
+            </button>
+            
+            <div className="cancel-modal-title">
+              <i className="fas fa-archive notif-alert-ico" style={{ color: '#ef4444' }} />
+              <h3 style={{ color: '#b91c1c' }}>CANCELAR REUNIÓN DE VENTAS</h3>
+            </div>
+            
+            <p className="cancel-subtitle">
+              Prospecto: <strong>{reunionAppointment?.client_name}</strong> - Cita: <strong>{reunionAppointment?.title}</strong>
+            </p>
+
+            <div className="cancel-warning-box">
+              <div className="warn-title" style={{ color: '#b91c1c' }}>
+                <i className="fas fa-exclamation-triangle" />
+                <strong>Control de Calidad Comercial:</strong>
+              </div>
+              <p>
+                Para mover este prospecto fuera de "Reunión Agendada", es <strong>obligatorio ingresar una justificación comercial detallada (mínimo 150 caracteres)</strong> explicando los motivos por los cuales se cancela la cita. Esto notificará a tu supervisor de inmediato.
+              </p>
+            </div>
+
+            <div className="form-group-expert" style={{ marginTop: '1.5rem' }}>
+              <label>Explicación de Cancelación *</label>
+              <textarea
+                value={cancelReunionReason}
+                onChange={e => setCancelReunionReason(e.target.value)}
+                rows={4}
+                placeholder="Redacta detalladamente los motivos aquí... (Mínimo 150 caracteres)"
+              />
+              <div className="char-count-row" style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginTop: '6px' }}>
+                {cancelReunionReason.length < 150 ? (
+                  <span className="char-error" style={{ color: '#ef4444' }}><i className="fas fa-times-circle" /> Mínimo 150 caracteres</span>
+                ) : (
+                  <span className="char-success" style={{ color: '#10b981' }}><i className="fas fa-check-circle" /> Justificación válida</span>
+                )}
+                <span className="char-count" style={{ color: '#64748b' }}>{cancelReunionReason.length} / 150</span>
+              </div>
+            </div>
+
+            <div className="cancel-modal-actions" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+              <button 
+                type="button"
+                className="btn-cancel-modal-close" 
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: '#475569',
+                  cursor: 'pointer'
+                }}
+                onClick={() => { 
+                  setIsCancelReunionModalOpen(false); 
+                  setReunionAppointment(null);
+                  setPendingCancelLeadData(null);
+                  setCancelReunionReason(''); 
+                }}
+              >
+                Cancelar Movimiento
+              </button>
+              <button
+                type="button"
+                className="btn-cancel-modal-confirm"
+                style={{
+                  background: '#ef4444',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+                disabled={cancelReunionReason.length < 150 || cancelReunionLoading}
+                onClick={handleConfirmCancelReunionFromKanban}
+              >
+                {cancelReunionLoading ? 'Cancelando...' : <><i className="far fa-trash-alt" /> Cancelar y Mover</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE RESULTADO DE REUNIÓN (CITAS EXPIRADAS) */}
+      {isOutcomeModalOpen && (
+        <div className="calendar-modal-backdrop" style={{ zIndex: 11000 }}>
+          <div className="calendar-modal-card animate-slide-up cancel-modal-custom" onClick={(e) => e.stopPropagation()}>
+            <button 
+              className="calendar-modal-close" 
+              onClick={() => { 
+                setIsOutcomeModalOpen(false); 
+                setReunionAppointment(null);
+                setPendingCancelLeadData(null);
+                setMeetingOutcome('concretada');
+                setMeetingComments('');
+              }}
+            >
+              <i className="fas fa-times" />
+            </button>
+            
+            <div className="cancel-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                background: 'rgba(8, 145, 178, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#0891b2',
+                fontSize: '1.2rem'
+              }}>
+                <i className="fas fa-handshake" />
+              </div>
+              <h3 style={{ color: '#0891b2', margin: 0, fontSize: '1.25rem', fontFamily: 'Outfit, sans-serif', fontWeight: '800' }}>REGISTRAR RESULTADO DE REUNIÓN</h3>
+            </div>
+            
+            <p className="cancel-subtitle" style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.5rem 0 1rem 0' }}>
+              La cita con <strong>{reunionAppointment?.client_name}</strong> ya ha transcurrido. Registra el resultado comercial para actualizar el prospecto.
+            </p>
+
+            <div className="form-body-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group-custom">
+                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Resultado de la Reunión *</label>
+                <select
+                  value={meetingOutcome}
+                  onChange={e => setMeetingOutcome(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: '#1e293b'
+                  }}
+                >
+                  <option value="concretada">💼 Cita Concretada (Llevada a cabo exitosamente)</option>
+                  <option value="no_show_cliente">⚠️ Cliente No-Show (El cliente no asistió)</option>
+                  <option value="no_show_vendedor">❌ Vendedor No-Show (El vendedor no pudo asistir)</option>
+                  <option value="pospuesta">⏳ Pospuesta / Reprogramar más adelante</option>
+                </select>
+              </div>
+
+              <div className="form-group-custom">
+                <label style={{ fontSize: '0.85rem', fontWeight: '600', color: '#475569', display: 'block', marginBottom: '6px' }}>Comentarios y Notas de Seguimiento *</label>
+                <textarea
+                  value={meetingComments}
+                  onChange={e => setMeetingComments(e.target.value)}
+                  rows={4}
+                  required
+                  placeholder="Escribe un breve resumen de los acuerdos, temas tratados o motivos de inasistencia..."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    borderRadius: '8px',
+                    border: '1px solid #cbd5e1',
+                    background: '#f8fafc',
+                    fontFamily: 'Outfit, sans-serif',
+                    fontSize: '0.9rem',
+                    color: '#1e293b',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="cancel-modal-actions" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+              <button 
+                type="button"
+                className="btn-cancel-modal-close" 
+                style={{
+                  background: 'transparent',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  fontFamily: 'Outfit, sans-serif'
+                }}
+                onClick={() => { 
+                  setIsOutcomeModalOpen(false); 
+                  setReunionAppointment(null);
+                  setPendingCancelLeadData(null);
+                  setMeetingOutcome('concretada');
+                  setMeetingComments('');
+                }}
+              >
+                Cancelar Movimiento
+              </button>
+              <button
+                type="button"
+                className="btn-cancel-modal-confirm"
+                style={{
+                  background: '#0891b2',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontFamily: 'Outfit, sans-serif'
+                }}
+                disabled={!meetingComments.trim() || outcomeLoading}
+                onClick={handleConfirmMeetingOutcome}
+              >
+                {outcomeLoading ? 'Guardando...' : <><i className="fas fa-save" /> Guardar y Mover</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -2707,5 +2590,6 @@ export default function ProspectosKanban({ role, API_BASE }) {
 
 ProspectosKanban.propTypes = {
   role: PropTypes.string.isRequired,
-  API_BASE: PropTypes.string.isRequired
+  API_BASE: PropTypes.string.isRequired,
+  fetchLeads: PropTypes.func
 };

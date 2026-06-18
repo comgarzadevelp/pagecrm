@@ -131,12 +131,22 @@ export const getSuperAdminCalendarClient = async () => {
 export const createGoogleEvent = async (userId, eventDetails) => {
   const calendar = await getCalendarClient(userId);
   
+  const rawDescription = eventDetails.description || '';
+  const cleanDescription = rawDescription.replace(/\[CAT:[a-z]+\]\s*/g, '');
+  const enrichedDescription = `${cleanDescription}
+
+────────────────────────────────────
+💼 Cita Comercial - Grupo Garza
+📍 Ubicación: ${eventDetails.location || 'No especificada'}
+📞 Atención Garza: (81) 1234-5678
+🌐 Sitio Web: www.comgarza.com`;
+
   const { data } = await calendar.events.insert({
     calendarId: 'primary',
     sendUpdates: 'all',
     requestBody: {
       summary: eventDetails.title,
-      description: eventDetails.description,
+      description: enrichedDescription,
       location: eventDetails.location || '',
       start: {
         dateTime: eventDetails.startTime, // ISO 8601 String
@@ -163,8 +173,11 @@ export const createCorporateGoogleEvent = async (companyCalendarId, eventDetails
   const calendar = await getSuperAdminCalendarClient();
   if (!calendar) return null;
 
+  const rawDescription = eventDetails.description || '';
+  const cleanDescription = rawDescription.replace(/\[CAT:[a-z]+\]\s*/g, '');
+
   const enrichedSummary = `[CORP] ${eventDetails.title} | Cliente: ${eventDetails.clientName || 'Sin Cliente'}`;
-  const enrichedDescription = `${eventDetails.description || ''}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
+  const enrichedDescription = `${cleanDescription}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
 
   const { data } = await calendar.events.insert({
     calendarId: companyCalendarId,
@@ -194,13 +207,23 @@ export const createCorporateGoogleEvent = async (companyCalendarId, eventDetails
 export const updateGoogleEvent = async (userId, googleEventId, eventDetails) => {
   const calendar = await getCalendarClient(userId);
   
+  const rawDescription = eventDetails.description || '';
+  const cleanDescription = rawDescription.replace(/\[CAT:[a-z]+\]\s*/g, '');
+  const enrichedDescription = `${cleanDescription}
+
+────────────────────────────────────
+💼 Cita Comercial - Grupo Garza
+📍 Ubicación: ${eventDetails.location || 'No especificada'}
+📞 Atención Garza: (81) 1234-5678
+🌐 Sitio Web: www.comgarza.com`;
+
   const { data } = await calendar.events.update({
     calendarId: 'primary',
     eventId: googleEventId,
     sendUpdates: 'all',
     requestBody: {
       summary: eventDetails.title,
-      description: eventDetails.description,
+      description: enrichedDescription,
       location: eventDetails.location || '',
       start: {
         dateTime: eventDetails.startTime,
@@ -224,8 +247,11 @@ export const updateCorporateGoogleEvent = async (companyCalendarId, corporateEve
   const calendar = await getSuperAdminCalendarClient();
   if (!calendar || !corporateEventId) return null;
 
+  const rawDescription = eventDetails.description || '';
+  const cleanDescription = rawDescription.replace(/\[CAT:[a-z]+\]\s*/g, '');
+
   const enrichedSummary = `[CORP] ${eventDetails.title} | Cliente: ${eventDetails.clientName || 'Sin Cliente'}`;
-  const enrichedDescription = `${eventDetails.description || ''}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
+  const enrichedDescription = `${cleanDescription}\n\n────────────────\n📞 Vendedor: ${vendedorName}\n👤 Cliente: ${eventDetails.clientName || 'Sin Cliente'}\n📍 Ubicación: ${eventDetails.location || 'No especificada'}`;
 
   const { data } = await calendar.events.update({
     calendarId: companyCalendarId,

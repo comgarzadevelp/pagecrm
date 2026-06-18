@@ -5,7 +5,7 @@ import { verifyToken } from '../middleware/authMiddleware.js';
 
 // Original CRM controller
 import {
-  getLeads, getLeadById, updateLeadStage,
+  getLeads, getLeadById, updateLeadStage, updateLead,
   getSellers, createSeller, updateSeller, getSaeSellersList, assignLead, resetSellerPassword,
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
@@ -59,6 +59,7 @@ router.get('/leads/kanban-column-order', getKanbanColumnOrder);
 router.put('/leads/kanban-column-order', saveKanbanColumnOrder);
 router.post('/leads/:id/timeline', addLeadTimelineEntry);
 router.get('/leads/:id', getLeadById);
+router.put('/leads/:id', updateLead);
 router.put('/leads/:id/stage', updateLeadStage);
 router.put('/leads/:id/assign', assignLead);
 router.post('/leads/:id/promote', promoteLeadToContact);

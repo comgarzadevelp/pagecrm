@@ -51,9 +51,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Excluir llamadas al API y subidas de archivos (siempre a red, nunca cachear)
+  // Excluir llamadas al API y subidas de archivos.
+  // No llamar event.respondWith() para que el browser maneje la petición
+  // directamente sin intercepción del SW. Esto evita que respuestas HTTP 304
+  // con cuerpo vacío lleguen al JavaScript causando SyntaxError en res.json().
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) {
-    event.respondWith(fetch(request));
     return;
   }
 

@@ -109,7 +109,33 @@ router.get('/events', verifyToken, async (req, res) => {
       orderBy: 'startTime'
     });
     
-    res.json({ success: true, events: data.items || [] });
+    const activeEvents = (data.items || []).filter(item => item.status !== 'cancelled');
+
+    // Enriquecer los eventos con client_name de crm_appointments de forma resiliente
+    let enrichedEvents = activeEvents;
+    try {
+      const { data: localAppts } = await supabase
+        .from('crm_appointments')
+        .select('google_event_id, client_name');
+
+      if (localAppts && localAppts.length > 0) {
+        const apptIndex = {};
+        localAppts.forEach(appt => {
+          if (appt.google_event_id) {
+            apptIndex[appt.google_event_id] = appt.client_name;
+          }
+        });
+
+        enrichedEvents = activeEvents.map(event => ({
+          ...event,
+          client_name: apptIndex[event.id] || null
+        }));
+      }
+    } catch (apptErr) {
+      console.warn('[calendarRoutes] Could not fetch local appointments to enrich Google events:', apptErr.message);
+    }
+
+    res.json({ success: true, events: enrichedEvents });
   } catch (err) {
     console.error('Error fetching Google events:', err);
     res.status(500).json({ success: false, message: 'Error al obtener eventos de Google Calendar.' });
@@ -249,6 +275,250 @@ router.post('/events', verifyToken, async (req, res) => {
   }
 });
 
+// GET /api/calendar/appointments/check - Check if a client has future active appointments
+router.get('/appointments/check', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const userRole = req.user?.role;
+    const { client_name, include_past } = req.query;
+    if (!client_name) {
+      return res.status(400).json({ success: false, message: 'Nombre del cliente requerido.' });
+    }
+
+    let query = supabase
+      .from('crm_appointments')
+      .select('*')
+      .eq('client_name', client_name.trim())
+      .in('status', ['active', 'rescheduled']);
+
+    // Si no es un rol de gestión (admin, supervisor, super_admin), restringimos a su propia agenda
+    const isSupervisorOrAdmin = ['admin', 'supervisor', 'super_admin'].includes(userRole);
+    if (!isSupervisorOrAdmin) {
+      query = query.eq('vendedor_id', userId);
+    }
+
+    if (include_past === 'true') {
+      // Retorna la más reciente programada (pasada o futura)
+      query = query.order('start_time', { ascending: false });
+    } else {
+      // Comportamiento original: solo futuras citas activas
+      query = query.gte('start_time', new Date().toISOString())
+                   .order('start_time', { ascending: true });
+    }
+
+    // Obtenemos todas las citas que coinciden (sin limit 1) para poder limpiar todas las desincronizadas en un solo paso
+    const { data: appointments, error } = await query;
+
+    if (error) throw error;
+
+    let activeAppointments = [];
+
+    // Sincronización perezosa (Lazy Sync) de todas las citas locales activas
+    if (appointments && appointments.length > 0) {
+      const { getCalendarClient } = await import('../services/googleCalendarService.js');
+      
+      for (const appt of appointments) {
+        if (appt.google_event_id) {
+          try {
+            const ownerId = appt.vendedor_id || userId;
+            const calendar = await getCalendarClient(ownerId);
+            
+            const gEvent = await calendar.events.get({
+              calendarId: 'primary',
+              eventId: appt.google_event_id
+            });
+
+            // Si el evento está cancelado en la nube
+            if (gEvent.data && gEvent.data.status === 'cancelled') {
+              console.log(`[Check Lazy Sync] Event ${appt.google_event_id} is cancelled in Google. Soft deleting locally.`);
+              await supabase
+                .from('crm_appointments')
+                .update({
+                  status: 'cancelled',
+                  deleted_at: new Date().toISOString(),
+                  cancellation_reason: 'Cancelado externamente en Google Calendar'
+                })
+                .eq('id', appt.id);
+            } else {
+              activeAppointments.push(appt); // Sigue activa
+            }
+          } catch (gErr) {
+            // Si no se encuentra en Google Calendar (404 / notFound), significa que fue borrado
+            if (gErr.code === 404 || gErr.status === 404 || (gErr.message && gErr.message.includes('notFound'))) {
+              console.log(`[Check Lazy Sync] Event ${appt.google_event_id} not found in Google Calendar. Soft deleting locally.`);
+              await supabase
+                .from('crm_appointments')
+                .update({
+                  status: 'cancelled',
+                  deleted_at: new Date().toISOString(),
+                  cancellation_reason: 'Eliminado externamente de Google Calendar'
+                })
+                .eq('id', appt.id);
+            } else {
+              console.warn('[Check Lazy Sync] Failed to verify event status in Google Calendar:', gErr.message);
+              activeAppointments.push(appt); // Ante la duda o error de red, asumimos que sigue activa
+            }
+          }
+        } else {
+          activeAppointments.push(appt);
+        }
+      }
+    }
+
+    // Elegir la cita más relevante de las que quedaron verdaderamente activas
+    let selectedAppointment = null;
+    if (activeAppointments.length > 0) {
+      if (include_past === 'true') {
+        // Ordenamos descendente por start_time y tomamos la primera (la más reciente)
+        activeAppointments.sort((a, b) => new Date(b.start_time) - new Date(a.start_time));
+        selectedAppointment = activeAppointments[0];
+      } else {
+        // Comportamiento original: solo futuras citas activas ordenadas de forma ascendente
+        const nowStr = new Date().toISOString();
+        const futureAppts = activeAppointments.filter(a => a.start_time >= nowStr);
+        if (futureAppts.length > 0) {
+          futureAppts.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+          selectedAppointment = futureAppts[0];
+        }
+      }
+    }
+
+    res.json({ success: true, appointment: selectedAppointment });
+  } catch (err) {
+    console.error('Error checking active appointment:', err);
+    res.status(500).json({ success: false, message: 'Error al verificar citas activas.' });
+  }
+});
+
+// PUT /api/calendar/appointments/:appointmentId/outcome - Register outcome of an expired appointment
+router.put('/appointments/:appointmentId/outcome', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const userName = req.user?.name || 'Vendedor';
+    const { appointmentId } = req.params;
+    const { outcome, comments, targetStage } = req.body;
+
+    if (!outcome) {
+      return res.status(400).json({ success: false, message: 'El resultado de la reunión es obligatorio.' });
+    }
+
+    // 1. Get local appointment
+    const { data: appointment, error: apptError } = await supabase
+      .from('crm_appointments')
+      .select('*')
+      .eq('id', appointmentId)
+      .single();
+
+    if (apptError || !appointment) {
+      return res.status(404).json({ success: false, message: 'Cita no encontrada.' });
+    }
+
+    // 2. Map outcome to status
+    let statusMapped = 'completed';
+    let outcomeLabel = 'Concretada';
+    if (outcome === 'no_show_cliente') {
+      statusMapped = 'no-show-client';
+      outcomeLabel = 'Cliente No-Show';
+    } else if (outcome === 'no_show_vendedor') {
+      statusMapped = 'no-show-seller';
+      outcomeLabel = 'Vendedor No-Show';
+    } else if (outcome === 'pospuesta') {
+      statusMapped = 'postponed';
+      outcomeLabel = 'Pospuesta / Reprogramar';
+    }
+
+    const outcomeComments = comments || 'Sin comentarios adicionales';
+
+    // 3. Update appointment status locally
+    const { error: updateApptError } = await supabase
+      .from('crm_appointments')
+      .update({
+        status: statusMapped,
+        description: `[RESULTADO: ${outcomeLabel.toUpperCase()} - Comentarios: ${outcomeComments}] ${appointment.description || ''}`,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId);
+
+    if (updateApptError) throw updateApptError;
+
+    // 4. Audit outcome
+    await supabase
+      .from('crm_appointments_audit')
+      .insert([
+        {
+          appointment_id: appointment.id,
+          vendedor_id: userId,
+          action: 'UPDATE',
+          old_data: { status: appointment.status },
+          new_data: { status: statusMapped, outcome, comments: outcomeComments }
+        }
+      ]);
+
+    // 5. Update Lead timeline and stage
+    if (appointment.client_name) {
+      try {
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('name', appointment.client_name)
+          .neq('status', 'descartado')
+          .neq('status', 'calificado')
+          .maybeSingle();
+
+        if (lead) {
+          let notesData = { general: '', timeline: [] };
+          if (lead.notes) {
+            try {
+              notesData = JSON.parse(lead.notes);
+            } catch (e) {
+              notesData.general = lead.notes;
+            }
+          }
+          if (!notesData.timeline) notesData.timeline = [];
+
+          // Add outcome log to timeline
+          notesData.timeline.push({
+            date: new Date().toISOString(),
+            text: `Resultado de la reunión: ${outcomeLabel.toUpperCase()}. Comentarios: ${outcomeComments}`,
+            author: userName,
+            type: 'timeline_note'
+          });
+
+          // Add status change log if stage is changing
+          const finalStage = targetStage || lead.status;
+          if (finalStage.toLowerCase() !== lead.status.toLowerCase()) {
+            notesData.timeline.push({
+              date: new Date().toISOString(),
+              text: `Cambio de estatus: de "${lead.status}" a "${finalStage}" después de registrar el resultado de la reunión (Sistema).`,
+              author: 'Sistema',
+              type: 'status_change'
+            });
+          }
+
+          // Update Lead in DB
+          const { error: leadUpdateError } = await supabase
+            .from('leads')
+            .update({
+              status: finalStage.toLowerCase(),
+              notes: JSON.stringify(notesData)
+            })
+            .eq('id', lead.id);
+
+          if (leadUpdateError) throw leadUpdateError;
+          console.log(`[Meeting Outcome Sync] Lead ${lead.id} outcome registered and stage updated to ${finalStage}`);
+        }
+      } catch (leadErr) {
+        console.warn('Could not update lead timeline/stage during meeting outcome:', leadErr.message);
+      }
+    }
+
+    res.json({ success: true, message: 'Resultado de reunión registrado exitosamente.' });
+  } catch (err) {
+    console.error('Error registering meeting outcome:', err);
+    res.status(500).json({ success: false, message: 'Error interno al registrar el resultado de la reunión.' });
+  }
+});
+
 // DELETE /api/calendar/events/:eventId - Delete Google Calendar event (Resilient soft delete, audit & notifications with reason)
 router.delete('/events/:eventId', verifyToken, async (req, res) => {
   try {
@@ -307,29 +577,105 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
               new_data: { cancellation_reason: cancellationReason }
             }
           ]);
+
+        // RESTORE LEAD TO PREVIOUS STAGE (Resilient)
+        if (localAppointment.client_name) {
+          try {
+            const { data: lead } = await supabase
+              .from('leads')
+              .select('*')
+              .eq('name', localAppointment.client_name)
+              .neq('status', 'descartado')
+              .neq('status', 'calificado')
+              .maybeSingle();
+
+            if (lead) {
+              let notesData = { general: '', timeline: [] };
+              if (lead.notes) {
+                try {
+                  notesData = JSON.parse(lead.notes);
+                } catch (e) {
+                  notesData.general = lead.notes;
+                }
+              }
+              if (!notesData.timeline) notesData.timeline = [];
+
+              // Encontrar la etapa anterior en el timeline en reversa
+              let previousStage = 'nuevo';
+              for (let i = notesData.timeline.length - 1; i >= 0; i--) {
+                const entry = notesData.timeline[i];
+                if (entry.text && typeof entry.text === 'string') {
+                  const match = entry.text.match(/Cambio de estatus: de "([^"]+)" a "reunion_agendada"/i);
+                  if (match && match[1]) {
+                    const candidate = match[1].toLowerCase().trim();
+                    if (candidate !== 'reunion_agendada' && candidate !== 'reunion agendada') {
+                      previousStage = candidate;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              // Agregar logs al timeline del lead
+              notesData.timeline.push({
+                date: new Date().toISOString(),
+                text: `Se canceló la reunión. Motivo: ${cancellationReason}`,
+                author: userName,
+                type: 'timeline_note'
+              });
+
+              notesData.timeline.push({
+                date: new Date().toISOString(),
+                text: `Cambio de estatus: de "${lead.status}" a "${previousStage}" debido a la cancelación de la reunión (Sistema).`,
+                author: 'Sistema',
+                type: 'status_change'
+              });
+
+              // Actualizar el lead en la DB
+              await supabase
+                .from('leads')
+                .update({
+                  status: previousStage,
+                  notes: JSON.stringify(notesData)
+                })
+                .eq('id', lead.id);
+
+              console.log(`[Cancel Event Sync] Lead ${lead.id} stage reverted from ${lead.status} to ${previousStage}`);
+            }
+          } catch (leadErr) {
+            console.warn('Could not revert lead stage during appointment cancellation:', leadErr.message);
+          }
+        }
       }
     } catch (dbErr) {
       console.warn('Could not query/update local appointment table during cancellation:', dbErr.message);
     }
 
-    // 2. Remove from personal Google Calendar & Corporate Calendar
-    const { deleteGoogleEvent, deleteCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
-    await deleteGoogleEvent(userId, eventId);
+    // 2. Remove from personal Google Calendar & Corporate Calendar (Tolerant)
+    try {
+      const { deleteGoogleEvent, deleteCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
+      // Usar vendedor_id original de la cita si está disponible (para resolver mismatch si lo hace supervisor/admin)
+      const ownerId = localAppointment ? (localAppointment.vendedor_id || userId) : userId;
+      await deleteGoogleEvent(ownerId, eventId);
 
-    if (localAppointment && localAppointment.company_google_event_id) {
-      try {
-        const { data: comp } = await supabase
-          .from('enterprise_companies')
-          .select('google_calendar_id')
-          .eq('id', companyId)
-          .single();
-        
-        if (comp && comp.google_calendar_id) {
-          await deleteCorporateGoogleEvent(comp.google_calendar_id, localAppointment.company_google_event_id);
+      if (localAppointment && localAppointment.company_google_event_id) {
+        try {
+          const { data: comp } = await supabase
+            .from('enterprise_companies')
+            .select('google_calendar_id')
+            .eq('id', companyId)
+            .single();
+          
+          if (comp && comp.google_calendar_id) {
+            await deleteCorporateGoogleEvent(comp.google_calendar_id, localAppointment.company_google_event_id);
+          }
+        } catch (corpErr) {
+          console.warn('Could not delete from corporate master calendar:', corpErr.message);
         }
-      } catch (corpErr) {
-        console.warn('Could not delete from corporate master calendar:', corpErr.message);
       }
+    } catch (gCalErr) {
+      console.warn('Google Calendar delete event failed (might be already deleted in cloud):', gCalErr.message);
+      // Continuamos de todos modos para no bloquear el flujo local
     }
     
     // 3. Notify Supervisor & Super Admins / Admins of cancellation with reason
@@ -372,7 +718,7 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
     res.json({ success: true, message: 'Evento cancelado exitosamente.' });
   } catch (err) {
     console.error('Error deleting Google event:', err);
-    res.status(500).json({ success: false, message: 'Error al eliminar el evento de Google Calendar.' });
+    res.status(500).json({ success: false, message: 'Error al eliminar el evento de Google Calendar: ' + err.message });
   }
 });
 
@@ -416,9 +762,26 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Título, fecha de inicio y fin son obligatorios.' });
     }
 
+    // 0. Lookup original record to resolve correct seller/owner ID before updating Google Calendar
+    let ownerId = userId;
+    let original = null;
+    try {
+      const { data } = await supabase
+        .from('crm_appointments')
+        .select('*')
+        .eq('google_event_id', eventId)
+        .single();
+      if (data) {
+        original = data;
+        ownerId = original.vendedor_id || userId;
+      }
+    } catch (dbErr) {
+      console.warn('Could not lookup appointment owner before update:', dbErr.message);
+    }
+
     // 1. Update in personal Google Calendar
     const { updateGoogleEvent, updateCorporateGoogleEvent } = await import('../services/googleCalendarService.js');
-    const googleEvent = await updateGoogleEvent(userId, eventId, {
+    const googleEvent = await updateGoogleEvent(ownerId, eventId, {
       title,
       description,
       startTime,
@@ -430,13 +793,6 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
     // 2. Local Update in crm_appointments (Resilient) & Dual Sync update
     let localAppointment = null;
     try {
-      // Find original local record
-      const { data: original } = await supabase
-        .from('crm_appointments')
-        .select('*')
-        .eq('google_event_id', eventId)
-        .single();
-
       if (original) {
         // Sync Corporate Google Calendar event if connected
         if (original.company_google_event_id) {
@@ -531,7 +887,7 @@ router.put('/events/:eventId', verifyToken, async (req, res) => {
     res.json({ success: true, event: googleEvent, localAppointment });
   } catch (err) {
     console.error('Error updating Google event:', err);
-    res.status(500).json({ success: false, message: 'Error al reprogramar el evento en Google Calendar.' });
+    res.status(500).json({ success: false, message: 'Error al reprogramar el evento en Google Calendar: ' + err.message });
   }
 });
 

@@ -36,7 +36,6 @@ export default function DirectorioClientes({
   const [newCustEmail, setNewCustEmail] = useState('');
   const [newCustPhone, setNewCustPhone] = useState('');
   const [newCustCompany, setNewCustCompany] = useState('');
-  const [newCustProject, setNewCustProject] = useState('');
   const [newCustNotes, setNewCustNotes] = useState('');
   const [newCustInvoiceFile, setNewCustInvoiceFile] = useState(null);
   const [isUploadingInvoice, setIsUploadingInvoice] = useState(false);
@@ -63,7 +62,6 @@ export default function DirectorioClientes({
   const [editCustEmail, setEditCustEmail] = useState('');
   const [editCustPhone, setEditCustPhone] = useState('');
   const [editCustCompany, setEditCustCompany] = useState('');
-  const [editCustProject, setEditCustProject] = useState('');
   const [editCustNotes, setEditCustNotes] = useState('');
   const [editCustStatus, setEditCustStatus] = useState('calificado');
   const [newHistoryNote, setNewHistoryNote] = useState('');
@@ -154,7 +152,6 @@ export default function DirectorioClientes({
     setEditCustEmail(cust.email || '');
     setEditCustPhone(cust.phone || '');
     setEditCustCompany(cust.company || '');
-    setEditCustProject(cust.project_type || '');
     setEditCustNotes(parsedNotes.general);
     setEditCustStatus(cust.status || 'calificado');
 
@@ -228,8 +225,6 @@ export default function DirectorioClientes({
       setNewCustPhone(company.phone_main || '');
     }
 
-    setNewCustProject(company.industry || '');
-    
     // Format delivery notes with RFC & Address automatically
     const rfcStr = company.rfc ? `RFC: ${company.rfc}` : 'RFC: N/A';
     const addressStr = company.address ? `Dirección: ${company.address}, ${company.city || ''}, ${company.state || ''}` : '';
@@ -262,7 +257,6 @@ export default function DirectorioClientes({
           email: newCustEmail,
           phone: newCustPhone,
           company: newCustCompany,
-          project_type: newCustProject,
           notes: JSON.stringify({
             general: newCustNotes,
             timeline: [],
@@ -301,7 +295,6 @@ export default function DirectorioClientes({
       setNewCustEmail('');
       setNewCustPhone('');
       setNewCustCompany('');
-      setNewCustProject('');
       setNewCustNotes('');
       setNewCustInvoiceFile(null);
       setShowAddCustomerModal(false);
@@ -338,7 +331,6 @@ export default function DirectorioClientes({
           email: editCustEmail,
           phone: editCustPhone,
           company: editCustCompany,
-          project_type: editCustProject,
           notes: notesPayload,
           status: editCustStatus
         })
@@ -388,7 +380,6 @@ export default function DirectorioClientes({
           email: selectedCustomer.email,
           phone: selectedCustomer.phone,
           company: selectedCustomer.company,
-          project_type: selectedCustomer.project_type,
           notes: notesPayload,
           status: selectedCustomer.status || 'calificado'
         })
@@ -566,7 +557,6 @@ export default function DirectorioClientes({
                 <th>Cliente</th>
                 <th>Empresa / Obra</th>
                 <th>Contacto</th>
-                <th>Giro</th>
                 {role === 'admin' && <th>Asesor a Cargo</th>}
                 <th style={{ textAlign: 'center' }}>Acciones</th>
               </tr>
@@ -592,7 +582,6 @@ export default function DirectorioClientes({
                       </a>
                     )}
                   </td>
-                  <td><span className="role-badge-sales">{cust.project_type || 'General'}</span></td>
                   {role === 'admin' && (
                     <td>
                       <span className="seller-name-badge">
@@ -778,16 +767,7 @@ export default function DirectorioClientes({
                   </ul>
                 )}
               </div>
-              <div className="crm-input-group">
-                <label className="crm-input-label">Giro / Especialidad</label>
-                <input
-                  type="text"
-                  className="crm-login-input"
-                  placeholder="Ej. Estructuras metálicas, Edificación, etc."
-                  value={newCustProject}
-                  onChange={(e) => setNewCustProject(e.target.value)}
-                />
-              </div>
+
               <div className="crm-input-group">
                 <label className="crm-input-label" style={{ color: 'var(--color-brand-accent)', fontWeight: 'bold' }}>
                   <i className="fas fa-file-pdf"></i> Factura de Primera Venta (PDF Obligatorio)
@@ -935,30 +915,19 @@ export default function DirectorioClientes({
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }} className="customer-edit-grid">
-                    <div className="crm-input-group">
-                      <label className="crm-input-label">Giro o Especialidad</label>
-                      <input
-                        type="text"
-                        className="crm-login-input"
-                        value={editCustProject}
-                        onChange={(e) => setEditCustProject(e.target.value)}
-                      />
-                    </div>
-                    <div className="crm-input-group">
-                      <label className="crm-input-label">Estado Actual</label>
-                      <select
-                        className={`status-select ${editCustStatus}`}
-                        value={editCustStatus}
-                        onChange={(e) => setEditCustStatus(e.target.value)}
-                        style={{ height: '46px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: 600 }}
-                      >
-                        <option value="nuevo">Nuevo</option>
-                        <option value="contactado">Contactado</option>
-                        <option value="calificado">Calificado</option>
-                        <option value="descartado">Descartado</option>
-                      </select>
-                    </div>
+                  <div className="crm-input-group">
+                    <label className="crm-input-label">Estado Actual</label>
+                    <select
+                      className={`status-select ${editCustStatus}`}
+                      value={editCustStatus}
+                      onChange={(e) => setEditCustStatus(e.target.value)}
+                      style={{ height: '46px', borderRadius: '10px', fontSize: '0.9rem', fontWeight: 600, width: '100%' }}
+                    >
+                      <option value="nuevo">Nuevo</option>
+                      <option value="contactado">Contactado</option>
+                      <option value="calificado">Calificado</option>
+                      <option value="descartado">Descartado</option>
+                    </select>
                   </div>
 
                   {/* CASILLAS DE INFORMACIÓN FISCAL Y DIRECCIÓN */}

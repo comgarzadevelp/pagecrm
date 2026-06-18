@@ -101,7 +101,6 @@ const DashboardSupervisor = ({ enabledModules }) => {
               email: comp.email_main || '',
               phone: comp.phone_main || '',
               company: comp.alias || comp.name || '',
-              project_type: comp.industry || '',
               notes: comp.notes || '',
               status: String(comp.id).startsWith('sae-') ? 'pendiente_revision' : (comp.status || 'nuevo'),
               limcred: comp.limcred || 0,
@@ -130,7 +129,6 @@ const DashboardSupervisor = ({ enabledModules }) => {
               email: comp.email_main || '',
               phone: comp.phone_main || '',
               company: comp.alias || comp.name || '',
-              project_type: comp.industry || '',
               notes: comp.notes || '',
               status: String(comp.id).startsWith('sae-') ? 'pendiente_revision' : (comp.status || 'nuevo'),
               limcred: comp.limcred || 0,
@@ -150,7 +148,7 @@ const DashboardSupervisor = ({ enabledModules }) => {
       )}
 
       {activeTab === 'calendar' && <CalendarioPanel />}
-      {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} />}
+      {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} fetchLeads={fetchLeads} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'notifications' && <NotificationsPanel />}
       {activeTab === 'profile' && <MiPerfil />}

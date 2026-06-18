@@ -23,7 +23,6 @@ export default function QuickNewClient({ API_BASE, onClose, fetchCustomers, setA
     // Mapear los campos del formulario a la estructura de un Contacto en el CRM
     const notesStr = [
       company.trim() ? `Empresa: ${company.trim()}` : '',
-      projectType.trim() ? `Giro: ${projectType.trim()}` : '',
       'Registrado vía móvil rápido'
     ].filter(Boolean).join('. ');
 
@@ -133,7 +132,7 @@ export default function QuickNewClient({ API_BASE, onClose, fetchCustomers, setA
           </div>
 
           <div className="quick-input-group">
-            <label className="quick-input-label">Puesto / Giro</label>
+            <label className="quick-input-label">Puesto / Cargo</label>
             <input
               type="text"
               className="quick-input"

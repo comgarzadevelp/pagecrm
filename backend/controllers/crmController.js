@@ -316,7 +316,6 @@ export const getLeads = async (req, res) => {
         status,
         type,
         company,
-        project_type,
         notes,
         created_at,
         assigned_to (id, name)
@@ -333,7 +332,63 @@ export const getLeads = async (req, res) => {
       : await query;   // admin ve todo de su empresa
 
     if (error) throw error;
-    res.json({ success: true, leads: data });
+
+    // Cruzar en memoria con citas activas de crm_appointments para mostrar fecha/hora en el Kanban
+    let leadsWithAppointments = data || [];
+    try {
+      const { data: appointments } = await supabase
+        .from('crm_appointments')
+        .select('client_name, start_time, end_time, google_event_id, attendees')
+        .in('status', ['active', 'rescheduled']);
+
+      if (appointments && appointments.length > 0) {
+        const normalizeName = (str) => {
+          if (!str) return '';
+          return str.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/\s+/g, ' ')
+            .trim();
+        };
+
+        const apptIndexByName = {};
+        const apptIndexByEmail = {};
+
+        appointments.forEach(appt => {
+          if (appt.client_name) {
+            const key = normalizeName(appt.client_name);
+            if (!apptIndexByName[key] || new Date(appt.start_time) < new Date(apptIndexByName[key].start_time)) {
+              apptIndexByName[key] = appt;
+            }
+          }
+          if (appt.attendees) {
+            const emails = appt.attendees.split(',').map(e => e.trim().toLowerCase());
+            emails.forEach(email => {
+              if (email) {
+                if (!apptIndexByEmail[email] || new Date(appt.start_time) < new Date(apptIndexByEmail[email].start_time)) {
+                  apptIndexByEmail[email] = appt;
+                }
+              }
+            });
+          }
+        });
+
+        leadsWithAppointments = leadsWithAppointments.map(lead => {
+          const nameKey = normalizeName(lead.name || '');
+          const emailKey = (lead.email || '').toLowerCase().trim();
+          
+          const appt = (emailKey && apptIndexByEmail[emailKey]) || apptIndexByName[nameKey] || null;
+          return {
+            ...lead,
+            active_appointment: appt
+          };
+        });
+      }
+    } catch (apptErr) {
+      console.warn('[crmController] Could not append active appointments to leads:', apptErr.message);
+    }
+
+    res.json({ success: true, leads: leadsWithAppointments });
   } catch (err) {
     console.error('getLeads error', err);
     res.status(500).json({ success: false, message: 'Error al obtener leads' });
@@ -409,6 +464,158 @@ export const updateLeadStage = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al actualizar lead' });
   }
 };
+
+export const updateLead = async (req, res) => {
+  const { id } = req.params;
+  const { name, email, phone, company, notes_general } = req.body;
+  const userId = req.user?.userId;
+  const userName = req.user?.name || 'Ejecutivo';
+
+  try {
+    // 1. Obtener el lead original
+    const { data: lead, error: fetchError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !lead) {
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    }
+
+    // 2. Si el celular cambia, verificar duplicados en leads activos
+    if (phone && phone.trim() !== lead.phone) {
+      const cleanPhone = phone.trim();
+      const { data: duplicateLead } = await supabase
+        .from('leads')
+        .select('id, name, assigned_to (name)')
+        .eq('phone', cleanPhone)
+        .neq('id', id)
+        .neq('status', 'descartado')
+        .maybeSingle();
+
+      if (duplicateLead) {
+        const owner = duplicateLead.assigned_to?.name || 'otro ejecutivo';
+        return res.status(400).json({
+          success: false,
+          message: `El número telefónico ${cleanPhone} ya está asignado y activo con ${owner}.`
+        });
+      }
+    }
+
+    // 3. Detectar qué campos cambiaron y construir el historial de seguimiento (timeline)
+    let notesData = { general: '', timeline: [] };
+    if (lead.notes) {
+      try {
+        const trimmed = lead.notes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          notesData = JSON.parse(trimmed);
+        } else {
+          notesData.general = lead.notes;
+        }
+        if (!notesData.timeline) notesData.timeline = [];
+      } catch (e) {
+        notesData.general = lead.notes;
+        notesData.timeline = [];
+      }
+    }
+
+    const changes = [];
+    const fieldsToCompare = [
+      { key: 'name', label: 'nombre', oldVal: lead.name, newVal: name },
+      { key: 'company', label: 'empresa', oldVal: lead.company, newVal: company },
+      { key: 'phone', label: 'celular', oldVal: lead.phone, newVal: phone },
+      { key: 'email', label: 'email', oldVal: lead.email, newVal: email },
+      { key: 'notes_general', label: 'mensaje inicial', oldVal: notesData.general, newVal: notes_general }
+    ];
+
+    fieldsToCompare.forEach(field => {
+      if (field.newVal !== undefined) {
+        const oldValClean = (field.oldVal || '').trim();
+        const newValClean = (field.newVal || '').trim();
+        if (newValClean !== oldValClean) {
+          const displayOld = oldValClean || 'N/A';
+          const displayNew = newValClean || 'N/A';
+          changes.push(`${field.label} de "${displayOld}" a "${displayNew}"`);
+        }
+      }
+    });
+
+    // 4. Si hay cambios, agregamos al timeline y actualizamos en la DB
+    if (changes.length > 0) {
+      const auditText = `${userName} editó los datos: ${changes.join(', ')}.`;
+      
+      notesData.timeline.push({
+        date: new Date().toISOString(),
+        text: auditText,
+        author: userName,
+        type: 'status_change'
+      });
+
+      if (notes_general !== undefined) {
+        notesData.general = (notes_general || '').trim();
+      }
+
+      const updatePayload = {
+        name: name !== undefined ? name.trim() : lead.name,
+        email: email !== undefined ? (email ? email.trim() : null) : lead.email,
+        phone: phone !== undefined ? phone.trim() : lead.phone,
+        company: company !== undefined ? (company ? company.trim() : null) : lead.company,
+        notes: JSON.stringify(notesData)
+      };
+
+      // Si el nombre cambia, actualizar también las citas asociadas para mantener la coherencia
+      if (name && name.trim() !== lead.name) {
+        try {
+          await supabase
+            .from('crm_appointments')
+            .update({ client_name: name.trim() })
+            .eq('client_name', lead.name || '')
+            .in('status', ['active', 'rescheduled']);
+          console.log(`[Sync] Updated appointment client_name from "${lead.name}" to "${name.trim()}"`);
+        } catch (syncErr) {
+          console.warn('Could not sync client_name in crm_appointments:', syncErr.message);
+        }
+      }
+
+      const { data, error: updateError } = await supabase
+        .from('leads')
+        .update(updatePayload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+
+      // 5. Notificar al vendedor asignado si alguien más hace la edición
+      if (lead.assigned_to && lead.assigned_to !== userId) {
+        try {
+          await supabase.from('crm_notifications').insert([
+            {
+              user_id: lead.assigned_to,
+              sender_id: userId,
+              company_id: cleanCompanyId(req.user?.companyId),
+              title: 'Prospecto Editado ✏️',
+              message: `${userName} editó información del prospecto ${lead.name || 'un prospecto'}.`,
+              type: 'timeline_note',
+              read: false
+            }
+          ]);
+        } catch (notifErr) {
+          console.warn('Error al enviar notificación de edición de lead:', notifErr.message);
+        }
+      }
+
+      return res.json({ success: true, lead: data });
+    }
+
+    res.json({ success: true, lead });
+  } catch (err) {
+    console.error('updateLead error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al actualizar el prospecto.' });
+  }
+};
+
 
 export const promoteLeadToContact = async (req, res) => {
   const { id: leadId } = req.params;
@@ -633,7 +840,7 @@ export const discardLead = async (req, res) => {
 };
 
 export const createManualLead = async (req, res) => {
-  const { name, email, phone, company, project_type, notes } = req.body;
+  const { name, email, phone, company, notes } = req.body;
   const userId = req.user?.userId;
   const companyId = req.user?.companyId;
 
@@ -674,7 +881,6 @@ export const createManualLead = async (req, res) => {
       email: email ? email.trim() : null,
       phone: cleanPhone,
       company: company ? company.trim() : null,
-      project_type: project_type ? project_type.trim() : null,
       notes: notesPayload,
       assigned_to: userId,
       status: 'nuevo',
@@ -1453,7 +1659,6 @@ export const getCustomers = async (req, res) => {
         status,
         type,
         company,
-        project_type,
         notes,
         created_at,
         assigned_to (id, name)
@@ -1528,9 +1733,6 @@ export const getCustomers = async (req, res) => {
           const phone = linkedCust ? linkedCust.phone : (client.telefono ? client.telefono.trim() : '');
           const status = linkedCust ? linkedCust.status : 'pendiente_revision'; // Default status for SAE is "pendiente_revision" as requested!
           const company = linkedCust ? linkedCust.company : (client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'));
-          
-          // Giro/especialidad: blank if empty/Sincronizado SAE by default, unless set
-          const project_type = linkedCust ? linkedCust.project_type : '';
 
           // Notes: merge timeline and general
           const notes = linkedCust ? linkedCust.notes : JSON.stringify({
@@ -1547,7 +1749,6 @@ export const getCustomers = async (req, res) => {
             status,
             type: 'crm_customer',
             company,
-            project_type,
             notes,
             created_at: client.fch_ultcom || new Date().toISOString(),
             assigned_to: { id: userId, name: req.user?.name || 'Ejecutivo' },
@@ -1580,7 +1781,7 @@ export const createCustomer = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const companyId = req.user?.companyId;
-    const { name, email, phone, company, project_type, notes } = req.body;
+    const { name, email, phone, company, notes } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre del cliente es obligatorio.' });
@@ -1594,7 +1795,6 @@ export const createCustomer = async (req, res) => {
       email,
       phone,
       company,
-      project_type,
       notes,
       status: 'calificado',
       type: 'crm_customer',
@@ -1622,7 +1822,7 @@ export const createCustomer = async (req, res) => {
 export const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, company, project_type, notes, status } = req.body;
+    const { name, email, phone, company, notes, status } = req.body;
     const userId = req.user?.userId;
 
     if (id.startsWith('sae-')) {
@@ -1673,7 +1873,6 @@ export const updateCustomer = async (req, res) => {
             email,
             phone,
             company,
-            project_type,
             notes: notesPayload,
             status: status || 'calificado'
           })
@@ -1691,7 +1890,6 @@ export const updateCustomer = async (req, res) => {
               email,
               phone,
               company,
-              project_type,
               notes: notesPayload,
               status: status || 'calificado',
               type: 'crm_customer',
@@ -1711,7 +1909,6 @@ export const updateCustomer = async (req, res) => {
           email,
           phone,
           company,
-          project_type,
           notes,
           status: status || 'calificado'
         })
@@ -2019,7 +2216,6 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
           email: client.mail ? client.mail.trim() : '',
           phone: client.telefono ? client.telefono.trim() : '',
           company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
-          project_type: '',
           status: 'pendiente_revision',
           type: 'crm_customer',
           notes: notesPayload,

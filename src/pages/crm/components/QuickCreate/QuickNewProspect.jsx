@@ -8,7 +8,6 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [company, setCompany] = useState('');
-  const [projectType, setProjectType] = useState('');
   const [notes, setNotes] = useState('');
   const [phoneWarning, setPhoneWarning] = useState('');
   const [saving, setSaving] = useState(false);
@@ -68,7 +67,6 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
           phone: phone.trim(),
           email: email.trim() || null,
           company: company.trim() || null,
-          project_type: projectType.trim() || null,
           notes: notes.trim() || 'Registrado vía creación rápida.'
         })
       });
@@ -155,16 +153,7 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
             />
           </div>
 
-          <div className="quick-input-group">
-            <label className="quick-input-label">Giro / Tipo de Obra</label>
-            <input
-              type="text"
-              className="quick-input"
-              placeholder="Ej: Residencial, Industrial..."
-              value={projectType}
-              onChange={(e) => setProjectType(e.target.value)}
-            />
-          </div>
+
 
           <div className="quick-input-group">
             <label className="quick-input-label">Requerimientos Iniciales</label>

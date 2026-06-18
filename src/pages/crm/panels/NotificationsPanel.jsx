@@ -19,7 +19,8 @@ export default function NotificationsPanel() {
       if (document.visibilityState === 'visible') {
         fetchNotifications();
       }
-    }, 30000);
+    }, 90000);
+
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -38,8 +39,10 @@ export default function NotificationsPanel() {
   const fetchNotifications = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/notifications`, {
-        headers: { Authorization: `Bearer ${token()}` }
+        headers: { Authorization: `Bearer ${token()}` },
+        cache: 'no-store' // Evitar que el browser/SW devuelva 304 con cuerpo vacío
       });
+      if (res.status === 304) return; // Sin cambios, salir limpio
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       setNotifications(data.notifications || []);

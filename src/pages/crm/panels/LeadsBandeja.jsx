@@ -3,143 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import useDebounce from '../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
 import './LeadsBandeja.css';
-import { getLeadAgeInfo as sharedGetLeadAgeInfo } from '../utils/leadHelpers';
-
-function StatusDropdown({ currentStatus, onChange, customStages = [] }) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  const options = [
-    { value: 'nuevo', label: 'Nuevo', color: '#0086c0' },
-    { value: 'contactado', label: 'Contactado', color: '#ffcb00', textColor: '#000' },
-    { value: 'calificado', label: 'Calificado', color: '#06b6d4' },
-    { value: 'cotizando', label: 'Cotizando', color: '#7c3aed' },
-    { value: 'en_negociacion', label: 'En Negociación', color: '#f97316' },
-    { value: 'reunion_agendada', label: 'Reunión Agendada', color: '#0891b2' },
-    { value: 'cierre_ganado', label: 'Cierre Ganado', color: '#16a34a' },
-    { value: 'cierre_perdido', label: 'Cierre Perdido', color: '#dc2626' },
-    { value: 'en_pausa', label: 'En Pausa', color: '#707070' },
-    ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name, color: s.color })),
-    { value: 'descartado', label: 'Descartado', color: '#e2445c' }
-  ];
-
-  const activeOption = options.find(o => o.value === currentStatus) || { value: currentStatus, label: currentStatus, color: '#64748b' };
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleClose = () => setIsOpen(false);
-    window.addEventListener('click', handleClose);
-    return () => window.removeEventListener('click', handleClose);
-  }, [isOpen]);
-
-  return (
-    <div className="status-dropdown-wrapper" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: '130px' }}>
-      <button
-        type="button"
-        className={`status-dropdown-trigger-btn ${currentStatus}`}
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '100%',
-          padding: '0.55rem 1rem',
-          borderRadius: '6px',
-          fontSize: '0.75rem',
-          fontWeight: '800',
-          textTransform: 'uppercase',
-          textAlign: 'center',
-          color: activeOption.textColor || '#ffffff',
-          backgroundColor: activeOption.color,
-          border: 'none',
-          cursor: 'pointer',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-          transition: 'all 0.2s ease',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '6px'
-        }}
-      >
-        {activeOption.label} <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: '0.65rem' }}></i>
-      </button>
-
-      {isOpen && (
-        <div
-          className="status-dropdown-popover glass"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 6px)',
-            left: 0,
-            right: 0,
-            background: 'rgba(255, 255, 255, 0.96)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            borderRadius: '12px',
-            border: '1px solid rgba(0, 0, 0, 0.08)',
-            boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
-            padding: '6px',
-            zIndex: 1000,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            maxHeight: '280px',
-            overflowY: 'auto',
-            animation: 'popoverScale 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
-          }}
-        >
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              className="status-popover-item"
-              onClick={() => {
-                onChange(opt.value);
-                setIsOpen(false);
-              }}
-              style={{
-                width: '100%',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '8px',
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                textTransform: 'uppercase',
-                textAlign: 'left',
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: 'transparent',
-                color: '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(15, 23, 42, 0.04)';
-                e.currentTarget.style.color = 'var(--color-brand-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent';
-                e.currentTarget.style.color = '#334155';
-              }}
-            >
-              <span style={{
-                display: 'inline-block',
-                width: '8px',
-                height: '8px',
-                minWidth: '8px',
-                minHeight: '8px',
-                borderRadius: '50%',
-                backgroundColor: opt.color,
-                flexShrink: 0
-              }}></span>
-              {opt.label}
-              {currentStatus === opt.value && (
-                <i className="fas fa-check" style={{ marginLeft: 'auto', color: 'var(--color-brand-primary)', fontSize: '0.7rem' }}></i>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+import './ProspectosKanban.css';
+import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../utils/leadHelpers';
+import StatusDropdown from '../components/StatusDropdown';
+import DetallesProspecto from '../components/DetallesProspecto';
+import CrearProspectoModal from '../components/CrearProspectoModal';
 
 // Sleek Custom Dropdown for general Filters
 function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth = false }) {
@@ -273,9 +141,9 @@ export default function LeadsBandeja({
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [openDropdownLeadId, setOpenDropdownLeadId] = useState(null);
 
   const [selectedLead, setSelectedLead] = useState(null);
-  const [activeModalTab, setActiveModalTab] = useState('info'); // 'info' vs 'timeline'
 
   // States for custom stages
   const [customStages, setCustomStages] = useState([]);
@@ -311,11 +179,10 @@ export default function LeadsBandeja({
   }, [selectedLead, searchParams, setSearchParams]);
 
   // Tab selector
-  const [activeTab, setActiveTab] = useState('mis-leads'); // 'mis-leads' (manuals) vs 'asignados' (system)
+  const [activeTab, setActiveTab] = useState('todos'); // 'todos', 'mis-leads', 'asignados'
+  const [showStats, setShowStats] = useState(false); // Collapsed by default
 
-  // Timeline note states
-  const [timelineNote, setTimelineNote] = useState('');
-  const [timelineNoteType, setTimelineNoteType] = useState('note');
+
 
   // Fetch Custom Stages
   const fetchCustomStages = async () => {
@@ -409,136 +276,10 @@ export default function LeadsBandeja({
     }
   };
 
-  // Add Timeline Note
-  const handleAddTimelineNote = async (e) => {
-    e.preventDefault();
-    if (!timelineNote.trim()) return;
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${selectedLead.id}/timeline`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: timelineNote,
-          type: timelineNoteType
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('Nota de seguimiento guardada.', 'success');
-        setTimelineNote('');
-        // Update selectedLead locally with new timeline notes JSON
-        let notesData = { general: selectedLead.notes || '', timeline: [] };
-        try {
-          notesData = JSON.parse(selectedLead.notes);
-        } catch (e) {
-          notesData.general = selectedLead.notes || '';
-        }
-        setSelectedLead({
-          ...selectedLead,
-          notes: JSON.stringify({
-            ...notesData,
-            timeline: data.timeline
-          }),
-          updated_at: new Date().toISOString()
-        });
-        if (fetchLeads) fetchLeads();
-      } else {
-        showToast(data.message || 'Error al registrar nota.', 'error');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast('Error de conexión.', 'error');
-    }
-  };
+
 
   // States for Quick Manual Lead Creation
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({
-    name: '',
-    phone: '',
-    email: '',
-    company: '',
-    project_type: '',
-    notes: ''
-  });
-  const [phoneWarning, setPhoneWarning] = useState('');
-  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
-
-  const debouncedPhone = useDebounce(createForm.phone, 500);
-
-  useEffect(() => {
-    const checkPhone = async () => {
-      if (!debouncedPhone || debouncedPhone.trim().length < 10) {
-        setPhoneWarning('');
-        return;
-      }
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/crm/leads/check-duplicate?phone=${encodeURIComponent(debouncedPhone.trim())}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (data.success && data.duplicate) {
-          setPhoneWarning(data.message || 'Este número ya está asignado a otro ejecutivo.');
-        } else {
-          setPhoneWarning('');
-        }
-      } catch (err) {
-        console.error('Error checking duplicate phone:', err);
-      }
-    };
-    checkPhone();
-  }, [debouncedPhone, API_BASE]);
-
-  const handleCreateLeadSubmit = async (e) => {
-    e.preventDefault();
-    if (!createForm.name || !createForm.phone) {
-      showToast('Nombre y teléfono son requeridos.', 'error');
-      return;
-    }
-    if (phoneWarning) {
-      showToast(phoneWarning, 'error');
-      return;
-    }
-
-    setIsSubmittingLead(true);
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/leads`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(createForm)
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('¡Prospecto registrado exitosamente!', 'success');
-        setCreateModalOpen(false);
-        setCreateForm({
-          name: '',
-          phone: '',
-          email: '',
-          company: '',
-          project_type: '',
-          notes: ''
-        });
-        if (fetchLeads) fetchLeads();
-      } else {
-        showToast(data.message || 'Error al registrar prospecto.', 'error');
-      }
-    } catch (err) {
-      console.error('Create manual lead error:', err);
-      showToast('Error de conexión con el servidor.', 'error');
-    } finally {
-      setIsSubmittingLead(false);
-    }
-  };
 
   // States for Promotion & Discarding Flow
   const [existingCompanies, setExistingCompanies] = useState([]);
@@ -659,42 +400,24 @@ export default function LeadsBandeja({
     }
   };
 
-  const [leadQuotes, setLeadQuotes] = useState([]);
-  const [loadingLeadQuotes, setLoadingLeadQuotes] = useState(false);
 
-  const fetchLeadQuotes = async (leadId) => {
-    setLoadingLeadQuotes(true);
-    const token = localStorage.getItem('token');
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setLeadQuotes(data.quotes || []);
-      }
-    } catch (err) {
-      console.error('Fetch lead quotes error:', err);
-    } finally {
-      setLoadingLeadQuotes(false);
-    }
-  };
-
-  useEffect(() => {
-    if (selectedLead) {
-      fetchLeadQuotes(selectedLead.id);
-      setActiveModalTab('info');
-    } else {
-      setLeadQuotes([]);
-    }
-  }, [selectedLead]);
 
   // SLA Calculation helper
   const getLeadAgeInfo = (lead) => sharedGetLeadAgeInfo(lead.created_at, lead.notes);
+
+  // Safe JSON extraction for notes field
+  const parseLeadNotes = (notesString) => {
+    if (!notesString) return { general: '', timeline: [] };
+    try {
+      const parsed = JSON.parse(notesString);
+      return {
+        general: parsed.general || '',
+        timeline: Array.isArray(parsed.timeline) ? parsed.timeline : []
+      };
+    } catch (e) {
+      return { general: notesString, timeline: [] };
+    }
+  };
 
   // Local filtering logic combining tabs & search filters
   const [localFiltered, setLocalFiltered] = useState([]);
@@ -702,10 +425,10 @@ export default function LeadsBandeja({
   useEffect(() => {
     let result = [...leads];
 
-    // 1. Tab selector filter: Mis leads vs Asignados
+    // 1. Tab selector filter: Todos, Mis leads, or Asignados
     if (activeTab === 'mis-leads') {
       result = result.filter(l => l.type === 'vendedor_manual');
-    } else {
+    } else if (activeTab === 'asignados') {
       result = result.filter(l => l.type !== 'vendedor_manual');
     }
 
@@ -745,9 +468,48 @@ export default function LeadsBandeja({
 
   return (
     <>
+      {/* Toggle button to collapse/expand stats */}
+      <div className="crm-stats-toggle-container hide-on-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+        <button
+          type="button"
+          onClick={() => setShowStats(!showStats)}
+          style={{
+            background: 'rgba(255, 255, 255, 0.8)',
+            backdropFilter: 'blur(8px)',
+            border: '1px solid rgba(15, 23, 42, 0.08)',
+            padding: '0.55rem 1.1rem',
+            borderRadius: '10px',
+            fontSize: '0.8rem',
+            fontWeight: '700',
+            color: 'var(--color-brand-primary)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            transition: 'all 0.2s ease',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = 'var(--color-brand-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)'; e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)'; }}
+        >
+          <i className={showStats ? "fas fa-eye-slash" : "fas fa-chart-bar"}></i>
+          {showStats ? 'Ocultar Resumen' : 'Ver Resumen'}
+        </button>
+      </div>
+
       {/* ── PREMIUM LEADS DASHBOARD STATS GRID ── */}
-      <section className="crm-stats-grid hide-on-print" style={{ marginBottom: '1.5rem' }}>
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('all')}>
+      <section 
+        className="crm-stats-grid hide-on-print" 
+        style={{ 
+          marginBottom: showStats ? '1.5rem' : '0px',
+          maxHeight: showStats ? '800px' : '0px',
+          opacity: showStats ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, margin-bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+          pointerEvents: showStats ? 'auto' : 'none'
+        }}
+      >
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
           <div className="stat-val-box">
             <h3>{leads.length}</h3>
@@ -755,7 +517,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('nuevo')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box total" style={{ color: '#0086c0', background: 'rgba(0, 134, 192, 0.08)' }}><i className="fas fa-folder-plus"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'nuevo').length}</h3>
@@ -763,7 +525,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('contactado')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box contact" style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.08)' }}><i className="fas fa-comments"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'contactado').length}</h3>
@@ -771,7 +533,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('calificado')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box qualified" style={{ color: '#06b6d4', background: 'rgba(6, 182, 212, 0.08)' }}><i className="fas fa-user-check"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'calificado').length}</h3>
@@ -779,7 +541,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cotizando')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
@@ -787,7 +549,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('en_negociacion')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.08)' }}><i className="fas fa-handshake"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'en_negociacion').length}</h3>
@@ -795,7 +557,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('reunion_agendada')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#0891b2', background: 'rgba(8, 145, 178, 0.08)' }}><i className="fas fa-calendar-alt"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'reunion_agendada').length}</h3>
@@ -803,7 +565,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cierre_ganado')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
@@ -811,7 +573,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('cierre_perdido')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
@@ -819,7 +581,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('en_pausa')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box" style={{ color: '#707070', background: 'rgba(112, 112, 112, 0.08)' }}><i className="fas fa-pause-circle"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'en_pausa').length}</h3>
@@ -827,7 +589,7 @@ export default function LeadsBandeja({
           </div>
         </div>
 
-        <div className="crm-stat-card glass clickable-stat-card" onClick={() => setStatusFilter('descartado')}>
+        <div className="crm-stat-card glass">
           <div className="stat-icon-box discarded" style={{ color: '#e2445c', background: 'rgba(226, 68, 92, 0.08)' }}><i className="fas fa-ban"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'descartado').length}</h3>
@@ -841,8 +603,7 @@ export default function LeadsBandeja({
           return (
             <div 
               key={stage.id} 
-              className="crm-stat-card glass clickable-stat-card" 
-              onClick={() => setStatusFilter(stage.name.toLowerCase())}
+              className="crm-stat-card glass" 
               style={{ borderLeft: `4px solid ${stage.color}`, position: 'relative' }}
             >
               <button
@@ -920,18 +681,7 @@ export default function LeadsBandeja({
               <button
                 type="button"
                 className="btn-new-lead-header"
-                onClick={() => {
-                  setCreateForm({
-                    name: '',
-                    phone: '',
-                    email: '',
-                    company: '',
-                    project_type: '',
-                    notes: ''
-                  });
-                  setPhoneWarning('');
-                  setCreateModalOpen(true);
-                }}
+                onClick={() => setCreateModalOpen(true)}
               >
                 <i className="fas fa-plus"></i> Nuevo Prospecto
               </button>
@@ -939,7 +689,34 @@ export default function LeadsBandeja({
           </div>
 
           {/* iOS style segmented controls for active tab */}
-          <div className="segmented-tab-bar" style={{ display: 'flex', background: 'rgba(5, 57, 58, 0.05)', padding: '4px', borderRadius: '12px', marginBottom: '1.5rem', maxWidth: '440px' }}>
+          <div className="segmented-tab-bar" style={{ display: 'flex', background: 'rgba(5, 57, 58, 0.05)', padding: '4px', borderRadius: '12px', marginBottom: '1.5rem', maxWidth: '600px' }}>
+            <button
+              type="button"
+              className={`segmented-tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
+              onClick={() => setActiveTab('todos')}
+              style={{
+                flex: 1,
+                border: 'none',
+                background: activeTab === 'todos' ? '#ffffff' : 'transparent',
+                color: activeTab === 'todos' ? 'var(--color-brand-primary)' : '#64748b',
+                padding: '0.6rem',
+                borderRadius: '8px',
+                fontWeight: '700',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                boxShadow: activeTab === 'todos' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+                transition: 'all 0.2s ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px'
+              }}
+            >
+              <i className="fas fa-users"></i> Todos los Prospectos
+              <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'todos' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'todos' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
+                {leads.length}
+              </span>
+            </button>
             <button
               type="button"
               className={`segmented-tab-btn ${activeTab === 'mis-leads' ? 'active' : ''}`}
@@ -1073,7 +850,13 @@ export default function LeadsBandeja({
               const ageInfo = getLeadAgeInfo(lead);
 
               return (
-                <div key={lead.id} className="crm-lead-card-ios glass animate-fade-in">
+                <div 
+                  key={lead.id} 
+                  className="crm-lead-card-ios glass animate-fade-in"
+                  style={{
+                    zIndex: openDropdownLeadId === lead.id ? 99 : 1
+                  }}
+                >
                   {/* Card Top Row: Origin & Date | Status Select */}
                   <div className="lead-card-top">
                     <div className="lead-card-meta">
@@ -1093,9 +876,19 @@ export default function LeadsBandeja({
                     </div>
 
                     <div className="lead-card-status">
+                      <span className="lead-card-status-label">Etapa actual:</span>
                       <StatusDropdown
                         currentStatus={lead.status || 'nuevo'}
                         customStages={customStages}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setOpenDropdownLeadId(lead.id);
+                          } else {
+                            if (openDropdownLeadId === lead.id) {
+                              setOpenDropdownLeadId(null);
+                            }
+                          }
+                        }}
                         onChange={(val) => {
                           if (val === 'descartado') {
                             setLeadToDiscard(lead);
@@ -1185,47 +978,6 @@ export default function LeadsBandeja({
                         <button className="btn-ios-view" onClick={() => setSelectedLead(lead)}>
                           <i className="fas fa-eye"></i> Detalles
                         </button>
-                        {role === 'sales' && lead.status !== 'descartado' && lead.type !== 'crm_customer' && (
-                          <>
-                            <button
-                              className="btn-ios-promote"
-                              onClick={() => {
-                                setLeadToPromote(lead);
-                                setPromoteForm({
-                                  contactName: lead.name || '',
-                                  position: 'Contacto Comercial',
-                                  email: lead.email || '',
-                                  phone: lead.phone || '',
-                                  phone_alt: '',
-                                  whatsapp: lead.phone || '',
-                                  notes: notesText,
-                                  companyMode: 'none',
-                                  linkExistingCompanyId: '',
-                                  newCompanyName: lead.company || '',
-                                  newCompanyRfc: '',
-                                  newCompanyAddress: '',
-                                  newCompanyCity: '',
-                                  newCompanyState: '',
-                                  newCompanyNotes: ''
-                                });
-                                fetchCompanies();
-                                setPromoteModalOpen(true);
-                              }}
-                            >
-                              <i className="fas fa-user-check"></i> Promover
-                            </button>
-                            <button
-                              className="btn-ios-discard"
-                              onClick={() => {
-                                setLeadToDiscard(lead);
-                                setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-                                setDiscardModalOpen(true);
-                              }}
-                            >
-                              <i className="fas fa-ban"></i> Descartar
-                            </button>
-                          </>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -1240,354 +992,49 @@ export default function LeadsBandeja({
       </section>
 
       {/* Modal Detail View */}
-      {selectedLead && (
-        <div className="crm-modal-overlay">
-          <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', width: '96%' }}>
-            <button className="close-modal-btn" onClick={() => setSelectedLead(null)}>&times;</button>
-            <div className="modal-header">
-              <span className={`channel-badge ${selectedLead.type}`}>
-                {selectedLead.type === 'popup_whatsapp' ? 'Captura rápida WhatsApp' : 'Formulario Premium B2B'}
-              </span>
-              <h2>Detalles del Prospecto</h2>
-              <span className="modal-date">Registrado el {formatDate(selectedLead.created_at)}</span>
-            </div>
-
-            {/* Modal tab header */}
-            <div className="modal-tab-header" style={{ display: 'flex', borderBottom: '1px solid #e2e8f0', marginBottom: '1.25rem', gap: '1.5rem' }}>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('info')}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: activeModalTab === 'info' ? '3px solid var(--color-brand-primary)' : '3px solid transparent',
-                  padding: '0.6rem 0.2rem',
-                  fontSize: '0.875rem',
-                  fontWeight: '700',
-                  color: activeModalTab === 'info' ? 'var(--color-brand-primary)' : '#64748b',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                Información General
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModalTab('timeline')}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  borderBottom: activeModalTab === 'timeline' ? '3px solid var(--color-brand-primary)' : '3px solid transparent',
-                  padding: '0.6rem 0.2rem',
-                  fontSize: '0.875rem',
-                  fontWeight: '700',
-                  color: activeModalTab === 'timeline' ? 'var(--color-brand-primary)' : '#64748b',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                Historial de Seguimiento
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '4px' }}>
-              {activeModalTab === 'info' ? (
-                <>
-                  <div className="modal-section-info">
-                    <div className="info-item">
-                      <span className="info-label">Nombre del Contacto:</span>
-                      <span className="info-value-highlight">{selectedLead.name || 'Prospecto Anónimo (WhatsApp)'}</span>
-                    </div>
-
-                    {selectedLead.company && (
-                      <div className="info-item">
-                        <span className="info-label">Empresa / Constructora:</span>
-                        <span className="info-value">{selectedLead.company}</span>
-                      </div>
-                    )}
-
-                    {selectedLead.project_type && (
-                      <div className="info-item">
-                        <span className="info-label">Giro / Tipo de Obra:</span>
-                        <span className="info-value capitalize">{selectedLead.project_type}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="modal-section-contact">
-                    <div className="contact-item with-button">
-                      <div className="contact-item-top">
-                        <i className="fas fa-phone-alt icon-phone"></i>
-                        <div>
-                          <span className="contact-label">Teléfono / WhatsApp:</span>
-                          <span className="contact-value">{selectedLead.phone}</span>
-                        </div>
-                      </div>
-                      {selectedLead.phone && (
-                        <a
-                          href={`https://wa.me/52${selectedLead.phone.replace(/\s+/g, '')}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-modal-wa-new"
-                        >
-                          <i className="fab fa-whatsapp"></i> Iniciar Chat WhatsApp
-                        </a>
-                      )}
-                    </div>
-
-                    <div className="contact-item">
-                      <i className="fas fa-envelope icon-mail"></i>
-                      <div>
-                        <span className="contact-label">Correo Electrónico:</span>
-                        <span className="contact-value">{selectedLead.email || 'No registrado'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="modal-section-notes">
-                    <span className="notes-label">Mensaje / Requerimientos de Suministro:</span>
-                    <div className="notes-box">
-                      <p>{selectedLeadNotesText || 'Sin notas adicionales.'}</p>
-                    </div>
-                  </div>
-
-                  {/* ASIGNACIÓN DE VENDEDORES (ADMIN, SUPERVISOR, SUPER_ADMIN) */}
-                  {role === 'admin' || role === 'supervisor' || role === 'super_admin' ? (
-                    <div className="modal-section-assign">
-                      <span className="action-label"><i className="fas fa-user-plus"></i> Asignar Vendedor de Seguimiento:</span>
-                      <div className="action-controls" style={{ marginTop: '6px' }}>
-                        <select
-                          className="seller-assign-select"
-                          value={selectedLead.assigned_to?.id || ''}
-                          onChange={(e) => handleAssignSeller(selectedLead.id, e.target.value)}
-                          style={{
-                            padding: '0.65rem 1rem',
-                            borderRadius: '8px',
-                            border: '1px solid #cbd5e1',
-                            fontSize: '0.9rem',
-                            width: '100%',
-                            fontWeight: '500',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">-- Sin asignar / Liberar Lead --</option>
-                          {sellers.map(s => (
-                            <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                  ) : (
-                    /* MOSTRAR VENDEDOR ASIGNADO (VENDEDOR VIEW) */
-                    <div className="modal-section-assign">
-                      <span className="action-label"><i className="fas fa-user-circle"></i> Vendedor Asignado:</span>
-                      <p style={{ margin: '4px 0 0 0', fontWeight: '600', fontSize: '0.95rem', color: 'var(--color-brand-primary)' }}>
-                        {selectedLead.assigned_to ? selectedLead.assigned_to.name : 'Sin vendedor asignado'}
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="modal-section-action">
-                    <span className="action-label">Gestión de Estatus de Venta:</span>
-                    <div className="action-controls" style={{ marginTop: '6px' }}>
-                      <StatusDropdown
-                        currentStatus={selectedLead.status || 'nuevo'}
-                        customStages={customStages}
-                        onChange={(val) => {
-                          if (val === 'descartado') {
-                            setLeadToDiscard(selectedLead);
-                            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-                            setDiscardModalOpen(true);
-                            setSelectedLead(null);
-                          } else if (val === 'calificado') {
-                            setLeadToPromote(selectedLead);
-                            setPromoteForm({
-                              contactName: selectedLead.name || '',
-                              position: 'Contacto Comercial',
-                              email: selectedLead.email || '',
-                              phone: selectedLead.phone || '',
-                              phone_alt: '',
-                              whatsapp: selectedLead.phone || '',
-                              notes: selectedLead.notes || '',
-                              companyMode: 'none',
-                              linkExistingCompanyId: '',
-                              newCompanyName: selectedLead.company || '',
-                              newCompanyRfc: '',
-                              newCompanyAddress: '',
-                              newCompanyCity: '',
-                              newCompanyState: '',
-                              newCompanyNotes: ''
-                            });
-                            fetchCompanies();
-                            setPromoteModalOpen(true);
-                            setSelectedLead(null);
-                          } else {
-                            handleStatusChange(selectedLead.id, val);
-                            setSelectedLead({ ...selectedLead, status: val });
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* HISTORIAL DE COTIZACIONES B2B */}
-                  <div className="modal-section-quotes-history" style={{ marginTop: '1.25rem' }}>
-                    <div className="quotes-history-header">
-                      <h4><i className="fas fa-history"></i> Cotizaciones Realizadas</h4>
-                      <span className="quotes-count-tag">{leadQuotes.length} registradas</span>
-                    </div>
-
-                    {loadingLeadQuotes ? (
-                      <div style={{ textAlign: 'center', padding: '1.5rem' }}>
-                        <div className="spinner-mini" style={{ display: 'inline-block' }}></div>
-                        <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '6px 0 0 0' }}>Cargando cotizaciones...</p>
-                      </div>
-                    ) : leadQuotes.length === 0 ? (
-                      <div className="quotes-history-empty">
-                        <i className="fas fa-file-invoice-dollar" style={{ fontSize: '1.5rem', color: '#cbd5e1' }}></i>
-                        <p style={{ margin: '4px 0 0 0' }}>No se han emitido cotizaciones para este cliente.</p>
-                      </div>
-                    ) : (
-                      <div className="quotes-history-list">
-                        {leadQuotes.map(q => (
-                          <div key={q.id} className="quote-history-item">
-                            <div className="q-hist-info">
-                              <div className="q-hist-meta">
-                                <span className="q-hist-num">{q.quote_num}</span>
-                                <span className={`item-agreement-tag ${q.agreement}`}>{q.agreement === 'public' ? 'Público' : q.agreement}</span>
-                              </div>
-                              <span className="q-hist-date">{new Date(q.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                              <span className="q-hist-seller">
-                                <i className="fas fa-user-tie" style={{ fontSize: '0.7rem' }}></i> {q.seller?.name || 'Vendedor'}
-                              </span>
-                            </div>
-                            <div className="q-hist-total">
-                              <span className="q-hist-val">${parseFloat(q.total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                              <button
-                                type="button"
-                                className="btn-load-past-quote"
-                                onClick={() => {
-                                  handleLoadPastQuote(q);
-                                  setSelectedLead(null);
-                                }}
-                                title="Cargar cotización en el editor"
-                              >
-                                <i className="fas fa-folder-open"></i> Cargar
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                /* ── HISTORIAL DE SEGUIMIENTO (TIMELINE) TAB ── */
-                <div className="timeline-history-tab" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                  {/* Create follow-up note form */}
-                  <form onSubmit={handleAddTimelineNote} className="timeline-add-note-box" style={{ background: '#f8fafc', padding: '1.25rem', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                    <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--color-brand-primary)' }}>Registrar Bitácora / Interacción</h4>
-                    <textarea
-                      placeholder="Escribe el resumen del contacto o nota de seguimiento..."
-                      value={timelineNote}
-                      onChange={(e) => setTimelineNote(e.target.value)}
-                      required
-                      style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        borderRadius: '8px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '0.9rem',
-                        minHeight: '80px',
-                        resize: 'vertical',
-                        fontFamily: 'inherit',
-                        boxSizing: 'border-box',
-                        marginBottom: '0.75rem'
-                      }}
-                    />
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: '600' }}>Canal:</span>
-                        <select 
-                          value={timelineNoteType} 
-                          onChange={(e) => setTimelineNoteType(e.target.value)}
-                          style={{
-                            padding: '0.45rem 1.25rem 0.45rem 0.65rem',
-                            fontSize: '0.8rem',
-                            fontWeight: '600',
-                            borderRadius: '6px',
-                            border: '1px solid #cbd5e1',
-                            cursor: 'pointer',
-                            color: '#334155'
-                          }}
-                        >
-                          <option value="note">📝 Nota Interna</option>
-                          <option value="call">📞 Llamada Telefónica</option>
-                          <option value="whatsapp">💬 Mensaje WhatsApp</option>
-                          <option value="visit">🤝 Reunión Presencial</option>
-                        </select>
-                      </div>
-                      <button 
-                        type="submit" 
-                        className="btn-primary" 
-                        style={{ padding: '0.5rem 1.25rem', borderRadius: '8px', fontSize: '0.85rem' }}
-                      >
-                        <i className="fas fa-save"></i> Guardar Registro
-                      </button>
-                    </div>
-                  </form>
-
-                  {/* Render timeline list */}
-                  <div className="timeline-events-container" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-                    {(() => {
-                      let timelineEvents = [];
-                      try {
-                        const parsed = JSON.parse(selectedLead.notes);
-                        timelineEvents = parsed.timeline || [];
-                      } catch (e) {
-                        // fallback if notes is raw string
-                      }
-                      
-                      if (timelineEvents.length === 0) {
-                        return (
-                          <div style={{ textAlign: 'center', padding: '2rem 1rem', color: '#64748b' }}>
-                            <i className="far fa-comments" style={{ fontSize: '2rem', color: '#cbd5e1', marginBottom: '0.5rem' }}></i>
-                            <p style={{ margin: 0, fontSize: '0.9rem' }}>No hay registros de seguimiento en este prospecto.</p>
-                          </div>
-                        );
-                      }
-
-                      return timelineEvents.slice().reverse().map((evt, idx) => {
-                        let icon = 'fas fa-sticky-note';
-                        let badgeColor = '#64748b';
-                        if (evt.type === 'call') { icon = 'fas fa-phone-alt'; badgeColor = '#2563eb'; }
-                        else if (evt.type === 'whatsapp') { icon = 'fab fa-whatsapp'; badgeColor = '#16a34a'; }
-                        else if (evt.type === 'visit') { icon = 'fas fa-handshake'; badgeColor = '#8b5cf6'; }
-                        else if (evt.type === 'status_change') { icon = 'fas fa-exchange-alt'; badgeColor = '#d97706'; }
-
-                        return (
-                          <div key={idx} style={{ display: 'flex', gap: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
-                            <div style={{ width: '36px', height: '36px', minWidth: '36px', borderRadius: '50%', background: `${badgeColor}15`, color: badgeColor, display: 'flex', alignItems: 'center', justifyHeight: 'center', justifyContent: 'center', fontSize: '1rem' }}>
-                              <i className={icon}></i>
-                            </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                                <strong style={{ fontSize: '0.85rem', color: 'var(--color-brand-primary)' }}>{evt.author}</strong>
-                                <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>{new Date(evt.date).toLocaleString('es-MX', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                              </div>
-                              <p style={{ margin: 0, fontSize: '0.875rem', color: '#334155', lineHeight: 1.4 }}>{evt.text}</p>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <DetallesProspecto
+        isOpen={!!selectedLead}
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+        onUpdateLead={(updatedLead) => {
+          setSelectedLead(updatedLead);
+          if (fetchLeads) fetchLeads();
+        }}
+        role={role}
+        sellers={sellers}
+        customStages={customStages}
+        API_BASE={API_BASE}
+        onStageSpecialAction={(leadObj, specialStage) => {
+          if (specialStage === 'descartado') {
+            setLeadToDiscard(leadObj);
+            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+            setDiscardModalOpen(true);
+            setSelectedLead(null);
+          } else if (specialStage === 'calificado') {
+            setLeadToPromote(leadObj);
+            setPromoteForm({
+              contactName: leadObj.name || '',
+              position: 'Contacto Comercial',
+              email: leadObj.email || '',
+              phone: leadObj.phone || '',
+              phone_alt: '',
+              whatsapp: leadObj.phone || '',
+              notes: leadObj.notes || '',
+              companyMode: 'none',
+              linkExistingCompanyId: '',
+              newCompanyName: leadObj.company || '',
+              newCompanyRfc: '',
+              newCompanyAddress: '',
+              newCompanyCity: '',
+              newCompanyState: '',
+              newCompanyNotes: ''
+            });
+            fetchCompanies();
+            setPromoteModalOpen(true);
+            setSelectedLead(null);
+          }
+        }}
+      />
 
       {/* MODAL DE DESCARTE */}
       {discardModalOpen && leadToDiscard && (
@@ -1853,94 +1300,15 @@ export default function LeadsBandeja({
         </div>
       )}
 
-      {/* MODAL PARA CREACIÓN RÁPIDA DE PROSPECTO (MANUAL) */}
-      {createModalOpen && (
-        <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
-          <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '600px', width: '96%' }}>
-            <button className="close-modal-btn" onClick={() => setCreateModalOpen(false)}>&times;</button>
-            <div className="modal-header">
-              <h2>Registrar Nuevo Prospecto</h2>
-              <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
-                Ingresa los datos del prospecto para iniciar el seguimiento.
-              </p>
-            </div>
-            <form onSubmit={handleCreateLeadSubmit}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
-                <div className="modal-form-grid">
-                  <div className="modal-input-group">
-                    <label>Nombre del Prospecto *</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Juan Pérez"
-                      value={createForm.name}
-                      onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Teléfono / WhatsApp *</label>
-                    <input
-                      type="tel"
-                      placeholder="Ej. 8112345678"
-                      value={createForm.phone}
-                      onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
-                      required
-                    />
-                    {phoneWarning && (
-                      <span className="phone-warning-message" style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '2px', fontWeight: '600' }}>
-                        <i className="fas fa-exclamation-circle"></i> {phoneWarning}
-                      </span>
-                    )}
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Correo Electrónico (Opcional)</label>
-                    <input
-                      type="email"
-                      placeholder="juan.perez@example.com"
-                      value={createForm.email}
-                      onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Empresa / Obra (Opcional)</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Constructora Garza"
-                      value={createForm.company}
-                      onChange={(e) => setCreateForm({ ...createForm, company: e.target.value })}
-                    />
-                  </div>
-                  <div className="modal-input-group" style={{ gridColumn: 'span 2' }}>
-                    <label>Giro / Tipo de Proyecto (Opcional)</label>
-                    <input
-                      type="text"
-                      placeholder="Ej. Edificación residencial / Suministro de tubería"
-                      value={createForm.project_type}
-                      onChange={(e) => setCreateForm({ ...createForm, project_type: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-input-group" style={{ marginBottom: '1rem' }}>
-                  <label>Notas / Requerimiento Inicial</label>
-                  <textarea
-                    rows="3"
-                    placeholder="Detalla qué material o suministro está buscando el prospecto..."
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setCreateModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary" disabled={isSubmittingLead || !!phoneWarning} style={{ background: 'linear-gradient(135deg, var(--color-brand-accent) 0%, #c2781b 100%)', borderColor: 'var(--color-brand-accent)' }}>
-                  {isSubmittingLead ? 'Guardando...' : 'Registrar Prospecto'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* REUSABLE CREATE LEAD MODAL */}
+      <CrearProspectoModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => {
+          if (fetchLeads) fetchLeads();
+        }}
+        API_BASE={API_BASE}
+      />
 
       {/* MODAL PARA CREACIÓN DE NUEVA ETAPA PERSONALIZADA */}
       {newStageModalOpen && (

@@ -7,7 +7,6 @@ const Contacto = () => {
     email: '',
     company: '',
     phone: '',
-    projectType: '',
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -44,7 +43,6 @@ const Contacto = () => {
           email: formData.email,
           company: formData.company,
           phone: formData.phone,
-          projectType: formData.projectType,
           message: formData.message
         }),
       });
@@ -62,7 +60,6 @@ const Contacto = () => {
         email: '',
         company: '',
         phone: '',
-        projectType: '',
         message: ''
       });
     } catch (err) {
@@ -232,20 +229,7 @@ const Contacto = () => {
                     </div>
                   </div>
 
-                  <div className="form-input-group">
-                    <select 
-                      name="projectType" 
-                      value={formData.projectType}
-                      onChange={handleChange}
-                      required
-                    >
-                      <option value="" disabled>Giro del Proyecto</option>
-                      <option value="industrial">Industrial / Naves</option>
-                      <option value="residencial">Residencial / Vertical</option>
-                      <option value="obra-publica">Obra Pública</option>
-                      <option value="comercial">Comercial / Plazas</option>
-                    </select>
-                  </div>
+
 
                   <div className="form-input-group">
                     <textarea 

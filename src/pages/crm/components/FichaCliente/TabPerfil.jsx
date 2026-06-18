@@ -15,7 +15,6 @@ export default function TabPerfil({
   const [editCustEmail, setEditCustEmail] = useState('');
   const [editCustPhone, setEditCustPhone] = useState('');
   const [editCustCompany, setEditCustCompany] = useState('');
-  const [editCustProject, setEditCustProject] = useState('');
   const [editCustNotes, setEditCustNotes] = useState('');
   const [editCustAddress, setEditCustAddress] = useState('');
   const [editCustStatus, setEditCustStatus] = useState('calificado');
@@ -43,8 +42,7 @@ export default function TabPerfil({
       setEditCustPhone(currentCustomer.phone || '');
       setEditCustCompany(currentCustomer.company || '');
 
-      const proj = currentCustomer.project_type || '';
-      setEditCustProject(proj === 'Sincronizado SAE' ? '' : proj);
+
 
       // Parseo rápido de notas para extraer 'general'
       let parsedGeneral = '';
@@ -116,7 +114,6 @@ export default function TabPerfil({
           email: editCustEmail,
           phone: editCustPhone,
           company: editCustCompany,
-          project_type: editCustProject,
           notes: notesPayload,
           status: editCustStatus,
           address: editCustAddress
@@ -251,45 +248,34 @@ export default function TabPerfil({
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '1rem' }} className="customer-edit-grid">
-          <div className="crm-input-group">
-            <label className="crm-input-label">Giro o Especialidad</label>
-            <input
-              type="text"
-              className="crm-login-input"
-              value={editCustProject}
-              onChange={(e) => setEditCustProject(e.target.value)}
-              placeholder="Ej. Estructuras metálicas, Edificación, Terracerías..."
-            />
-          </div>
-          <div className="crm-input-group">
-            <label className="crm-input-label">Estado Actual</label>
-            <select
-              className={`status-select ${editCustStatus}`}
-              value={editCustStatus}
-              onChange={(e) => setEditCustStatus(e.target.value)}
-              style={{
-                height: '46px',
-                borderRadius: '10px',
-                fontSize: '0.9rem',
-                fontWeight: 700,
-                padding: '0 1rem',
-                outline: 'none',
-                ...(editCustStatus === 'pendiente_revision' ? {
-                  background: '#fee2e2',
-                  color: '#dc2626',
-                  border: '2px solid #ef4444',
-                  boxShadow: '0 0 10px rgba(239, 68, 68, 0.15)'
-                } : {})
-              }}
-            >
-              <option value="nuevo">Nuevo</option>
-              <option value="pendiente_revision">Pendiente de Revisión</option>
-              <option value="contactado">Contactado</option>
-              <option value="calificado">Calificado</option>
-              <option value="descartado">Descartado</option>
-            </select>
-          </div>
+        <div className="crm-input-group">
+          <label className="crm-input-label">Estado Actual</label>
+          <select
+            className={`status-select ${editCustStatus}`}
+            value={editCustStatus}
+            onChange={(e) => setEditCustStatus(e.target.value)}
+            style={{
+              height: '46px',
+              borderRadius: '10px',
+              fontSize: '0.9rem',
+              fontWeight: 700,
+              padding: '0 1rem',
+              outline: 'none',
+              width: '100%',
+              ...(editCustStatus === 'pendiente_revision' ? {
+                background: '#fee2e2',
+                color: '#dc2626',
+                border: '2px solid #ef4444',
+                boxShadow: '0 0 10px rgba(239, 68, 68, 0.15)'
+              } : {})
+            }}
+          >
+            <option value="nuevo">Nuevo</option>
+            <option value="pendiente_revision">Pendiente de Revisión</option>
+            <option value="contactado">Contactado</option>
+            <option value="calificado">Calificado</option>
+            <option value="descartado">Descartado</option>
+          </select>
         </div>
 
         {/* DATOS DE FACTURACIÓN */}

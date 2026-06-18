@@ -6,7 +6,7 @@ import './Dashboard.css';
 import './MobileApp.css';
 
 // Sleek Global Bell Notifications Component (Fixed in top-right, solid high-contrast neon styling)
-const GlobalBellNotifications = ({ setActiveTab, role }) => {
+const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -17,6 +17,7 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
   const { showToast } = useUX();
   const knownNotifsRef = useRef(new Set());
   const isFirstLoadRef = useRef(true);
+  const prevNotifsStrRef = useRef('');
 
   // Get active company information
   const companyCode = localStorage.getItem('companyCode')?.toUpperCase() || '';
@@ -44,13 +45,25 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
     fetchNotifications();
 
     const interval = setInterval(() => {
+      const isUserTyping = document.activeElement && 
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || 
+         document.activeElement.getAttribute('contenteditable') === 'true');
+
+      const hasOpenModal = document.querySelector(
+        '.evc-modal-overlay, .modal-overlay-glass, .modal-overlay, [role="dialog"]'
+      );
+      
+      if (activeTab === 'calendar' || isUserTyping || hasOpenModal) {
+        return;
+      }
+
       if (document.visibilityState === 'visible') {
         fetchNotifications();
       }
-    }, 30000); // Poll every 30 seconds to prevent server/database overloading
+    }, 90000); // 90s — reducido desde 45s para menor saturación del servidor
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && activeTab !== 'calendar') {
         fetchNotifications();
       }
     };
@@ -61,38 +74,46 @@ const GlobalBellNotifications = ({ setActiveTab, role }) => {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, []);
+  }, [activeTab]);
 
   const fetchNotifications = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/notifications`, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store' // Evitar que el browser/SW devuelva 304 con cuerpo vacío
       });
+      // 304 = sin cambios, salir limpio sin intentar parsear cuerpo vacío
+      if (res.status === 304 || !res.ok) return;
       const data = await res.json();
-      if (res.ok) {
+      if (data) {
         const notifs = data.notifications || [];
-        setNotifications(notifs);
-        setUnreadCount(notifs.filter(n => !n.read).length);
+        const notifsStr = JSON.stringify(notifs);
 
-        // Real-time toast alert logic for new unread notifications
-        notifs.forEach(notif => {
-          if (!notif.read && !knownNotifsRef.current.has(notif.id)) {
-            knownNotifsRef.current.add(notif.id);
-            if (!isFirstLoadRef.current) {
-              // Trigger a beautiful visual alert
-              showToast(`🔔 ${notif.title}: ${notif.message}`, 'info');
-            }
-          }
-        });
+        if (notifsStr !== prevNotifsStrRef.current) {
+          prevNotifsStrRef.current = notifsStr;
+          setNotifications(notifs);
+          setUnreadCount(notifs.filter(n => !n.read).length);
 
-        // Initialize known notification IDs on first load
-        if (isFirstLoadRef.current) {
+          // Real-time toast alert logic for new unread notifications
           notifs.forEach(notif => {
-            knownNotifsRef.current.add(notif.id);
+            if (!notif.read && !knownNotifsRef.current.has(notif.id)) {
+              knownNotifsRef.current.add(notif.id);
+              if (!isFirstLoadRef.current) {
+                // Trigger a beautiful visual alert
+                showToast(`🔔 ${notif.title}: ${notif.message}`, 'info');
+              }
+            }
           });
-          isFirstLoadRef.current = false;
+
+          // Initialize known notification IDs on first load
+          if (isFirstLoadRef.current) {
+            notifs.forEach(notif => {
+              knownNotifsRef.current.add(notif.id);
+            });
+            isFirstLoadRef.current = false;
+          }
         }
       }
     } catch (err) {
@@ -321,7 +342,7 @@ const DashboardShell = ({
   return (
     <div className={`crm-dashboard-page crm-modular-layout ${role === 'super_admin' ? 'superadmin-dashboard-root' : ''}`}>
       {/* PERSISTENT GLOBAL BELL NOTIFICATIONS WITH DYNAMIC COLORING */}
-      <GlobalBellNotifications setActiveTab={setActiveTab} role={role} />
+      <GlobalBellNotifications setActiveTab={setActiveTab} role={role} activeTab={activeTab} />
 
       {/* SIDEBAR NAVIGATION PANEL */}
       <aside className={`crm-sidebar glass hide-on-print ${sidebarCollapsed ? 'collapsed' : ''}`}>

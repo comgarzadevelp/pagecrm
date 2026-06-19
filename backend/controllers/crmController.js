@@ -2125,24 +2125,18 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
 
   if (customerId.startsWith('sae-')) {
     const saeClave = customerId.replace('sae-', '').trim();
-    // 1. Check if we have an existing record in targetTable that matches this SAE key in its notes JSON
+
+    // Filtrar directamente en Postgres por el patrón JSON en notes — evita full table scan
     const { data: existingRecords, error: fetchErr } = await supabase
       .from(targetTable)
-      .select('id, notes');
+      .select('id, notes')
+      .like('notes', `%"sae_clave":"${saeClave}"%`)
+      .limit(1);
 
-    if (!fetchErr && existingRecords) {
-      for (const rec of existingRecords) {
-        if (rec.notes) {
-          try {
-            const parsed = JSON.parse(rec.notes.trim());
-            if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
-              realId = rec.id;
-              customerData = rec;
-              break;
-            }
-          } catch (e) {}
-        }
-      }
+    if (!fetchErr && existingRecords && existingRecords.length > 0) {
+      const rec = existingRecords[0];
+      realId = rec.id;
+      customerData = rec;
     }
 
     // 2. If not found in our CRM, fetch from SAE mirror clie03 and insert
@@ -2268,179 +2262,170 @@ export const uploadCustomerEvidence = async (req, res) => {
       return res.status(400).json({ success: false, message: 'No se subió ninguna imagen.' });
     }
 
-    // 1. Obtener nombre del vendedor
-    let sellerName = 'Ejecutivo';
-    if (userId) {
-      const { data: user } = await supabase
-        .from('crm_users')
-        .select('name')
-        .eq('id', userId)
-        .single();
-      if (user) sellerName = user.name;
-    }
-
-    // 2. Extraer metadatos con exifr
-    let lat = null;
-    let lng = null;
-    let captureDate = null;
-    let deviceMake = '';
-    let deviceModel = '';
-
-    try {
-      const exif = await exifr.parse(req.file.buffer, {
-        gps: true,
-        tiff: true,
-        xmp: false
-      });
-
-      if (exif) {
-        lat = exif.latitude || null;
-        lng = exif.longitude || null;
-        captureDate = exif.DateTimeOriginal || exif.CreateDate || null;
-        deviceMake = exif.Make || '';
-        deviceModel = exif.Model || '';
-      }
-    } catch (exifErr) {
-      console.warn('Exif extraction failed/not present:', exifErr.message);
-    }
-
-    // Fallbacks del cliente si no están en EXIF
-    if ((lat === null || lat === undefined || isNaN(lat)) && req.body.latitude) {
-      const parsedLat = parseFloat(req.body.latitude);
-      if (!isNaN(parsedLat)) lat = parsedLat;
-    }
-    if ((lng === null || lng === undefined || isNaN(lng)) && req.body.longitude) {
-      const parsedLng = parseFloat(req.body.longitude);
-      if (!isNaN(parsedLng)) lng = parsedLng;
-    }
-
-    // Si NO se obtuvieron coordenadas reales o válidas, bloquear la subida (obligatorio)
-    if (lat === null || lat === undefined || isNaN(lat) || lng === null || lng === undefined || isNaN(lng)) {
+    // Validar coordenadas tempranamente (obligatorias desde el frontend)
+    const bodyLat = parseFloat(req.body.latitude);
+    const bodyLng = parseFloat(req.body.longitude);
+    if (isNaN(bodyLat) || isNaN(bodyLng)) {
       return res.status(400).json({ 
         success: false, 
-        message: 'La ubicación GPS real es obligatoria. Asegúrate de activar el GPS en tu celular y otorgar permisos de localización en el navegador.' 
+        message: 'La ubicación GPS real es obligatoria. Asegúrate de activar el GPS en tu celular.' 
       });
     }
 
-    if (!captureDate) captureDate = new Date();
-    
-    let deviceText = '';
-    if (deviceMake || deviceModel) {
-      deviceText = `${deviceMake} ${deviceModel}`.trim();
-    } else {
-      deviceText = req.body.deviceInfo || 'Dispositivo Móvil';
-    }
-
-    // 3. Geocodificación inversa con OpenStreetMap Nominatim
-    let address = `Coordenadas: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    try {
-      const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
-        headers: { 'User-Agent': 'ComercializadoraGarzaCRM/1.0' }
-      });
-      if (geoRes.ok) {
-        const geoData = await geoRes.json();
-        address = geoData.display_name || address;
-      }
-    } catch (geoErr) {
-      console.error('Reverse geocoding failed:', geoErr);
-    }
-
-    // 4. Guardar archivo físico en el servidor o R2
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const fileExtension = path.extname(req.file.originalname) || '.jpg';
-    const fileName = `${uniqueSuffix}${fileExtension}`;
-
-    let photoUrl = '';
-
-    try {
-      const { uploadToR2 } = await import('../services/r2Service.js');
-      photoUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'evidences');
-    } catch (r2Err) {
-      console.warn('R2 upload failed for evidence photo, saving to local filesystem:', r2Err.message);
-      // Fallback
-      const uploadDir = path.join(__dirname, '../public/uploads/evidences');
-      if (!fs.existsSync(uploadDir)) {
-        fs.mkdirSync(uploadDir, { recursive: true });
-      }
-      const filePath = path.join(uploadDir, fileName);
-      fs.writeFileSync(filePath, req.file.buffer);
-      photoUrl = `/api/uploads/evidences/${fileName}`;
-    }
-
-    // 5. Obtener cliente/empresa y actualizar su timeline en `notes`
-    const isCompany = req.originalUrl.includes('/companies/');
-    const targetTable = isCompany ? 'companies' : 'leads';
-
-    let resolved;
-    try {
-      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
-    } catch (resolveErr) {
-      return res.status(404).json({ success: false, message: resolveErr.message });
-    }
-    const { realId, customerData: customer } = resolved;
-
-    // Parser manual para no pisar notas
-    let notesObj = { general: '', timeline: [] };
-    const rawNotes = customer.notes;
-    if (rawNotes) {
-      try {
-        const trimmed = rawNotes.trim();
-        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-          const parsed = JSON.parse(trimmed);
-          notesObj.general = parsed.general || '';
-          notesObj.timeline = parsed.timeline || [];
-          // Preserve sae_clave if it exists
-          if (parsed.sae_clave) {
-            notesObj.sae_clave = parsed.sae_clave;
-          }
-        } else {
-          notesObj.general = rawNotes;
-        }
-      } catch (err) {
-        notesObj.general = rawNotes;
-      }
-    }
-
-    // Crear nodo de evidencia
-    const evidenceNode = {
-      date: new Date(captureDate).toISOString(),
-      text: req.body.text || 'Registro de evidencia fotográfica de visita en sitio.',
-      author: sellerName,
-      type: 'evidence',
-      photoUrl,
-      deviceInfo: deviceText,
-      gps: {
-        lat: lat ? Number(lat) : null,
-        lng: lng ? Number(lng) : null,
-        address
-      }
-    };
-
-    notesObj.timeline.push(evidenceNode);
-
-    // Guardar de vuelta en DB
-    const { data: updatedCustomer, error: updateError } = await supabase
-      .from(targetTable)
-      .update({
-        notes: JSON.stringify(notesObj)
-      })
-      .eq('id', realId)
-      .select()
-      .single();
-
-    if (updateError) {
-      throw updateError;
-    }
-
-    res.status(201).json({
+    // RESPONDER INMEDIATAMENTE AL CLIENTE
+    res.status(202).json({
       success: true,
-      message: 'Evidencia subida y procesada correctamente.',
-      evidence: evidenceNode,
-      customer: { ...updatedCustomer, id: customerId }
+      message: 'Evidencia en proceso de subida.',
+      status: 'processing'
     });
+
+    // PROCESAMIENTO ASÍNCRONO EN SEGUNDO PLANO
+    setImmediate(async () => {
+      try {
+        // 1. Obtener nombre del vendedor
+        let sellerName = 'Ejecutivo';
+        if (userId) {
+          const { data: user } = await supabase
+            .from('crm_users')
+            .select('name')
+            .eq('id', userId)
+            .single();
+          if (user) sellerName = user.name;
+        }
+
+        // 2. Extraer metadatos con exifr
+        let captureDate = null;
+        let deviceMake = '';
+        let deviceModel = '';
+
+        try {
+          const exif = await exifr.parse(req.file.buffer, {
+            gps: false, // Ya tenemos las coordenadas del body
+            tiff: true,
+            xmp: false
+          });
+
+          if (exif) {
+            captureDate = exif.DateTimeOriginal || exif.CreateDate || null;
+            deviceMake = exif.Make || '';
+            deviceModel = exif.Model || '';
+          }
+        } catch (exifErr) {
+          console.warn('Exif extraction failed/not present:', exifErr.message);
+        }
+
+        if (!captureDate) captureDate = new Date();
+        
+        let deviceText = '';
+        if (deviceMake || deviceModel) {
+          deviceText = `${deviceMake} ${deviceModel}`.trim();
+        } else {
+          deviceText = req.body.deviceInfo || 'Dispositivo Móvil';
+        }
+
+        // 3. Geocodificación inversa con OpenStreetMap Nominatim
+        let address = `Coordenadas: ${bodyLat.toFixed(5)}, ${bodyLng.toFixed(5)}`;
+        try {
+          const geoRes = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${bodyLat}&lon=${bodyLng}&zoom=18&addressdetails=1`, {
+            headers: { 'User-Agent': 'ComercializadoraGarzaCRM/1.0' }
+          });
+          if (geoRes.ok) {
+            const geoData = await geoRes.json();
+            address = geoData.display_name || address;
+          }
+        } catch (geoErr) {
+          console.error('Reverse geocoding failed:', geoErr);
+        }
+
+        // 4. Guardar archivo físico en el servidor o R2
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const fileExtension = path.extname(req.file.originalname) || '.jpg';
+        const fileName = `${uniqueSuffix}${fileExtension}`;
+
+        let photoUrl = '';
+
+        try {
+          const { uploadToR2 } = await import('../services/r2Service.js');
+          photoUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'evidences');
+        } catch (r2Err) {
+          console.warn('R2 upload failed for evidence photo, saving to local filesystem:', r2Err.message);
+          const uploadDir = path.join(__dirname, '../public/uploads/evidences');
+          if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true });
+          }
+          const filePath = path.join(uploadDir, fileName);
+          fs.writeFileSync(filePath, req.file.buffer);
+          photoUrl = `/api/uploads/evidences/${fileName}`;
+        }
+
+        // 5. Obtener cliente/empresa y actualizar su timeline en `notes`
+        const isCompany = req.originalUrl.includes('/companies/');
+        const targetTable = isCompany ? 'companies' : 'leads';
+
+        const { realId, customerData: customer } = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+
+        // Parser manual para no pisar notas
+        let notesObj = { general: '', timeline: [] };
+        const rawNotes = customer.notes;
+        if (rawNotes) {
+          try {
+            const trimmed = rawNotes.trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              const parsed = JSON.parse(trimmed);
+              notesObj.general = parsed.general || '';
+              notesObj.timeline = parsed.timeline || [];
+              if (parsed.sae_clave) {
+                notesObj.sae_clave = parsed.sae_clave;
+              }
+            } else {
+              notesObj.general = rawNotes;
+            }
+          } catch (err) {
+            notesObj.general = rawNotes;
+          }
+        }
+
+        // Crear nodo de evidencia
+        const evidenceNode = {
+          date: new Date(captureDate).toISOString(),
+          text: req.body.text || 'Registro de evidencia fotográfica de visita en sitio.',
+          author: sellerName,
+          type: 'evidence',
+          photoUrl,
+          deviceInfo: deviceText,
+          gps: {
+            lat: bodyLat,
+            lng: bodyLng,
+            address
+          }
+        };
+
+        notesObj.timeline.push(evidenceNode);
+
+        // Guardar de vuelta en DB
+        const { error: updateError } = await supabase
+          .from(targetTable)
+          .update({
+            notes: JSON.stringify(notesObj)
+          })
+          .eq('id', realId);
+
+        if (updateError) {
+          console.error('Background upload evidence DB update failed:', updateError);
+        } else {
+          console.log('Background upload evidence completed successfully for', realId);
+        }
+
+      } catch (backgroundErr) {
+        console.error('Background processing error during evidence upload:', backgroundErr);
+      }
+    });
+
   } catch (err) {
-    console.error('uploadCustomerEvidence error:', err);
-    res.status(500).json({ success: false, message: 'Error interno al subir la evidencia.' });
+    console.error('uploadCustomerEvidence init error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message: 'Error interno al iniciar la subida.' });
+    }
   }
 };
 

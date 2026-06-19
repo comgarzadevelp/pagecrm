@@ -63,7 +63,7 @@ export default function QuickNewClient({ API_BASE, onClose, fetchCustomers, setA
         { confirmText: 'Ir a Contactos', cancelText: 'Permanecer aquí' }
       );
       if (viewDetails && typeof setActiveTab === 'function') {
-        setActiveTab('contacts');
+        setActiveTab('directory');
       }
 
     } catch (err) {

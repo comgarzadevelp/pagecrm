@@ -34,6 +34,13 @@ export const MODULE_REGISTRY = {
     category: 'analytics',
     needsData: ['stats'],
   },
+  directory: {
+    key: 'directory',
+    label: 'Directorio',
+    icon: 'fa-address-book',
+    category: 'crm',
+    needsData: [],
+  },
   contacts: {
     key: 'contacts',
     label: 'Contactos',
@@ -48,11 +55,10 @@ export const MODULE_REGISTRY = {
     category: 'crm',
     needsData: [],
   },
-  calendar: {
-    key: 'calendar',
-    label: 'Calendario',
-    icon: 'fa-calendar-alt',
-    iconPrefix: 'far',
+  'personal-agenda': {
+    key: 'personal-agenda',
+    label: 'Agenda',
+    icon: 'fa-calendar-check',
     category: 'productivity',
     badge: 'LIVE',
     badgeColor: '#16a34a',
@@ -179,20 +185,20 @@ export const MODULE_REGISTRY = {
  */
 export const ROLE_DEFAULTS = {
   super_admin: [
-    'dashboard', 'contacts', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
+    'dashboard', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
   ],
   admin: [
-    'dashboard', 'contacts', 'companies', 'calendar', 'leads',
+    'dashboard', 'directory', 'personal-agenda', 'leads',
     'pipeline', 'quotes', 'quotes-manager', 'customers',
     'files', 'archive-contacts', 'notifications', 'profile',
     'orphans', 'sellers',
   ],
   supervisor: [
-    'dashboard', 'contacts', 'companies', 'calendar', 'leads',
+    'dashboard', 'directory', 'personal-agenda', 'leads',
     'pipeline', 'quotes-manager', 'notifications', 'profile', 'sellers',
   ],
   sales: [
-    'leads', 'pipeline', 'contacts', 'companies', 'calendar', 'quotes', 'quotes-manager', 'customers',
+    'leads', 'pipeline', 'directory', 'personal-agenda', 'quotes', 'quotes-manager', 'customers',
     'files', 'archive-contacts', 'profile',
   ],
   sistemas: [

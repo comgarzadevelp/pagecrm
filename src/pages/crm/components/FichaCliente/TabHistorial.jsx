@@ -13,13 +13,6 @@ export default function TabHistorial({
   // Estados del formulario de notas comerciales
   const [newHistoryNote, setNewHistoryNote] = useState('');
 
-  // Estados de Evidencia Fotográfica y GPS
-  const [evidenceFile, setEvidenceFile] = useState(null);
-  const [evidenceText, setEvidenceText] = useState('');
-  const [acquiredCoords, setAcquiredCoords] = useState(null);
-  const [acquiringGps, setAcquiringGps] = useState(false);
-  const [uploadingEvidence, setUploadingEvidence] = useState(false);
-
   // Función local para parsear las notas (JSON)
   const parseCustomerNotes = (notesText) => {
     const result = { general: '', timeline: [] };
@@ -112,117 +105,7 @@ export default function TabHistorial({
     }
   };
 
-  const handleAcquireGps = async () => {
-    setAcquiringGps(true);
-    setAcquiredCoords(null);
-
-    const getCoords = () => {
-      return new Promise((resolve, reject) => {
-        if (!navigator.geolocation) {
-          reject(new Error('Tu navegador o dispositivo no soporta geolocalización.'));
-          return;
-        }
-
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            resolve({
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude
-            });
-          },
-          (err) => {
-            console.warn('High accuracy GPS failed, trying low accuracy...', err);
-            navigator.geolocation.getCurrentPosition(
-              (pos2) => {
-                resolve({
-                  lat: pos2.coords.latitude,
-                  lng: pos2.coords.longitude
-                });
-              },
-              (err2) => {
-                reject(err);
-              },
-              { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 }
-            );
-          },
-          { enableHighAccuracy: true, timeout: 4500, maximumAge: 0 }
-        );
-      });
-    };
-
-    try {
-      const coords = await getCoords();
-      setAcquiredCoords(coords);
-      showToast('¡Ubicación GPS exacta obtenida y bloqueada con éxito!', 'success');
-    } catch (err) {
-      console.error('GPS acquisition failed:', err);
-      showToast('Error de GPS: No pudimos acceder a tu ubicación exacta.', 'error');
-    } finally {
-      setAcquiringGps(false);
-    }
-  };
-
-  const handleUploadEvidence = async (e) => {
-    e.preventDefault();
-    if (!currentCustomer) return;
-    if (!evidenceFile) {
-      showToast('Por favor selecciona o toma una foto primero.', 'warning');
-      return;
-    }
-    if (!acquiredCoords) {
-      showToast('La geolocalización es obligatoria. Por favor presiona el botón de validar GPS primero.', 'warning');
-      return;
-    }
-
-    setUploadingEvidence(true);
-    const token = localStorage.getItem('token');
-    const ua = navigator.userAgent;
-    let deviceName = 'Dispositivo Móvil';
-    if (/android/i.test(ua)) deviceName = 'Celular Android';
-    else if (/iPad|iPhone|iPod/.test(ua)) deviceName = 'iPhone (Apple)';
-    else if (/Windows/.test(ua)) deviceName = 'Computadora Windows';
-
-    const formData = new FormData();
-    formData.append('photo', evidenceFile);
-    formData.append('text', evidenceText.trim() || 'Evidencia fotográfica de visita en sitio.');
-    formData.append('latitude', acquiredCoords.lat.toString());
-    formData.append('longitude', acquiredCoords.lng.toString());
-    formData.append('deviceInfo', deviceName);
-
-    const isCompany = currentCustomer.isCompany;
-    const uploadUrl = isCompany
-      ? `${API_BASE}/api/crm/companies/${currentCustomer.id}/evidence`
-      : `${API_BASE}/api/crm/customers/${currentCustomer.id}/evidence`;
-
-    try {
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
-        body: formData
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        showToast('¡Evidencia fotográfica subida y geolocalizada con éxito!', 'success');
-        setCurrentCustomer(isCompany ? data.company || data.customer : data.customer);
-        setEvidenceFile(null);
-        setEvidenceText('');
-        setAcquiredCoords(null);
-        if (fetchCustomers) fetchCustomers();
-        const fileInput = document.getElementById('evidence-file-input');
-        if (fileInput) fileInput.value = '';
-      } else {
-        showToast('Error al subir la evidencia: ' + data.message, 'error');
-      }
-    } catch (err) {
-      console.error('Evidence upload error:', err);
-      showToast('Error de conexión al subir la evidencia.', 'error');
-    } finally {
-      setUploadingEvidence(false);
-    }
-  };
+  // La carga de evidencia y GPS fue movida al componente EvidenceUploadCard
 
   if (!currentCustomer) return null;
   const parsedNotes = parseCustomerNotes(currentCustomer.notes);
@@ -252,114 +135,7 @@ export default function TabHistorial({
           </button>
         </form>
 
-        {/* SUBIR EVIDENCIA FOTOGRÁFICA */}
-        <div className="evidence-upload-card" style={{ marginTop: '1.25rem', padding: '1rem', border: '1px dashed var(--color-brand-accent)', borderRadius: '12px', background: 'rgba(212, 163, 89, 0.04)' }}>
-          <h5 style={{ fontFamily: 'var(--font-primary)', color: 'var(--color-brand-primary)', margin: '0 0 0.5rem 0', fontWeight: '700', fontSize: '0.85rem' }}>
-            <i className="fas fa-camera" style={{ color: 'var(--color-brand-accent)', marginRight: '6px' }}></i> Subir Evidencia de Visita
-          </h5>
-          <p style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', margin: '0 0 0.75rem 0', lineHeight: '1.3' }}>
-            Captura una foto de la visita. Extraeremos coordenadas GPS, fecha/hora y dispositivo automáticamente.
-          </p>
-          <form onSubmit={handleUploadEvidence} style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-            <input
-              type="file"
-              id="evidence-file-input"
-              accept="image/*"
-              onChange={(e) => setEvidenceFile(e.target.files[0])}
-              style={{ fontSize: '0.75rem' }}
-            />
-
-            <input
-              type="text"
-              placeholder="Descripción de la visita (opcional)..."
-              className="crm-login-input"
-              value={evidenceText}
-              onChange={(e) => setEvidenceText(e.target.value)}
-              style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', height: '34px' }}
-            />
-
-            <button
-              type="button"
-              onClick={handleAcquireGps}
-              disabled={acquiringGps}
-              style={{
-                padding: '0.5rem',
-                fontSize: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                cursor: 'pointer',
-                border: acquiredCoords ? '1px solid #22c55e' : '1px solid var(--color-brand-accent)',
-                background: acquiredCoords ? '#f0fdf4' : 'rgba(212, 163, 89, 0.05)',
-                color: acquiredCoords ? '#16a34a' : 'var(--color-brand-primary)',
-                fontWeight: '600',
-                borderRadius: '8px'
-              }}
-            >
-              {acquiringGps ? (
-                <>
-                  <div className="spinner-mini" style={{ width: '12px', height: '12px', borderWidth: '2px', display: 'inline-block' }}></div>
-                  Verificando señal GPS...
-                </>
-              ) : acquiredCoords ? (
-                <>
-                  <i className="fas fa-check-circle" style={{ color: '#22c55e' }}></i> Ubicación GPS Lista y Validada
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-location-arrow" style={{ color: 'var(--color-brand-accent)' }}></i> 1. Validar Ubicación GPS (Obligatorio)
-                </>
-              )}
-            </button>
-
-            {acquiredCoords && (
-              <div style={{
-                fontSize: '0.675rem',
-                color: '#16a34a',
-                textAlign: 'center',
-                fontWeight: '600',
-                padding: '6px',
-                background: '#f0fdf4',
-                borderRadius: '6px',
-                border: '1px solid #bbf7d0'
-              }}>
-                Coordenadas capturadas: {acquiredCoords.lat.toFixed(4)}, {acquiredCoords.lng.toFixed(4)}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="btn-primary-golden"
-              disabled={uploadingEvidence || !acquiredCoords}
-              style={{
-                padding: '0.6rem',
-                fontSize: '0.75rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.4rem',
-                cursor: (uploadingEvidence || !acquiredCoords) ? 'not-allowed' : 'pointer',
-                opacity: (uploadingEvidence || !acquiredCoords) ? 0.6 : 1,
-                background: !acquiredCoords ? '#cbd5e1' : 'var(--color-brand-primary)',
-                border: !acquiredCoords ? '1px solid #cbd5e1' : '1px solid var(--color-brand-primary)',
-                color: !acquiredCoords ? '#64748b' : '#ffffff',
-                marginTop: '4px'
-              }}
-            >
-              {uploadingEvidence ? (
-                <>
-                  <div className="spinner-mini" style={{ width: '12px', height: '12px', borderWidth: '2px', display: 'inline-block' }}></div>
-                  Subiendo y registrando visita...
-                </>
-              ) : (
-                <>
-                  <i className="fas fa-cloud-upload-alt"></i> 2. Subir Evidencia
-                </>
-              )}
-            </button>
-          </form>
-        </div>
+        {/* El componente EvidenceUploadCard se inyectará aquí cuando se determine */}
       </div>
 
       <div className="history-right-timeline" style={{ maxHeight: '420px', overflowY: 'auto' }}>
@@ -411,6 +187,14 @@ export default function TabHistorial({
                   )}
                   <div style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <i className="fas fa-user-circle"></i> Reportó: {note.author || 'Ejecutivo'} {deviceInfo ? `(${deviceInfo})` : ''}
+                  </div>
+                </div>
+              ) : note.type === 'processing_evidence' ? (
+                <div key={idx} style={{ padding: '1rem', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div className="spinner-mini" style={{ width: '20px', height: '20px', borderColor: 'var(--color-brand-primary) transparent var(--color-brand-primary) transparent', borderWidth: '3px' }}></div>
+                  <div>
+                    <strong style={{ fontSize: '0.85rem', color: '#475569', display: 'block' }}>{note.text}</strong>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>Esto tomará unos segundos. Puedes continuar trabajando.</span>
                   </div>
                 </div>
               ) : (

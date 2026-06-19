@@ -429,10 +429,10 @@ export default function DirectorioClientes({
               (err2) => {
                 reject(err);
               },
-              { enableHighAccuracy: false, timeout: 8000, maximumAge: 10000 }
+              { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
             );
           },
-          { enableHighAccuracy: true, timeout: 4500, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
         );
       });
     };
@@ -478,16 +478,47 @@ export default function DirectorioClientes({
     formData.append('deviceInfo', deviceName);
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+
       const res = await fetch(`${API_BASE}/api/crm/customers/${selectedCustomer.id}/evidence`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
         },
-        body: formData
+        body: formData,
+        signal: controller.signal
       });
+      clearTimeout(timeoutId);
 
       const data = await res.json();
-      if (res.ok) {
+      if (res.status === 202) {
+        showToast('La evidencia se está subiendo y procesando en segundo plano.', 'success');
+        
+        const tempNode = {
+          date: new Date().toISOString(),
+          text: '⏳ Procesando evidencia de visita...',
+          author: 'Sistema',
+          type: 'processing_evidence'
+        };
+        
+        const updatedNotes = parseCustomerNotes(selectedCustomer.notes);
+        updatedNotes.timeline.push(tempNode);
+        
+        setSelectedCustomer({
+          ...selectedCustomer,
+          notes: JSON.stringify({
+            general: updatedNotes.general,
+            timeline: updatedNotes.timeline
+          })
+        });
+
+        setEvidenceFile(null);
+        setEvidenceText('');
+        setAcquiredCoords(null);
+        const fileInput = document.getElementById('evidence-file-input');
+        if (fileInput) fileInput.value = '';
+      } else if (res.ok) {
         showToast('¡Evidencia fotográfica subida y geolocalizada con éxito!', 'success');
         setSelectedCustomer(data.customer);
         setEvidenceFile(null);
@@ -501,7 +532,11 @@ export default function DirectorioClientes({
       }
     } catch (err) {
       console.error('Evidence upload error:', err);
-      showToast('Error de conexión al subir la evidencia.', 'error');
+      if (err.name === 'AbortError') {
+        showToast('Tiempo de espera agotado. Verifica tu conexión e intenta de nuevo.', 'error');
+      } else {
+        showToast('Error de conexión al subir la evidencia.', 'error');
+      }
     } finally {
       setUploadingEvidence(false);
     }
@@ -1530,6 +1565,20 @@ export default function DirectorioClientes({
                       {/* Historical Timeline Notes */}
                       {parsedNotes.timeline.map((note, index) => {
                         const isEvidence = note.type === 'evidence';
+                        if (note.type === 'processing_evidence') {
+                          return (
+                            <div key={index} className="timeline-node" style={{ opacity: 0.8 }}>
+                              <div className="node-icon" style={{ background: '#cbd5e1', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <div className="spinner-mini" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: '#ffffff transparent #ffffff transparent' }}></div>
+                              </div>
+                              <div className="node-content">
+                                <h5>Evidencia en Proceso</h5>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--color-text-dark)', marginTop: '4px' }}>{note.text}</p>
+                                <span className="node-time">Esto tomará unos segundos.</span>
+                              </div>
+                            </div>
+                          );
+                        }
                         return (
                           <div key={index} className={`timeline-node ${isEvidence ? 'gold' : 'blue'}`}>
                             <div className="node-icon">

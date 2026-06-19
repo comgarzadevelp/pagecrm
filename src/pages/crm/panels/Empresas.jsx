@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import useEmpresas from '../hooks/useEmpresas';
+import DirectoryCard from '../components/DirectoryCard';
 import './Directorio.css';
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -430,167 +431,18 @@ export default function Empresas({ onViewCompanyDetails }) {
         <div className="crm-empty-placeholder"><i className="fas fa-building" /><p>No hay empresas registradas aún.</p></div>
       ) : (
         <div className="companies-cards-grid">
-          {filtered.map(co => {
-            const isSae = String(co.id).startsWith('sae-');
-            return (
-              <div className="company-card glass" key={co.id}>
-                {/* Source Badge (SAE or CRM) */}
-                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1 }}>
-                  {isSae ? (
-                    <span style={{ 
-                      fontSize: '0.6rem', 
-                      background: 'rgba(212, 163, 89, 0.12)', 
-                      color: 'var(--color-brand-primary)', 
-                      border: '1px solid rgba(212, 163, 89, 0.3)',
-                      padding: '2px 8px', 
-                      borderRadius: '12px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      <i className="fas fa-database" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> SAE
-                    </span>
-                  ) : (
-                    <span style={{ 
-                      fontSize: '0.6rem', 
-                      background: 'rgba(37, 99, 235, 0.1)', 
-                      color: '#2563eb', 
-                      border: '1px solid rgba(37, 99, 235, 0.25)',
-                      padding: '2px 8px', 
-                      borderRadius: '12px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      <i className="fas fa-laptop" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> CRM
-                    </span>
-                  )}
-                </div>
-
-                <div className="company-card-header" style={{ paddingRight: '60px' }}>
-                  <div className="company-icon-wrap">
-                    <i className="fas fa-building" />
-                  </div>
-                  <div className="company-card-title" style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
-                      <h4 style={{ margin: 0 }}>{co.name}</h4>
-                    {(!co.phone_main || !co.email_main) && (
-                      <span style={{ 
-                        fontSize: '0.65rem', 
-                        background: '#fef2f2', 
-                        color: '#ef4444', 
-                        border: '1px solid #fee2e2', 
-                        padding: '2px 6px', 
-                        borderRadius: '4px',
-                        fontWeight: 'bold',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        <i className="fas fa-exclamation-circle" style={{ fontSize: '0.65rem' }}></i>
-                        Incompleto: {!co.phone_main ? 'Sin Tel' : 'Sin Correo'}
-                      </span>
-                    )}
-                  </div>
-                  {co.alias && <span className="company-alias">{co.alias}</span>}
-                </div>
-                <span className="company-status-dot" style={{ background: STATUS_COLORS[co.status] || '#94a3b8' }} title={co.status} />
-              </div>
-
-              <div className="company-card-meta">
-                <span className="company-type-badge">{TYPE_LABELS[co.type] || co.type}</span>
-                {co.city && <span className="company-city"><i className="fas fa-map-marker-alt" /> {co.city}, {co.state}</span>}
-                {/* Convenio / Lista de Precios — solo para empresas SAE */}
-                {co.lista_prec && (() => {
-                  const plName = getPriceListName(co.lista_prec);
-                  const plStyle = getPriceListStyle(co.lista_prec);
-                  return (
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      fontSize: '0.7rem',
-                      fontWeight: '700',
-                      padding: '2px 8px',
-                      borderRadius: '20px',
-                      background: plStyle.bg,
-                      color: plStyle.color,
-                      border: `1px solid ${plStyle.border}`,
-                      marginTop: '2px'
-                    }}>
-                      <i className="fas fa-tag" style={{ fontSize: '0.6rem' }} />
-                      {plName}
-                    </span>
-                  );
-                })()}
-                {/* Ventas acumuladas SAE */}
-                {co.ventas > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                    <i className="fas fa-chart-line" style={{ fontSize: '0.6rem', color: '#10b981' }} />
-                    Ventas: ${parseFloat(co.ventas || 0).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </span>
-                )}
-                {co.rfc && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace' }}>
-                    <i className="fas fa-id-card" style={{ fontSize: '0.6rem' }} />
-                    RFC: {co.rfc}
-                  </span>
-                )}
-              </div>
-
-              <div className="company-card-contacts">
-                {co.contact_main && (
-                  <div className="co-contact-row"><i className="fas fa-user-tie" /><span>{co.contact_main.name}</span><em>Principal</em></div>
-                )}
-                {co.contact_purchases && (
-                  <div className="co-contact-row"><i className="fas fa-shopping-cart" /><span>{co.contact_purchases.name}</span><em>Compras</em></div>
-                )}
-                {co.contact_payments && (
-                  <div className="co-contact-row"><i className="fas fa-credit-card" /><span>{co.contact_payments.name}</span><em>Pagos</em></div>
-                )}
-              </div>
-
-              <div className="company-card-quick">
-                {co.phone_main ? <span><i className="fas fa-phone" /> {co.phone_main}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-phone" /> Falta teléfono principal</span>}
-                {co.email_main ? <span><i className="fas fa-envelope" /> {co.email_main}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-envelope" /> Falta email principal</span>}
-                {co.maps_url && (
-                  <a href={co.maps_url} target="_blank" rel="noopener noreferrer" className="company-maps-link">
-                    <i className="fas fa-map-marked-alt" /> Ver en Maps
-                  </a>
-                )}
-              </div>
-
-              <div className="company-card-actions" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => openDetail(co)}>
-                  <i className="fas fa-eye" /> Ver
-                </button>
-                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => openEdit(co)}>
-                  <i className="fas fa-edit" /> Editar
-                </button>
-                <button 
-                  className="btn-logout" 
-                  style={{ 
-                    flex: 1, 
-                    padding: '0.4rem 0.6rem', 
-                    fontSize: '0.75rem', 
-                    background: '#fef2f2', 
-                    color: '#ef4444', 
-                    border: '1px solid #fee2e2', 
-                    borderRadius: '8px',
-                    margin: 0,
-                    boxShadow: 'none'
-                  }} 
-                  onClick={() => handleArchiveClick(co)}
-                  title="Archivar empresa"
-                >
-                  <i className="fas fa-archive" /> Archivar
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          {filtered.map(co => (
+            <DirectoryCard
+              key={co.id}
+              type="company"
+              data={co}
+              onViewDetails={openDetail}
+              onEdit={openEdit}
+              onArchive={handleArchiveClick}
+              priceLists={priceLists}
+            />
+          ))}
+        </div>
       )}
 
       <div className="crm-table-footer">

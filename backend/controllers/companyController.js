@@ -408,27 +408,16 @@ export const updateCompany = async (req, res) => {
     if (id.startsWith('sae-')) {
       const saeClave = id.replace('sae-', '').trim();
 
-      // Find if we already have a record in `companies` that matches this SAE key in its notes JSON
+      // Filtrar en Postgres directamente — evita descargar toda la tabla para buscar sae_clave
       const { data: existingCos, error: fetchErr } = await supabase
         .from('companies')
-        .select('*');
+        .select('*')
+        .like('notes', `%"sae_clave":"${saeClave}"%`)
+        .limit(1);
 
       if (fetchErr) throw fetchErr;
 
-      let matchedCo = null;
-      for (const co of existingCos || []) {
-        if (co.notes) {
-          try {
-            const parsed = JSON.parse(co.notes.trim());
-            if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
-              matchedCo = co;
-              break;
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
-      }
+      let matchedCo = existingCos && existingCos.length > 0 ? existingCos[0] : null;
 
       // Clean notes format ensuring we store the sae_clave
       let notesPayload = notes;

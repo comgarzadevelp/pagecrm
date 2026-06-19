@@ -53,7 +53,7 @@ const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
         '.evc-modal-overlay, .modal-overlay-glass, .modal-overlay, [role="dialog"]'
       );
       
-      if (activeTab === 'calendar' || isUserTyping || hasOpenModal) {
+      if (activeTab === 'personal-agenda' || isUserTyping || hasOpenModal) {
         return;
       }
 
@@ -63,7 +63,7 @@ const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
     }, 90000); // 90s — reducido desde 45s para menor saturación del servidor
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && activeTab !== 'calendar') {
+      if (document.visibilityState === 'visible' && activeTab !== 'personal-agenda') {
         fetchNotifications();
       }
     };
@@ -304,7 +304,7 @@ const DashboardShell = ({
     }, 250); // Mismo tiempo que la animación de salida
   };
   // Mobile quick access tabs setup
-  const preferredMobileKeys = ['leads', 'pipeline', 'contacts', 'companies', 'quotes', 'dashboard'];
+  const preferredMobileKeys = ['leads', 'pipeline', 'directory', 'quotes', 'dashboard'];
 
   // Sort sidebarItems: preferred ones first, then others
   const sortedMobileItems = [...sidebarItems].sort((a, b) => {
@@ -322,7 +322,7 @@ const DashboardShell = ({
   // Determinar si el FAB es visible para este rol
   const hasQuotes = enabledModules.includes('quotes');
   const hasCustomers = enabledModules.includes('customers');
-  const hasCompanies = enabledModules.includes('companies');
+  const hasCompanies = enabledModules.includes('companies') || enabledModules.includes('directory');
   const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
   const showGlobalStatsGrid =
@@ -330,12 +330,11 @@ const DashboardShell = ({
     activeTab !== 'pipeline' &&
     activeTab !== 'quotes' &&
     activeTab !== 'dashboard' &&
-    activeTab !== 'contacts' &&
-    activeTab !== 'companies' &&
+    activeTab !== 'directory' &&
     activeTab !== 'quotes-manager' &&
     activeTab !== 'files' &&
     activeTab !== 'profile' &&
-    activeTab !== 'calendar' &&
+    activeTab !== 'personal-agenda' &&
     activeTab !== 'module-config' &&
     stats;
 

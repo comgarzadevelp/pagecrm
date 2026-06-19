@@ -477,9 +477,63 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   }, [isReorderMode, cardMenuState]);
 
   useEffect(() => {
+    let mouseX = 0;
+    let mouseY = 0;
+    let activeCardsList = null;
+    let animationFrameId = null;
+
+    const scrollLoop = () => {
+      const state = cardDragState.current;
+      if (!state.active || !state.leadId) {
+        animationFrameId = null;
+        return;
+      }
+
+      const container = document.querySelector('.kanban-board-container');
+      if (container) {
+        // Deshabilitar comportamiento de scroll suave temporalmente para una respuesta instantánea
+        if (container.style.scrollBehavior !== 'auto') {
+          container.style.scrollBehavior = 'auto';
+        }
+
+        const rect = container.getBoundingClientRect();
+        const edgeThreshold = 80;
+        const maxScrollSpeed = 12;
+
+        // Scroll horizontal del contenedor principal del tablero
+        if (mouseX > rect.right - edgeThreshold) {
+          const intensity = Math.min(1, (mouseX - (rect.right - edgeThreshold)) / edgeThreshold);
+          container.scrollLeft += intensity * maxScrollSpeed;
+        } else if (mouseX < rect.left + edgeThreshold) {
+          const intensity = Math.min(1, ((rect.left + edgeThreshold) - mouseX) / edgeThreshold);
+          container.scrollLeft -= intensity * maxScrollSpeed;
+        }
+
+        // Scroll vertical de la columna activa sobre la que se arrastra la tarjeta
+        if (activeCardsList) {
+          const listRect = activeCardsList.getBoundingClientRect();
+          const vertThreshold = 40;
+          const maxVertSpeed = 10;
+
+          if (mouseY > listRect.bottom - vertThreshold) {
+            const intensity = Math.min(1, (mouseY - (listRect.bottom - vertThreshold)) / vertThreshold);
+            activeCardsList.scrollTop += intensity * maxVertSpeed;
+          } else if (mouseY < listRect.top + vertThreshold) {
+            const intensity = Math.min(1, ((listRect.top + vertThreshold) - mouseY) / vertThreshold);
+            activeCardsList.scrollTop -= intensity * maxVertSpeed;
+          }
+        }
+      }
+
+      animationFrameId = requestAnimationFrame(scrollLoop);
+    };
+
     const handlePointerMove = (e) => {
       const state = cardDragState.current;
       if (!state.leadId) return;
+
+      mouseX = e.clientX;
+      mouseY = e.clientY;
 
       const dx = e.clientX - state.startX;
       const dy = e.clientY - state.startY;
@@ -515,6 +569,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
         `;
         document.body.appendChild(ghost);
         state.ghostEl = ghost;
+
+        // Iniciar loop de auto-scroll
+        if (!animationFrameId) {
+          animationFrameId = requestAnimationFrame(scrollLoop);
+        }
       }
 
       if (state.ghostEl) {
@@ -535,11 +594,26 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
       if (colEl) {
         colEl.classList.add('drag-over');
+        activeCardsList = colEl.querySelector('.kanban-cards-list');
+      } else {
+        activeCardsList = null;
       }
     };
 
     const handlePointerUp = async (e) => {
       const state = cardDragState.current;
+
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+
+      const container = document.querySelector('.kanban-board-container');
+      if (container) {
+        container.style.scrollBehavior = '';
+      }
+
+      activeCardsList = null;
 
       if (state.ghostEl) {
         state.ghostEl.remove();
@@ -586,6 +660,9 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     return () => {
       document.removeEventListener('mousemove', handlePointerMove);
       document.removeEventListener('mouseup', handlePointerUp);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
   }, [leads]);
 

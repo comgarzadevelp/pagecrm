@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import './EventCreatorModal.css';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -82,24 +83,42 @@ const EventCreatorModal = ({
     const days = [];
     const firstDayIndex = date.getDay(); // 0 = Sunday, 1 = Monday...
     
-    // Last day of previous month
+    // Previous month padding
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
     const prevLastDay = new Date(year, month, 0).getDate();
-    // Padding from previous month
     for (let i = firstDayIndex - 1; i >= 0; i--) {
-      days.push({ day: prevLastDay - i, isCurrentMonth: false });
+      days.push({ 
+        day: prevLastDay - i, 
+        month: prevMonth, 
+        year: prevYear, 
+        isCurrentMonth: false 
+      });
     }
     
     // Days of current month
     const lastDay = new Date(year, month + 1, 0).getDate();
     for (let i = 1; i <= lastDay; i++) {
-      days.push({ day: i, isCurrentMonth: true });
+      days.push({ 
+        day: i, 
+        month: month, 
+        year: year, 
+        isCurrentMonth: true 
+      });
     }
     
     // Padding for next month to complete 42 cells (6 rows)
+    const nextMonth = month === 11 ? 0 : month + 1;
+    const nextYear = month === 11 ? year + 1 : year;
     const totalCells = 42;
     const nextMonthDays = totalCells - days.length;
     for (let i = 1; i <= nextMonthDays; i++) {
-      days.push({ day: i, isCurrentMonth: false });
+      days.push({ 
+        day: i, 
+        month: nextMonth, 
+        year: nextYear, 
+        isCurrentMonth: false 
+      });
     }
     
     return days;
@@ -742,7 +761,7 @@ const EventCreatorModal = ({
 
   if (!isOpen) return null;
 
-  return (
+  return ReactDOM.createPortal(
     <div className="calendar-modal-backdrop">
       <div className="calendar-modal-card animate-slide-up">
         <button className="calendar-modal-close" onClick={onClose}>
@@ -789,106 +808,107 @@ const EventCreatorModal = ({
         {error && <div className="calendar-error-msg" style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}><i className="fas fa-exclamation-triangle" /> {error}</div>}
 
         <form onSubmit={handleCreateOrUpdateEvent} className="calendar-modal-form">
-          <div className="form-group-expert">
-            <label>Título del Evento *</label>
-            <div className="input-with-icon">
-              <i className="far fa-edit input-icon" />
-              <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Demostración ERP o Seguimiento Comercial" disabled={!!localEditingEventId} />
-            </div>
-          </div>
-
-          <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-            <label>Cliente / Prospecto *</label>
-            <div className="input-with-icon">
-              <i className="fas fa-building input-icon" />
-              <input 
-                required 
-                value={clientName} 
-                onChange={e => {
-                  setClientName(e.target.value);
-                  setSearchQuery(e.target.value);
-                  setShowSuggestions(true);
-                }} 
-                onFocus={() => {
-                  setShowSuggestions(true);
-                }}
-                placeholder="Busca por nombre..." 
-                disabled={!!localEditingEventId} 
-                autoComplete="off"
-              />
-            </div>
-            
-            {showSuggestions && filteredCandidates.length > 0 && (
-              <ul className="autocomplete-dropdown">
-                {filteredCandidates.map((c, idx) => {
-                  let badgeColor = '#0086c0'; // prospecto
-                  if (c.type === 'cliente') badgeColor = '#16a34a';
-                  if (c.type === 'contacto') badgeColor = '#7c3aed';
-                  if (c.type === 'empresa') badgeColor = '#f97316';
-                  
-                  return (
-                    <li 
-                      key={`${c.type}-${c.id}-${idx}`}
-                      onClick={() => {
-                        setClientName(c.name);
-                        setSearchQuery('');
-                        setShowSuggestions(false);
-                        // Prefill attendees email if available
-                        if (c.email) {
-                          setAttendeeList(prev => {
-                            if (prev.includes(c.email)) return prev;
-                            return [...prev, c.email];
-                          });
-                        }
-                      }}
-                    >
-                      <span className="autocomplete-name">{c.name}</span>
-                      <span className="autocomplete-badge" style={{ backgroundColor: badgeColor }}>
-                        {c.type}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-
-          <div className="form-group-expert">
-            <label>Lugar / Ubicación *</label>
-            <div className="input-with-icon">
-              <i className="fas fa-map-marker-alt input-icon" />
-              <input 
-                id="location-autocomplete-input"
-                required 
-                value={location} 
-                onChange={e => setLocation(e.target.value)} 
-                placeholder={isMapsApiLoaded ? "Busca una dirección o negocio..." : "Ej: Oficinas Cliente, Microsoft Teams..."} 
-                autoComplete="off"
-              />
-            </div>
-            {!apiKey && (
-              <span style={{ fontSize: '0.725rem', color: '#94a3b8', marginTop: '2px', display: 'block', textAlign: 'left' }}>
-                💡 Google Maps no configurado. Escribe la dirección manualmente.
-              </span>
-            )}
-          </div>
-
-          {/* Google Minimap Container */}
-          {isMapsApiLoaded && coords && (
-            <div 
-              ref={mapRef} 
-              style={{ 
-                width: '100%', 
-                height: '180px', 
-                borderRadius: '8px', 
-                border: '1px solid #cbd5e1', 
-                marginTop: '0.25rem',
-                flexShrink: 0
-              }} 
-            />
-          )}
-
           <div className="form-row-expert">
+            <div className="form-group-expert">
+              <label>Título del Evento *</label>
+              <div className="input-with-icon">
+                <i className="far fa-edit input-icon" />
+                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Demostración ERP o Seguimiento Comercial" disabled={!!localEditingEventId} />
+              </div>
+            </div>
+
+            <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <label>Cliente / Prospecto *</label>
+              <div className="input-with-icon">
+                <i className="fas fa-building input-icon" />
+                <input 
+                  required 
+                  value={clientName} 
+                  onChange={e => {
+                    setClientName(e.target.value);
+                    setSearchQuery(e.target.value);
+                    setShowSuggestions(true);
+                  }} 
+                  onFocus={() => {
+                    setShowSuggestions(true);
+                  }}
+                  placeholder="Busca por nombre..." 
+                  disabled={!!localEditingEventId} 
+                  autoComplete="off"
+                />
+              </div>
+              
+              {showSuggestions && filteredCandidates.length > 0 && (
+                <ul className="autocomplete-dropdown">
+                  {filteredCandidates.map((c, idx) => {
+                    let badgeColor = '#0086c0'; // prospecto
+                    if (c.type === 'cliente') badgeColor = '#16a34a';
+                    if (c.type === 'contacto') badgeColor = '#7c3aed';
+                    if (c.type === 'empresa') badgeColor = '#f97316';
+                    
+                    return (
+                      <li 
+                        key={`${c.type}-${c.id}-${idx}`}
+                        onClick={() => {
+                          setClientName(c.name);
+                          setSearchQuery('');
+                          setShowSuggestions(false);
+                          // Prefill attendees email if available
+                          if (c.email) {
+                            setAttendeeList(prev => {
+                              if (prev.includes(c.email)) return prev;
+                              return [...prev, c.email];
+                            });
+                          }
+                        }}
+                      >
+                        <span className="autocomplete-name">{c.name}</span>
+                        <span className="autocomplete-badge" style={{ backgroundColor: badgeColor }}>
+                          {c.type}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          <div className="form-row-expert" style={{ alignItems: 'flex-start' }}>
+            <div className="form-group-expert" style={{ display: 'flex', flexDirection: 'column' }}>
+              <label>Lugar / Ubicación *</label>
+              <div className="input-with-icon">
+                <i className="fas fa-map-marker-alt input-icon" />
+                <input 
+                  id="location-autocomplete-input"
+                  required 
+                  value={location} 
+                  onChange={e => setLocation(e.target.value)} 
+                  placeholder={isMapsApiLoaded ? "Busca una dirección o negocio..." : "Ej: Oficinas Cliente, Microsoft Teams..."} 
+                  autoComplete="off"
+                />
+              </div>
+              {!apiKey && (
+                <span style={{ fontSize: '0.725rem', color: '#94a3b8', marginTop: '2px', display: 'block', textAlign: 'left' }}>
+                  💡 Google Maps no configurado. Escribe la dirección manualmente.
+                </span>
+              )}
+              {/* Google Minimap Container */}
+              {isMapsApiLoaded && coords && (
+                <div 
+                  ref={mapRef} 
+                  style={{ 
+                    width: '100%', 
+                    height: '180px', 
+                    borderRadius: '8px', 
+                    border: '1px solid #cbd5e1', 
+                    marginTop: '0.25rem',
+                    flexShrink: 0
+                  }} 
+                />
+              )}
+            </div>
+
             <div className="form-group-expert">
               <label>Tipo de Evento</label>
               <div className="input-with-icon">
@@ -904,7 +924,7 @@ const EventCreatorModal = ({
             </div>
           </div>
 
-          <div className="form-row-expert">
+          <div className="form-row-expert-3">
             {/* Custom Premium Date Picker */}
             <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
               <label>Fecha de Inicio *</label>
@@ -972,14 +992,13 @@ const EventCreatorModal = ({
                   {/* Days grid */}
                   <div className="calendar-picker-days">
                     {getDaysInMonth(viewYear, viewMonth).map((item, idx) => {
-                      const itemDateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`;
-                      const isSelected = startDate === itemDateStr && item.isCurrentMonth;
+                      const itemDateStr = `${item.year}-${String(item.month + 1).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`;
+                      const isSelected = startDate === itemDateStr;
                       
                       const today = new Date();
                       const isToday = today.getDate() === item.day && 
-                                      today.getMonth() === viewMonth && 
-                                      today.getFullYear() === viewYear && 
-                                      item.isCurrentMonth;
+                                      today.getMonth() === item.month && 
+                                      today.getFullYear() === item.year;
 
                       return (
                         <button
@@ -1091,25 +1110,25 @@ const EventCreatorModal = ({
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="form-group-expert">
-            <label>Duración de la Cita *</label>
-            <div className="input-with-icon">
-              <i className="far fa-clock input-icon" style={{ zIndex: 2 }} />
-              <select 
-                value={duration} 
-                onChange={e => setDuration(e.target.value)} 
-                className="modal-select"
-              >
-                <option value="15">15 minutos</option>
-                <option value="30">30 minutos</option>
-                <option value="45">45 minutos</option>
-                <option value="60">1 hora</option>
-                <option value="90">1.5 horas</option>
-                <option value="120">2 horas</option>
-                <option value="180">3 horas</option>
-              </select>
+            <div className="form-group-expert">
+              <label>Duración de la Cita *</label>
+              <div className="input-with-icon">
+                <i className="far fa-clock input-icon" style={{ zIndex: 2 }} />
+                <select 
+                  value={duration} 
+                  onChange={e => setDuration(e.target.value)} 
+                  className="modal-select"
+                >
+                  <option value="15">15 minutos</option>
+                  <option value="30">30 minutos</option>
+                  <option value="45">45 minutos</option>
+                  <option value="60">1 hora</option>
+                  <option value="90">1.5 horas</option>
+                  <option value="120">2 horas</option>
+                  <option value="180">3 horas</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1170,7 +1189,8 @@ const EventCreatorModal = ({
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

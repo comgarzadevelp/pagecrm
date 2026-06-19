@@ -5,9 +5,8 @@ import { useCrmData } from '../hooks/useCrmData';
 
 // Panels
 import StatsDashboard from '../panels/StatsDashboard';
-import MisContactos from '../panels/MisContactos';
-import Empresas from '../panels/Empresas';
-import CalendarioPanel from '../panels/CalendarioPanel';
+import Directorio from '../panels/Directorio';
+import AgendaPanel from '../panels/AgendaPanel';
 import LeadsBandeja from '../panels/LeadsBandeja';
 import ProspectosKanban from '../panels/ProspectosKanban';
 import CotizadorB2B from '../panels/CotizadorB2B';
@@ -202,8 +201,8 @@ const DashboardAdmin = ({ enabledModules }) => {
         />
       )}
 
-      {activeTab === 'contacts' && (
-        <MisContactos
+      {activeTab === 'directory' && (
+        <Directorio
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,
@@ -230,35 +229,7 @@ const DashboardAdmin = ({ enabledModules }) => {
         />
       )}
 
-      {activeTab === 'companies' && (
-        <Empresas
-          onViewCompanyDetails={(comp) => {
-            const custMock = {
-              id: comp.id,
-              isCompany: true,
-              name: comp.name,
-              email: comp.email_main || '',
-              phone: comp.phone_main || '',
-              company: comp.alias || comp.name || '',
-              notes: comp.notes || '',
-              status: String(comp.id).startsWith('sae-') ? 'pendiente_revision' : (comp.status || 'nuevo'),
-              limcred: comp.limcred || 0,
-              saldo: comp.saldo || 0,
-              lista_prec: comp.lista_prec || 1,
-              clasific: comp.clasific || '',
-              calle: comp.calle || '',
-              colonia: comp.colonia || '',
-              codigo: comp.codigo || '',
-              municipio: comp.city || '',
-              estado: comp.state || '',
-              rfc: comp.rfc || 'N/A'
-            };
-            setSelectedCustomer(custMock);
-          }}
-        />
-      )}
-
-      {activeTab === 'calendar' && <CalendarioPanel leads={leads || []} />}
+      {activeTab === 'personal-agenda' && <AgendaPanel leads={leads || []} />}
       {activeTab === 'pipeline' && <ProspectosKanban role={role} API_BASE={API_BASE} fetchLeads={fetchLeads} />}
       {activeTab === 'quotes-manager' && <GestorCotizaciones />}
       {activeTab === 'files' && <Contenedor />}

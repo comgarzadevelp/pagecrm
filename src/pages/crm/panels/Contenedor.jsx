@@ -77,7 +77,15 @@ export default function Contenedor() {
       const res = await fetch(`${API_BASE}/api/crm/files${params}`, { headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
-      setFiles(data.files || []);
+      const allFiles = data.files || [];
+      const nonNotes = allFiles.filter(f => 
+        !(f.file_type === 'other' && (
+          f.name.startsWith('Nota_') ||
+          f.name.toLowerCase().includes('nota rápida') ||
+          f.name.toLowerCase().includes('nota rapida')
+        ))
+      );
+      setFiles(nonNotes);
     } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };

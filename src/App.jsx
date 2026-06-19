@@ -16,6 +16,7 @@ import './styles/Global.css';
 import Login from './pages/crm/Login';
 import LoginSuperAdmin from './pages/crm/LoginSuperAdmin';
 import DashboardRouter from './pages/crm/DashboardRouter';
+import LabComponent from './pages/crm/LabComponent';
 
 function AppContent() {
   const location = useLocation();
@@ -36,6 +37,7 @@ function AppContent() {
           <Route path="/crm/login-superadmin" element={<LoginSuperAdmin />} />
           <Route path="/crm/dashboard" element={<DashboardRouter />} />
           <Route path="/crm/dashboard/:tab" element={<DashboardRouter />} />
+          <Route path="/crm/lab" element={<LabComponent />} />
         </Routes>
       </main>
 

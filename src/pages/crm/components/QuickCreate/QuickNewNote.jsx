@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { useUX } from '../../../../components/common/UXProvider';
+import './QuickNewNote.css';
 
 export default function QuickNewNote({ API_BASE, onClose, userName, role }) {
   const { showToast } = useUX();
@@ -267,150 +269,160 @@ ${content.trim()}
     );
   });
 
-  return (
-    <div className="quick-modal-fullscreen">
-      <div className="quick-modal-header">
-        <h3>Crear Nota Rápida</h3>
-        <button type="button" className="quick-modal-close-btn" onClick={onClose}>
-          <i className="fas fa-times"></i>
-        </button>
-      </div>
+  return ReactDOM.createPortal(
+    <div className="quick-modal-overlay-wrapper" onClick={onClose}>
+      <div className="quick-modal-compact-container" onClick={(e) => e.stopPropagation()}>
+        
+        <div className="quick-modal-compact-header">
+          <h3><i className="fas fa-sticky-note" style={{ color: '#7c3aed' }} /> Crear Nota Rápida</h3>
+          <button type="button" className="quick-modal-compact-close" onClick={onClose} title="Cerrar">
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
 
-      <div className="quick-modal-body">
-        <form onSubmit={handleSubmit} className="quick-form">
-          <div className="quick-input-group">
-            <label className="quick-input-label">Título de la Nota *</label>
-            <input
-              type="text"
-              className="quick-input"
-              placeholder="Ej: Seguimiento llamada, Recordatorio cotización..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-          </div>
+        <div className="quick-modal-compact-body">
+          <form onSubmit={handleSubmit} className="quick-form">
+            
+            {/* 1. Título de la Nota */}
+            <div className="quick-compact-input-group">
+              <label className="quick-compact-input-label">Título de la Nota *</label>
+              <input
+                type="text"
+                className="quick-compact-input"
+                placeholder="Ej: Seguimiento llamada, Recordatorio..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                required
+              />
+            </div>
 
-          {/* Buscador Universal con Autocomplete */}
-          <div className="quick-input-group">
-            <label className="quick-input-label">Vincular a Cliente, Obra, Contacto o Empresa</label>
-            {selectedEntity ? (
-              <div className="linked-badge">
-                <div className="linked-badge-text">
-                  <strong style={{ color: 'var(--color-brand-primary)' }}>{selectedEntity.name}</strong>
-                  <span>{selectedEntity.subtext}</span>
+            {/* 2. Cuerpo de la Nota */}
+            <div className="quick-compact-input-group">
+              <label className="quick-compact-input-label">Cuerpo de la Nota / Recordatorio *</label>
+              <textarea
+                className="quick-compact-input"
+                placeholder="Escribe aquí notas de la llamada, acuerdos o recordatorios comerciales..."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                required
+              />
+            </div>
+
+            {/* 3. Vincular Entidad (Opcional - Abajo de los campos principales) */}
+            <div className="quick-compact-input-group">
+              <label className="quick-compact-input-label">
+                Vincular a Cliente o Empresa <span className="optional-tag">(Opcional)</span>
+              </label>
+              
+              {selectedEntity ? (
+                <div className="linked-compact-badge">
+                  <div className="linked-compact-badge-text">
+                    <strong>{selectedEntity.name}</strong>
+                    <span>{selectedEntity.subtext}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className="linked-compact-badge-remove"
+                    onClick={() => {
+                      setSelectedEntity(null);
+                      setSearchQuery('');
+                    }}
+                    title="Desvincular"
+                  >
+                    <i className="fas fa-times-circle"></i>
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className="linked-badge-remove"
-                  onClick={() => {
-                    setSelectedEntity(null);
-                    setSearchQuery('');
-                  }}
-                  title="Desvincular"
-                >
-                  <i className="fas fa-times-circle"></i>
-                </button>
-              </div>
-            ) : (
-              <>
-                <input
-                  type="text"
-                  className="quick-input"
-                  placeholder={loadingEntities ? "Cargando catálogo..." : "Escribe nombre de cliente, contacto o empresa..."}
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setShowDropdown(true);
-                  }}
-                  onFocus={() => setShowDropdown(true)}
-                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-                  disabled={loadingEntities}
-                />
-                {showDropdown && searchQuery.trim() && (
-                  <ul className="quick-autocomplete-dropdown">
-                    {filteredEntities.length === 0 ? (
-                      <li
-                        className="quick-autocomplete-option"
-                        style={{ cursor: 'pointer' }}
-                        onMouseDown={() => {
-                          setSelectedEntity({
-                            id: 'temp',
-                            name: searchQuery,
-                            subtext: 'Texto Libre (Sin vincular a DB)',
-                            type: 'free'
-                          });
-                          setSearchQuery('');
-                          setShowDropdown(false);
-                        }}
-                      >
-                        Vincular como texto libre: <strong>"{searchQuery}"</strong>
-                      </li>
-                    ) : (
-                      filteredEntities.slice(0, 10).map(ent => (
+              ) : (
+                <>
+                  <input
+                    type="text"
+                    className="quick-compact-input"
+                    placeholder={loadingEntities ? "Cargando catálogo..." : "Escribe nombre de cliente, contacto o empresa..."}
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setShowDropdown(true);
+                    }}
+                    onFocus={() => setShowDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                    disabled={loadingEntities}
+                  />
+                  {showDropdown && searchQuery.trim() && (
+                    <ul className="quick-compact-autocomplete-dropdown">
+                      {filteredEntities.length === 0 ? (
                         <li
-                          key={`${ent.type}-${ent.id}`}
-                          className="quick-autocomplete-option"
+                          className="quick-compact-autocomplete-option"
+                          style={{ cursor: 'pointer' }}
                           onMouseDown={() => {
-                            setSelectedEntity(ent);
+                            setSelectedEntity({
+                              id: 'temp',
+                              name: searchQuery,
+                              subtext: 'Texto Libre (Sin vincular a DB)',
+                              type: 'free'
+                            });
                             setSearchQuery('');
                             setShowDropdown(false);
                           }}
                         >
-                          <strong>{ent.name}</strong>
-                          <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                            {ent.type === 'client' && '👤 '}
-                            {ent.type === 'company' && '🏢 '}
-                            {ent.type === 'contact' && '👔 '}
-                            {ent.subtext}
-                          </span>
+                          Vincular como texto libre: <strong>"{searchQuery}"</strong>
                         </li>
-                      ))
-                    )}
-                  </ul>
-                )}
+                      ) : (
+                        filteredEntities.slice(0, 10).map(ent => (
+                          <li
+                            key={`${ent.type}-${ent.id}`}
+                            className="quick-compact-autocomplete-option"
+                            onMouseDown={() => {
+                              setSelectedEntity(ent);
+                              setSearchQuery('');
+                              setShowDropdown(false);
+                            }}
+                          >
+                            <strong>{ent.name}</strong>
+                            <span>
+                              {ent.type === 'client' && '👤 '}
+                              {ent.type === 'company' && '🏢 '}
+                              {ent.type === 'contact' && '👔 '}
+                              {ent.subtext}
+                            </span>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="quick-compact-tip">
+              <i className="fas fa-info-circle"></i>
+              <span>
+                Esta nota generará un archivo <strong>.txt</strong> en tus recursos y se vinculará a la bitácora del cliente/empresa si es seleccionado.
+              </span>
+            </div>
+          </form>
+        </div>
+
+        <div className="quick-modal-compact-footer">
+          <button type="button" className="quick-compact-btn-cancel" onClick={onClose} disabled={saving}>
+            Cancelar
+          </button>
+          <button type="button" className="quick-compact-btn-submit" onClick={handleSubmit} disabled={saving}>
+            {saving ? (
+              <>
+                <div className="spinner-mini-compact"></div>
+                <span>Guardando...</span>
+              </>
+            ) : (
+              <>
+                <i className="fas fa-file-signature"></i>
+                <span>Crear Nota Rápida</span>
               </>
             )}
-          </div>
+          </button>
+        </div>
 
-          <div className="quick-input-group">
-            <label className="quick-input-label">Cuerpo de la Nota / Recordatorio *</label>
-            <textarea
-              className="quick-input"
-              rows="6"
-              placeholder="Escribe aquí notas de la llamada, acuerdos o recordatorios comerciales..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              required
-            />
-          </div>
-
-          <div className="quick-tip-card">
-            <i className="fas fa-file-alt" style={{ color: '#8b5cf6' }}></i>
-            <span style={{ color: '#7c3aed' }}>
-              <strong>Doble Impacto:</strong> Esta nota se convertirá en un archivo <strong>.txt</strong> en el Contenedor y además se guardará automáticamente en el historial/timeline del cliente, empresa o contacto seleccionado en la base de datos.
-            </span>
-          </div>
-        </form>
       </div>
-
-      <div className="quick-modal-footer">
-        <button type="button" className="quick-btn-cancel" onClick={onClose} disabled={saving}>
-          Cancelar
-        </button>
-        <button type="button" className="quick-btn-submit" style={{ background: 'linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%)', boxShadow: '0 4px 12px rgba(139, 92, 246, 0.25)' }} onClick={handleSubmit} disabled={saving}>
-          {saving ? (
-            <>
-              <div className="spinner-mini-fab"></div>
-              <span>Creando Nota...</span>
-            </>
-          ) : (
-            <>
-              <i className="fas fa-file-signature"></i>
-              <span>Crear Nota Rápida</span>
-            </>
-          )}
-        </button>
-      </div>
-    </div>
+    </div>,
+    document.body
   );
 }

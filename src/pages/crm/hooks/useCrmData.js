@@ -341,8 +341,8 @@ export function useCrmData(role, enabledModules = []) {
     if (!currentTab || currentTab === 'leads') {
       fetchLeads(silent);
     }
-    // Si es 'customers' o 'contacts' o 'companies', refrescar directorio y clientes
-    if (!currentTab || currentTab === 'customers' || currentTab === 'contacts' || currentTab === 'companies') {
+    // Si es 'customers' o 'contacts' o 'companies' o 'directory', refrescar directorio y clientes
+    if (!currentTab || currentTab === 'customers' || currentTab === 'contacts' || currentTab === 'companies' || currentTab === 'directory') {
       fetchCustomers(silent);
     }
     // Si es 'pipeline' o 'quotes', refrescar oportunidades

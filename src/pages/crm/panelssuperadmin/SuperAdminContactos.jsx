@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import DirectoryCard from '../components/DirectoryCard';
 import './SuperAdminContactos.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -240,81 +241,17 @@ export default function SuperAdminContactos({ onViewCompanyDetails }) {
       ) : (
         <div className="contacts-cards-grid">
           {filtered.map(c => {
-            const isSae = String(c.id).startsWith('sae-');
             const creatorName = sellers.find(s => s.id === c.created_by)?.name || 'Corporativo';
-            
             return (
-              <div className="contact-card glass" key={c.id}>
-                {/* Source Badge (SAE or CRM) */}
-                <div className="sa-contacts-badge-source">
-                  {isSae ? (
-                    <span className="sae">
-                      <i className="fas fa-database" style={{ marginRight: '4px' }} /> SAE
-                    </span>
-                  ) : (
-                    <span className="crm">
-                      <i className="fas fa-laptop" style={{ marginRight: '4px' }} /> CRM
-                    </span>
-                  )}
-                </div>
-
-                {/* Avatar area */}
-                <div className="sa-contacts-card-avatar contact-card-avatar">
-                  {c.avatar_url ? (
-                    <img src={`${API_BASE}${c.avatar_url}`} alt={c.name} />
-                  ) : (
-                    <span>{c.name?.charAt(0).toUpperCase()}</span>
-                  )}
-                </div>
-
-                {/* Body info */}
-                <div className="sa-contacts-card-body contact-card-body">
-                  <h4 className="sa-contacts-card-name">{c.name}</h4>
-                  {c.position && <span className="sa-contacts-card-position">{c.position}</span>}
-
-                  <div className="sa-contacts-card-info-list">
-                    <span><i className="fas fa-envelope" style={{ marginRight: '6px', color: 'var(--color-brand-accent)' }} /> {c.email || 'Sin correo'}</span>
-                    <span><i className="fas fa-phone" style={{ marginRight: '6px', color: 'var(--color-brand-accent)' }} /> {c.phone || 'Sin teléfono'}</span>
-                    {c.whatsapp && (
-                      <a href={`https://wa.me/52${c.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="sa-contacts-wa-link">
-                        <i className="fab fa-whatsapp" /> Iniciar WhatsApp
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Creator Label */}
-                  <div className="sa-contacts-creator-label">
-                    <i className="fas fa-user-circle" style={{ marginRight: '4px' }} />
-                    Creado por: <strong>{creatorName}</strong>
-                  </div>
-
-                  {/* Linked Companies / Developments */}
-                  {c.contact_companies && c.contact_companies.length > 0 && (
-                    <div className="sa-contacts-company-tags-list">
-                      {c.contact_companies.map(cc => (
-                        <div 
-                          key={cc.company?.id}
-                          className="sa-contacts-company-tag contact-company-tag"
-                        >
-                          <i className="fas fa-building" style={{ color: 'var(--color-brand-accent)' }} />
-                          <span>{cc.company?.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Simplified view actions */}
-                <div className="sa-contacts-card-actions-wrapper">
-                  <button 
-                    className="btn-view-details" 
-                    style={{ flex: 1, padding: '6px 0', fontSize: '0.8rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}
-                    onClick={() => openDetail(c)}
-                  >
-                    <i className="fas fa-eye" /> Ficha Técnica
-                  </button>
-                </div>
-              </div>
+              <DirectoryCard
+                key={c.id}
+                type="contact"
+                data={c}
+                onViewDetails={openDetail}
+                onViewCompanyDetails={onViewCompanyDetails}
+                creatorName={creatorName}
+                priceLists={priceLists}
+              />
             );
           })}
         </div>

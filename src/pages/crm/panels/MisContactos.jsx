@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
+import DirectoryCard from '../components/DirectoryCard';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -281,177 +282,21 @@ export default function MisContactos({ onViewCompanyDetails }) {
         <div className="crm-empty-placeholder"><i className="fas fa-user-slash" /><p>No hay contactos registrados aún.</p></div>
       ) : (
         <div className="contacts-cards-grid">
-          {filtered.map(c => {
-            const isSae = String(c.id).startsWith('sae-');
-            return (
-              <div className="contact-card glass" key={c.id}>
-                {/* Source Badge (SAE or CRM) */}
-                <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 1 }}>
-                  {isSae ? (
-                    <span style={{ 
-                      fontSize: '0.6rem', 
-                      background: 'rgba(212, 163, 89, 0.12)', 
-                      color: 'var(--color-brand-primary)', 
-                      border: '1px solid rgba(212, 163, 89, 0.3)',
-                      padding: '2px 8px', 
-                      borderRadius: '12px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      <i className="fas fa-database" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> SAE
-                    </span>
-                  ) : (
-                    <span style={{ 
-                      fontSize: '0.6rem', 
-                      background: 'rgba(37, 99, 235, 0.1)', 
-                      color: '#2563eb', 
-                      border: '1px solid rgba(37, 99, 235, 0.25)',
-                      padding: '2px 8px', 
-                      borderRadius: '12px',
-                      fontWeight: '800',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em'
-                    }}>
-                      <i className="fas fa-laptop" style={{ marginRight: '4px', fontSize: '0.55rem' }} /> CRM
-                    </span>
-                  )}
-                </div>
-
-                {/* Avatar */}
-                <div className="contact-card-avatar" style={{ position: 'relative' }}>
-                  {c.avatar_url
-                    ? <img src={resolveMediaUrl(c.avatar_url)} alt={c.name} />
-                    : <span>{c.name?.charAt(0).toUpperCase()}</span>}
-                </div>
-
-              {/* Info */}
-              <div className="contact-card-body">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
-                  <h4 className="contact-card-name" style={{ margin: 0 }}>{c.name}</h4>
-                  {(!c.phone || !c.email) && (
-                    <span style={{ 
-                      fontSize: '0.65rem', 
-                      background: '#fef2f2', 
-                      color: '#ef4444', 
-                      border: '1px solid #fee2e2', 
-                      padding: '2px 6px', 
-                      borderRadius: '4px',
-                      fontWeight: 'bold',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      whiteSpace: 'nowrap'
-                    }}>
-                      <i className="fas fa-exclamation-circle" style={{ fontSize: '0.65rem' }}></i>
-                      Incompleto: {!c.phone ? 'Sin Tel' : 'Sin Correo'}
-                    </span>
-                  )}
-                </div>
-                {c.position && <span className="contact-card-position">{c.position}</span>}
-
-                <div className="contact-card-data">
-                  {c.email ? <span><i className="fas fa-envelope" /> {c.email}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-envelope" /> Falta correo</span>}
-                  {c.phone ? <span><i className="fas fa-phone" /> {c.phone}</span> : <span style={{ color: '#ef4444', fontStyle: 'italic', fontWeight: '500' }}><i className="fas fa-phone" /> Falta teléfono</span>}
-                  {c.whatsapp && (
-                    <a href={`https://wa.me/52${c.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="contact-wa-link">
-                      <i className="fab fa-whatsapp" /> WhatsApp
-                    </a>
-                  )}
-                </div>
-
-                {/* Empresas vinculadas */}
-                {c.contact_companies && c.contact_companies.length > 0 && (
-                  <div className="contact-card-companies">
-                    {c.contact_companies.map(cc => {
-                      const compListaPrec = cc.company?.lista_prec;
-                      const plName = compListaPrec ? getPriceListName(compListaPrec) : null;
-                      const plStyle = compListaPrec ? getPriceListStyle(compListaPrec) : null;
-                      return (
-                        <div
-                          className="contact-company-tag"
-                          key={cc.company?.id || cc.company_id}
-                          style={{ cursor: 'pointer', flexDirection: 'column', alignItems: 'flex-start', gap: '4px' }}
-                          onClick={() => {
-                            if (onViewCompanyDetails && cc.company) {
-                              onViewCompanyDetails(cc.company);
-                            }
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', width: '100%' }}>
-                            <i className="fas fa-building" />
-                            <span>{cc.company?.name}</span>
-                            {cc.role && <em>({cc.role})</em>}
-                            <button
-                              className="btn-unlink-company"
-                              title="Desvincular"
-                              style={{ marginLeft: 'auto' }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleUnlink(c.id, cc.company?.id);
-                              }}
-                            >×</button>
-                          </div>
-                          {/* Badge de lista de precios / convenio SAE */}
-                          {plName && plStyle && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '3px',
-                              fontSize: '0.65rem',
-                              fontWeight: '700',
-                              padding: '1px 7px',
-                              borderRadius: '20px',
-                              background: plStyle.bg,
-                              color: plStyle.color,
-                              border: `1px solid ${plStyle.border}`,
-                              marginLeft: '18px'
-                            }}>
-                              <i className="fas fa-tag" style={{ fontSize: '0.55rem' }} />
-                              {plName}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Actions */}
-              <div className="contact-card-actions" style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => openDetail(c)}>
-                  <i className="fas fa-eye" /> Ver
-                </button>
-                <button className="btn-view-details" style={{ flex: 1 }} onClick={() => handleOpenEdit(c)}>
-                  <i className="fas fa-edit" /> Editar
-                </button>
-                <button className="btn-link-company" style={{ flex: 1 }} onClick={() => handleOpenLink(c)}>
-                  <i className="fas fa-link" /> Empresa
-                </button>
-                <button 
-                  className="btn-logout" 
-                  style={{ 
-                    flex: 1, 
-                    padding: '0.4rem 0.6rem', 
-                    fontSize: '0.75rem', 
-                    background: '#fef2f2', 
-                    color: '#ef4444', 
-                    border: '1px solid #fee2e2', 
-                    borderRadius: '8px',
-                    margin: 0,
-                    boxShadow: 'none'
-                  }} 
-                  onClick={() => handleArchiveClick(c)}
-                  title="Archivar contacto (Guardar copia y ocultar)"
-                >
-                  <i className="fas fa-archive" /> Archivar
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+          {filtered.map(c => (
+            <DirectoryCard
+              key={c.id}
+              type="contact"
+              data={c}
+              onViewDetails={openDetail}
+              onEdit={handleOpenEdit}
+              onLinkCompany={handleOpenLink}
+              onUnlinkCompany={handleUnlink}
+              onViewCompanyDetails={onViewCompanyDetails}
+              onArchive={handleArchiveClick}
+              priceLists={priceLists}
+            />
+          ))}
+        </div>
       )}
 
       <div className="crm-table-footer">

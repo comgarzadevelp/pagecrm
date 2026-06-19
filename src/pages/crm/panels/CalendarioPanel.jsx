@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import './CalendarioPanel.css';
 import { useUX } from '../../../components/common/UXProvider';
 import EventCreatorModal from './EventCreatorModal';
+import EventCard from './agenda/EventCard';
+import CancelEventModal from './agenda/CancelEventModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -20,7 +22,6 @@ export default function CalendarioPanel({ leads = [] }) {
   // Custom Cancellation Modal State
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [eventToCancel, setEventToCancel] = useState(null);
-  const [cancellationReason, setCancellationReason] = useState('');
   const [cancelLoading, setCancelLoading] = useState(false);
   const [cancelError, setCancelError] = useState('');
   
@@ -151,18 +152,14 @@ export default function CalendarioPanel({ leads = [] }) {
   };
 
   // Handles the actual API request to delete/cancel the event with reason justification
-  const handleConfirmCancelEvent = async () => {
+  const handleConfirmCancelEvent = async (reason) => {
     if (!eventToCancel) return;
-    if (cancellationReason.length < 150) {
-      showToast('La justificación comercial debe contener un mínimo de 150 caracteres.', 'warning');
-      return;
-    }
 
     setCancelLoading(true);
     setCancelError('');
 
     try {
-      const res = await fetch(`${API_BASE}/api/calendar/events/${eventToCancel.id}?reason=${encodeURIComponent(cancellationReason)}`, {
+      const res = await fetch(`${API_BASE}/api/calendar/events/${eventToCancel.id}?reason=${encodeURIComponent(reason)}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token()}` }
       });
@@ -172,7 +169,6 @@ export default function CalendarioPanel({ leads = [] }) {
       setEvents(prev => prev.filter(ev => ev.id !== eventToCancel.id));
       setIsCancelModalOpen(false);
       setEventToCancel(null);
-      setCancellationReason('');
 
       if (isSupervisorOrAdmin) fetchTeamAppointments();
     } catch (err) {
@@ -317,7 +313,8 @@ export default function CalendarioPanel({ leads = [] }) {
 
   return (
     <section className="calendar-panel-expert">
-      
+      <div className="calendar-expert-container">
+        
       {/* HEADER CONTROLS */}
       <div className="calendar-top-navigation animate-fade-in">
         <div className="brand-title">
@@ -357,8 +354,8 @@ export default function CalendarioPanel({ leads = [] }) {
 
       {viewMode === 'team' ? (
         /* SUPERVISOR VIEW: IMMUTABLE AUDITED DATABASE LOG */
-        <div className="calendar-layout team-audited-view animate-fade-in">
-          <main className="calendar-main-content" style={{ gridColumn: 'span 2' }}>
+        <div className="team-audited-view animate-fade-in">
+          <main className="calendar-main-content">
             {loadingTeam ? (
               <div className="calendar-loading-expert">
                 <div className="calendar-spinner" />
@@ -452,9 +449,9 @@ export default function CalendarioPanel({ leads = [] }) {
         </div>
       ) : (
         /* PERSONAL GOOGLE CALENDAR TIMELINE VIEW WITH FILTERS */
-        <div className="calendar-layout animate-fade-in">
-          {/* SIDEBAR FILTERS */}
-          <aside className="calendar-sidebar">
+        <div className="animate-fade-in">
+          {/* TOP HORIZONTAL FILTERS */}
+          <div className="calendar-top-filters">
             <div className="sidebar-search">
               <i className="fas fa-search search-icon" />
               <input 
@@ -467,7 +464,6 @@ export default function CalendarioPanel({ leads = [] }) {
             </div>
 
             <div className="filter-group">
-              <h3>Categorías</h3>
               <button 
                 className={`filter-btn ${selectedCategoryFilter === 'all' ? 'active' : ''}`}
                 onClick={() => setSelectedCategoryFilter('all')}
@@ -492,13 +488,7 @@ export default function CalendarioPanel({ leads = [] }) {
                 );
               })}
             </div>
-
-            <div className="calendar-mini-info-box">
-              <div className="info-icon"><i className="fas fa-lightbulb" /></div>
-              <h4>Tip de Productividad</h4>
-              <p>Puedes editar o reprogramar cualquier cita haciendo clic en el botón de reprogramación en su tarjeta.</p>
-            </div>
-          </aside>
+          </div>
 
           {/* TIMELINE VIEWPORT */}
           <main className="calendar-main-content">
@@ -528,9 +518,18 @@ export default function CalendarioPanel({ leads = [] }) {
                       <h4>Hoy</h4>
                       <span className="section-count">{grouped.hoy.length} {grouped.hoy.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
-                    <div className="timeline-cards-grid">
-                      {grouped.hoy.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, null, null, leads))}
-                    </div>
+                      <div className="timeline-cards-grid">
+                        {grouped.hoy.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
+                            leads={leads}
+                            onDelete={handleDeleteEvent}
+                            onReschedule={triggerReschedule}
+                            showDateColumn={false}
+                          />
+                        ))}
+                      </div>
                   </div>
                 )}
 
@@ -542,9 +541,18 @@ export default function CalendarioPanel({ leads = [] }) {
                       <h4>Mañana</h4>
                       <span className="section-count">{grouped.manana.length} {grouped.manana.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
-                    <div className="timeline-cards-grid">
-                      {grouped.manana.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, null, null, leads))}
-                    </div>
+                      <div className="timeline-cards-grid">
+                        {grouped.manana.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
+                            leads={leads}
+                            onDelete={handleDeleteEvent}
+                            onReschedule={triggerReschedule}
+                            showDateColumn={false}
+                          />
+                        ))}
+                      </div>
                   </div>
                 )}
 
@@ -556,9 +564,18 @@ export default function CalendarioPanel({ leads = [] }) {
                       <h4>Próximos Días</h4>
                       <span className="section-count">{grouped.proximos.length} {grouped.proximos.length === 1 ? 'evento' : 'eventos'}</span>
                     </div>
-                    <div className="timeline-cards-grid">
-                      {grouped.proximos.map(event => renderEventCard(event, handleDeleteEvent, triggerReschedule, formatEventTime, formatEventDate, getEventCategory, getCleanDescription, categoriesConfig, formatEventDay, formatEventNumber, leads))}
-                    </div>
+                      <div className="timeline-cards-grid">
+                        {grouped.proximos.map(event => (
+                          <EventCard
+                            key={event.id}
+                            event={event}
+                            leads={leads}
+                            onDelete={handleDeleteEvent}
+                            onReschedule={triggerReschedule}
+                            showDateColumn={true}
+                          />
+                        ))}
+                      </div>
                   </div>
                 )}
 
@@ -594,225 +611,16 @@ export default function CalendarioPanel({ leads = [] }) {
       />
 
       {/* ⚠️ HIGHLY PREMIUM CUSTOM CANCELLATION MODAL */}
-      {isCancelModalOpen && (
-        <div className="calendar-modal-backdrop">
-          <div className="calendar-modal-card animate-slide-up cancel-modal-custom">
-            <button className="calendar-modal-close" onClick={() => { setIsCancelModalOpen(false); setCancellationReason(''); }}>
-              <i className="fas fa-times" />
-            </button>
-            
-            <div className="cancel-modal-title">
-              <i className="fas fa-archive notif-alert-ico" />
-              <h3>CANCELAR Y DESCARTAR CITA</h3>
-            </div>
-            
-            <p className="cancel-subtitle">Cita: <strong>{eventToCancel?.summary}</strong></p>
-
-            <div className="cancel-warning-box">
-              <div className="warn-title">
-                <i className="fas fa-exclamation-triangle" />
-                <strong>Control de Calidad Comercial:</strong>
-              </div>
-              <p>
-                Para mantener la integridad de la base de datos de la agenda comercial y evitar la pérdida de información de ventas, es <strong>obligatorio redactar una justificación comercial detallada (mínimo 150 caracteres)</strong> explicando los motivos por los cuales se descarta esta cita (ej. si el cliente canceló por junta interna, si se reprogramará físicamente, etc.).
-              </p>
-              <p className="warn-note">Esta respuesta se enviará automáticamente de forma directa al Supervisor y a la Dirección General en tiempo real.</p>
-            </div>
-
-            <div className="form-group-expert" style={{ marginTop: '1.5rem' }}>
-              <label>Explicación de Cancelación *</label>
-              <textarea
-                value={cancellationReason}
-                onChange={e => setCancellationReason(e.target.value)}
-                rows={4}
-                placeholder="Redacta detalladamente los motivos aquí... (Ej. Se validó con el cliente vía telefónica y no podrá asistir debido a auditoría interna. Se acordó contactarlo nuevamente la próxima semana para reagendar visita técnica en sus oficinas de Monterrey...)"
-              />
-              <div className="char-count-row">
-                {cancellationReason.length < 150 ? (
-                  <span className="char-error"><i className="fas fa-times-circle" /> Justificación demasiado corta (mínimo 150 caracteres)</span>
-                ) : (
-                  <span className="char-success"><i className="fas fa-check-circle" /> Justificación válida</span>
-                )}
-                <span className="char-count">{cancellationReason.length} / 150 caracteres</span>
-              </div>
-            </div>
-
-            <div className="cancel-modal-actions">
-              <button className="btn-cancel-modal-close" onClick={() => { setIsCancelModalOpen(false); setCancellationReason(''); }}>
-                Cancelar
-              </button>
-              <button
-                className="btn-cancel-modal-confirm"
-                disabled={cancellationReason.length < 150 || cancelLoading}
-                onClick={handleConfirmCancelEvent}
-              >
-                <i className="far fa-trash-alt" /> Cancelar y Descartar Cita
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <CancelEventModal
+        isOpen={isCancelModalOpen}
+        eventToCancel={eventToCancel}
+        onClose={() => { setIsCancelModalOpen(false); setEventToCancel(null); setCancelError(''); }}
+        onConfirm={handleConfirmCancelEvent}
+        loading={cancelLoading}
+        error={cancelError}
+      />
+      </div>
     </section>
-  );
-}
-
-// Sub-component for rendering event card
-function renderEventCard(event, onDelete, onReschedule, formatTime, formatDate, getCategory, getCleanDesc, categoriesConfig, formatDay, formatNumber, leads = []) {
-  const startTime = event.start?.dateTime || event.start?.date;
-  const endTime = event.end?.dateTime || event.end?.date;
-  const isAllDay = !event.start?.dateTime;
-  const catKey = getCategory(event.description, event.summary);
-  const cat = categoriesConfig[catKey] || categoriesConfig.negocios;
-  const cleanDesc = getCleanDesc(event.description);
-
-  // Intentar asociar heurísticamente por correo o nombre si no viene client_name nativo
-  let matchedLead = null;
-  if (!event.client_name && event.attendees && event.attendees.length > 0 && leads && leads.length > 0) {
-    for (const attendee of event.attendees) {
-      if (attendee.email) {
-        const found = leads.find(l => l.email && l.email.toLowerCase().trim() === attendee.email.toLowerCase().trim());
-        if (found) {
-          matchedLead = found;
-          break;
-        }
-      }
-    }
-  }
-
-  if (!event.client_name && !matchedLead && event.summary && leads && leads.length > 0) {
-    const summaryLower = event.summary.toLowerCase();
-    matchedLead = leads.find(l => l.name && l.name.length > 4 && summaryLower.includes(l.name.toLowerCase()));
-  }
-
-  const clientToShow = event.client_name || (matchedLead ? matchedLead.name : null);
-  
-  // Buscar información de contacto complementaria
-  let associatedCompany = null;
-  let associatedPhone = null;
-  
-  if (matchedLead) {
-    associatedCompany = matchedLead.company;
-    associatedPhone = matchedLead.phone;
-  } else if (clientToShow && leads && leads.length > 0) {
-    const found = leads.find(l => l.name && l.name.toLowerCase().trim() === clientToShow.toLowerCase().trim());
-    if (found) {
-      associatedCompany = found.company;
-      associatedPhone = found.phone;
-    }
-  }
-
-  return (
-    <div key={event.id} className="event-timeline-card" style={{ borderLeft: `5px solid ${cat.color}` }}>
-      <div className="event-date-column">
-        {formatDay ? (
-          <div className="event-mini-calendar">
-            <span className="mini-month" style={{ backgroundColor: cat.color }}>{formatDay(startTime)}</span>
-            <span className="mini-day">{formatNumber(startTime)}</span>
-          </div>
-        ) : (
-          <div className="event-mini-icon" style={{ backgroundColor: cat.bg, color: cat.color }}>
-            <i className={`fas ${cat.icon}`} />
-          </div>
-        )}
-      </div>
-
-      <div className="event-details-column">
-        <div className="event-card-header">
-          <h5>{event.summary}</h5>
-          <span className="event-category-badge" style={{ backgroundColor: cat.bg, color: cat.color }}>
-            <i className={`fas ${cat.icon}`} style={{ marginRight: '4px' }} />
-            {cat.label}
-          </span>
-        </div>
-        
-        <div className="event-time-badge">
-          {isAllDay ? (
-            <span><i className="far fa-calendar" /> Todo el día</span>
-          ) : (
-            <span>
-              <i className="far fa-clock" /> {formatTime(startTime)} - {formatTime(endTime)}
-              <span className="time-date-sep">•</span>
-              {formatDate(startTime)}
-            </span>
-          )}
-        </div>
-        
-        {clientToShow && (
-          <div className="event-card-client-container" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div className="event-card-client" style={{
-              fontSize: '0.8rem',
-              color: '#0f766e',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(13, 148, 136, 0.08)',
-              padding: '4px 8px',
-              borderRadius: '6px',
-              width: 'fit-content',
-              border: '1px solid rgba(13, 148, 136, 0.15)'
-            }}>
-              <i className="fas fa-user-circle" style={{ color: '#0d9488' }} />
-              <span>Prospecto / Cliente: {clientToShow}</span>
-            </div>
-            
-            {(associatedCompany || associatedPhone) && (
-              <div className="event-card-client-details" style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '8px',
-                fontSize: '0.72rem',
-                color: 'var(--color-text-muted)',
-                paddingLeft: '4px'
-              }}>
-                {associatedCompany && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="fas fa-building" style={{ fontSize: '0.75rem', opacity: 0.7 }} />
-                    {associatedCompany}
-                  </span>
-                )}
-                {associatedPhone && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="fas fa-phone" style={{ fontSize: '0.75rem', opacity: 0.7 }} />
-                    {associatedPhone}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-        
-        {cleanDesc && <p className="event-desc-text">{cleanDesc}</p>}
-
-        {event.location && (
-          <div className="event-card-location" style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <i className="fas fa-map-marker-alt" style={{ color: 'var(--color-brand-accent)' }} />
-            <span>📍 {event.location}</span>
-          </div>
-        )}
-        
-        {event.attendees && event.attendees.length > 0 && (
-          <div className="event-attendees-row">
-            {event.attendees.map((attendee, idx) => (
-              <span key={idx} className="attendee-chip" title={attendee.email}>
-                <i className="far fa-user" style={{ marginRight: '4px', fontSize: '0.65rem' }} />
-                {attendee.email}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="event-actions-column" style={{ display: 'flex', gap: '4px' }}>
-        <button onClick={() => onReschedule(event)} className="btn-event-reschedule" title="Reprogramar cita">
-          <i className="far fa-clock" />
-        </button>
-        <button onClick={() => onDelete(event)} className="btn-event-delete" title="Eliminar cita">
-          <i className="far fa-trash-alt" />
-        </button>
-      </div>
-    </div>
   );
 }
 

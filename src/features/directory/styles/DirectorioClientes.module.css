@@ -1,0 +1,152 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--color-text-primary, #333);
+  margin: 0;
+}
+
+.subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted, #666);
+}
+
+.filtersBar {
+  margin-bottom: 1.5rem;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--color-bg-light, #f9fafb);
+  border: 1px solid var(--color-border, #e5e7eb);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+}
+
+.searchInput {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 0.95rem;
+}
+
+.tableResponsive {
+  overflow-x: auto;
+  background: var(--color-bg-white, #fff);
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th, .table td {
+  padding: 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border, #e5e7eb);
+}
+
+.table th {
+  background: var(--color-bg-light, #f9fafb);
+  font-weight: 600;
+  color: var(--color-text-secondary, #4b5563);
+}
+
+.leadIdentity {
+  display: flex;
+  flex-direction: column;
+}
+
+.leadIdentity strong {
+  font-size: 1rem;
+  color: var(--color-text-primary, #111827);
+}
+
+.leadIdentity span {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #6b7280);
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.btnPrimaryGolden {
+  background: linear-gradient(135deg, #d4af37, #aa8529);
+  color: white;
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btnPrimaryGolden:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(212, 175, 55, 0.3);
+}
+
+.btnViewDetails {
+  background: var(--color-bg-light, #f3f4f6);
+  color: var(--color-text-primary, #1f2937);
+  border: 1px solid var(--color-border, #d1d5db);
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnViewDetails:hover {
+  background: #e5e7eb;
+}
+
+.btnDelete {
+  background: #fee2e2;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btnDelete:hover {
+  background: #fecaca;
+}
+
+.emptyPlaceholder, .loadingPlaceholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: var(--color-text-muted, #6b7280);
+  background: var(--color-bg-white, #fff);
+  border-radius: 8px;
+  border: 1px dashed var(--color-border, #d1d5db);
+}

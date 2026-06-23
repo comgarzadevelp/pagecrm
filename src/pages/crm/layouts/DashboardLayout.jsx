@@ -1,0 +1,285 @@
+import React, { useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import DashboardShell from '../DashboardShell';
+import { useCrmData } from '../hooks/useCrmData';
+
+// Features (FSD Migrated)
+import LeadsBandejaFeature from '../../../features/leads/components/LeadsBandejaFeature';
+import ProspectosKanbanFeature from '../../../features/leads/components/ProspectosKanbanFeature';
+import CotizadorB2BFeature from '../../../features/quotes/components/CotizadorB2BFeature';
+import CotizadorRAVFeature from '../../../features/quotes/components/CotizadorRAVFeature';
+import AgendaPanelFeature from '../../../features/calendar/components/AgendaPanelFeature';
+
+// Features (FSD Migrated)
+import DirectorioFeature from '../../../features/directory/components/DirectorioFeature';
+import StatsDashboardFeature from '../../../features/dashboard/components/StatsDashboardFeature';
+import GestorCotizacionesFeature from '../../../features/quotes/components/GestorCotizacionesFeature';
+import ContenedorFeature from '../../../features/files/components/ContenedorFeature';
+import ArchivoContactosFeature from '../../../features/directory/components/ArchivoContactosFeature';
+import NotificationsPanelFeature from '../../../features/system/components/NotificationsPanelFeature';
+import MiPerfilFeature from '../../../features/system/components/MiPerfilFeature';
+import ProspectosHuerfanosFeature from '../../../features/leads/components/ProspectosHuerfanosFeature';
+import EquipoVentasFeature from '../../../features/system/components/EquipoVentasFeature';
+import DirectorioClientesFeature from '../../../features/directory/components/DirectorioClientesFeature';
+import FichaClienteModalFeature from '../../../features/directory/components/FichaClienteModalFeature';
+import DirectorioObrasFeature from '../../../features/directory/components/DirectorioObrasFeature';
+import ModuleConfigPanel from '../../../features/superadmin/components/ModuleConfigPanel';
+import ChatbotConfigPanel from '../../../features/superadmin/components/ChatbotConfigPanel';
+import ConjuntoEmpresarial from '../../../features/superadmin/components/EnterpriseGroupPanel';
+import PersonalGarza from '../../../features/superadmin/components/SuperAdminPersonnel';
+import AdminAgendaPanel from '../../../features/superadmin/components/SuperAdminAgenda';
+
+export default function DashboardLayout({ role, enabledModules }) {
+  const {
+    leads,
+    loading,
+    error,
+    stats,
+    userName,
+    currentUserProfile,
+    sellers,
+    saeSellers,
+    customers,
+    loadingCustomers,
+    customerError,
+    allOpportunities,
+    selectedCustomer,
+    setSelectedCustomer,
+    quoteItems,
+    setQuoteItems,
+    quoteNotes,
+    setQuoteNotes,
+    quoteNum,
+    setQuoteNum,
+    quoteDate,
+    setQuoteDate,
+    selectedAgreement,
+    setSelectedAgreement,
+    selectedOpportunityId,
+    setSelectedOpportunityId,
+    opportunitySearch,
+    setOpportunitySearch,
+    fetchLeads,
+    fetchSellers,
+    fetchSaeSellers,
+    fetchCustomers,
+    fetchOpportunitiesList,
+    handleStatusChange,
+    handleAssignSeller,
+    handleDeleteCustomer,
+    handleLoadPastQuote,
+    handleRefreshAll,
+    handleLogout,
+    formatDate,
+    API_BASE
+  } = useCrmData(role, enabledModules);
+
+  const { tab } = useParams();
+  const navigate = useNavigate();
+  const activeTab = tab || 'dashboard';
+  const setActiveTab = (newTab) => navigate(`/crm/dashboard/${newTab}`);
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [selectedLeadId, setSelectedLeadId] = useState('');
+  const [leadSearch, setLeadSearch] = useState('');
+
+  // Protect against manually navigating to disabled modules
+  if (!enabledModules.includes(activeTab) && enabledModules.length > 0) {
+    // If invalid tab, navigate to the first enabled module
+    navigate(`/crm/dashboard/${enabledModules[0]}`, { replace: true });
+    return null;
+  }
+
+  return (
+    <DashboardShell
+      activeTab={activeTab}
+      setActiveTab={setActiveTab}
+      sidebarCollapsed={sidebarCollapsed}
+      setSidebarCollapsed={setSidebarCollapsed}
+      role={role}
+      userName={userName}
+      enabledModules={enabledModules}
+      handleRefreshAll={handleRefreshAll}
+      handleLogout={handleLogout}
+      stats={stats}
+      API_BASE={API_BASE}
+      allOpportunities={allOpportunities}
+      currentUserProfile={currentUserProfile}
+      fetchCustomers={fetchCustomers}
+      fetchOpportunitiesList={fetchOpportunitiesList}
+      customers={customers}
+    >
+      {activeTab === 'dashboard' && <StatsDashboardFeature />}
+
+      {activeTab === 'leads' && (
+        <LeadsBandejaFeature
+          role={role}
+          API_BASE={API_BASE}
+          leads={leads}
+          loading={loading}
+          error={error}
+          sellers={sellers}
+          handleStatusChange={handleStatusChange}
+          handleAssignSeller={handleAssignSeller}
+          fetchLeads={fetchLeads}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+          formatDate={formatDate}
+        />
+      )}
+
+      {activeTab === 'customers' && (
+        <DirectorioClientesFeature
+          role={role}
+          API_BASE={API_BASE}
+          customers={customers}
+          loadingCustomers={loadingCustomers}
+          customerError={customerError}
+          fetchCustomers={fetchCustomers}
+          handleDeleteCustomer={handleDeleteCustomer}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+          setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
+        />
+      )}
+
+      {activeTab === 'quotes' && (
+        localStorage.getItem('companyCode')?.toUpperCase() === 'RAV' ? (
+          <CotizadorRAVFeature
+            role={role}
+            userName={userName}
+            API_BASE={API_BASE}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            allOpportunities={allOpportunities}
+            currentUserProfile={currentUserProfile}
+            fetchOpportunitiesList={fetchOpportunitiesList}
+            customers={customers}
+          />
+        ) : (
+          <CotizadorB2BFeature
+            role={role}
+            userName={userName}
+            API_BASE={API_BASE}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+            allOpportunities={allOpportunities}
+            currentUserProfile={currentUserProfile}
+            fetchOpportunitiesList={fetchOpportunitiesList}
+            customers={customers}
+            quoteItems={quoteItems}
+            setQuoteItems={setQuoteItems}
+            quoteNotes={quoteNotes}
+            setQuoteNotes={setQuoteNotes}
+            selectedAgreement={selectedAgreement}
+            setSelectedAgreement={setSelectedAgreement}
+            quoteNum={quoteNum}
+            setQuoteNum={setQuoteNum}
+            quoteDate={quoteDate}
+            setQuoteDate={setQuoteDate}
+            selectedOpportunityId={selectedOpportunityId}
+            setSelectedOpportunityId={setSelectedOpportunityId}
+            opportunitySearch={opportunitySearch}
+            setOpportunitySearch={setOpportunitySearch}
+            allLeads={leads || []}
+            selectedLeadId={selectedLeadId}
+            setSelectedLeadId={setSelectedLeadId}
+            leadSearch={leadSearch}
+            setLeadSearch={setLeadSearch}
+            onQuoteSaved={async (leadId) => {
+              const token = localStorage.getItem('token');
+              try {
+                await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+                  method: 'PUT',
+                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ stage: 'cotizando' })
+                });
+              } catch(e) { console.error(e); }
+            }}
+          />
+        )
+      )}
+
+      {activeTab === 'sellers' && (
+        <EquipoVentasFeature
+          role={role}
+          API_BASE={API_BASE}
+          sellers={sellers}
+          saeSellers={saeSellers}
+          fetchSellers={fetchSellers}
+          fetchSaeSellers={fetchSaeSellers}
+          formatDate={formatDate}
+        />
+      )}
+
+      {activeTab === 'directory' && (
+        <DirectorioFeature
+          role={role}
+          API_BASE={API_BASE}
+          customers={customers}
+          loadingCustomers={loadingCustomers}
+          customerError={customerError}
+          fetchCustomers={fetchCustomers}
+          handleDeleteCustomer={handleDeleteCustomer}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+          setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
+          onViewCompanyDetails={(comp) => {
+            const custMock = {
+              id: comp.id,
+              isCompany: true,
+              name: comp.name,
+              email: comp.email_main || '',
+              phone: comp.phone_main || '',
+              company: comp.alias || comp.name || '',
+              notes: comp.notes || '',
+              status: String(comp.id).startsWith('sae-') ? 'pendiente_revision' : (comp.status || 'nuevo'),
+              limcred: comp.limcred || 0,
+              saldo: comp.saldo || 0,
+              lista_prec: comp.lista_prec || 1,
+              clasific: comp.clasific || '',
+              calle: comp.calle || '',
+              colonia: comp.colonia || '',
+              codigo: comp.codigo || '',
+              municipio: comp.city || '',
+              estado: comp.state || '',
+              rfc: comp.rfc || 'N/A'
+            };
+            setSelectedCustomer(custMock);
+          }}
+        />
+      )}
+
+      {activeTab === 'obras' && <DirectorioObrasFeature API_BASE={API_BASE} role={role} />}
+      {activeTab === 'personal-agenda' && <AgendaPanelFeature leads={leads || []} />}
+      {activeTab === 'pipeline' && <ProspectosKanbanFeature role={role} API_BASE={API_BASE} fetchLeads={fetchLeads} />}
+      {activeTab === 'quotes-manager' && <GestorCotizacionesFeature />}
+      {activeTab === 'files' && <ContenedorFeature />}
+      {activeTab === 'archive-contacts' && <ArchivoContactosFeature />}
+      {activeTab === 'notifications' && <NotificationsPanelFeature />}
+      {activeTab === 'profile' && <MiPerfilFeature />}
+      {activeTab === 'orphans' && <ProspectosHuerfanosFeature onViewCompanyDetails={fetchLeads} />}
+
+      {/* Super Admin Tabs */}
+      {activeTab === 'module-config' && role === 'super_admin' && <ModuleConfigPanel />}
+      {activeTab === 'chatbot-config' && role === 'super_admin' && <ChatbotConfigPanel />}
+      {activeTab === 'enterprise-group' && role === 'super_admin' && <ConjuntoEmpresarial />}
+      {activeTab === 'personnel' && role === 'super_admin' && <PersonalGarza />}
+      {activeTab === 'agenda' && role === 'super_admin' && <AdminAgendaPanel />}
+
+      {selectedCustomer && (
+        <FichaClienteModalFeature
+          selectedCustomer={selectedCustomer}
+          onClose={() => setSelectedCustomer(null)}
+          role={role}
+          API_BASE={API_BASE}
+          fetchCustomers={fetchCustomers}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+        />
+      )}
+    </DashboardShell>
+  );
+}

@@ -2,13 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { getEnabledModules } from './moduleRegistry';
 import { UXProvider } from '../../components/common/UXProvider';
-
-// Dashboards per role
-import DashboardSuperAdmin from './dashboards/DashboardSuperAdmin';
-import DashboardAdmin from './dashboards/DashboardAdmin';
-import DashboardSupervisor from './dashboards/DashboardSupervisor';
-import DashboardSales from './dashboards/DashboardSales';
-import DashboardSistemas from './dashboards/DashboardSistemas';
+import DashboardLayout from './layouts/DashboardLayout';
 import './ErrorBoundary.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -149,28 +143,16 @@ const DashboardRouter = () => {
     );
   }
 
-  const renderDashboard = () => {
-    switch (role) {
-      case 'super_admin':
-        return <DashboardSuperAdmin enabledModules={enabledModules} />;
-      case 'admin':
-        return <DashboardAdmin enabledModules={enabledModules} />;
-      case 'supervisor':
-        return <DashboardSupervisor enabledModules={enabledModules} />;
-      case 'sales':
-        return <DashboardSales enabledModules={enabledModules} />;
-      case 'sistemas':
-        return <DashboardSistemas enabledModules={enabledModules} />;
-      default:
-        localStorage.clear();
-        return <Navigate to="/crm/login" replace />;
-    }
-  };
+  // Si el usuario no tiene rol válido, sacarlo al login
+  if (!['super_admin', 'admin', 'supervisor', 'sales', 'sistemas'].includes(role)) {
+    localStorage.clear();
+    return <Navigate to="/crm/login" replace />;
+  }
 
   return (
     <ErrorBoundary>
       <UXProvider>
-        {renderDashboard()}
+        <DashboardLayout role={role} enabledModules={enabledModules} />
       </UXProvider>
     </ErrorBoundary>
   );

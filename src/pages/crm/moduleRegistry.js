@@ -22,7 +22,7 @@
 export const MODULE_REGISTRY = {
   leads: {
     key: 'leads',
-    label: 'Prospectos',
+    label: 'Leads',
     icon: 'fa-envelope-open-text',
     category: 'sales',
     needsData: ['leads', 'sellers'],
@@ -52,6 +52,13 @@ export const MODULE_REGISTRY = {
     key: 'companies',
     label: 'Empresas',
     icon: 'fa-city',
+    category: 'crm',
+    needsData: [],
+  },
+  obras: {
+    key: 'obras',
+    label: 'Obras',
+    icon: 'fa-hard-hat',
     category: 'crm',
     needsData: [],
   },
@@ -176,29 +183,22 @@ export const MODULE_REGISTRY = {
   },
 };
 
-/**
- * ROLE_DEFAULTS
- * ─────────────
- * Módulos habilitados por defecto para cada rol.
- * Estos defaults se usan cuando una empresa NO tiene configuración custom en DB.
- * El super_admin puede override estos defaults por empresa via ModuleConfigPanel.
- */
 export const ROLE_DEFAULTS = {
   super_admin: [
     'dashboard', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
   ],
   admin: [
     'dashboard', 'directory', 'personal-agenda', 'leads',
-    'pipeline', 'quotes', 'quotes-manager', 'customers',
-    'files', 'archive-contacts', 'notifications', 'profile',
+    'pipeline', 'quotes', 'quotes-manager',
+    'obras', 'files', 'archive-contacts', 'notifications', 'profile',
     'orphans', 'sellers',
   ],
   supervisor: [
     'dashboard', 'directory', 'personal-agenda', 'leads',
-    'pipeline', 'quotes-manager', 'notifications', 'profile', 'sellers',
+    'pipeline', 'quotes-manager', 'obras', 'notifications', 'profile', 'sellers',
   ],
   sales: [
-    'leads', 'pipeline', 'directory', 'personal-agenda', 'quotes', 'quotes-manager', 'customers',
+    'leads', 'pipeline', 'directory', 'personal-agenda', 'quotes', 'quotes-manager',
     'files', 'archive-contacts', 'profile',
   ],
   sistemas: [

@@ -1602,6 +1602,77 @@
   cursor: pointer;
 }
 
+/* Kanban Card Redesign */
+.card-entity-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.card-note-preview {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: #64748b;
+  font-size: 0.8rem;
+  margin-top: 4px;
+  background: rgba(241, 245, 249, 0.6);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.card-note-preview i {
+  margin-top: 2px;
+  color: #94a3b8;
+}
+
+.card-note-preview span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.card-quick-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.btn-quick-action {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: white;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-quick-action:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.btn-promote-action {
+  background: #f1f5f9;
+}
+
+.btn-promote-action:hover {
+  background: #e2e8f0;
+}
+
 @media (max-width: 767px) {
   .prospectos-kanban-root {
     padding: 1rem;

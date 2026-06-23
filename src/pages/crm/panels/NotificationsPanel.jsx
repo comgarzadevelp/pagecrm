@@ -100,6 +100,34 @@ export default function NotificationsPanel() {
     setVisibleLimit(prev => prev + 20);
   };
 
+  const handleSnooze = async (id, e) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/${id}/snooze`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      if (!res.ok) throw new Error('Error snoozing notification');
+      setNotifications(prev => prev.filter(notif => notif.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDismiss = async (id, e) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/${id}/dismiss`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      if (!res.ok) throw new Error('Error dismissing notification');
+      setNotifications(prev => prev.filter(notif => notif.id !== id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const getNotificationIcon = (type) => {
@@ -110,6 +138,8 @@ export default function NotificationsPanel() {
         return { icon: 'fa-calendar-times', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)' };
       case 'sae_lock_alert':
         return { icon: 'fa-user-lock', color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)' };
+      case 'inactivity_alert':
+        return { icon: 'fa-user-clock', color: '#f97316', bg: 'rgba(249, 115, 22, 0.1)' };
       default:
         return { icon: 'fa-bell', color: 'var(--color-brand-primary)', bg: 'rgba(5, 57, 58, 0.08)' };
     }
@@ -174,13 +204,34 @@ export default function NotificationsPanel() {
                 </div>
 
                 <div className="notif-actions-col">
-                  <button 
-                    onClick={(e) => handleDeleteNotification(notif.id, e)} 
-                    className="btn-delete-notif"
-                    title="Eliminar alerta"
-                  >
-                    <i className="far fa-trash-alt" />
-                  </button>
+                  {notif.type === 'inactivity_alert' ? (
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button 
+                        onClick={(e) => handleSnooze(notif.id, e)} 
+                        className="btn-logout"
+                        style={{ padding: '6px', background: '#f8fafc', color: '#64748b' }}
+                        title="Posponer (24h)"
+                      >
+                        <i className="fas fa-clock" />
+                      </button>
+                      <button 
+                        onClick={(e) => handleDismiss(notif.id, e)} 
+                        className="btn-logout"
+                        style={{ padding: '6px', background: '#f0fdf4', color: '#16a34a' }}
+                        title="Descartar"
+                      >
+                        <i className="fas fa-check" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={(e) => handleDeleteNotification(notif.id, e)} 
+                      className="btn-delete-notif"
+                      title="Eliminar alerta"
+                    >
+                      <i className="far fa-trash-alt" />
+                    </button>
+                  )}
                 </div>
               </div>
             );

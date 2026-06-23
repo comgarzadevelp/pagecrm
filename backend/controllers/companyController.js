@@ -1,6 +1,28 @@
 // backend/controllers/companyController.js
 import { supabase, saeSupabase } from '../supabaseClient.js';
 
+// GET /api/crm/companies/search
+export const searchCompanies = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) {
+      return res.json({ success: true, companies: [] });
+    }
+
+    const { data, error } = await supabase
+      .from('companies')
+      .select('id, name')
+      .ilike('name', `%${q}%`)
+      .limit(10);
+
+    if (error) throw error;
+    res.json({ success: true, companies: data || [] });
+  } catch (err) {
+    console.error('searchCompanies error:', err);
+    res.status(500).json({ success: false, message: 'Error al buscar empresas.' });
+  }
+};
+
 // GET /api/crm/companies
 export const getCompanies = async (req, res) => {
   try {
@@ -297,10 +319,10 @@ export const getCompanyById = async (req, res) => {
         .eq('status', 'A');
 
       const linkedContactsMapped = !contactsError && contactsData
-        ? contactsData.map(c => ({
+        ? contactsData.map((c, index) => ({
             role: 'Representante B2B',
             contact: {
-              id: `sae-contact-${c.cve_clie.trim()}`,
+              id: `sae-contact-${c.cve_clie.trim()}-${index}`,
               name: c.nombre ? c.nombre.trim() : 'Contacto SAE',
               position: 'Representante Autorizado / Compras',
               email: c.email ? c.email.trim() : '',
@@ -309,6 +331,28 @@ export const getCompanyById = async (req, res) => {
             }
           }))
         : [];
+
+      // Add CRM contacts that are manually linked to this SAE company OR to a CRM company with the same name
+      const companyIdsToSearch = [];
+      const { data: crmCompaniesWithSameName } = await supabase
+        .from('companies')
+        .select('id')
+        .ilike('name', companyMapped.name.trim());
+        
+      if (crmCompaniesWithSameName && crmCompaniesWithSameName.length > 0) {
+        crmCompaniesWithSameName.forEach(c => companyIdsToSearch.push(c.id));
+      }
+
+      if (companyIdsToSearch.length > 0) {
+        const { data: crmLinkedContacts, error: crmLcError } = await supabase
+          .from('contact_companies')
+          .select(`role, contact:contacts (id, name, position, email, phone, whatsapp)`)
+          .in('company_id', companyIdsToSearch);
+
+        if (!crmLcError && crmLinkedContacts) {
+          linkedContactsMapped.push(...crmLinkedContacts);
+        }
+      }
 
       return res.json({ success: true, company: companyMapped, linkedContacts: linkedContactsMapped });
     }
@@ -339,7 +383,48 @@ export const getCompanyById = async (req, res) => {
 
     if (lcError) throw lcError;
 
-    res.json({ success: true, company, linkedContacts: linkedContacts || [] });
+    const mergedContacts = [...(linkedContacts || [])];
+
+    // Extract sae_clave if it exists in notes
+    let saeClave = null;
+    if (company.notes) {
+      try {
+        const parsed = JSON.parse(company.notes.trim());
+        if (parsed && parsed.sae_clave) {
+          saeClave = parsed.sae_clave.trim();
+        }
+      } catch (e) {
+        // Not JSON or doesn't have it
+      }
+    }
+
+    if (saeClave) {
+      const isGarza = req.user?.companyCode === 'GARZA';
+      if (isGarza) {
+        const { data: contactsData, error: contactsError } = await saeSupabase
+          .from('contac03')
+          .select('cve_clie, nombre, telefono, email, status')
+          .eq('cve_clie', saeClave)
+          .eq('status', 'A');
+
+        if (!contactsError && contactsData) {
+          const saeContactsMapped = contactsData.map((c, index) => ({
+            role: 'Representante B2B',
+            contact: {
+              id: `sae-contact-${c.cve_clie.trim()}-${index}`,
+              name: c.nombre ? c.nombre.trim() : 'Contacto SAE',
+              position: 'Representante Autorizado / Compras',
+              email: c.email ? c.email.trim() : '',
+              phone: c.telefono ? c.telefono.trim() : '',
+              whatsapp: c.telefono ? c.telefono.trim() : ''
+            }
+          }));
+          mergedContacts.push(...saeContactsMapped);
+        }
+      }
+    }
+
+    res.json({ success: true, company, linkedContacts: mergedContacts });
   } catch (err) {
     console.error('getCompanyById error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener empresa.' });

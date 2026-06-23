@@ -17,10 +17,13 @@ const getR2Client = () => {
   return new S3Client({
     region: 'auto',
     endpoint,
+    forcePathStyle: true,
     credentials: {
       accessKeyId,
       secretAccessKey
-    }
+    },
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED'
   });
 };
 

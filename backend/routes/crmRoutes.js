@@ -18,12 +18,16 @@ import {
 
 import {
   getContacts, getContactById, createContact, updateContact, deleteContact,
-  linkContactToCompany, unlinkContactFromCompany, getArchivedContacts, archiveContact
+  linkContactToCompany, unlinkContactFromCompany, getArchivedContacts, archiveContact, searchContacts
 } from '../controllers/contactController.js';
 
 import {
-  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany, getArchivedCompanies, archiveCompany
+  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany, getArchivedCompanies, archiveCompany, searchCompanies
 } from '../controllers/companyController.js';
+
+import {
+  searchObras, getObrasByCompany, createObra, linkCompanyToObra, linkContactToObra, getObraLeads
+} from '../controllers/obraController.js';
 
 import { getFiles, uploadFile, deleteFile } from '../controllers/fileController.js';
 
@@ -38,6 +42,8 @@ import {
 import {
   getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany, updateEnterpriseCompany
 } from '../controllers/moduleConfigController.js';
+
+import { createVisita, getVisitasByEntity } from '../controllers/visitaController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -76,6 +82,7 @@ router.get('/customers/:id/quotes', getCustomerQuotes);
 
 // ── CONTACTOS (Personas físicas) ──────────────────────────────
 router.get('/contacts', getContacts);
+router.get('/contacts/search', searchContacts);
 router.get('/contacts/archived', getArchivedContacts);
 router.post('/contacts/:id/archive', archiveContact);
 router.get('/contacts/:id', getContactById);
@@ -83,10 +90,11 @@ router.post('/contacts', createContact);
 router.put('/contacts/:id', updateContact);
 router.delete('/contacts/:id', deleteContact);
 router.post('/contacts/:id/link-company', linkContactToCompany);
-router.delete('/contacts/:id/link-company/:companyId', unlinkContactFromCompany);
+router.patch('/contacts/:id/link-company/:companyId', unlinkContactFromCompany);
 
 // ── EMPRESAS / DESARROLLOS ────────────────────────────────────
 router.get('/companies', getCompanies);
+router.get('/companies/search', searchCompanies);
 router.get('/companies/archived', getArchivedCompanies);
 router.post('/companies/:id/archive', archiveCompany);
 router.get('/companies/:id', getCompanyById);
@@ -95,6 +103,14 @@ router.put('/companies/:id', updateCompany);
 router.delete('/companies/:id', deleteCompany);
 router.post('/companies/:id/evidence', upload.single('photo'), uploadCustomerEvidence);
 router.post('/companies/:id/invoices', upload.single('invoice'), uploadCustomerInvoice);
+
+// ── OBRAS / PROYECTOS ─────────────────────────────────────────
+router.get('/obras/search', searchObras);
+router.get('/obras/company/:companyId', getObrasByCompany);
+router.post('/obras', createObra);
+router.post('/obras/:id/link-company', linkCompanyToObra);
+router.post('/obras/:id/link-contact', linkContactToObra);
+router.get('/obras/:id/leads', getObraLeads);
 
 // ── GESTOR DE COTIZACIONES (vista global) ─────────────────────
 router.get('/quotes/all', getAllQuotes);
@@ -144,5 +160,9 @@ router.put('/module-config/:companyId', updateModuleConfig);
 // ── CREAR Y GESTIONAR EMPRESAS (Super Admin) ───────────────────
 router.post('/enterprise-companies', createEnterpriseCompany);
 router.put('/enterprise-companies/:id', updateEnterpriseCompany);
+
+// ── VISITAS VERIFICADAS ───────────────────────────────────────
+router.post('/visitas', createVisita);
+router.get('/visitas/:entityType/:entityId', getVisitasByEntity);
 
 export default router;

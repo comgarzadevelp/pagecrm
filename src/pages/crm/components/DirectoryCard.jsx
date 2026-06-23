@@ -126,25 +126,30 @@ export default function DirectoryCard({
           {/* Linked Companies */}
           {data.contact_companies && data.contact_companies.length > 0 && (
             <div className="contact-card-companies compact">
-              {data.contact_companies.map(cc => {
+              {[...data.contact_companies]
+                .sort((a, b) => (a.status === 'inactivo' ? 1 : 0) - (b.status === 'inactivo' ? 1 : 0))
+                .map(cc => {
                 const compListaPrec = cc.company?.lista_prec;
                 const plName = compListaPrec ? getPriceListName(compListaPrec) : null;
                 const plStyle = compListaPrec ? getPriceListStyle(compListaPrec) : null;
+                const isInactive = cc.status === 'inactivo';
                 return (
                   <div
-                    className="contact-company-tag compact"
+                    className={`contact-company-tag compact ${isInactive ? 'inactive-company' : ''}`}
                     key={cc.company?.id || cc.company_id}
                     onClick={() => onViewCompanyDetails && cc.company && onViewCompanyDetails(cc.company)}
+                    style={isInactive ? { opacity: 0.7, background: '#f8fafc', border: '1px dashed #cbd5e1' } : {}}
                   >
                     <div className="tag-row-content">
-                      <i className="fas fa-building" />
-                      <span>{cc.company?.name}</span>
+                      <i className="fas fa-building" style={isInactive ? { color: '#94a3b8' } : {}} />
+                      <span style={isInactive ? { color: '#64748b' } : {}}>{cc.company?.name}</span>
                       {cc.role && <em>({cc.role})</em>}
-                      {onUnlinkCompany && (
+                      {isInactive && <em style={{ color: '#ef4444', marginLeft: 6, fontSize: '0.7rem' }}>(Inactivo)</em>}
+                      {onUnlinkCompany && !isInactive && (
                         <button
                           type="button"
                           className="btn-unlink-company"
-                          title="Desvincular"
+                          title="Finalizar vínculo (Marcar Inactivo)"
                           onClick={(e) => {
                             e.stopPropagation();
                             onUnlinkCompany(data.id, cc.company?.id);
@@ -152,7 +157,7 @@ export default function DirectoryCard({
                         >×</button>
                       )}
                     </div>
-                    {plName && plStyle && (
+                    {plName && plStyle && !isInactive && (
                       <span className="price-list-sub-badge" style={{
                         background: plStyle.bg,
                         color: plStyle.color,

@@ -73,10 +73,10 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || 'Error al crear el prospecto.');
+        throw new Error(data.message || 'Error al registrar la petición de lead.');
       }
 
-      showToast('¡Prospecto registrado exitosamente!', 'success');
+      showToast('¡Petición de lead registrada exitosamente!', 'success');
       
       // Disparar evento personalizado para actualizar los listados/tableros activos
       window.dispatchEvent(new CustomEvent('crm-lead-created'));
@@ -94,7 +94,7 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
   return (
     <div className="quick-modal-fullscreen">
       <div className="quick-modal-header">
-        <h3>Nuevo Prospecto (Rápido)</h3>
+        <h3>Nueva Petición de lead (Rápida)</h3>
         <button type="button" className="quick-modal-close-btn" onClick={onClose}>
           <i className="fas fa-times"></i>
         </button>
@@ -169,7 +169,7 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
           <div className="quick-tip-card">
             <i className="fas fa-info-circle"></i>
             <span>
-              <strong>Nota:</strong> Este registro creará un <strong>Prospecto</strong> en la columna "Nuevo" de tu tablero Kanban.
+              <strong>Nota:</strong> Este registro creará una <strong>Petición de lead</strong> en la columna "Bandeja de entrada" de tu tablero Kanban.
             </span>
           </div>
         </form>
@@ -188,7 +188,7 @@ export default function QuickNewProspect({ API_BASE, onClose }) {
           ) : (
             <>
               <i className="fas fa-user-plus"></i>
-              <span>Crear Prospecto</span>
+              <span>Crear Petición de lead</span>
             </>
           )}
         </button>

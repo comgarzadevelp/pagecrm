@@ -17,6 +17,7 @@ import MiPerfil from '../panels/MiPerfil';
 import DirectorioClientes from '../panels/DirectorioClientes';
 import FichaClienteModal from '../panels/FichaClienteModal';
 import NotificationsPanel from '../panels/NotificationsPanel';
+import DirectorioObras from '../panels/DirectorioObras';
 
 const DashboardSales = ({ enabledModules }) => {
   const role = 'sales';
@@ -118,6 +119,8 @@ const DashboardSales = ({ enabledModules }) => {
         />
       )}
 
+      {activeTab === 'obras' && <DirectorioObras API_BASE={API_BASE} role="sales" />}
+
       {activeTab === 'quotes' && (
         localStorage.getItem('companyCode')?.toUpperCase() === 'RAV' ? (
           <CotizadorRAV
@@ -181,6 +184,16 @@ const DashboardSales = ({ enabledModules }) => {
 
       {activeTab === 'directory' && (
         <Directorio
+          role={role}
+          API_BASE={API_BASE}
+          customers={customers}
+          loadingCustomers={loadingCustomers}
+          customerError={customerError}
+          fetchCustomers={fetchCustomers}
+          handleDeleteCustomer={handleDeleteCustomer}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+          setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,

@@ -9,6 +9,8 @@ export const runLeadNotificationCheck = async () => {
       .from('leads')
       .select('id, name, created_at, notes, assigned_to, company_id')
       .neq('status', 'descartado')
+      .neq('status', 'cierre_ganado')
+      .neq('status', 'cierre_perdido')
       .neq('type', 'crm_customer')
       .not('assigned_to', 'is', null);
 

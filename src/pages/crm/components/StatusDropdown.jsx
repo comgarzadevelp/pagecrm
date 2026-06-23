@@ -3,21 +3,30 @@ import React, { useState, useEffect } from 'react';
 export default function StatusDropdown({ currentStatus, onChange, customStages = [], onOpenChange }) {
   const [isOpen, setIsOpen] = useState(false);
 
+  const mapLeadStatus = (status) => {
+    if (!status) return 'nuevo';
+    const s = status.toLowerCase();
+    if (s === 'nuevo' || s === 'asignado') return 'nuevo';
+    if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
+    if (s === 'perdido' || s === 'cierre_perdido') return 'cierre_perdido';
+    if (s === 'descartado' || s === 'frio') return 'descartado';
+    if (s === 'cotizando') return 'cotizando';
+    return 'contactado';
+  };
+
+  const cleanStatus = mapLeadStatus(currentStatus);
+
   const options = [
-    { value: 'nuevo', label: 'Nuevo', color: '#0086c0' },
-    { value: 'contactado', label: 'Contactado', color: '#ffcb00', textColor: '#000' },
-    { value: 'calificado', label: 'Calificado', color: '#06b6d4' },
-    { value: 'cotizando', label: 'Cotizando', color: '#7c3aed' },
-    { value: 'en_negociacion', label: 'En Negociación', color: '#f97316' },
-    { value: 'reunion_agendada', label: 'Reunión Agendada', color: '#0891b2' },
+    { value: 'nuevo', label: 'Bandeja de Entrada', color: '#0086c0' },
+    { value: 'contactado', label: 'En Negociación', color: '#ffcb00', textColor: '#000' },
+    { value: 'cotizando', label: 'Cotización', color: '#7c3aed' },
     { value: 'cierre_ganado', label: 'Cierre Ganado', color: '#16a34a' },
     { value: 'cierre_perdido', label: 'Cierre Perdido', color: '#dc2626' },
-    { value: 'en_pausa', label: 'En Pausa', color: '#707070' },
     ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name, color: s.color })),
     { value: 'descartado', label: 'Descartado', color: '#e2445c' }
   ];
 
-  const activeOption = options.find(o => o.value === currentStatus) || { value: currentStatus, label: currentStatus, color: '#64748b' };
+  const activeOption = options.find(o => o.value === cleanStatus) || { value: cleanStatus, label: cleanStatus, color: '#64748b' };
 
   const handleToggle = () => {
     const nextOpen = !isOpen;
@@ -106,7 +115,7 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
                 textTransform: 'uppercase',
                 textAlign: 'left',
                 border: 'none',
-                background: currentStatus === opt.value ? 'rgba(5, 57, 58, 0.08)' : 'transparent',
+                background: cleanStatus === opt.value ? 'rgba(5, 57, 58, 0.08)' : 'transparent',
                 color: opt.textColor || '#1e293b',
                 cursor: 'pointer',
                 display: 'flex',
@@ -115,12 +124,12 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
                 transition: 'background 0.15s ease'
               }}
               onMouseEnter={(e) => {
-                if (currentStatus !== opt.value) {
+                if (cleanStatus !== opt.value) {
                   e.currentTarget.style.background = 'rgba(0,0,0,0.03)';
                 }
               }}
               onMouseLeave={(e) => {
-                if (currentStatus !== opt.value) {
+                if (cleanStatus !== opt.value) {
                   e.currentTarget.style.background = 'transparent';
                 }
               }}

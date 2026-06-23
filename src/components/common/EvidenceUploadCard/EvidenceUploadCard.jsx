@@ -264,7 +264,7 @@ export default function EvidenceUploadCard({
         {subtitle}
       </p>
       
-      <form onSubmit={handleFinalSubmit} className="evidence-upload-form">
+      <div className="evidence-upload-form">
         
         {/* Dropzone replacing standard input */}
         {evidenceFiles.length < 5 && (
@@ -347,7 +347,8 @@ export default function EvidenceUploadCard({
         )}
 
         <button
-          type="submit"
+          type="button"
+          onClick={handleFinalSubmit}
           disabled={isSubmitDisabled}
           className={`evidence-submit-btn ${isSubmitDisabled ? 'disabled' : 'ready'}`}
         >
@@ -362,7 +363,7 @@ export default function EvidenceUploadCard({
             </>
           )}
         </button>
-      </form>
+      </div>
     </div>
   );
 }

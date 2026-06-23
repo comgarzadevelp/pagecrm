@@ -80,7 +80,7 @@ export default function QuickCreateFab({
                 <div className="icon-box-fab">
                   <i className="fas fa-user-tie"></i>
                 </div>
-                <span>Nuevo Prospecto</span>
+                <span>Nueva petición de lead</span>
               </button>
 
               {/* Opción Nota Rápida (Abierto para todos los usuarios autenticados) */}

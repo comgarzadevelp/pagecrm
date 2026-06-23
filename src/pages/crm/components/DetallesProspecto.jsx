@@ -299,7 +299,7 @@ export default function DetallesProspecto({
 
   // Update Status Dropdown callback
   const handleStageChange = async (newStage) => {
-    if (newStage === 'descartado' || newStage === 'calificado') {
+    if (newStage === 'descartado' || newStage === 'cierre_ganado') {
       if (onStageSpecialAction) {
         onStageSpecialAction(lead, newStage);
       }
@@ -792,7 +792,7 @@ export default function DetallesProspecto({
                 style={{ backgroundColor: '#16a34a', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                 onClick={() => {
                   if (onStageSpecialAction) {
-                    onStageSpecialAction(lead, 'calificado');
+                    onStageSpecialAction(lead, 'cierre_ganado');
                   }
                 }}
               >

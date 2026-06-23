@@ -53,6 +53,16 @@ const compressImage = (file) => {
   });
 };
 
+const mapLeadStatus = (status) => {
+  if (!status) return 'nuevo';
+  const s = status.toLowerCase();
+  if (s === 'nuevo' || s === 'asignado') return 'nuevo';
+  if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
+  if (s === 'perdido' || s === 'cierre_perdido' || s === 'descartado' || s === 'frio') return 'cierre_perdido';
+  if (s === 'cotizando') return 'cotizando';
+  return 'contactado';
+};
+
 export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const { showToast, showConfirm } = useUX();
 
@@ -257,7 +267,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       const [resLeads, resStages, resOrder, resSellers] = await Promise.all(responses.map(r => r.json()));
 
       if (resLeads?.success) {
-        setLeads(resLeads.leads || []);
+        const mappedLeads = (resLeads.leads || []).map(l => ({ ...l, status: mapLeadStatus(l.status) }));
+        setLeads(mappedLeads);
         // Solo notificar al padre en fetches explícitos (no silenciosos).
         // En el polling de fondo (silent=true) NO propagar al componente padre,
         // evitando que DashboardSales/Admin re-renderice CalendarioPanel y modales.
@@ -351,16 +362,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   // ── Columns Builder ──
   const columns = useMemo(() => {
     const baseStagesMap = {
-      nuevo:            { key: 'nuevo',            label: 'Nuevo',             color: '#0086c0', isDeletable: false },
-      contactado:       { key: 'contactado',        label: 'Contactado',        color: '#ffcb00', isDeletable: false },
-      calificado:       { key: 'calificado',        label: 'Calificado',        color: '#06b6d4', isDeletable: false },
-      cotizando:        { key: 'cotizando',         label: 'Cotizando',         color: '#7c3aed', isDeletable: false },
-      en_negociacion:   { key: 'en_negociacion',    label: 'En Negociación',    color: '#f97316', isDeletable: false },
-      reunion_agendada: { key: 'reunion_agendada',  label: 'Reunión Agendada',  color: '#0891b2', isDeletable: false },
+      nuevo:            { key: 'nuevo',            label: 'Bandeja de entrada', color: '#0086c0', isDeletable: false },
+      contactado:       { key: 'contactado',        label: 'En negociación',     color: '#ffcb00', isDeletable: false },
+      cotizando:        { key: 'cotizando',         label: 'Cotización',         color: '#7c3aed', isDeletable: false },
       cierre_ganado:    { key: 'cierre_ganado',     label: 'Cierre Ganado',     color: '#16a34a', isDeletable: false },
-      cierre_perdido:   { key: 'cierre_perdido',    label: 'Cierre Perdido',    color: '#dc2626', isDeletable: false },
-      en_pausa:         { key: 'en_pausa',          label: 'En Pausa',          color: '#707070', icon: 'fa-pause-circle', isDeletable: false },
-      descartado:       { key: 'descartado',        label: 'Descartado',        color: '#e2445c', isDeletable: false }
+      cierre_perdido:   { key: 'cierre_perdido',    label: 'Cierre Perdido',    color: '#dc2626', isDeletable: false }
     };
 
     const allColMap = { ...baseStagesMap };
@@ -378,10 +384,10 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     let order = [...columnOrder];
 
     // Ensure base stages are in order
-    const baseKeysOrder = ['nuevo', 'contactado', 'calificado', 'cotizando', 'en_negociacion', 'reunion_agendada', 'cierre_ganado', 'cierre_perdido', 'en_pausa', 'descartado'];
+    const baseKeysOrder = ['nuevo', 'contactado', 'cotizando', 'cierre_ganado', 'cierre_perdido'];
     baseKeysOrder.forEach((k, index) => {
       if (!order.includes(k)) {
-        if (k === 'descartado') {
+        if (k === 'cierre_perdido') {
           order.push(k);
         } else if (k === 'nuevo') {
           order.unshift(k);
@@ -391,7 +397,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           if (idx !== -1) {
             order.splice(idx + 1, 0, k);
           } else {
-            const descIdx = order.indexOf('descartado');
+            const descIdx = order.indexOf('cierre_perdido');
             if (descIdx !== -1) order.splice(descIdx, 0, k);
             else order.push(k);
           }
@@ -399,11 +405,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       }
     });
 
-    // Ensure any custom stages NOT in the saved order are inserted before 'descartado'
+    // Ensure any custom stages NOT in the saved order are inserted before 'cierre_perdido'
     customStages.forEach(s => {
       const key = s.name.toLowerCase();
       if (!order.includes(key)) {
-        const descIdx = order.indexOf('descartado');
+        const descIdx = order.indexOf('cierre_perdido');
         if (descIdx !== -1) {
           order.splice(descIdx, 0, key);
         } else {
@@ -415,9 +421,9 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     // Clean up non-existent custom stages
     order = order.filter(key => allColMap[key]);
 
-    // Force 'descartado' to be strictly at the end
-    order = order.filter(k => k !== 'descartado');
-    order.push('descartado');
+    // Force 'cierre_perdido' to be strictly at the end
+    order = order.filter(k => k !== 'cierre_perdido');
+    order.push('cierre_perdido');
 
     return order.map(key => allColMap[key]);
   }, [customStages, columnOrder]);
@@ -816,7 +822,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       } else {
         // Update local state with returned lead data to refresh notes/timeline and reset inactivity counter
         if (data.lead) {
-          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(leadId) ? { ...l, ...data.lead } : l));
+          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(leadId) ? { ...l, ...data.lead, status: mapLeadStatus(data.lead.status) } : l));
         }
         showToast('Etapa del prospecto actualizada.', 'success');
         setCountPulseCol(targetStage);
@@ -911,7 +917,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
     await checkActiveAppointment(leadToMove, targetColKey, async () => {
       switch (targetColKey) {
-        case 'descartado':
+        case 'cierre_perdido':
           setLeadToDiscard(leadToMove);
           setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
           setDiscardModalOpen(true);
@@ -1500,6 +1506,22 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                       // Staggered delay for rendering cards smoothly
                       const staggerDelay = index < 12 ? `${index * 40}ms` : '0ms';
 
+                      // Parse JSON notes
+                      let parsedNotes = { general: '', project_name: '', requirement_title: '' };
+                      try {
+                        if (lead.notes && lead.notes.startsWith('{')) {
+                          parsedNotes = { ...parsedNotes, ...JSON.parse(lead.notes) };
+                        } else {
+                          parsedNotes.general = lead.notes || '';
+                        }
+                      } catch (e) {
+                        parsedNotes.general = lead.notes || '';
+                      }
+
+                      const displayTitle = parsedNotes.requirement_title
+                        ? `🏗️ ${parsedNotes.project_name || 'Obra no especificada'} - ${parsedNotes.requirement_title}`
+                        : `🏗️ Requerimiento - ${lead.name || 'Prospecto'}`;
+
                       return (
                         <div
                           key={lead.id}
@@ -1523,45 +1545,36 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             </button>
                           </div>
 
-                          <h3 className="card-lead-name">{lead.name || 'Prospecto Anónimo'}</h3>
+                          <h3 className="card-lead-name" style={{ fontWeight: 800 }}>{displayTitle}</h3>
 
-                          {lead.phone && (
-                            <p className="card-info-item">
-                              <i className="fas fa-phone"></i>
-                              <span>{lead.phone}</span>
-                            </p>
-                          )}
-
-                          {lead.company && (
+                          <div className="card-entity-details">
                             <p className="card-company-name">
                               <i className="fas fa-building"></i>
-                              <span>{lead.company}</span>
+                              <span>Empresa: {lead.company || 'Sin especificar'}</span>
                             </p>
-                          )}
+                            <p className="card-info-item">
+                              <i className="fas fa-user"></i>
+                              <span>Contacto: {lead.name || 'Anónimo'}</span>
+                            </p>
+                            {parsedNotes.general && (
+                              <p className="card-note-preview">
+                                <i className="fas fa-sticky-note"></i>
+                                <span>{parsedNotes.general}</span>
+                              </p>
+                            )}
+                          </div>
 
                           {lead.active_appointment && (
                             <div className="card-reunion-time" style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              fontSize: '0.78rem',
-                              color: '#0891b2',
-                              background: 'rgba(8, 145, 178, 0.06)',
-                              padding: '6px 10px',
-                              borderRadius: '6px',
-                              marginTop: '8px',
-                              fontWeight: '600',
-                              border: '1px solid rgba(8, 145, 178, 0.15)',
-                              width: 'fit-content'
+                              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem',
+                              color: '#0891b2', background: 'rgba(8, 145, 178, 0.06)', padding: '6px 10px',
+                              borderRadius: '6px', marginTop: '8px', fontWeight: '600',
+                              border: '1px solid rgba(8, 145, 178, 0.15)', width: 'fit-content'
                             }}>
                               <i className="far fa-calendar-alt" style={{ fontSize: '0.85rem' }}></i>
                               <span>
                                 {new Date(lead.active_appointment.start_time).toLocaleString('es-MX', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
+                                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
                                 }).replace('.', '')}
                               </span>
                             </div>
@@ -1571,21 +1584,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
                           <div className="card-footer-row">
                             <div className="card-footer-left">
-                              {/* Notes timeline count */}
-                              {(() => {
-                                try {
-                                  const parsed = JSON.parse(lead.notes);
-                                  if (parsed.timeline && parsed.timeline.length > 0) {
-                                    return (
-                                      <span className="card-notes-count">
-                                        <i className="fas fa-comment-alt"></i> {parsed.timeline.length}
-                                      </span>
-                                    );
-                                  }
-                                } catch (e) { }
-                                return null;
-                              })()}
-
                               <span className={`card-age-badge ${ageInfo.warning ? 'warning' : ''}`}>
                                 {ageInfo.warning && <i className="fas fa-exclamation-triangle"></i>}
                                 {ageInfo.text}
@@ -1600,6 +1598,41 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                               >
                                 {lead.assigned_to.name.substring(0, 1)}
                               </div>
+                            )}
+                          </div>
+
+                          <div className="card-quick-actions">
+                            <button 
+                              className="btn-quick-action" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (lead.phone) window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank');
+                              }}
+                              title="WhatsApp"
+                            >
+                              <i className="fab fa-whatsapp" style={{ color: '#25D366' }}></i> WhatsApp
+                            </button>
+                            <button 
+                              className="btn-quick-action" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (lead.phone) window.location.href = `tel:${lead.phone.replace(/\D/g, '')}`;
+                              }}
+                              title="Llamar"
+                            >
+                              <i className="fas fa-phone-alt" style={{ color: '#0ea5e9' }}></i> Llamar
+                            </button>
+                            {lead.status !== 'cierre_ganado' && (
+                              <button 
+                                className="btn-quick-action btn-promote-action" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPromoteLeadData(lead);
+                                }}
+                                title="Promover"
+                              >
+                                <i className="fas fa-cog"></i> Promover
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1768,7 +1801,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                               setLeadToDiscard(lead);
                               setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
                               setDiscardModalOpen(true);
-                            } else if (col.key === 'calificado') {
+                            } else if (col.key === 'cierre_ganado') {
                               setLeadToPromote(lead);
                               setPromoteForm(prev => ({
                                 ...prev,
@@ -2211,8 +2244,9 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
         onUpdateLead={(updatedLead) => {
-          setSelectedLead(updatedLead);
-          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(updatedLead.id) ? updatedLead : l));
+          const cleanLead = { ...updatedLead, status: mapLeadStatus(updatedLead.status) };
+          setSelectedLead(cleanLead);
+          setLeads(prevLeads => prevLeads.map(l => String(l.id) === String(updatedLead.id) ? cleanLead : l));
           if (fetchLeadsRef.current) {
             fetchLeadsRef.current();
           }
@@ -2227,7 +2261,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
             setDiscardModalOpen(true);
             setSelectedLead(null);
-          } else if (specialStage === 'calificado') {
+          } else if (specialStage === 'cierre_ganado') {
             setLeadToPromote(leadObj);
             setPromoteForm({
               contactName: leadObj.name || '',

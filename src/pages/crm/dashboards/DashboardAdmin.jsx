@@ -203,6 +203,16 @@ const DashboardAdmin = ({ enabledModules }) => {
 
       {activeTab === 'directory' && (
         <Directorio
+          role={role}
+          API_BASE={API_BASE}
+          customers={customers}
+          loadingCustomers={loadingCustomers}
+          customerError={customerError}
+          fetchCustomers={fetchCustomers}
+          handleDeleteCustomer={handleDeleteCustomer}
+          handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+          setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,

@@ -351,6 +351,14 @@ export default function Empresas({ onViewCompanyDetails }) {
     }
     setArchivingInProgress(true);
     try {
+      const parsedNotes = parseNotes(companyForArchive.notes);
+      parsedNotes.timeline.push({
+        type: 'archive',
+        text: archiveReason.trim(),
+        date: new Date().toISOString(),
+        author: localStorage.getItem('name') || 'Usuario'
+      });
+
       const payload = {
         name: companyForArchive.name,
         alias: companyForArchive.alias,
@@ -361,7 +369,7 @@ export default function Empresas({ onViewCompanyDetails }) {
         phone_main: companyForArchive.phone_main,
         email_main: companyForArchive.email_main,
         status: companyForArchive.status,
-        notes: `${companyForArchive.notes || ''}\n\n[Razón de Archivado]: ${archiveReason.trim()}`
+        notes: JSON.stringify(parsedNotes)
       };
       const res = await fetch(`${API_BASE}/api/crm/companies/${companyForArchive.id}/archive`, {
         method: 'POST',
@@ -451,15 +459,15 @@ export default function Empresas({ onViewCompanyDetails }) {
 
       {/* MODAL CREAR / EDITAR */}
       {showModal && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" style={{ maxWidth: 760, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowModal(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 760, zIndex: 10001, margin: 'auto', width: '96%' }} onClick={e => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setShowModal(false)}>×</button>
-            <div className="modal-header">
+            <div className="modal-header" style={{ flexShrink: 0, marginBottom: '1rem' }}>
               <h2>{editMode ? 'Editar Empresa' : 'Nueva Empresa / Desarrollo'}</h2>
             </div>
 
             {/* Tabs inside modal */}
-            <div className="modal-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+            <div className="modal-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', flexShrink: 0 }}>
               {['general', 'contactos', 'notas'].map(tab => (
                 <button key={tab} className={`modal-tab-btn ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
                   {tab === 'general' ? '🏢 General' : tab === 'contactos' ? '👤 Contactos' : '📝 Notas'}
@@ -467,8 +475,9 @@ export default function Empresas({ onViewCompanyDetails }) {
               ))}
             </div>
 
-            <form onSubmit={handleSave} className="crm-form-grid">
-              {activeTab === 'general' && (() => {
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="modal-body crm-form-grid" style={{ flex: 1, overflowY: 'auto', padding: '4px 8px 4px 4px', margin: 0, display: 'grid', gap: '1rem', minHeight: 0 }}>
+                {activeTab === 'general' && (() => {
                 const isSae = selected && String(selected.id).startsWith('sae-');
                 const isNameLocked = isSae && !!originalValues.name;
                 const isAliasLocked = isSae && !!originalValues.alias;
@@ -933,7 +942,9 @@ export default function Empresas({ onViewCompanyDetails }) {
                 );
               })()}
 
-              <div className="form-actions" style={{ gridColumn: '1 / -1' }}>
+              </div>
+
+              <div className="modal-footer form-actions" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexShrink: 0, width: '100%' }}>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary-golden" disabled={saving}>
                   {saving ? <><i className="fas fa-spinner fa-spin" /> Guardando...</> : <><i className="fas fa-save" /> Guardar Empresa</>}
@@ -947,16 +958,16 @@ export default function Empresas({ onViewCompanyDetails }) {
 
       {/* DETAIL DRAWER */}
       {showDetail && detailCompany && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowDetail(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" style={{ maxWidth: 600, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowDetail(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 600, zIndex: 10001, margin: 'auto', width: '96%' }} onClick={e => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setShowDetail(false)}>×</button>
-            <div className="modal-header">
+            <div className="modal-header" style={{ flexShrink: 0 }}>
               <h2>{detailCompany.name}</h2>
               <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>
                 {TYPE_LABELS[detailCompany.type]} · {detailCompany.industry} · {detailCompany.city}
               </p>
             </div>
-            <div className="company-detail-body">
+            <div className="company-detail-body" style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: '4px' }}>
               {detailCompany.address && (
                 <>
                   <div className="detail-row">
@@ -1009,8 +1020,8 @@ export default function Empresas({ onViewCompanyDetails }) {
 
       {/* MODAL ARCHIVAR EMPRESA CON JUSTIFICACIÓN REQUERIDA */}
       {showArchiveModal && companyForArchive && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowArchiveModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" style={{ maxWidth: 520, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowArchiveModal(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 520, zIndex: 10001, margin: 'auto' }} onClick={e => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setShowArchiveModal(false)}>×</button>
             <div className="modal-header">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>
@@ -1061,8 +1072,8 @@ export default function Empresas({ onViewCompanyDetails }) {
       )}
 
       {showTiModal && createPortal(
-        <div className="crm-modal-overlay" style={{ zIndex: 20000, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <div className="crm-modal-content" style={{ maxWidth: '500px', width: '90%', padding: '2rem', borderRadius: '16px', position: 'relative', background: '#ffffff', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', textAlign: 'left' }}>
+        <div className="crm-modal-overlay" style={{ zIndex: 20000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: '500px', width: '90%', padding: '2rem', borderRadius: '16px', margin: 'auto', textAlign: 'left' }}>
             <h3 style={{ fontFamily: 'var(--font-primary)', color: 'var(--color-brand-primary)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.2rem', fontWeight: '800' }}>
               <i className="fas fa-user-shield" style={{ color: '#ea580c' }}></i>
               Solicitar Cambio de Dato (TI)
@@ -1168,8 +1179,8 @@ export default function Empresas({ onViewCompanyDetails }) {
       )}
 
       {showContactCreator && createPortal(
-        <div className="crm-modal-overlay" style={{ zIndex: 20000, background: 'rgba(15, 23, 42, 0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
-          <div className="crm-modal-content" style={{ maxWidth: '640px', width: '95%', padding: '2.5rem', borderRadius: '24px', position: 'relative', background: '#ffffff', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', textAlign: 'left' }}>
+        <div className="crm-modal-overlay" style={{ zIndex: 20000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: '640px', width: '95%', padding: '2.5rem', borderRadius: '24px', margin: 'auto', textAlign: 'left' }}>
             
             {/* Close Button 'x' */}
             <button 

@@ -467,7 +467,7 @@ export const updateLeadStage = async (req, res) => {
 
 export const updateLead = async (req, res) => {
   const { id } = req.params;
-  const { name, email, phone, company, notes_general } = req.body;
+  const { name, email, phone, company, notes_general, project_name, requirement_title } = req.body;
   const userId = req.user?.userId;
   const userName = req.user?.name || 'Ejecutivo';
 
@@ -526,7 +526,9 @@ export const updateLead = async (req, res) => {
       { key: 'company', label: 'empresa', oldVal: lead.company, newVal: company },
       { key: 'phone', label: 'celular', oldVal: lead.phone, newVal: phone },
       { key: 'email', label: 'email', oldVal: lead.email, newVal: email },
-      { key: 'notes_general', label: 'mensaje inicial', oldVal: notesData.general, newVal: notes_general }
+      { key: 'notes_general', label: 'mensaje inicial', oldVal: notesData.general, newVal: notes_general },
+      { key: 'project_name', label: 'obra', oldVal: notesData.project_name, newVal: project_name },
+      { key: 'requirement_title', label: 'requerimiento', oldVal: notesData.requirement_title, newVal: requirement_title }
     ];
 
     fieldsToCompare.forEach(field => {
@@ -554,6 +556,12 @@ export const updateLead = async (req, res) => {
 
       if (notes_general !== undefined) {
         notesData.general = (notes_general || '').trim();
+      }
+      if (project_name !== undefined) {
+        notesData.project_name = (project_name || '').trim();
+      }
+      if (requirement_title !== undefined) {
+        notesData.requirement_title = (requirement_title || '').trim();
       }
 
       const updatePayload = {
@@ -840,55 +848,334 @@ export const discardLead = async (req, res) => {
 };
 
 export const createManualLead = async (req, res) => {
-  const { name, email, phone, company, notes } = req.body;
+  const { 
+    company_id, company_name, 
+    obra_id, obra_name, 
+    contact_id, contact_name, contact_phone, contact_email, 
+    requirement_title, notes, 
+    evidence_photos, gps_coords, gps_omit_reason 
+  } = req.body;
+  
   const userId = req.user?.userId;
-  const companyId = req.user?.companyId;
+  const reqCompanyId = req.user?.companyId;
 
-  if (!name || !phone) {
-    return res.status(400).json({ success: false, message: 'El nombre y teléfono del prospecto son obligatorios.' });
+  if (!requirement_title) {
+    return res.status(400).json({ success: false, message: 'Faltan campos obligatorios para el prospecto.' });
   }
 
   try {
-    const cleanPhone = phone.trim();
-    // Validate phone number formatting (should be unique in active leads)
-    const { data: duplicateLead } = await supabase
-      .from('leads')
-      .select('id, name, assigned_to (name)')
-      .eq('phone', cleanPhone)
-      .neq('status', 'descartado')
-      .maybeSingle();
+    let finalCompanyId = company_id;
+    let finalObraId = obra_id;
+    let finalContactId = contact_id;
+    
+    // Check duplicate phone ONLY if it's a new contact
+    if (!contact_id && contact_phone) {
+      const cleanPhone = contact_phone.trim();
+      const { data: duplicateLeads } = await supabase
+        .from('leads')
+        .select('id, name, assigned_to(id, name)')
+        .eq('phone', cleanPhone)
+        .neq('status', 'descartado');
 
-    if (duplicateLead) {
-      const owner = duplicateLead.assigned_to?.name || 'otro ejecutivo';
-      return res.status(400).json({ 
-        success: false, 
-        message: `El número telefónico ${cleanPhone} ya está asignado y activo con ${owner}.` 
-      });
+      if (duplicateLeads && duplicateLeads.length > 0) {
+        const foreignDuplicate = duplicateLeads.find(l => l.assigned_to?.id !== userId);
+        if (foreignDuplicate) {
+          const owner = foreignDuplicate.assigned_to?.name || 'otro ejecutivo';
+          return res.status(400).json({ 
+            success: false, 
+            message: `El número telefónico ${cleanPhone} ya está asignado y activo con ${owner}.` 
+          });
+        }
+      }
     }
 
-    const notesPayload = JSON.stringify({
+    // Prepare Evidence Node (to append to Timeline)
+    let sharedEvidenceNode = null;
+    if ((evidence_photos && evidence_photos.length > 0) || gps_coords || gps_omit_reason) {
+      sharedEvidenceNode = {
+        date: new Date().toISOString(),
+        text: gps_omit_reason ? `Sin ubicación GPS: ${gps_omit_reason}` : 'Evidencia de obra / nueva prospección.',
+        author: req.user?.name || 'Vendedor',
+        type: 'evidence',
+        photoUrl: evidence_photos && evidence_photos.length > 0 ? evidence_photos[0] : null,
+        allPhotos: evidence_photos || [],
+        gps: gps_coords || null,
+        gps_omitted: !!gps_omit_reason
+      };
+    }
+
+    // 1. Process Company
+    if (!finalCompanyId && company_name) {
+      const cleanCompany = company_name.trim();
+      const { data: existingCompany } = await supabase
+        .from('companies')
+        .select('id, notes')
+        .ilike('name', cleanCompany)
+        .maybeSingle();
+
+      if (!existingCompany) {
+        let companyNotes = { general: '', timeline: [] };
+        if (sharedEvidenceNode) companyNotes.timeline.push(sharedEvidenceNode);
+
+        const { data: newCo } = await supabase.from('companies').insert([{
+          name: cleanCompany,
+          industry: 'Construcción',
+          status: 'active',
+          created_by: userId,
+          company_id: reqCompanyId && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null,
+          notes: JSON.stringify(companyNotes)
+        }]).select('id').single();
+        if (newCo) finalCompanyId = newCo.id;
+      } else {
+        finalCompanyId = existingCompany.id;
+        if (sharedEvidenceNode) {
+          let parsedCoNotes = { general: '', timeline: [] };
+          try { if (existingCompany.notes) parsedCoNotes = JSON.parse(existingCompany.notes); } catch(e) {}
+          if (!parsedCoNotes.timeline) parsedCoNotes.timeline = [];
+          parsedCoNotes.timeline.push(sharedEvidenceNode);
+          await supabase.from('companies').update({ notes: JSON.stringify(parsedCoNotes) }).eq('id', finalCompanyId);
+        }
+      }
+    }
+
+    // Resolve SAE Company to local CRM Company UUID
+    let localCompanyId = null;
+    if (finalCompanyId) {
+      if (String(finalCompanyId).startsWith('sae-')) {
+        const saeClave = String(finalCompanyId).replace('sae-', '').trim();
+        const { data: existingCos } = await supabase
+          .from('companies')
+          .select('id')
+          .like('notes', `%"sae_clave":"${saeClave}"%`)
+          .limit(1);
+
+        if (existingCos && existingCos.length > 0) {
+          localCompanyId = existingCos[0].id;
+        } else {
+          const isGarza = req.user?.companyCode === 'GARZA';
+          if (isGarza) {
+            const { data: client } = await saeSupabase
+              .from('clie03')
+              .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
+              .eq('clave', saeClave)
+              .maybeSingle();
+
+            if (client) {
+              const name = client.nombre ? client.nombre.trim() : 'Empresa SAE';
+              const alias = client.nombrecomercial ? client.nombrecomercial.trim() : name;
+              const { data: newCo } = await supabase.from('companies').insert([{
+                name,
+                alias,
+                type: 'cliente',
+                rfc: client.rfc ? client.rfc.trim() : '',
+                address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+                city: client.municipio ? client.municipio.trim() : '',
+                state: client.estado ? client.estado.trim() : '',
+                phone_main: client.telefono ? client.telefono.trim() : '',
+                email_main: client.mail ? client.mail.trim() : '',
+                status: 'activo',
+                notes: JSON.stringify({
+                  general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
+                  sae_clave: saeClave,
+                  timeline: sharedEvidenceNode ? [sharedEvidenceNode] : []
+                }),
+                created_by: userId,
+                company_id: reqCompanyId && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null
+              }]).select('id').single();
+
+              if (newCo) {
+                localCompanyId = newCo.id;
+              }
+            }
+          }
+        }
+      } else {
+        localCompanyId = finalCompanyId;
+      }
+    }
+
+    // 2. Process Obra & Append Requirement Details to Obra Notes
+    let obraEvidenceText = gps_omit_reason ? `GPS Omitido: ${gps_omit_reason}.` : '';
+    if (requirement_title) {
+      obraEvidenceText += ` Requerimiento: ${requirement_title}.`;
+    }
+    if (notes) {
+      obraEvidenceText += ` Notas: ${notes}.`;
+    }
+    obraEvidenceText = obraEvidenceText.trim();
+
+    if (!finalObraId && obra_name) {
+      const { data: newObra } = await supabase.from('obras').insert([{
+        name: obra_name.trim(),
+        latitude: gps_coords?.lat || null,
+        longitude: gps_coords?.lng || null,
+        evidence_photo_url: evidence_photos && evidence_photos.length > 0 ? evidence_photos[0] : null,
+        evidence_text: obraEvidenceText || null
+      }]).select('id').single();
+      
+      if (newObra) {
+        finalObraId = newObra.id;
+        if (localCompanyId) {
+          await supabase.from('obra_companies').insert([{ obra_id: finalObraId, company_id: localCompanyId, role: 'Prospecto' }]);
+        }
+      }
+    } else if (finalObraId) {
+      if (localCompanyId) {
+        const { data: existingLink } = await supabase.from('obra_companies')
+          .select('id').eq('obra_id', finalObraId).eq('company_id', localCompanyId).maybeSingle();
+        if (!existingLink) {
+          await supabase.from('obra_companies').insert([{ obra_id: finalObraId, company_id: localCompanyId, role: 'Prospecto' }]);
+        }
+      }
+      if (gps_coords) {
+         await supabase.from('obras').update({ latitude: gps_coords.lat, longitude: gps_coords.lng }).eq('id', finalObraId).is('latitude', null);
+      }
+      if (evidence_photos && evidence_photos.length > 0) {
+         await supabase.from('obras').update({ evidence_photo_url: evidence_photos[0] }).eq('id', finalObraId).is('evidence_photo_url', null);
+      }
+      if (obraEvidenceText) {
+         const { data: currentObra } = await supabase.from('obras').select('evidence_text').eq('id', finalObraId).single();
+         const newText = currentObra?.evidence_text ? `${currentObra.evidence_text}\n${obraEvidenceText}` : obraEvidenceText;
+         await supabase.from('obras').update({ evidence_text: newText }).eq('id', finalObraId);
+      }
+    }
+
+    // 3. Process Contact
+    if (!finalContactId && contact_name && contact_phone) {
+      const cleanPhone = contact_phone.trim();
+      const { data: existingContact } = await supabase
+        .from('contacts')
+        .select('id, notes')
+        .or(`phone.eq.${cleanPhone},name.ilike.${contact_name.trim()}`)
+        .maybeSingle();
+
+      if (!existingContact) {
+        let contactNotes = { general: '', timeline: [] };
+        if (sharedEvidenceNode) contactNotes.timeline.push(sharedEvidenceNode);
+
+        const { data: newContact } = await supabase.from('contacts').insert([{
+          name: contact_name.trim(),
+          phone: cleanPhone,
+          email: contact_email ? contact_email.trim() : null,
+          created_by: userId,
+          company_id: localCompanyId,
+          notes: JSON.stringify(contactNotes)
+        }]).select('id').single();
+
+        if (newContact) finalContactId = newContact.id;
+      } else {
+        finalContactId = existingContact.id;
+        if (sharedEvidenceNode) {
+          let parsedContactNotes = { general: '', timeline: [] };
+          try { if (existingContact.notes) parsedContactNotes = JSON.parse(existingContact.notes); } catch(e) {}
+          if (!parsedContactNotes.timeline) parsedContactNotes.timeline = [];
+          parsedContactNotes.timeline.push(sharedEvidenceNode);
+          await supabase.from('contacts').update({ notes: JSON.stringify(parsedContactNotes) }).eq('id', finalContactId);
+        }
+      }
+    }
+
+    // Resolve SAE Contact to local CRM Contact UUID
+    let localContactId = null;
+    if (finalContactId) {
+      if (String(finalContactId).startsWith('sae-contact-')) {
+        const cleanName = contact_name ? contact_name.trim() : '';
+        const cleanPhone = contact_phone ? contact_phone.trim() : '';
+
+        const { data: existingContact } = await supabase
+          .from('contacts')
+          .select('id')
+          .or(`phone.eq.${cleanPhone},name.ilike.${cleanName}`)
+          .maybeSingle();
+
+        if (existingContact) {
+          localContactId = existingContact.id;
+        } else {
+          const { data: newContact } = await supabase.from('contacts').insert([{
+            name: cleanName || 'Contacto SAE',
+            phone: cleanPhone,
+            email: contact_email ? contact_email.trim() : null,
+            created_by: userId,
+            company_id: localCompanyId,
+            notes: JSON.stringify({
+              general: `Contacto importado de ASPEL SAE.`,
+              timeline: sharedEvidenceNode ? [sharedEvidenceNode] : []
+            })
+          }]).select('id').single();
+
+          if (newContact) {
+            localContactId = newContact.id;
+          }
+        }
+      } else {
+        localContactId = finalContactId;
+      }
+    }
+
+    // Link Contact and Obra if both exist
+    if (localContactId && finalObraId) {
+      const { data: existingLink } = await supabase.from('obra_contacts')
+        .select('id').eq('contact_id', localContactId).eq('obra_id', finalObraId).maybeSingle();
+      if (!existingLink) {
+        await supabase.from('obra_contacts').insert([{ 
+          contact_id: localContactId, 
+          obra_id: finalObraId, 
+          company_id: localCompanyId || null 
+        }]);
+      }
+    }
+
+    // 4. Create Lead
+    // Fetch names to store in the lead record (for backward compatibility and easy display)
+    let leadCompanyName = company_name || '';
+    let leadContactName = contact_name || '';
+    let leadContactPhone = contact_phone || '';
+    let leadContactEmail = contact_email || '';
+    let leadObraName = obra_name || '';
+
+    if (finalCompanyId && !company_name) {
+       const { data: cData } = await supabase.from('companies').select('name').eq('id', finalCompanyId).single();
+       if (cData) leadCompanyName = cData.name;
+    }
+    if (finalContactId && !contact_name) {
+       const { data: cData } = await supabase.from('contacts').select('name, phone, email').eq('id', finalContactId).single();
+       if (cData) { leadContactName = cData.name; leadContactPhone = cData.phone; leadContactEmail = cData.email; }
+    }
+    if (finalObraId && !obra_name) {
+       const { data: oData } = await supabase.from('obras').select('name').eq('id', finalObraId).single();
+       if (oData) leadObraName = oData.name;
+    }
+
+    const notesPayload = {
       general: notes || 'Lead creado manualmente por el vendedor.',
+      project_name: leadObraName,
+      requirement_title: requirement_title?.trim() || '',
+      obra_id: finalObraId,
+      company_id: finalCompanyId,
+      contact_id: finalContactId,
       timeline: [{
         date: new Date().toISOString(),
         text: 'Prospecto registrado manualmente en el CRM.',
         author: req.user?.name || 'Vendedor',
         type: 'status_change'
       }]
-    });
+    };
+
+    if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
 
     const insertPayload = {
-      name: name.trim(),
-      email: email ? email.trim() : null,
-      phone: cleanPhone,
-      company: company ? company.trim() : null,
-      notes: notesPayload,
+      name: leadContactName.trim(),
+      email: leadContactEmail ? leadContactEmail.trim() : null,
+      phone: leadContactPhone.trim(),
+      company: leadCompanyName.trim(),
+      notes: JSON.stringify(notesPayload),
       assigned_to: userId,
       status: 'nuevo',
       type: 'vendedor_manual'
     };
 
-    if (companyId && !String(companyId).startsWith('company-')) {
-      insertPayload.company_id = companyId;
+    if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
+      insertPayload.company_id = reqCompanyId; // To link to the User's tenant
     }
 
     const { data, error } = await supabase
@@ -907,32 +1194,39 @@ export const createManualLead = async (req, res) => {
 
 export const checkDuplicatePhone = async (req, res) => {
   const { phone } = req.query;
+  const userId = req.user?.userId;
+
   if (!phone) {
     return res.status(400).json({ success: false, message: 'Número de teléfono requerido.' });
   }
 
   try {
     const cleanPhone = phone.trim();
-    const { data: lead, error } = await supabase
+    const { data: duplicateLeads, error } = await supabase
       .from('leads')
-      .select('id, name, assigned_to (name)')
+      .select('id, name, assigned_to(id, name)')
       .eq('phone', cleanPhone)
-      .neq('status', 'descartado')
-      .maybeSingle();
+      .neq('status', 'descartado');
 
     if (error) throw error;
 
-    if (lead) {
-      return res.json({ 
-        success: true, 
-        duplicate: true, 
-        message: `Este número ya está asignado a ${lead.assigned_to?.name || 'otro ejecutivo'}.`,
-        lead: {
-          id: lead.id,
-          name: lead.name,
-          assignedSeller: lead.assigned_to?.name || 'N/A'
-        }
-      });
+    if (duplicateLeads && duplicateLeads.length > 0) {
+      const foreignDuplicate = duplicateLeads.find(l => l.assigned_to?.id !== userId);
+      
+      if (foreignDuplicate) {
+        return res.json({ 
+          success: true, 
+          duplicate: true, 
+          message: `Este número ya está asignado a ${foreignDuplicate.assigned_to?.name || 'otro ejecutivo'}.`,
+          lead: {
+            id: foreignDuplicate.id,
+            name: foreignDuplicate.name,
+            assignedSeller: foreignDuplicate.assigned_to?.name || 'N/A'
+          }
+        });
+      }
+      // Si todos los leads con este número pertenecen al mismo usuario, no lo marcamos como error
+      // ya que se le permite crear múltiples oportunidades con el mismo contacto.
     }
 
     res.json({ success: true, duplicate: false });
@@ -1822,7 +2116,7 @@ export const createCustomer = async (req, res) => {
 export const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, company, notes, status } = req.body;
+    const { name, email, phone, company, company_id, notes, status } = req.body;
     const userId = req.user?.userId;
 
     if (id.startsWith('sae-')) {
@@ -1873,6 +2167,7 @@ export const updateCustomer = async (req, res) => {
             email,
             phone,
             company,
+            company_id,
             notes: notesPayload,
             status: status || 'calificado'
           })
@@ -1890,6 +2185,7 @@ export const updateCustomer = async (req, res) => {
               email,
               phone,
               company,
+              company_id,
               notes: notesPayload,
               status: status || 'calificado',
               type: 'crm_customer',
@@ -1909,6 +2205,7 @@ export const updateCustomer = async (req, res) => {
           email,
           phone,
           company,
+          company_id,
           notes,
           status: status || 'calificado'
         })

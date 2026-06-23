@@ -286,7 +286,7 @@
   border: 1px solid rgba(255, 255, 255, 0.6);
   box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.08);
   border-radius: 100px;
-  max-width: 500px;
+  max-width: 750px;
   width: 100%;
   display: flex;
   justify-content: center;
@@ -341,7 +341,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 50%;
+  width: 25%;
   background: linear-gradient(135deg, var(--color-brand-primary), #0c4d4f);
   border-radius: 100px;
   box-shadow: 0 4px 15px rgba(5, 57, 58, 0.25);
@@ -349,12 +349,20 @@
   transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.directory-switch-slider.contacts {
+.directory-switch-slider.clientes {
   left: 0;
+}
+
+.directory-switch-slider.contacts {
+  left: 25%;
 }
 
 .directory-switch-slider.companies {
   left: 50%;
+}
+
+.directory-switch-slider.obras {
+  left: 75%;
 }
 
 .animate-fade-in {

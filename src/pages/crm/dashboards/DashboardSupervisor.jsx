@@ -25,13 +25,18 @@ const DashboardSupervisor = ({ enabledModules }) => {
     userName,
     sellers,
     saeSellers,
+    customers,
+    loadingCustomers,
+    customerError,
     selectedCustomer,
     setSelectedCustomer,
     fetchLeads,
     fetchSellers,
     fetchSaeSellers,
+    fetchCustomers,
     handleStatusChange,
     handleAssignSeller,
+    handleDeleteCustomer,
     handleLoadPastQuote,
     handleRefreshAll,
     handleLogout,
@@ -92,6 +97,16 @@ const DashboardSupervisor = ({ enabledModules }) => {
 
       {activeTab === 'directory' && (
         <Directorio
+          role={role}
+          API_BASE={API_BASE}
+          customers={customers}
+          loadingCustomers={loadingCustomers}
+          customerError={customerError}
+          fetchCustomers={fetchCustomers}
+          handleDeleteCustomer={handleDeleteCustomer}
+          handleLoadPastQuote={handleLoadPastQuote}
+          setActiveTab={setActiveTab}
+          onViewCustomerDetails={setSelectedCustomer}
           onViewCompanyDetails={(comp) => {
             const custMock = {
               id: comp.id,

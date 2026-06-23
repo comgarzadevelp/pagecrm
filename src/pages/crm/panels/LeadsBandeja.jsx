@@ -124,7 +124,7 @@ function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth
 export default function LeadsBandeja({
   role,
   API_BASE,
-  leads,
+  leads: rawLeads,
   loading,
   error,
   filteredLeads,
@@ -135,6 +135,18 @@ export default function LeadsBandeja({
   handleLoadPastQuote,
   formatDate
 }) {
+  const mapLeadStatus = (status) => {
+    if (!status) return 'nuevo';
+    const s = status.toLowerCase();
+    if (s === 'nuevo' || s === 'asignado') return 'nuevo';
+    if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
+    if (s === 'perdido' || s === 'cierre_perdido' || s === 'descartado' || s === 'frio') return 'cierre_perdido';
+    if (s === 'cotizando') return 'cotizando';
+    return 'contactado';
+  };
+
+  const leads = (rawLeads || []).map(l => ({ ...l, status: mapLeadStatus(l.status) }));
+
   const { showToast } = useUX();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
@@ -513,7 +525,7 @@ export default function LeadsBandeja({
           <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
           <div className="stat-val-box">
             <h3>{leads.length}</h3>
-            <p>Total Prospectos</p>
+            <p>Peticiones del lead</p>
           </div>
         </div>
 
@@ -521,7 +533,7 @@ export default function LeadsBandeja({
           <div className="stat-icon-box total" style={{ color: '#0086c0', background: 'rgba(0, 134, 192, 0.08)' }}><i className="fas fa-folder-plus"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'nuevo').length}</h3>
-            <p>Nuevos</p>
+            <p>Bandeja de entrada</p>
           </div>
         </div>
 
@@ -529,15 +541,7 @@ export default function LeadsBandeja({
           <div className="stat-icon-box contact" style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.08)' }}><i className="fas fa-comments"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'contactado').length}</h3>
-            <p>Contactados</p>
-          </div>
-        </div>
-
-        <div className="crm-stat-card glass">
-          <div className="stat-icon-box qualified" style={{ color: '#06b6d4', background: 'rgba(6, 182, 212, 0.08)' }}><i className="fas fa-user-check"></i></div>
-          <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'calificado').length}</h3>
-            <p>Calificados</p>
+            <p>En negociación</p>
           </div>
         </div>
 
@@ -545,23 +549,7 @@ export default function LeadsBandeja({
           <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
-            <p>Cotizando</p>
-          </div>
-        </div>
-
-        <div className="crm-stat-card glass">
-          <div className="stat-icon-box" style={{ color: '#f97316', background: 'rgba(249, 115, 22, 0.08)' }}><i className="fas fa-handshake"></i></div>
-          <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'en_negociacion').length}</h3>
-            <p>En Negociación</p>
-          </div>
-        </div>
-
-        <div className="crm-stat-card glass">
-          <div className="stat-icon-box" style={{ color: '#0891b2', background: 'rgba(8, 145, 178, 0.08)' }}><i className="fas fa-calendar-alt"></i></div>
-          <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'reunion_agendada').length}</h3>
-            <p>Reunión Agendada</p>
+            <p>Cotización</p>
           </div>
         </div>
 
@@ -569,7 +557,7 @@ export default function LeadsBandeja({
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
-            <p>Ganados</p>
+            <p>Cierre Ganado</p>
           </div>
         </div>
 
@@ -577,25 +565,11 @@ export default function LeadsBandeja({
           <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
-            <p>Perdidos</p>
+            <p>Cierre Perdido</p>
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
-          <div className="stat-icon-box" style={{ color: '#707070', background: 'rgba(112, 112, 112, 0.08)' }}><i className="fas fa-pause-circle"></i></div>
-          <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'en_pausa').length}</h3>
-            <p>En Pausa</p>
-          </div>
-        </div>
 
-        <div className="crm-stat-card glass">
-          <div className="stat-icon-box discarded" style={{ color: '#e2445c', background: 'rgba(226, 68, 92, 0.08)' }}><i className="fas fa-ban"></i></div>
-          <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'descartado').length}</h3>
-            <p>Descartados</p>
-          </div>
-        </div>
 
         {/* Dynamic cards for each custom stage */}
         {customStages.map(stage => {
@@ -801,16 +775,10 @@ export default function LeadsBandeja({
                 value={statusFilter}
                 options={[
                   { value: 'all', label: 'Todos los estados' },
-                  { value: 'nuevo', label: 'Nuevos' },
-                  { value: 'contactado', label: 'Contactados' },
-                  { value: 'calificado', label: 'Calificados' },
-                  { value: 'cotizando', label: 'Cotizando' },
-                  { value: 'en_negociacion', label: 'En Negociación' },
-                  { value: 'reunion_agendada', label: 'Reunión Agendada' },
-                  { value: 'cierre_ganado', label: 'Cierres Ganados' },
-                  { value: 'cierre_perdido', label: 'Cierres Perdidos' },
-                  { value: 'en_pausa', label: 'En Pausa' },
-                  { value: 'descartado', label: 'Descartados' },
+                  { value: 'nuevo', label: 'Bandeja de entrada' },
+                  { value: 'contactado', label: 'En negociación' },
+                  { value: 'cierre_ganado', label: 'Cierre Ganado' },
+                  { value: 'cierre_perdido', label: 'Cierre Perdido' },
                   ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name }))
                 ]}
                 onChange={(val) => setStatusFilter(val)}
@@ -840,12 +808,17 @@ export default function LeadsBandeja({
           <div className="crm-leads-list-glass">
             {localFiltered.map((lead) => {
               let notesText = '';
+              let parsedNotes = {};
               try {
-                const parsed = JSON.parse(lead.notes);
-                notesText = parsed.general || lead.notes || '';
+                parsedNotes = JSON.parse(lead.notes);
+                notesText = parsedNotes.general || lead.notes || '';
               } catch (e) {
                 notesText = lead.notes || '';
               }
+
+              const displayTitle = parsedNotes.requirement_title
+                ? `🏗️ ${parsedNotes.project_name || 'Obra no especificada'} - ${parsedNotes.requirement_title}`
+                : `🏗️ Requerimiento - ${lead.company || lead.name || 'Prospecto'}`;
 
               const ageInfo = getLeadAgeInfo(lead);
 
@@ -925,14 +898,38 @@ export default function LeadsBandeja({
 
                   {/* Card Content Row */}
                   <div className="lead-card-body-ios">
-                    {/* Column 1: Prospect Profile */}
-                    <div className="lead-card-profile">
-                      <h4 className="lead-profile-name">{lead.name || 'Prospecto WhatsApp'}</h4>
-                      <span className="lead-profile-email">
+                    {/* Column 1: Opportunity / Requirement (Now the main focus) */}
+                    <div className="lead-card-profile" style={{ flex: '1.5' }}>
+                      <h4 className="lead-profile-name" style={{ fontSize: '1.05rem', color: 'var(--color-brand-primary)' }}>
+                        {displayTitle}
+                      </h4>
+                      {lead.company && (
+                        <span className="req-company-ios" style={{ marginTop: '6px', display: 'inline-flex', background: '#f1f5f9', padding: '4px 10px', borderRadius: '12px' }}>
+                          <i className="fas fa-building" style={{ color: 'var(--color-brand-accent)', marginRight: '6px' }}></i> {lead.company}
+                        </span>
+                      )}
+                      
+                      <div style={{ marginTop: '10px' }}>
+                        <span className="req-label-ios" style={{ fontSize: '0.7rem' }}>Detalles del Requerimiento</span>
+                        <p className="req-text-ios" title={notesText} style={{ marginTop: '4px' }}>
+                          {notesText || 'Sin requerimiento específico.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Column 2: Contact Info */}
+                    <div className="lead-card-requirement" style={{ flex: '1', borderLeft: '1px solid #e2e8f0', paddingLeft: '1.25rem' }}>
+                      <span className="req-label-ios">Contacto</span>
+                      <strong style={{ display: 'block', color: 'var(--color-text-dark)', marginBottom: '6px', fontSize: '0.95rem' }}>
+                        <i className="fas fa-user-circle" style={{ color: '#cbd5e1', marginRight: '6px' }}></i>
+                        {lead.name || 'Prospecto WhatsApp'}
+                      </strong>
+                      
+                      <span className="lead-profile-email" style={{ display: 'block', marginBottom: '6px' }}>
                         <i className="far fa-envelope"></i> {lead.email || 'Sin correo registrado'}
                       </span>
 
-                      <div className="lead-profile-phone-row" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginTop: '6px' }}>
+                      <div className="lead-profile-phone-row" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
                         <span className="lead-phone-badge">
                           <i className="fas fa-phone-alt"></i> {lead.phone}
                         </span>
@@ -948,19 +945,6 @@ export default function LeadsBandeja({
                           </a>
                         )}
                       </div>
-                    </div>
-
-                    {/* Column 2: Requirement/Notes */}
-                    <div className="lead-card-requirement">
-                      <span className="req-label-ios">Requerimiento</span>
-                      <p className="req-text-ios" title={notesText}>
-                        {notesText || 'Sin requerimiento específico.'}
-                      </p>
-                      {lead.company && (
-                        <span className="req-company-ios">
-                          <i className="fas fa-building"></i> {lead.company}
-                        </span>
-                      )}
                     </div>
 
                     {/* Column 3: Assignment & Action Controls */}

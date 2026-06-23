@@ -338,13 +338,32 @@ const DashboardShell = ({
     activeTab !== 'module-config' &&
     stats;
 
+  const sidebarRef = useRef(null);
+
+  useEffect(() => {
+    const handleDocumentClick = (event) => {
+      // Si la barra lateral no está colapsada y el clic es fuera de la barra lateral, la colapsamos
+      if (!sidebarCollapsed && sidebarRef.current && !sidebarRef.current.contains(event.target)) {
+        setSidebarCollapsed(true);
+      }
+    };
+
+    document.addEventListener('click', handleDocumentClick);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, [sidebarCollapsed, setSidebarCollapsed]);
+
   return (
     <div className={`crm-dashboard-page crm-modular-layout ${role === 'super_admin' ? 'superadmin-dashboard-root' : ''}`}>
       {/* PERSISTENT GLOBAL BELL NOTIFICATIONS WITH DYNAMIC COLORING */}
       <GlobalBellNotifications setActiveTab={setActiveTab} role={role} activeTab={activeTab} />
 
       {/* SIDEBAR NAVIGATION PANEL */}
-      <aside className={`crm-sidebar glass hide-on-print ${sidebarCollapsed ? 'collapsed' : ''}`}>
+      <aside 
+        ref={sidebarRef}
+        className={`crm-sidebar glass hide-on-print ${sidebarCollapsed ? 'collapsed' : ''}`}
+      >
         <button
           type="button"
           className="btn-close-sidebar hide-on-print"
@@ -438,7 +457,7 @@ const DashboardShell = ({
               <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
               <div className="stat-val-box">
                 <h3>{stats.total || 0}</h3>
-                <p>Total Prospectos</p>
+                <p>Peticiones del lead</p>
               </div>
             </div>
             <div className="crm-stat-card glass">

@@ -575,18 +575,18 @@
   -webkit-backdrop-filter: blur(12px) !important;
   z-index: 100000 !important;
   display: flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   justify-content: center !important;
-  padding: 1.5rem !important;
+  padding: 2rem 1.5rem !important;
   box-sizing: border-box !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
 }
 
 .crm-modal-content {
   width: 100%;
   max-width: 600px;
   max-height: 90vh !important;
-  margin: 0 !important;
+  margin: auto !important;
   padding: 2.5rem;
   position: relative;
   background: #ffffff;
@@ -599,11 +599,20 @@
   flex-direction: column !important;
 }
 
+.crm-modal-content form {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
 .crm-modal-content .modal-body {
   flex: 1 !important;
   overflow-y: auto !important;
   padding-right: 8px !important;
   margin-top: 1rem !important;
+  min-height: 0 !important;
 }
 
 @keyframes modalScale {

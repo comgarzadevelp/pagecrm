@@ -2,7 +2,7 @@
 
 .crm-modal-overlay {
   display: flex !important;
-  align-items: center !important;
+  align-items: flex-start !important;
   justify-content: center !important;
   position: fixed !important;
   top: 0 !important;
@@ -14,8 +14,9 @@
   background: rgba(15, 23, 42, 0.6) !important;
   z-index: 99999999 !important; /* Stand completely above sidebar */
   backdrop-filter: blur(8px) !important;
-  margin: 0 !important;
-  padding: 1rem !important;
+  overflow-y: auto !important;
+  padding: 2rem 1.5rem !important;
+  box-sizing: border-box !important;
 }
 
 .crm-modal-content {
@@ -23,6 +24,7 @@
   flex-direction: column !important;
   width: 100% !important;
   max-height: 92vh !important;
+  margin: auto !important;
   background: #ffffff !important;
   border-radius: 16px !important;
   padding: 2rem !important;

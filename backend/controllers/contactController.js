@@ -25,6 +25,28 @@ const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
   }
 };
 
+// GET /api/crm/contacts/search
+export const searchContacts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.length < 2) {
+      return res.json({ success: true, contacts: [] });
+    }
+
+    const { data, error } = await supabase
+      .from('contacts')
+      .select('id, name, phone, email, position')
+      .ilike('name', `%${q}%`)
+      .limit(10);
+
+    if (error) throw error;
+    res.json({ success: true, contacts: data || [] });
+  } catch (err) {
+    console.error('searchContacts error:', err);
+    res.status(500).json({ success: false, message: 'Error al buscar contactos.' });
+  }
+};
+
 // GET /api/crm/contacts
 export const getContacts = async (req, res) => {
   try {
@@ -46,7 +68,12 @@ export const getContacts = async (req, res) => {
         created_by (id, name),
         contact_companies (
           role,
+          status,
+          fecha_hasta,
           company:companies (id, name, type, industry)
+        ),
+        obra_contacts (
+          obra:obras (id, name, latitude, longitude, evidence_photo_url)
         )
       `)
       .order('name', { ascending: true });
@@ -211,6 +238,8 @@ export const getContactById = async (req, res) => {
         created_by (id, name),
         contact_companies (
           role,
+          status,
+          fecha_hasta,
           company:companies (id, name, type, industry, city, state, phone_main, email_main)
         )
       `)
@@ -357,18 +386,22 @@ export const linkContactToCompany = async (req, res) => {
   }
 };
 
-// DELETE /api/crm/contacts/:id/link-company/:companyId
+// PATCH /api/crm/contacts/:id/link-company/:companyId
 export const unlinkContactFromCompany = async (req, res) => {
   const { id: contact_id, companyId: company_id } = req.params;
+  const { status, fecha_hasta } = req.body || {};
   try {
     const { error } = await supabase
       .from('contact_companies')
-      .delete()
+      .update({
+        status: status || 'inactivo',
+        fecha_hasta: fecha_hasta || new Date().toISOString()
+      })
       .eq('contact_id', contact_id)
       .eq('company_id', company_id);
 
     if (error) throw error;
-    res.json({ success: true, message: 'Vínculo eliminado.' });
+    res.json({ success: true, message: 'Vínculo marcado como inactivo.' });
   } catch (err) {
     console.error('unlinkContactFromCompany error:', err);
     res.status(500).json({ success: false, message: 'Error al desvincular.' });

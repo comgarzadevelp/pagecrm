@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import DirectoryCard from '../components/DirectoryCard';
+import RegistrarVisitaModal from '../components/RegistrarVisitaModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -39,13 +40,19 @@ export default function MisContactos({ onViewCompanyDetails }) {
   const [showDetail, setShowDetail] = useState(false);
   const [detailContact, setDetailContact] = useState(null);
   const openDetail = (c) => {
-    const linkedCo = c.contact_companies && c.contact_companies[0]?.company;
-    if (onViewCompanyDetails && linkedCo) {
-      onViewCompanyDetails(linkedCo);
-    } else {
-      setDetailContact(c);
-      setShowDetail(true);
-    }
+    let parsedNotes = { general: c.notes, timeline: [] };
+    try {
+      if (c.notes?.trim().startsWith('{')) {
+        const p = JSON.parse(c.notes);
+        if (p && typeof p === 'object') {
+          parsedNotes.general = p.general || '';
+          parsedNotes.timeline = p.timeline || [];
+        }
+      }
+    } catch(e) {}
+    
+    setDetailContact({ ...c, parsedNotes });
+    setShowDetail(true);
   };
 
   // Link company modal
@@ -53,6 +60,8 @@ export default function MisContactos({ onViewCompanyDetails }) {
   const [companies, setCompanies] = useState([]);
   const [linkCompanyId, setLinkCompanyId] = useState('');
   const [linkRole, setLinkRole] = useState('');
+  
+  const [showVisitaModal, setShowVisitaModal] = useState(false);
 
   useEffect(() => { fetchContacts(); fetchPriceLists(); }, []);
 
@@ -239,11 +248,13 @@ export default function MisContactos({ onViewCompanyDetails }) {
   };
 
   const handleUnlink = async (contactId, companyId) => {
-    const confirmed = await showConfirm('¿Desvincular?', '¿Desvincular este contacto de la empresa?', { type: 'warning', confirmText: 'Desvincular' });
+    const confirmed = await showConfirm('¿Finalizar Vínculo?', '¿Marcar este empleo/empresa como inactivo en el historial?', { type: 'warning', confirmText: 'Marcar Inactivo' });
     if (!confirmed) return;
     try {
       await fetch(`${API_BASE}/api/crm/contacts/${contactId}/link-company/${companyId}`, {
-        method: 'DELETE', headers: { Authorization: `Bearer ${token()}` }
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'inactivo', fecha_hasta: new Date().toISOString() })
       });
       fetchContacts();
     } catch { /* silent */ }
@@ -305,19 +316,55 @@ export default function MisContactos({ onViewCompanyDetails }) {
 
       {/* MODAL DETALLES DEL CONTACTO */}
       {showDetail && detailContact && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowDetail(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" style={{ maxWidth: 500, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowDetail(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 500, zIndex: 10001, margin: 'auto' }} onClick={e => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setShowDetail(false)}>×</button>
-            <div className="modal-header">
-              <h2>{detailContact.name}</h2>
-              {detailContact.position && <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{detailContact.position}</p>}
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px' }}>
+              <div>
+                <h2>{detailContact.name}</h2>
+                {detailContact.position && <p style={{ color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>{detailContact.position}</p>}
+              </div>
+              <button className="btn-primary-golden" style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }} onClick={() => setShowVisitaModal(true)}>
+                <i className="fas fa-map-marker-alt" /> Registrar Visita
+              </button>
             </div>
             <div className="company-detail-body" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {detailContact.email && <div className="detail-row"><i className="fas fa-envelope" style={{ marginRight: '8px', color: 'var(--color-brand-accent)' }} /><span>{detailContact.email}</span></div>}
               {detailContact.phone && <div className="detail-row"><i className="fas fa-phone" style={{ marginRight: '8px', color: 'var(--color-brand-accent)' }} /><span>{detailContact.phone}</span></div>}
               {detailContact.phone_alt && <div className="detail-row"><i className="fas fa-phone-square-alt" style={{ marginRight: '8px', color: 'var(--color-brand-accent)' }} /><span>{detailContact.phone_alt}</span><em>Alternativo</em></div>}
               {detailContact.whatsapp && <div className="detail-row"><i className="fab fa-whatsapp" style={{ marginRight: '8px', color: '#16a34a' }} /><span>{detailContact.whatsapp}</span></div>}
-              {detailContact.notes && <div className="detail-notes" style={{ marginTop: '1rem', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}><h4>Notas</h4><p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: '#475569', whiteSpace: 'pre-line' }}>{detailContact.notes}</p></div>}
+              {detailContact.parsedNotes?.general && (
+                <div className="detail-notes" style={{ marginTop: '1rem', background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 4px 0', fontSize: '0.85rem', color: '#1e293b' }}>Notas Generales</h4>
+                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#475569', whiteSpace: 'pre-line' }}>{detailContact.parsedNotes.general}</p>
+                </div>
+              )}
+              {detailContact.parsedNotes?.timeline?.length > 0 && (
+                <div style={{ marginTop: '0.5rem', background: '#fff', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: '#1e293b', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>Historial / Evidencias</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {detailContact.parsedNotes.timeline.map((note, idx) => (
+                      <div key={idx} style={{ padding: '8px 12px', background: note.type === 'evidence' ? '#f0fdf4' : '#f8fafc', borderRadius: '6px', borderLeft: note.type === 'evidence' ? '3px solid #16a34a' : '3px solid var(--color-brand-primary)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                          <strong style={{ fontSize: '0.75rem', color: note.type === 'evidence' ? '#166534' : 'var(--color-brand-primary)' }}>{note.author || 'Usuario'} {note.type === 'evidence' && <i className="fas fa-camera" style={{marginLeft: '4px'}}></i>}</strong>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>{new Date(note.date).toLocaleString('es-MX')}</span>
+                        </div>
+                        <p style={{ fontSize: '0.8rem', margin: '4px 0', color: '#334155', whiteSpace: 'pre-line' }}>{note.text}</p>
+                        {(note.photoUrl || note.photo_url) && (
+                           <a href={note.photoUrl || note.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: '6px' }}>
+                             <img src={note.photoUrl || note.photo_url} alt="Evidencia" style={{ width: '100%', maxHeight: '100px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #cbd5e1' }} />
+                           </a>
+                        )}
+                        {(note.latitude || note.gps?.lat) && (
+                          <a href={`https://www.google.com/maps/search/?api=1&query=${note.latitude || note.gps?.lat},${note.longitude || note.gps?.lng}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.75rem', color: '#2563eb', textDecoration: 'none', display: 'inline-block', marginTop: '6px', fontWeight: '500' }}>
+                            <i className="fas fa-map-marker-alt"></i> Ver en mapa
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               
               {/* Empresas vinculadas en el detalle */}
               {detailContact.contact_companies && detailContact.contact_companies.length > 0 && (
@@ -333,6 +380,24 @@ export default function MisContactos({ onViewCompanyDetails }) {
                   </div>
                 </div>
               )}
+
+              {/* Obras vinculadas en el detalle */}
+              {detailContact.obra_contacts && detailContact.obra_contacts.length > 0 && (
+                <div style={{ marginTop: '1rem' }}>
+                  <h4 style={{ fontSize: '0.85rem', marginBottom: '8px', color: '#1e293b', fontWeight: 'bold' }}>Obras Vinculadas</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {detailContact.obra_contacts.map(oc => {
+                      if (!oc.obra) return null;
+                      return (
+                        <div key={oc.obra.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', background: '#f1f5f9', padding: '6px 12px', borderRadius: '6px' }}>
+                          <i className="fas fa-hard-hat" style={{ color: 'var(--color-brand-accent)' }} />
+                          <span><strong>{oc.obra.name}</strong></span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
             <div className="form-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
               <button className="btn-secondary" onClick={() => setShowDetail(false)}>Cerrar</button>
@@ -340,6 +405,14 @@ export default function MisContactos({ onViewCompanyDetails }) {
                 <i className="fas fa-edit" /> Editar
               </button>
             </div>
+
+            <RegistrarVisitaModal
+              isOpen={showVisitaModal}
+              onClose={() => setShowVisitaModal(false)}
+              entityType="contact"
+              entityId={detailContact.id}
+              entityName={detailContact.name}
+            />
           </div>
         </div>,
         document.body
@@ -347,42 +420,44 @@ export default function MisContactos({ onViewCompanyDetails }) {
 
       {/* MODAL CREAR / EDITAR CONTACTO */}
       {showModal && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" onClick={e => e.stopPropagation()} style={{ zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="crm-modal-overlay" onClick={() => setShowModal(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" onClick={e => e.stopPropagation()} style={{ zIndex: 10001, margin: 'auto', maxWidth: '600px', width: '96%' }}>
             <button className="close-modal-btn" onClick={() => setShowModal(false)}>×</button>
-            <div className="modal-header">
+            <div className="modal-header" style={{ flexShrink: 0 }}>
               <h2>{editMode ? 'Editar Contacto' : 'Nuevo Contacto'}</h2>
             </div>
-            <form onSubmit={handleSave} className="crm-form-grid">
-              <div className="form-group full-width">
-                <label>Nombre Completo *</label>
-                <input required value={form.name} onChange={inputChange('name')} placeholder="Nombre del contacto" />
+            <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+              <div className="modal-body crm-form-grid" style={{ flex: 1, overflowY: 'auto', padding: '10px 4px', margin: 0, minHeight: 0 }}>
+                <div className="form-group full-width">
+                  <label>Nombre Completo *</label>
+                  <input required value={form.name} onChange={inputChange('name')} placeholder="Nombre del contacto" />
+                </div>
+                <div className="form-group">
+                  <label>Cargo / Posición</label>
+                  <input value={form.position} onChange={inputChange('position')} placeholder="Ej: Director de Compras" />
+                </div>
+                <div className="form-group">
+                  <label>Correo Electrónico</label>
+                  <input type="email" value={form.email} onChange={inputChange('email')} placeholder="correo@empresa.com" />
+                </div>
+                <div className="form-group">
+                  <label>Teléfono Principal</label>
+                  <input value={form.phone} onChange={inputChange('phone')} placeholder="81 1234 5678" />
+                </div>
+                <div className="form-group">
+                  <label>Teléfono Alternativo</label>
+                  <input value={form.phone_alt} onChange={inputChange('phone_alt')} placeholder="Número alternativo" />
+                </div>
+                <div className="form-group">
+                  <label>WhatsApp</label>
+                  <input value={form.whatsapp} onChange={inputChange('whatsapp')} placeholder="81 1234 5678 (sin código país)" />
+                </div>
+                <div className="form-group full-width">
+                  <label>Notas</label>
+                  <textarea value={form.notes} onChange={inputChange('notes')} placeholder="Información adicional del contacto..." rows={3} />
+                </div>
               </div>
-              <div className="form-group">
-                <label>Cargo / Posición</label>
-                <input value={form.position} onChange={inputChange('position')} placeholder="Ej: Director de Compras" />
-              </div>
-              <div className="form-group">
-                <label>Correo Electrónico</label>
-                <input type="email" value={form.email} onChange={inputChange('email')} placeholder="correo@empresa.com" />
-              </div>
-              <div className="form-group">
-                <label>Teléfono Principal</label>
-                <input value={form.phone} onChange={inputChange('phone')} placeholder="81 1234 5678" />
-              </div>
-              <div className="form-group">
-                <label>Teléfono Alternativo</label>
-                <input value={form.phone_alt} onChange={inputChange('phone_alt')} placeholder="Número alternativo" />
-              </div>
-              <div className="form-group">
-                <label>WhatsApp</label>
-                <input value={form.whatsapp} onChange={inputChange('whatsapp')} placeholder="81 1234 5678 (sin código país)" />
-              </div>
-              <div className="form-group full-width">
-                <label>Notas</label>
-                <textarea value={form.notes} onChange={inputChange('notes')} placeholder="Información adicional del contacto..." rows={3} />
-              </div>
-              <div className="form-actions full-width">
+              <div className="modal-footer form-actions full-width" style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', flexShrink: 0 }}>
                 <button type="button" className="btn-cancel" onClick={() => setShowModal(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary-golden" disabled={saving}>
                   {saving ? <><i className="fas fa-spinner fa-spin" /> Guardando...</> : <><i className="fas fa-save" /> Guardar Contacto</>}
@@ -429,8 +504,8 @@ export default function MisContactos({ onViewCompanyDetails }) {
 
       {/* MODAL ARCHIVAR CON JUSTIFICACIÓN REQUERIDA */}
       {showArchiveModal && contactForArchive && createPortal(
-        <div className="crm-modal-overlay" onClick={() => setShowArchiveModal(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div className="crm-modal-content" style={{ maxWidth: 520, zIndex: 10001, maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <div className="crm-modal-overlay" onClick={() => setShowArchiveModal(false)} style={{ zIndex: 10000 }}>
+          <div className="crm-modal-content" style={{ maxWidth: 520, zIndex: 10001, margin: 'auto' }} onClick={e => e.stopPropagation()}>
             <button className="close-modal-btn" onClick={() => setShowArchiveModal(false)}>×</button>
             <div className="modal-header">
               <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#dc2626' }}>

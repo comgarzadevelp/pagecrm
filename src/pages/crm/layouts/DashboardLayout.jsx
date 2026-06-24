@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import DashboardShell from '../DashboardShell';
 import { useCrmData } from '../hooks/useCrmData';
 
 // Features (FSD Migrated)
-import LeadsBandejaFeature from '../../../features/leads/components/LeadsBandejaFeature';
-import ProspectosKanbanFeature from '../../../features/leads/components/ProspectosKanbanFeature';
+import InicioFeature from '../../../features/home/components/InicioFeature';
+import VentasFeature from '../../../features/leads/components/VentasFeature';
 import CotizadorB2BFeature from '../../../features/quotes/components/CotizadorB2BFeature';
 import CotizadorRAVFeature from '../../../features/quotes/components/CotizadorRAVFeature';
 import AgendaPanelFeature from '../../../features/calendar/components/AgendaPanelFeature';
@@ -13,8 +13,7 @@ import AgendaPanelFeature from '../../../features/calendar/components/AgendaPane
 // Features (FSD Migrated)
 import DirectorioFeature from '../../../features/directory/components/DirectorioFeature';
 import StatsDashboardFeature from '../../../features/dashboard/components/StatsDashboardFeature';
-import GestorCotizacionesFeature from '../../../features/quotes/components/GestorCotizacionesFeature';
-import ContenedorFeature from '../../../features/files/components/ContenedorFeature';
+import DocumentosFeature from '../../../features/files/components/DocumentosFeature';
 import ArchivoContactosFeature from '../../../features/directory/components/ArchivoContactosFeature';
 import NotificationsPanelFeature from '../../../features/system/components/NotificationsPanelFeature';
 import MiPerfilFeature from '../../../features/system/components/MiPerfilFeature';
@@ -83,6 +82,9 @@ export default function DashboardLayout({ role, enabledModules }) {
   const [selectedLeadId, setSelectedLeadId] = useState('');
   const [leadSearch, setLeadSearch] = useState('');
 
+  // Ref para actualizar en tiempo real el estado de empresas desde el modal
+  const empresasSetCompaniesRef = useRef(null);
+
   // Protect against manually navigating to disabled modules
   if (!enabledModules.includes(activeTab) && enabledModules.length > 0) {
     // If invalid tab, navigate to the first enabled module
@@ -109,12 +111,58 @@ export default function DashboardLayout({ role, enabledModules }) {
       fetchOpportunitiesList={fetchOpportunitiesList}
       customers={customers}
     >
+      {activeTab === 'inicio' && (
+        <InicioFeature
+          API_BASE={API_BASE}
+          role={role}
+          fetchCustomers={fetchCustomers}
+          fetchOpportunitiesList={fetchOpportunitiesList}
+        />
+      )}
       {activeTab === 'dashboard' && <StatsDashboardFeature />}
 
-      {activeTab === 'leads' && (
-        <LeadsBandejaFeature
+      {activeTab === 'ventas' && (
+        <VentasFeature
           role={role}
+          userName={userName}
           API_BASE={API_BASE}
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+          allOpportunities={allOpportunities}
+          currentUserProfile={currentUserProfile}
+          fetchOpportunitiesList={fetchOpportunitiesList}
+          customers={customers}
+          quoteItems={quoteItems}
+          setQuoteItems={setQuoteItems}
+          quoteNotes={quoteNotes}
+          setQuoteNotes={setQuoteNotes}
+          selectedAgreement={selectedAgreement}
+          setSelectedAgreement={setSelectedAgreement}
+          quoteNum={quoteNum}
+          setQuoteNum={setQuoteNum}
+          quoteDate={quoteDate}
+          setQuoteDate={setQuoteDate}
+          selectedOpportunityId={selectedOpportunityId}
+          setSelectedOpportunityId={setSelectedOpportunityId}
+          opportunitySearch={opportunitySearch}
+          setOpportunitySearch={setOpportunitySearch}
+          allLeads={leads || []}
+          selectedLeadId={selectedLeadId}
+          setSelectedLeadId={setSelectedLeadId}
+          leadSearch={leadSearch}
+          setLeadSearch={setLeadSearch}
+          onQuoteSaved={async (leadId) => {
+            const token = localStorage.getItem('token');
+            try {
+              await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stage: 'cotizando' })
+              });
+            } catch(e) { console.error(e); }
+          }}
           leads={leads}
           loading={loading}
           error={error}
@@ -142,66 +190,7 @@ export default function DashboardLayout({ role, enabledModules }) {
         />
       )}
 
-      {activeTab === 'quotes' && (
-        localStorage.getItem('companyCode')?.toUpperCase() === 'RAV' ? (
-          <CotizadorRAVFeature
-            role={role}
-            userName={userName}
-            API_BASE={API_BASE}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            sidebarCollapsed={sidebarCollapsed}
-            setSidebarCollapsed={setSidebarCollapsed}
-            allOpportunities={allOpportunities}
-            currentUserProfile={currentUserProfile}
-            fetchOpportunitiesList={fetchOpportunitiesList}
-            customers={customers}
-          />
-        ) : (
-          <CotizadorB2BFeature
-            role={role}
-            userName={userName}
-            API_BASE={API_BASE}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            sidebarCollapsed={sidebarCollapsed}
-            setSidebarCollapsed={setSidebarCollapsed}
-            allOpportunities={allOpportunities}
-            currentUserProfile={currentUserProfile}
-            fetchOpportunitiesList={fetchOpportunitiesList}
-            customers={customers}
-            quoteItems={quoteItems}
-            setQuoteItems={setQuoteItems}
-            quoteNotes={quoteNotes}
-            setQuoteNotes={setQuoteNotes}
-            selectedAgreement={selectedAgreement}
-            setSelectedAgreement={setSelectedAgreement}
-            quoteNum={quoteNum}
-            setQuoteNum={setQuoteNum}
-            quoteDate={quoteDate}
-            setQuoteDate={setQuoteDate}
-            selectedOpportunityId={selectedOpportunityId}
-            setSelectedOpportunityId={setSelectedOpportunityId}
-            opportunitySearch={opportunitySearch}
-            setOpportunitySearch={setOpportunitySearch}
-            allLeads={leads || []}
-            selectedLeadId={selectedLeadId}
-            setSelectedLeadId={setSelectedLeadId}
-            leadSearch={leadSearch}
-            setLeadSearch={setLeadSearch}
-            onQuoteSaved={async (leadId) => {
-              const token = localStorage.getItem('token');
-              try {
-                await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
-                  method: 'PUT',
-                  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ stage: 'cotizando' })
-                });
-              } catch(e) { console.error(e); }
-            }}
-          />
-        )
-      )}
+
 
       {activeTab === 'sellers' && (
         <EquipoVentasFeature
@@ -228,6 +217,10 @@ export default function DashboardLayout({ role, enabledModules }) {
           setActiveTab={setActiveTab}
           onViewCustomerDetails={setSelectedCustomer}
           onViewCompanyDetails={(comp) => {
+            const CRM_STATES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
+            const rawStatus = (comp.status || '').toString().toLowerCase().trim();
+            const normalizedStatus = CRM_STATES.includes(rawStatus) ? rawStatus : 'pendiente_revision';
+
             const custMock = {
               id: comp.id,
               isCompany: true,
@@ -236,7 +229,7 @@ export default function DashboardLayout({ role, enabledModules }) {
               phone: comp.phone_main || '',
               company: comp.alias || comp.name || '',
               notes: comp.notes || '',
-              status: String(comp.id).startsWith('sae-') ? 'pendiente_revision' : (comp.status || 'nuevo'),
+              status: normalizedStatus,
               limcred: comp.limcred || 0,
               saldo: comp.saldo || 0,
               lista_prec: comp.lista_prec || 1,
@@ -246,18 +239,23 @@ export default function DashboardLayout({ role, enabledModules }) {
               codigo: comp.codigo || '',
               municipio: comp.city || '',
               estado: comp.state || '',
-              rfc: comp.rfc || 'N/A'
+              rfc: comp.rfc || 'N/A',
+              address: comp.address || '',
+              website: comp.website || '',
+              pag_web: comp.website || '',
+              maps_url: comp.maps_url || ''
             };
             setSelectedCustomer(custMock);
+          }}
+          onRegisterCompanyUpdater={(setCompaniesFn) => {
+            empresasSetCompaniesRef.current = setCompaniesFn;
           }}
         />
       )}
 
       {activeTab === 'obras' && <DirectorioObrasFeature API_BASE={API_BASE} role={role} />}
       {activeTab === 'personal-agenda' && <AgendaPanelFeature leads={leads || []} />}
-      {activeTab === 'pipeline' && <ProspectosKanbanFeature role={role} API_BASE={API_BASE} fetchLeads={fetchLeads} />}
-      {activeTab === 'quotes-manager' && <GestorCotizacionesFeature />}
-      {activeTab === 'files' && <ContenedorFeature />}
+      {activeTab === 'files' && <DocumentosFeature />}
       {activeTab === 'archive-contacts' && <ArchivoContactosFeature />}
       {activeTab === 'notifications' && <NotificationsPanelFeature />}
       {activeTab === 'profile' && <MiPerfilFeature />}
@@ -277,6 +275,22 @@ export default function DashboardLayout({ role, enabledModules }) {
           role={role}
           API_BASE={API_BASE}
           fetchCustomers={fetchCustomers}
+          onCompanyStatusUpdated={(updatedCompany) => {
+            // 1. Actualiza la modal abierta
+            setSelectedCustomer(prev => prev && prev.id === updatedCompany.id
+              ? { ...prev, status: updatedCompany.status }
+              : prev
+            );
+            // 2. Actualiza la card en la lista de EmpresasFeature sin recargar
+            if (empresasSetCompaniesRef.current) {
+              empresasSetCompaniesRef.current(prev =>
+                prev.map(c => c.id === updatedCompany.id
+                  ? { ...c, status: updatedCompany.status }
+                  : c
+                )
+              );
+            }
+          }}
           handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
         />
       )}

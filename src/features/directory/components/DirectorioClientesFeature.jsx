@@ -5,6 +5,9 @@ import styles from '../styles/DirectorioClientes.module.css';
 
 import RegistrarClienteModal from '../../../pages/crm/components/RegistrarClienteModal';
 import FichaClienteModal from './FichaClienteModalFeature';
+import GenerarVentaModal from '../../../pages/crm/components/GenerarVentaModal';
+import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
+import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
 import useDirectorio from '../../../pages/crm/hooks/useDirectorio';
 
 /**
@@ -33,12 +36,21 @@ export default function DirectorioClientesFeature({
   const {
     searchTerm,
     setSearchTerm,
+    selectedCategory,
+    setSelectedCategory,
+    categoryCounts,
     filteredCustomers,
     selectedCustomer,
     setSelectedCustomer,
     showAddCustomerModal,
     setShowAddCustomerModal
   } = useDirectorioClientes(customers);
+
+  const [showCreateDealModal, setShowCreateDealModal] = React.useState(false);
+  const [selectedCustomerForVenta, setSelectedCustomerForVenta] = React.useState(null);
+  const [showVisitaModal, setShowVisitaModal] = React.useState(false);
+  const [selectedCustomerForVisita, setSelectedCustomerForVisita] = React.useState(null);
+  const [calendarPrefill, setCalendarPrefill] = React.useState(null);
 
   const handleOpenDetails = (cust) => {
     // Si existen handlers de inyección externa (props), se usan. Si no, se abre el modal interno.
@@ -53,24 +65,101 @@ export default function DirectorioClientesFeature({
     setSelectedCustomer(cust);
   };
 
+  const handleStartNegotiation = (cust) => {
+    setSelectedCustomerForVenta(cust);
+    setShowCreateDealModal(true);
+  };
+
+  const handleRegisterVisita = (cust) => {
+    const prefill = {
+      title: `Visita - ${cust.company || cust.name}`,
+      clientName: cust.name,
+      description: `Seguimiento comercial con ${cust.name} ${cust.company ? `(${cust.company})` : ''}.`,
+      location: cust.calle ? `${cust.calle}${cust.colonia ? `, Col. ${cust.colonia}` : ''}${cust.municipio ? `, ${cust.municipio}` : ''}`.trim() : '',
+      category: 'visita_presencial',
+      attendees: cust.email ? cust.email : ''
+    };
+    setCalendarPrefill(prefill);
+    setSelectedCustomerForVisita(cust);
+    setShowVisitaModal(true);
+  };
+
   return (
     <section className={styles.container}>
       <header className={styles.header}>
         <div>
-          <h2 className={styles.title}>Directorio Permanente de Clientes</h2>
+          <h2 className={styles.title}>Registro de Clientes</h2>
           <p className={styles.subtitle}>
-            Registra y gestiona los clientes estables del equipo comercial.
+            Bandeja general de clientes y empresas. Inicia nuevas negociaciones desde aquí.
           </p>
         </div>
-        <button 
-          className={styles.btnPrimaryGolden} 
+        <button
+          className={styles.btnPrimaryGolden}
           onClick={() => setShowAddCustomerModal(true)}
         >
-          <i className="fas fa-plus"></i> Registrar Cliente
+          <i className="fas fa-plus"></i> Nuevo Cliente
         </button>
       </header>
 
-      <div className={styles.filtersBar}>
+      <div className={styles.filtersBar} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Selectores de categorías de seguimiento */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+          {[
+            { id: 'todos', label: 'Todos', color: '#64748b', bg: '#f1f5f9' },
+            { id: 'prospectos', label: 'Prospectos', color: '#ea580c', bg: '#fff7ed' },
+            { id: 'activos', label: 'Activos', color: '#059669', bg: '#ecfdf5' },
+            { id: 'regulares', label: 'Compra esporádica', color: '#d97706', bg: '#fffbeb' },
+            { id: 'frios', label: 'RECONTACTAR AHORA', color: '#dc2626', bg: '#fef2f2' },
+            { id: 'muertos', label: 'Descartados', color: '#050505ff', bg: '#fffbeb' }
+
+          ].map(cat => {
+            const count = categoryCounts[cat.id] || 0;
+            const isActive = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSelectedCategory(cat.id)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '100px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  border: isActive ? `1.5px solid ${cat.color}` : '1.5px solid transparent',
+                  background: isActive ? cat.bg : 'var(--color-bg-white, #fff)',
+                  color: cat.color,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                  transition: 'all 0.2s ease',
+                  outline: 'none'
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) e.currentTarget.style.backgroundColor = cat.bg;
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-bg-white, #fff)';
+                }}
+              >
+                {cat.label}
+                <span style={{
+                  background: isActive ? cat.color : '#e2e8f0',
+                  color: isActive ? '#fff' : '#64748b',
+                  fontSize: '0.7rem',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  fontWeight: '800',
+                  transition: 'all 0.2s ease'
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
         <div className={styles.searchBox}>
           <i className="fas fa-search" style={{ color: '#9ca3af' }}></i>
           <input
@@ -95,11 +184,13 @@ export default function DirectorioClientesFeature({
           <button className="btn-primary" onClick={fetchCustomers}>Reintentar</button>
         </div>
       ) : (
-        <CustomerTable 
-          customers={filteredCustomers} 
-          role={role} 
+        <CustomerTable
+          customers={filteredCustomers}
+          role={role}
           onViewDetails={handleOpenDetails}
           onDelete={handleDeleteCustomer}
+          onStartNegotiation={handleStartNegotiation}
+          onRegisterVisita={handleRegisterVisita}
         />
       )}
 
@@ -107,9 +198,9 @@ export default function DirectorioClientesFeature({
       {showAddCustomerModal && (
         <RegistrarClienteModal
           onClose={() => setShowAddCustomerModal(false)}
-          onSuccess={() => { 
-            setShowAddCustomerModal(false); 
-            fetchCustomers(); 
+          onSuccess={() => {
+            setShowAddCustomerModal(false);
+            fetchCustomers();
           }}
           API_BASE={API_BASE}
           allCompanies={allCompanies || []}
@@ -124,6 +215,45 @@ export default function DirectorioClientesFeature({
           API_BASE={API_BASE}
           fetchCustomers={fetchCustomers}
           handleLoadPastQuote={handleLoadPastQuote}
+        />
+      )}
+
+      {/* Modal para iniciar negociación simplificado */}
+      {showCreateDealModal && (
+        <GenerarVentaModal
+          isOpen={showCreateDealModal}
+          onClose={() => {
+            setShowCreateDealModal(false);
+            setSelectedCustomerForVenta(null);
+          }}
+          onSuccess={() => {
+            setShowCreateDealModal(false);
+            setSelectedCustomerForVenta(null);
+            fetchCustomers();
+          }}
+          API_BASE={API_BASE}
+          customer={selectedCustomerForVenta}
+        />
+      )}
+
+      {/* Modal para agendar visita en calendario */}
+      {showVisitaModal && (
+        <EventCreatorModal
+          isOpen={showVisitaModal}
+          onClose={() => {
+            setShowVisitaModal(false);
+            setSelectedCustomerForVisita(null);
+            setCalendarPrefill(null);
+          }}
+          onSave={() => {
+            setShowVisitaModal(false);
+            setSelectedCustomerForVisita(null);
+            setCalendarPrefill(null);
+            fetchCustomers();
+          }}
+          prefillData={calendarPrefill}
+          API_BASE={API_BASE}
+          leads={customers}
         />
       )}
     </section>

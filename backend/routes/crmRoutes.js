@@ -26,7 +26,7 @@ import {
 } from '../controllers/companyController.js';
 
 import {
-  searchObras, getObrasByCompany, createObra, linkCompanyToObra, linkContactToObra, getObraLeads
+  searchObras, getObrasByCompany, getObrasByContact, createObra, linkCompanyToObra, linkContactToObra, getObraLeads
 } from '../controllers/obraController.js';
 
 import { getFiles, uploadFile, deleteFile } from '../controllers/fileController.js';
@@ -107,6 +107,7 @@ router.post('/companies/:id/invoices', upload.single('invoice'), uploadCustomerI
 // ── OBRAS / PROYECTOS ─────────────────────────────────────────
 router.get('/obras/search', searchObras);
 router.get('/obras/company/:companyId', getObrasByCompany);
+router.get('/obras/contact/:contactId', getObrasByContact);
 router.post('/obras', createObra);
 router.post('/obras/:id/link-company', linkCompanyToObra);
 router.post('/obras/:id/link-contact', linkContactToObra);

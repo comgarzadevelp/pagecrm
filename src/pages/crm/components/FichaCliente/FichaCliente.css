@@ -421,3 +421,15 @@
     padding-bottom: 1.5rem !important;
   }
 }
+
+/* Fix vertical scroll: Prevent general modal forms style from locking height and disabling scroll */
+.customer-details-modal form {
+  flex: none !important;
+  min-height: auto !important;
+  overflow: visible !important;
+}
+
+/* Fix for Google Maps Places dropdown appearing behind modals */
+.pac-container {
+  z-index: 100005 !important;
+}

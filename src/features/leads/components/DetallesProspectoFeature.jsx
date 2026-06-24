@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
 import { getChannelBadgeInfo } from '../../../pages/crm/utils/leadHelpers';
@@ -333,7 +334,7 @@ export default function DetallesProspectoFeature({
     }
   };
 
-  return (
+  return ReactDOM.createPortal(
     <div className="modal-overlay-glass" style={{ zIndex: 10000 }}>
       <div className="modal-content-glass" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header-row">
@@ -825,7 +826,8 @@ export default function DetallesProspectoFeature({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
 

@@ -176,3 +176,28 @@ export const getObraLeads = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al obtener historial de la obra.' });
   }
 };
+
+export const getObrasByContact = async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    
+    const { data: oc, error: ocError } = await supabase
+      .from('obra_contacts')
+      .select('obra_id, role, obras (id, name, address, status, latitude, longitude, maps_url, evidence_photo_url)')
+      .eq('contact_id', contactId);
+
+    if (ocError) throw ocError;
+    
+    // Flatten the result
+    const obras = (oc || []).map(item => ({
+      ...item.obras,
+      role: item.role
+    }));
+
+    res.json({ success: true, obras });
+  } catch (err) {
+    console.error('getObrasByContact error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener obras del contacto.' });
+  }
+};
+

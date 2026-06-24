@@ -2064,6 +2064,201 @@ export const getCustomers = async (req, res) => {
     // Merge lists
     const merged = [...nativeCustomers, ...saeCustomers];
 
+    // Enriquecer con conteo de oportunidades, última visita y estado de seguimiento automático de forma ultra-eficiente
+    try {
+      // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads
+      const { data: localCompanies } = await supabase.from('companies').select('id, notes');
+      const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email');
+
+      const companyUuidToSaeClave = {};
+      const leadIdByCompanyId = {};
+      const leadIdByContactId = {};
+
+      (localCompanies || []).forEach(comp => {
+        if (comp.notes) {
+          try {
+            const parsed = JSON.parse(comp.notes.trim());
+            if (parsed && parsed.sae_clave) {
+              const saeClave = String(parsed.sae_clave).trim();
+              companyUuidToSaeClave[comp.id] = saeClave;
+            }
+          } catch (e) {}
+        }
+      });
+
+      (crmCustomers || []).forEach(lead => {
+        if (lead.company_id) {
+          leadIdByCompanyId[lead.company_id] = lead.id;
+        }
+        
+        const matchingContact = (localContacts || []).find(c => 
+          (c.phone && lead.phone && c.phone.trim() === lead.phone.trim()) ||
+          (c.email && lead.email && c.email.toLowerCase().trim() === lead.email.toLowerCase().trim())
+        );
+        if (matchingContact) {
+          leadIdByContactId[matchingContact.id] = lead.id;
+        }
+      });
+
+      const { data: allOpps } = await supabase
+        .from('crm_opportunities')
+        .select('id, company_id, contact_id, created_at, updated_at');
+      
+      const { data: allVisits } = await supabase
+        .from('crm_visitas')
+        .select('id, company_id, contact_id, timestamp_servidor, created_at')
+        .order('timestamp_servidor', { ascending: false });
+
+      const oppsCountByCompany = {};
+      const oppsCountByContact = {};
+      const lastOppByCompany = {};
+      const lastOppByContact = {};
+
+      (allOpps || []).forEach(opp => {
+        const oppDate = opp.updated_at || opp.created_at;
+        if (opp.company_id) {
+          oppsCountByCompany[opp.company_id] = (oppsCountByCompany[opp.company_id] || 0) + 1;
+          if (oppDate && (!lastOppByCompany[opp.company_id] || new Date(oppDate) > new Date(lastOppByCompany[opp.company_id]))) {
+            lastOppByCompany[opp.company_id] = oppDate;
+          }
+
+          // Mapeo a SAE
+          const saeClave = companyUuidToSaeClave[opp.company_id];
+          if (saeClave) {
+            const saeKey = `sae-${saeClave}`;
+            oppsCountByCompany[saeKey] = (oppsCountByCompany[saeKey] || 0) + 1;
+            if (oppDate && (!lastOppByCompany[saeKey] || new Date(oppDate) > new Date(lastOppByCompany[saeKey]))) {
+              lastOppByCompany[saeKey] = oppDate;
+            }
+          }
+
+          // Mapeo a Lead Nativo
+          const leadId = leadIdByCompanyId[opp.company_id];
+          if (leadId) {
+            oppsCountByCompany[leadId] = (oppsCountByCompany[leadId] || 0) + 1;
+            if (oppDate && (!lastOppByCompany[leadId] || new Date(oppDate) > new Date(lastOppByCompany[leadId]))) {
+              lastOppByCompany[leadId] = oppDate;
+            }
+          }
+        }
+        if (opp.contact_id) {
+          oppsCountByContact[opp.contact_id] = (oppsCountByContact[opp.contact_id] || 0) + 1;
+          if (oppDate && (!lastOppByContact[opp.contact_id] || new Date(oppDate) > new Date(lastOppByContact[opp.contact_id]))) {
+            lastOppByContact[opp.contact_id] = oppDate;
+          }
+
+          // Mapeo a Lead Nativo
+          const leadId = leadIdByContactId[opp.contact_id];
+          if (leadId) {
+            oppsCountByContact[leadId] = (oppsCountByContact[leadId] || 0) + 1;
+            if (oppDate && (!lastOppByContact[leadId] || new Date(oppDate) > new Date(lastOppByContact[leadId]))) {
+              lastOppByContact[leadId] = oppDate;
+            }
+          }
+        }
+      });
+
+      const lastVisitByCompany = {};
+      const lastVisitByContact = {};
+      (allVisits || []).forEach(v => {
+        const visitDate = v.timestamp_servidor || v.created_at;
+        if (v.company_id) {
+          if (!lastVisitByCompany[v.company_id]) {
+            lastVisitByCompany[v.company_id] = visitDate;
+          }
+
+          const saeClave = companyUuidToSaeClave[v.company_id];
+          if (saeClave) {
+            const saeKey = `sae-${saeClave}`;
+            if (!lastVisitByCompany[saeKey]) {
+              lastVisitByCompany[saeKey] = visitDate;
+            }
+          }
+
+          const leadId = leadIdByCompanyId[v.company_id];
+          if (leadId && !lastVisitByCompany[leadId]) {
+            lastVisitByCompany[leadId] = visitDate;
+          }
+        }
+        if (v.contact_id) {
+          if (!lastVisitByContact[v.contact_id]) {
+            lastVisitByContact[v.contact_id] = visitDate;
+          }
+
+          const leadId = leadIdByContactId[v.contact_id];
+          if (leadId && !lastVisitByContact[leadId]) {
+            lastVisitByContact[leadId] = visitDate;
+          }
+        }
+      });
+
+      for (let i = 0; i < merged.length; i++) {
+        const cust = merged[i];
+        const isSae = cust.id.startsWith('sae-');
+        
+        let oppsCount = 0;
+        let lastVisit = null;
+        let lastOppDate = null;
+        let lastNoteDate = null;
+
+        if (isSae) {
+          oppsCount = oppsCountByCompany[cust.id] || 0;
+          lastVisit = lastVisitByCompany[cust.id] || null;
+          lastOppDate = lastOppByCompany[cust.id] || null;
+        } else {
+          oppsCount = oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
+          lastVisit = lastVisitByContact[cust.id] || lastVisitByCompany[cust.id] || null;
+          lastOppDate = lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
+
+          // Parsear notas para buscar la fecha de la última nota en el timeline
+          if (cust.notes) {
+            try {
+              const parsed = JSON.parse(cust.notes.trim());
+              if (parsed && parsed.timeline && parsed.timeline.length > 0) {
+                const dates = parsed.timeline
+                  .map(t => t.date)
+                  .filter(Boolean)
+                  .map(d => new Date(d));
+                if (dates.length > 0) {
+                  lastNoteDate = new Date(Math.max(...dates)).toISOString();
+                }
+              }
+            } catch (e) {
+              // no es JSON o formato incorrecto
+            }
+          }
+        }
+
+        // Consolidar fechas de actividad para obtener la última fecha de interacción real
+        const dates = [
+          lastVisit,
+          lastOppDate,
+          lastNoteDate,
+          cust.created_at
+        ].filter(Boolean).map(d => new Date(d));
+
+        const lastActivityDate = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : cust.created_at;
+
+        // Calcular e clasificar el estado de seguimiento: activo (<=15 días), regular (<=30 días), frío (>30 días)
+        const diffTime = Math.abs(new Date() - new Date(lastActivityDate));
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        let followupStatus = 'frio';
+        if (diffDays <= 15) {
+          followupStatus = 'activo';
+        } else if (diffDays <= 30) {
+          followupStatus = 'regular';
+        }
+
+        merged[i].opportunities_count = oppsCount;
+        merged[i].last_visit_date = lastVisit;
+        merged[i].last_activity_date = lastActivityDate;
+        merged[i].followup_status = followupStatus;
+      }
+    } catch (enrichErr) {
+      console.warn('[Enrich Customers] Error enriching customers list:', enrichErr.message);
+    }
+
     res.json({ success: true, customers: merged });
   } catch (err) {
     console.error('getCustomers error:', err);

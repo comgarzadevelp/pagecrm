@@ -631,7 +631,7 @@ export default function LeadsBandejaFeature({
       <section className="crm-table-container glass">
         <div className="crm-table-header">
           <div className="crm-title-actions-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <h2 style={{ margin: 0, borderLeft: '4px solid var(--color-brand-accent)', paddingLeft: '0.8rem' }}>Bandeja de Entrada de Prospectos</h2>
+            <h2 style={{ margin: 0, borderLeft: '4px solid var(--color-brand-accent)', paddingLeft: '0.8rem' }}>Bandeja de Entrada de Negociaciones</h2>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 type="button"
@@ -659,7 +659,7 @@ export default function LeadsBandejaFeature({
                 className="btn-new-lead-header"
                 onClick={() => setCreateModalOpen(true)}
               >
-                <i className="fas fa-plus"></i> Nuevo Prospecto
+                <i className="fas fa-plus"></i> Nueva Negociación
               </button>
             </div>
           </div>
@@ -688,7 +688,7 @@ export default function LeadsBandejaFeature({
                 gap: '8px'
               }}
             >
-              <i className="fas fa-users"></i> Todos los Prospectos
+              <i className="fas fa-users"></i> Todas las Negociaciones
               <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'todos' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'todos' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
                 {leads.length}
               </span>
@@ -715,7 +715,7 @@ export default function LeadsBandejaFeature({
                 gap: '8px'
               }}
             >
-              <i className="fas fa-user-tie"></i> Mis Prospectos
+              <i className="fas fa-user-tie"></i> Mis Negociaciones
               <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'mis-leads' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'mis-leads' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
                 {leads.filter(l => l.type === 'vendedor_manual').length}
               </span>

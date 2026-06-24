@@ -1,4 +1,4 @@
-const CACHE_NAME = 'garza-crm-v3';
+const CACHE_NAME = 'garza-crm-v4';
 
 // Shell mínimo para fallback offline
 const PRECACHE_URLS = [

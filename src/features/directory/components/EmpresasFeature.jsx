@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import useEmpresas from '../../../pages/crm/hooks/useEmpresas'; // Hook legacy de data fetching
@@ -19,7 +19,7 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  * Une la capa de datos (useEmpresas), la capa de UI (useEmpresasFeature)
  * y los sub-componentes (Listas, Modales).
  */
-export default function EmpresasFeature({ onViewCompanyDetails }) {
+export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusUpdated, onRegisterCompanyUpdater }) {
   const { showToast, showConfirm } = useUX();
   const token = () => localStorage.getItem('token');
 
@@ -29,6 +29,22 @@ export default function EmpresasFeature({ onViewCompanyDetails }) {
     contacts, setContacts, 
     priceLists, loading, error, refetch 
   } = useEmpresas(API_BASE, token());
+
+  // Registrar setCompanies con el padre para actualizaciones en tiempo real desde el modal
+  useEffect(() => {
+    if (onRegisterCompanyUpdater) {
+      onRegisterCompanyUpdater(setCompanies);
+    }
+  }, [onRegisterCompanyUpdater, setCompanies]);
+
+  const onCompanyStatusUpdatedRef = useRef(onCompanyStatusUpdated);
+  useEffect(() => { onCompanyStatusUpdatedRef.current = onCompanyStatusUpdated; }, [onCompanyStatusUpdated]);
+
+  useEffect(() => {
+    if (!onCompanyStatusUpdated) return;
+    // Registrar el setCompanies local para que el padre pueda actualizar esta lista
+    onCompanyStatusUpdated.__setCompanies = (updater) => setCompanies(updater);
+  }, [onCompanyStatusUpdated, setCompanies]);
 
   // Capa de Lógica UI (Filtros locales)
   const {

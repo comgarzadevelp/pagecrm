@@ -4,14 +4,17 @@ import { supabase } from '../supabaseClient.js';
 export const createVisita = async (req, res) => {
   try {
     const userId = req.user?.userId;
-    const { contact_id, company_id, obra_id, tipo, resultado, gps_lat, gps_lng, notas } = req.body;
+    const { contact_id, company_id, obra_id, tipo, resultado, gps_lat, gps_lng, notas, timestamp_servidor } = req.body;
 
     if (!tipo || !resultado) {
       return res.status(400).json({ success: false, message: 'Faltan campos obligatorios: tipo y resultado.' });
     }
 
-    if (tipo === 'visita_presencial' && (!gps_lat || !gps_lng)) {
-      return res.status(400).json({ success: false, message: 'Para una visita presencial se requiere la geolocalización (GPS).' });
+    // Si la visita es en el futuro (un recordatorio agendado), no se exige GPS
+    const isFuture = timestamp_servidor ? new Date(timestamp_servidor) > new Date() : false;
+
+    if (tipo === 'visita_presencial' && !isFuture && (!gps_lat || !gps_lng)) {
+      return res.status(400).json({ success: false, message: 'Para una visita presencial en tiempo real se requiere la geolocalización (GPS).' });
     }
 
     const payload = {
@@ -21,11 +24,14 @@ export const createVisita = async (req, res) => {
       obra_id,
       tipo,
       resultado,
-      gps_lat,
-      gps_lng,
+      gps_lat: isFuture ? null : gps_lat,
+      gps_lng: isFuture ? null : gps_lng,
       notas
-      // No incluimos timestamp_servidor para que Supabase use DEFAULT NOW()
     };
+
+    if (timestamp_servidor) {
+      payload.timestamp_servidor = timestamp_servidor;
+    }
 
     const { data, error } = await supabase
       .from('crm_visitas')
@@ -37,7 +43,7 @@ export const createVisita = async (req, res) => {
     res.status(201).json({ success: true, visita: data[0] });
   } catch (err) {
     console.error('Error creating visita:', err);
-    res.status(500).json({ success: false, message: 'Error al registrar visita.' });
+    res.status(500).json({ success: false, message: 'Error al registrar visita o recordatorio.' });
   }
 };
 

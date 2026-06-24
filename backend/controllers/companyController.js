@@ -1,6 +1,8 @@
 // backend/controllers/companyController.js
 import { supabase, saeSupabase } from '../supabaseClient.js';
 
+const CRM_STATUSES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
+
 // GET /api/crm/companies/search
 export const searchCompanies = async (req, res) => {
   try {
@@ -87,7 +89,11 @@ export const getCompanies = async (req, res) => {
       if (saeClave) {
         saeLinkedMap[saeClave] = co;
       } else {
-        nativeCompanies.push(co);
+        let normalizedStatus = co.status;
+        if (!CRM_STATUSES.includes(normalizedStatus)) {
+          normalizedStatus = 'pendiente_revision';
+        }
+        nativeCompanies.push({ ...co, status: normalizedStatus });
       }
     });
 
@@ -141,7 +147,10 @@ export const getCompanies = async (req, res) => {
           const email_main = linkedCo ? linkedCo.email_main : cleanedMail;
           const email_purchases = linkedCo ? linkedCo.email_purchases : '';
           const email_payments = linkedCo ? linkedCo.email_payments : '';
-          const status = linkedCo ? linkedCo.status : 'activo';
+          let status = linkedCo ? linkedCo.status : 'pendiente_revision';
+          if (!CRM_STATUSES.includes(status)) {
+            status = 'pendiente_revision';
+          }
 
           const notes = linkedCo ? linkedCo.notes : JSON.stringify({
             general: `Empresa importada de ASPEL SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
@@ -275,6 +284,21 @@ export const getCompanyById = async (req, res) => {
 
       if (clientError) throw clientError;
 
+      // Buscar si existe en CRM vinculada a este saeKey
+      const { data: existingCos } = await supabase
+        .from('companies')
+        .select('status')
+        .like('notes', `%"sae_clave":"${saeKey}"%`)
+        .limit(1);
+
+      let dbStatus = 'pendiente_revision';
+      if (existingCos && existingCos.length > 0) {
+        const statusVal = existingCos[0].status;
+        if (CRM_STATUSES.includes(statusVal)) {
+          dbStatus = statusVal;
+        }
+      }
+
       const companyMapped = {
         id: `sae-${client.clave.trim()}`,
         name: client.nombre ? client.nombre.trim() : 'Empresa SAE Sin Nombre',
@@ -293,7 +317,7 @@ export const getCompanyById = async (req, res) => {
         email_main: client.mail ? client.mail.trim() : '',
         email_purchases: '',
         email_payments: '',
-        status: 'activo',
+        status: dbStatus,
         notes: `Empresa importada de ASPEL SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
         created_at: client.fch_ultcom || new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -375,6 +399,12 @@ export const getCompanyById = async (req, res) => {
 
     if (companyError) throw companyError;
 
+    let normalizedStatus = company.status;
+    if (!CRM_STATUSES.includes(normalizedStatus)) {
+      normalizedStatus = 'pendiente_revision';
+    }
+    const companyMapped = { ...company, status: normalizedStatus };
+
     // Get all contacts linked to this company
     const { data: linkedContacts, error: lcError } = await supabase
       .from('contact_companies')
@@ -424,7 +454,7 @@ export const getCompanyById = async (req, res) => {
       }
     }
 
-    res.json({ success: true, company, linkedContacts: mergedContacts });
+    res.json({ success: true, company: companyMapped, linkedContacts: mergedContacts });
   } catch (err) {
     console.error('getCompanyById error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener empresa.' });
@@ -447,6 +477,11 @@ export const createCompany = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre de la empresa es obligatorio.' });
     }
 
+    let finalStatus = status || 'pendiente_revision';
+    if (!CRM_STATUSES.includes(finalStatus)) {
+      finalStatus = 'pendiente_revision';
+    }
+
     const insertPayload = {
       name, alias, type, rfc, address, city, state, maps_url, website, industry,
       phone_main, phone_purchases, phone_payments,
@@ -454,7 +489,7 @@ export const createCompany = async (req, res) => {
       contact_main: contact_main || null,
       contact_purchases: contact_purchases || null,
       contact_payments: contact_payments || null,
-      status: status || 'activo',
+      status: finalStatus,
       notes,
       created_by: userId
     };
@@ -518,6 +553,11 @@ export const updateCompany = async (req, res) => {
         });
       }
 
+      let finalStatus = status;
+      if (finalStatus && !CRM_STATUSES.includes(finalStatus)) {
+        finalStatus = 'pendiente_revision';
+      }
+
       if (matchedCo) {
         const { data, error } = await supabase
           .from('companies')
@@ -541,7 +581,7 @@ export const updateCompany = async (req, res) => {
             contact_main: contact_main || null,
             contact_purchases: contact_purchases || null,
             contact_payments: contact_payments || null,
-            status,
+            status: finalStatus || matchedCo.status || 'pendiente_revision',
             notes: notesPayload,
             updated_at: new Date().toISOString()
           })
@@ -571,7 +611,7 @@ export const updateCompany = async (req, res) => {
           contact_main: contact_main || null,
           contact_purchases: contact_purchases || null,
           contact_payments: contact_payments || null,
-          status: status || 'activo',
+          status: finalStatus || 'pendiente_revision',
           notes: notesPayload,
           created_by: userId
         };
@@ -590,32 +630,42 @@ export const updateCompany = async (req, res) => {
         res.json({ success: true, company: { ...data[0], id } });
       }
     } else {
+      let finalStatus = status;
+      if (finalStatus && !CRM_STATUSES.includes(finalStatus)) {
+        finalStatus = 'pendiente_revision';
+      }
+
+      const updatePayload = {
+        name,
+        alias,
+        type,
+        rfc,
+        address,
+        city,
+        state,
+        maps_url,
+        website,
+        industry,
+        phone_main,
+        phone_purchases,
+        phone_payments,
+        email_main,
+        email_purchases,
+        email_payments,
+        contact_main: contact_main || null,
+        contact_purchases: contact_purchases || null,
+        contact_payments: contact_payments || null,
+        notes,
+        updated_at: new Date().toISOString()
+      };
+
+      if (finalStatus) {
+        updatePayload.status = finalStatus;
+      }
+
       const { data, error } = await supabase
         .from('companies')
-        .update({
-          name,
-          alias,
-          type,
-          rfc,
-          address,
-          city,
-          state,
-          maps_url,
-          website,
-          industry,
-          phone_main,
-          phone_purchases,
-          phone_payments,
-          email_main,
-          email_purchases,
-          email_payments,
-          contact_main: contact_main || null,
-          contact_purchases: contact_purchases || null,
-          contact_payments: contact_payments || null,
-          status,
-          notes,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', id)
         .select();
 

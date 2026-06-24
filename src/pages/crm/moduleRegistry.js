@@ -20,12 +20,19 @@
  *             Usado por useCrmData para lazy-loading inteligente
  */
 export const MODULE_REGISTRY = {
-  leads: {
-    key: 'leads',
-    label: 'Leads',
-    icon: 'fa-envelope-open-text',
+  inicio: {
+    key: 'inicio',
+    label: 'Inicio',
+    icon: 'fa-home',
+    category: 'analytics',
+    needsData: [],
+  },
+  ventas: {
+    key: 'ventas',
+    label: 'Ventas',
+    icon: 'fa-handshake',
     category: 'sales',
-    needsData: ['leads', 'sellers'],
+    needsData: ['leads', 'sellers', 'opportunities'],
   },
   dashboard: {
     key: 'dashboard',
@@ -72,28 +79,7 @@ export const MODULE_REGISTRY = {
     needsData: [],
   },
 
-  pipeline: {
-    key: 'pipeline',
-    label: 'Etapas',
-    icon: 'fa-columns',
-    category: 'sales',
-    needsData: ['opportunities'],
-  },
-  quotes: {
-    key: 'quotes',
-    label: 'Cotizador',
-    icon: 'fa-calculator',
-    category: 'sales',
-    badge: 'NEW',
-    needsData: ['customers', 'opportunities', 'profile'],
-  },
-  'quotes-manager': {
-    key: 'quotes-manager',
-    label: 'Cotizaciones',
-    icon: 'fa-receipt',
-    category: 'sales',
-    needsData: [],
-  },
+
   customers: {
     key: 'customers',
     label: 'Clientes',
@@ -123,16 +109,10 @@ export const MODULE_REGISTRY = {
     badge: 'LIVE',
     needsData: [],
   },
-  profile: {
-    key: 'profile',
-    label: 'Mi Perfil',
-    icon: 'fa-id-card',
-    category: 'system',
-    needsData: ['profile'],
-  },
+
   orphans: {
     key: 'orphans',
-    label: 'Leads Huérfanos',
+    label: 'Negociaciones Huérfanas',
     icon: 'fa-unlink',
     category: 'admin',
     needsData: ['leads'],
@@ -188,17 +168,16 @@ export const ROLE_DEFAULTS = {
     'dashboard', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
   ],
   admin: [
-    'dashboard', 'directory', 'personal-agenda', 'leads',
-    'pipeline', 'quotes', 'quotes-manager',
-    'obras', 'files', 'archive-contacts', 'notifications', 'profile',
+    'inicio', 'dashboard', 'directory', 'personal-agenda', 'ventas',
+    'quotes', 'obras', 'files', 'archive-contacts', 'notifications', 'profile',
     'orphans', 'sellers',
   ],
   supervisor: [
-    'dashboard', 'directory', 'personal-agenda', 'leads',
-    'pipeline', 'quotes-manager', 'obras', 'notifications', 'profile', 'sellers',
+    'inicio', 'dashboard', 'directory', 'personal-agenda', 'ventas',
+    'obras', 'notifications', 'profile', 'sellers',
   ],
   sales: [
-    'leads', 'pipeline', 'directory', 'personal-agenda', 'quotes', 'quotes-manager',
+    'inicio', 'ventas', 'directory', 'personal-agenda', 'quotes',
     'files', 'archive-contacts', 'profile',
   ],
   sistemas: [
@@ -213,9 +192,9 @@ export const ROLE_DEFAULTS = {
  */
 export const DEFAULT_TAB_BY_ROLE = {
   super_admin: 'dashboard',
-  admin: 'dashboard',
-  supervisor: 'dashboard',
-  sales: 'leads',
+  admin: 'inicio',
+  supervisor: 'inicio',
+  sales: 'inicio',
   sistemas: 'files',
 };
 

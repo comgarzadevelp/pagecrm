@@ -2,7 +2,7 @@
 
 .crm-modal-overlay {
   display: flex !important;
-  align-items: flex-start !important;
+  align-items: center !important;
   justify-content: center !important;
   position: fixed !important;
   top: 0 !important;
@@ -24,7 +24,7 @@
   flex-direction: column !important;
   width: 100% !important;
   max-height: 92vh !important;
-  margin: auto !important;
+  margin: 0 !important;
   background: #ffffff !important;
   border-radius: 16px !important;
   padding: 2rem !important;

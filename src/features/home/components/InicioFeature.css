@@ -1,0 +1,171 @@
+.inicio-panel-container {
+  padding: 1.25rem;
+  max-width: 1350px;
+  margin: 0 auto;
+  min-height: auto;
+  box-sizing: border-box;
+}
+
+.inicio-header {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1.25rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(212, 163, 89, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.inicio-title {
+  font-family: var(--font-primary, 'Outfit');
+  font-size: 1.5rem;
+  color: var(--color-brand-primary, #05393a);
+  margin: 0 0 0.25rem 0;
+  font-weight: 800;
+}
+
+.inicio-subtitle {
+  font-family: var(--font-secondary, 'Inter');
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 0;
+}
+
+.inicio-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 1024px) {
+  .inicio-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+.inicio-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.15rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 8px 20px -5px rgba(0, 0, 0, 0.05);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.inicio-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 28px -5px rgba(0, 0, 0, 0.08);
+  border-color: rgba(212, 163, 89, 0.4);
+}
+
+.card-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.card-title {
+  font-family: var(--font-primary, 'Outfit');
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-dark, #1e293b);
+  margin: 0 0 0.4rem 0;
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
+}
+
+.card-description {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 0 0 1rem 0;
+  line-height: 1.4;
+  flex-grow: 1;
+}
+
+.card-use-case {
+  background: #f8fafc;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 1rem;
+  border-left: 3px solid var(--color-brand-accent, #e0922b);
+}
+
+.card-use-case h4 {
+  margin: 0 0 0.4rem 0;
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: var(--color-brand-primary, #05393a);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.card-use-case ul {
+  margin: 0;
+  padding-left: 1rem;
+  font-size: 0.725rem;
+  color: #475569;
+  line-height: 1.35;
+}
+
+.card-use-case li {
+  margin-bottom: 0.25rem;
+}
+
+.card-use-case li:last-child {
+  margin-bottom: 0;
+}
+
+.card-btn {
+  padding: 0.6rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.825rem;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+  text-align: center;
+  width: 100%;
+}
+
+.btn-primary {
+  background: var(--color-brand-primary, #05393a);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #042d2e;
+}
+
+.btn-secondary {
+  background: #f1f5f9;
+  color: var(--color-text-dark, #1e293b);
+  border: 1px solid #e2e8f0;
+}
+
+.btn-secondary:hover {
+  background: #e2e8f0;
+}
+
+/* Animations */
+.fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

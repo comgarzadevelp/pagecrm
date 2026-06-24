@@ -18,8 +18,14 @@ npm run build
 Write-Host "`n[2/4] Subiendo Frontend (dist/) al VPS..." -ForegroundColor Yellow
 # Limpiar todo el dist anterior para evitar acumulación de archivos basura de builds viejas
 ssh $ServerDest "rm -rf /var/www/garza_crm_page/frontend/dist/*"
-# Subir todo el contenido de la carpeta dist/
-scp -r dist/* "${ServerDest}:/var/www/garza_crm_page/frontend/dist/"
+# Subir carpeta dist/ completa con rsync-style (-r sin glob) para garantizar subdirectorios
+# Usamos el folder completo con trailing slash para copiar solo el contenido
+Get-ChildItem -Path dist | ForEach-Object {
+    scp -r $_.FullName "${ServerDest}:/var/www/garza_crm_page/frontend/dist/"
+}
+Write-Host "   Verificando assets en servidor..." -ForegroundColor Gray
+$assetCount = ssh $ServerDest "ls /var/www/garza_crm_page/frontend/dist/assets/*.js 2>/dev/null | wc -l"
+Write-Host "   Assets JS encontrados en servidor: $assetCount" -ForegroundColor Gray
 
 # 3. Desplegar Backend al VPS
 Write-Host "`n[3/4] Subiendo Backend al VPS..." -ForegroundColor Yellow

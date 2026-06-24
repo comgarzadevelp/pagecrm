@@ -35,7 +35,7 @@ export const searchContacts = async (req, res) => {
 
     const { data, error } = await supabase
       .from('contacts')
-      .select('id, name, phone, email, position')
+      .select('id, name, phone, email, position, contact_type')
       .ilike('name', `%${q}%`)
       .limit(10);
 
@@ -63,7 +63,7 @@ export const getContacts = async (req, res) => {
     let query = supabase
       .from('contacts')
       .select(`
-        id, name, position, email, phone, phone_alt, whatsapp,
+        id, name, position, contact_type, email, phone, phone_alt, whatsapp,
         notes, avatar_url, created_at, updated_at,
         created_by (id, name),
         contact_companies (
@@ -137,6 +137,7 @@ export const getContacts = async (req, res) => {
               id: saeContactId,
               name: contact.nombre ? contact.nombre.trim() : 'Contacto SAE',
               position: 'Representante Autorizado / Compras',
+              contact_type: 'oficina',
               email: cleanedEmail,
               phone: contact.telefono ? contact.telefono.trim() : '',
               phone_alt: '',
@@ -233,7 +234,7 @@ export const getContactById = async (req, res) => {
     const { data, error } = await supabase
       .from('contacts')
       .select(`
-        id, name, position, email, phone, phone_alt, whatsapp,
+        id, name, position, contact_type, email, phone, phone_alt, whatsapp,
         notes, avatar_url, created_at, updated_at,
         created_by (id, name),
         contact_companies (
@@ -260,13 +261,13 @@ export const createContact = async (req, res) => {
     const userId = req.user?.userId;
     const companyId = req.user?.companyId;
     const createdBy = req.user?.name || 'Un ejecutivo';
-    const { name, position, email, phone, phone_alt, whatsapp, notes } = req.body;
+    const { name, position, contact_type, email, phone, phone_alt, whatsapp, notes } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre del contacto es obligatorio.' });
     }
 
-    const insertPayload = { name, position, email, phone, phone_alt, whatsapp, notes, created_by: userId };
+    const insertPayload = { name, position, contact_type: contact_type || 'oficina', email, phone, phone_alt, whatsapp, notes, created_by: userId };
 
     // Tag contact to the user's company for proper multi-tenant isolation
     if (companyId && !String(companyId).startsWith('company-')) {
@@ -301,11 +302,62 @@ export const updateContact = async (req, res) => {
   const companyId = req.user?.companyId;
   const updatedBy = req.user?.name || 'Un ejecutivo';
   try {
-    const { name, position, email, phone, phone_alt, whatsapp, notes } = req.body;
+    const { name, position, contact_type, email, phone, phone_alt, whatsapp, notes, original_sae_id, sae_company_id } = req.body;
 
+    const isSae = id.startsWith('sae-contact-') || original_sae_id;
+
+    if (isSae) {
+      // 1. Create native CRM contact
+      const { data: newContact, error: insertError } = await supabase
+        .from('contacts')
+        .insert({
+          name, position, contact_type, email, phone, phone_alt, whatsapp, notes,
+          created_by: req.user?.userId || null
+        })
+        .select()
+        .single();
+        
+      if (insertError) throw insertError;
+
+      // 2. Link to SAE company
+      if (sae_company_id) {
+        await supabase.from('contact_companies').insert({
+          contact_id: newContact.id,
+          company_id: sae_company_id,
+          role: position || 'Contacto'
+        });
+      }
+
+      // 3. Archive the original SAE contact
+      const saeIdToArchive = id.startsWith('sae-contact-') ? id : original_sae_id;
+      await supabase.from('archived_contacts').upsert([{
+        sae_id: saeIdToArchive,
+        cve_clie: sae_company_id ? sae_company_id.replace('sae-', '') : 'N/A',
+        name: name || 'Contacto SAE',
+        position: position || '',
+        email: email || '',
+        phone: phone || '',
+        whatsapp: whatsapp || '',
+        notes: 'Convertido a contacto nativo del CRM',
+        archived_by: req.user?.userId || null,
+        archived_at: new Date().toISOString()
+      }], { onConflict: 'sae_id' });
+
+      // Notify Super Admins
+      await notifySuperAdmins(
+        companyId,
+        'Contacto SAE Convertido ✏️',
+        `El ejecutivo ${updatedBy} ha clasificado y convertido el contacto SAE "${name}".`,
+        'info'
+      );
+
+      return res.json({ success: true, contact: newContact });
+    }
+
+    // Normal update for existing CRM contact
     const { data, error } = await supabase
       .from('contacts')
-      .update({ name, position, email, phone, phone_alt, whatsapp, notes, updated_at: new Date().toISOString() })
+      .update({ name, position, contact_type, email, phone, phone_alt, whatsapp, notes, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select();
 

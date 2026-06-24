@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import useDebounce from '../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
@@ -530,14 +531,14 @@ export default function CrearProspectoModal({
     }
   };
 
-  return (
+  return ReactDOM.createPortal(
     <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
       <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', width: '96%' }}>
         <button type="button" className="close-modal-btn" onClick={onClose}>&times;</button>
         <div className="modal-header">
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-brand-primary, #05393a)', margin: 0 }}>Registrar Nuevo Prospecto</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-brand-primary, #05393a)', margin: 0 }}>Registrar Nueva Negociación</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0' }}>
-            Sigue el flujo: Selecciona la empresa, luego la obra, y finalmente el contacto.
+            Vincula este trato comercial a una empresa o contacto existente, o créalos sobre la marcha.
           </p>
         </div>
         
@@ -921,7 +922,8 @@ export default function CrearProspectoModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

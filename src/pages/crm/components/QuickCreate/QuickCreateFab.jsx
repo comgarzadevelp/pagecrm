@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import QuickNewProspect from './QuickNewProspect';
-import QuickNewNote from './QuickNewNote';
+import CrearProspectoModal from '../CrearProspectoModal';
+import RegistrarClienteModal from '../RegistrarClienteModal';
+import EmpresaFormModal from '../../../../features/directory/components/EmpresaFormModal';
+import ContactoFormModal from '../../../../features/directory/components/ContactoFormModal';
 import './QuickCreateFab.css';
 
 export default function QuickCreateFab({
@@ -16,7 +18,7 @@ export default function QuickCreateFab({
   customers = []
 }) {
   const [showSheet, setShowSheet] = useState(false);
-  const [activeModal, setActiveModal] = useState(null); // null | 'prospect' | 'note'
+  const [activeModal, setActiveModal] = useState(null); // null | 'prospect' | 'client' | 'company' | 'contact'
 
   // Controlar visibilidad de opciones por enabledModules del rol activo
   const hasQuotes = enabledModules.includes('quotes');
@@ -25,6 +27,11 @@ export default function QuickCreateFab({
   if (role === 'super_admin' || role === 'sistemas') {
     return null;
   }
+
+  const handleRefetch = () => {
+    if (fetchCustomers) fetchCustomers();
+    if (fetchOpportunitiesList) fetchOpportunitiesList();
+  };
 
   return (
     <>
@@ -49,7 +56,7 @@ export default function QuickCreateFab({
             <h3 className="quick-create-title">Creación Rápida</h3>
 
             <div className="quick-create-options-grid">
-              {/* Opción Cotización (Redirección directa al cotizador completo) */}
+              {/* Opción Cotización */}
               {hasQuotes && (
                 <button
                   type="button"
@@ -78,24 +85,54 @@ export default function QuickCreateFab({
                 }}
               >
                 <div className="icon-box-fab">
-                  <i className="fas fa-user-tie"></i>
+                  <i className="fas fa-handshake"></i> {/* Changed icon to handshake */}
                 </div>
-                <span>Nueva petición de lead</span>
+                <span>Nueva Negociación</span>
               </button>
 
-              {/* Opción Nota Rápida (Abierto para todos los usuarios autenticados) */}
+              {/* Opción Cliente */}
               <button
                 type="button"
-                className="quick-create-option-btn note"
+                className="quick-create-option-btn client"
                 onClick={() => {
-                  setActiveModal('note');
+                  setActiveModal('client');
                   setShowSheet(false);
                 }}
               >
                 <div className="icon-box-fab">
-                  <i className="fas fa-sticky-note"></i>
+                  <i className="fas fa-building-user"></i>
                 </div>
-                <span>Nota Rápida</span>
+                <span>Nuevo Cliente</span>
+              </button>
+
+              {/* Opción Empresa */}
+              <button
+                type="button"
+                className="quick-create-option-btn company"
+                onClick={() => {
+                  setActiveModal('company');
+                  setShowSheet(false);
+                }}
+              >
+                <div className="icon-box-fab">
+                  <i className="fas fa-industry"></i>
+                </div>
+                <span>Nueva Empresa</span>
+              </button>
+
+              {/* Opción Contacto */}
+              <button
+                type="button"
+                className="quick-create-option-btn contact"
+                onClick={() => {
+                  setActiveModal('contact');
+                  setShowSheet(false);
+                }}
+              >
+                <div className="icon-box-fab">
+                  <i className="fas fa-address-book"></i>
+                </div>
+                <span>Nuevo Contacto</span>
               </button>
             </div>
           </div>
@@ -104,19 +141,39 @@ export default function QuickCreateFab({
 
       {/* Modales Fullscreen Condicionales */}
       {activeModal === 'prospect' && (
-        <QuickNewProspect
+        <CrearProspectoModal
+          isOpen={true}
           API_BASE={API_BASE}
           onClose={() => setActiveModal(null)}
+          onSuccess={handleRefetch}
         />
       )}
 
-      {activeModal === 'note' && (
-        <QuickNewNote
+      {activeModal === 'client' && (
+        <RegistrarClienteModal
+          isOpen={true}
           API_BASE={API_BASE}
           onClose={() => setActiveModal(null)}
-          customers={customers}
-          userName={userName}
-          role={role}
+          onSuccess={handleRefetch}
+        />
+      )}
+
+      {activeModal === 'company' && (
+        <EmpresaFormModal
+          editMode={false}
+          API_BASE={API_BASE}
+          onClose={() => setActiveModal(null)}
+          refetch={handleRefetch}
+        />
+      )}
+
+      {activeModal === 'contact' && (
+        <ContactoFormModal
+          editMode={false}
+          API_BASE={API_BASE}
+          onClose={() => setActiveModal(null)}
+          refetch={handleRefetch}
+          token={() => localStorage.getItem('token')}
         />
       )}
     </>

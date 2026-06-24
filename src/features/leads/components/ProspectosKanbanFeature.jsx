@@ -1027,11 +1027,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {/* ── HEADER ── */}
       <div className="kanban-header-section">
         <div className="kanban-title-group">
-          <h1>Etapas de Prospección</h1>
-          <p>Organiza visualmente tus prospectos en el embudo comercial</p>
+          <h1>Embudo de Ventas</h1>
+          <p>Organiza visualmente tus negociaciones en el embudo comercial</p>
         </div>
         <button className="new-lead-btn" onClick={() => { setCreateLeadInitialNotes(''); setCreateModalOpen(true); }}>
-          <i className="fas fa-plus"></i> Nuevo Prospecto
+          <i className="fas fa-plus"></i> Nueva Negociación
         </button>
       </div>
 
@@ -1072,7 +1072,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                 style={{ padding: '0.65rem 1rem', cursor: 'pointer', appearance: 'none', paddingRight: '2rem' }}
               >
                 <option value="all">Todos los vendedores</option>
-                <option value="mine">Mis prospectos</option>
+                <option value="mine">Mis negociaciones</option>
                 {sellers.map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
@@ -1276,9 +1276,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                         parsedNotes.general = lead.notes || '';
                       }
 
-                      const displayTitle = parsedNotes.requirement_title
-                        ? `🏗️ ${parsedNotes.project_name || 'Obra no especificada'} - ${parsedNotes.requirement_title}`
-                        : `🏗️ Requerimiento - ${lead.name || 'Prospecto'}`;
+                      const requirementText = parsedNotes.requirement_title || 'Sin requerimiento';
+                      const projectText = parsedNotes.project_name || 'Obra no especificada';
 
                       return (
                         <div
@@ -1303,20 +1302,27 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             </button>
                           </div>
 
-                          <h3 className="card-lead-name" style={{ fontWeight: 800 }}>{displayTitle}</h3>
+                          <h3 className="card-lead-name" style={{ fontWeight: 800 }}>
+                            <i className="fas fa-bullseye" style={{ marginRight: '6px', color: 'var(--color-brand-primary)' }}></i>
+                            {requirementText}
+                          </h3>
 
-                          <div className="card-entity-details">
+                          <div className="card-entity-details" style={{ marginTop: '8px' }}>
+                            <p className="card-info-item" style={{ fontWeight: 600, color: '#334155' }}>
+                              <i className="fas fa-hard-hat" style={{ color: '#f59e0b' }}></i>
+                              <span>{projectText}</span>
+                            </p>
                             <p className="card-company-name">
-                              <i className="fas fa-building"></i>
-                              <span>Empresa: {lead.company || 'Sin especificar'}</span>
+                              <i className="fas fa-building" style={{ color: '#64748b' }}></i>
+                              <span>{lead.company || 'Sin empresa'}</span>
                             </p>
                             <p className="card-info-item">
-                              <i className="fas fa-user"></i>
-                              <span>Contacto: {lead.name || 'Anónimo'}</span>
+                              <i className="fas fa-user" style={{ color: '#64748b' }}></i>
+                              <span>{lead.name || 'Anónimo'}</span>
                             </p>
                             {parsedNotes.general && (
                               <p className="card-note-preview">
-                                <i className="fas fa-sticky-note"></i>
+                                <i className="fas fa-sticky-note" style={{ color: '#94a3b8' }}></i>
                                 <span>{parsedNotes.general}</span>
                               </p>
                             )}

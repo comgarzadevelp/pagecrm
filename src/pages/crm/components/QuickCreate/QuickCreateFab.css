@@ -118,8 +118,9 @@
 /* Grid de opciones rápidas (se ajusta dinámicamente centrado) */
 .quick-create-options-grid {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 16px;
+  gap: 12px;
   width: 100%;
   margin-bottom: 0.5rem;
 }
@@ -128,13 +129,13 @@
   background-color: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
-  padding: 1.15rem 0.5rem;
+  padding: 1rem 0.25rem;
   display: flex;
-  flex: 1;
+  flex: 0 0 calc(33.333% - 8px); /* 3 items per row approx */
   max-width: 110px;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -143,10 +144,12 @@
 }
 
 .quick-create-option-btn span {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: #334155;
-  line-height: 1.25;
+  line-height: 1.15;
+  word-wrap: break-word;
+  padding: 0 2px;
 }
 
 /* Colores e iconos de las opciones */
@@ -185,12 +188,29 @@
   color: #ffffff;
 }
 
-
-.quick-create-option-btn.note .icon-box-fab {
-  background-color: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
+.quick-create-option-btn.client .icon-box-fab {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: #10b981; /* emerald-500 */
 }
-.quick-create-option-btn.note:active .icon-box-fab {
+.quick-create-option-btn.client:active .icon-box-fab {
+  background-color: #10b981;
+  color: #ffffff;
+}
+
+.quick-create-option-btn.company .icon-box-fab {
+  background-color: rgba(59, 130, 246, 0.1);
+  color: #3b82f6; /* blue-500 */
+}
+.quick-create-option-btn.company:active .icon-box-fab {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.quick-create-option-btn.contact .icon-box-fab {
+  background-color: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6; /* violet-500 */
+}
+.quick-create-option-btn.contact:active .icon-box-fab {
   background-color: #8b5cf6;
   color: #ffffff;
 }

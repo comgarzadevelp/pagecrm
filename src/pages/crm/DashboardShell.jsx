@@ -326,6 +326,8 @@ const DashboardShell = ({
   const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
   const showGlobalStatsGrid =
+    activeTab !== 'ventas' &&
+    activeTab !== 'inicio' &&
     activeTab !== 'leads' &&
     activeTab !== 'pipeline' &&
     activeTab !== 'quotes' &&
@@ -421,7 +423,14 @@ const DashboardShell = ({
         </nav>
 
         <div className="crm-sidebar-footer">
-          <div className="crm-sidebar-user" data-tooltip={`${userName || formatRoleLabel(role)} (${formatRoleLabel(role)})`}>
+          <div 
+            className="crm-sidebar-user" 
+            data-tooltip={`${userName || formatRoleLabel(role)} (${formatRoleLabel(role)}) - Ver Perfil`}
+            onClick={() => setActiveTab('profile')}
+            style={{ cursor: 'pointer', transition: 'background 0.2s ease', borderRadius: '12px' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          >
             <div className="user-avatar" style={{ overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {currentUserProfile?.avatar_url ? (
                 <img

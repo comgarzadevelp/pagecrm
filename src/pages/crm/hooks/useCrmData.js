@@ -61,7 +61,7 @@ export function useCrmData(role, enabledModules = []) {
 
   // 1. Fetch leads API
   const fetchLeads = async (silent = false) => {
-    if (!enabledModules.includes('leads') && !enabledModules.includes('orphans')) return;
+    if (!enabledModules.includes('leads') && !enabledModules.includes('ventas') && !enabledModules.includes('orphans')) return;
     if (!silent) setLoading(true);
     setError('');
     const token = localStorage.getItem('token');
@@ -110,7 +110,7 @@ export function useCrmData(role, enabledModules = []) {
 
   // 2. Fetch sellers
   const fetchSellers = async () => {
-    if (!enabledModules.includes('sellers') && !enabledModules.includes('leads')) return;
+    if (!enabledModules.includes('sellers') && !enabledModules.includes('leads') && !enabledModules.includes('ventas')) return;
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/crm/sellers`, {
@@ -199,7 +199,7 @@ export function useCrmData(role, enabledModules = []) {
 
   // 6. Fetch opportunities
   const fetchOpportunitiesList = async () => {
-    if (!enabledModules.includes('pipeline') && !enabledModules.includes('quotes')) return;
+    if (!enabledModules.includes('pipeline') && !enabledModules.includes('ventas') && !enabledModules.includes('quotes')) return;
     const token = localStorage.getItem('token');
     if (!token) return;
     try {
@@ -338,7 +338,7 @@ export function useCrmData(role, enabledModules = []) {
     fetchProfile();
     
     // Si no se especifica tab o es 'leads', refrescar prospectos
-    if (!currentTab || currentTab === 'leads') {
+    if (!currentTab || currentTab === 'leads' || currentTab === 'ventas') {
       fetchLeads(silent);
     }
     // Si es 'customers' o 'contacts' o 'companies' o 'directory', refrescar directorio y clientes
@@ -346,7 +346,7 @@ export function useCrmData(role, enabledModules = []) {
       fetchCustomers(silent);
     }
     // Si es 'pipeline' o 'quotes', refrescar oportunidades
-    if (!currentTab || currentTab === 'pipeline' || currentTab === 'quotes' || currentTab === 'quotes-manager') {
+    if (!currentTab || currentTab === 'pipeline' || currentTab === 'ventas' || currentTab === 'quotes' || currentTab === 'quotes-manager') {
       fetchOpportunitiesList();
     }
     

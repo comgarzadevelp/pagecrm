@@ -1,4 +1,12 @@
 import { supabase, saeSupabase } from '../supabaseClient.js';
+import { computeDataQuality } from '../utils/dataQuality.js';
+
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
 
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
@@ -70,7 +78,7 @@ export const getContacts = async (req, res) => {
           role,
           status,
           fecha_hasta,
-          company:companies (id, name, type, industry)
+          company:companies (id, name, type, industry, status)
         ),
         obra_contacts (
           obra:obras (id, name, latitude, longitude, evidence_photo_url)
@@ -130,7 +138,7 @@ export const getContacts = async (req, res) => {
           saeContacts = contactsData.map((contact, idx) => {
             const companyInfo = clientMap[contact.cve_clie.trim()] || { name: 'Particular', lista_prec: 1 };
             const contactEmail = contact.email ? contact.email.trim() : '';
-            const cleanedEmail = (contactEmail.toUpperCase() === 'S' || contactEmail.toUpperCase() === 'S/D' || contactEmail.trim() === '') ? '' : contactEmail;
+            const cleanedEmail = contactEmail;
             const saeContactId = `sae-contact-${contact.cve_clie.trim()}-${idx + 1}`;
             
             return {
@@ -165,8 +173,9 @@ export const getContacts = async (req, res) => {
       }
     }
 
-    // Merge lists
-    const merged = [...crmContacts.filter(c => !archivedIds.has(c.id)), ...saeContacts];
+    // Merge lists + inyectar score de calidad
+    const merged = [...crmContacts.filter(c => !archivedIds.has(c.id)), ...saeContacts]
+      .map(ct => ({ ...ct, data_quality: computeDataQuality(ct, 'contact') }));
 
     res.json({ success: true, contacts: merged });
   } catch (err) {
@@ -227,6 +236,24 @@ export const archiveContact = async (req, res) => {
   }
 };
 
+// DELETE /api/crm/contacts/:id/unarchive
+export const unarchiveContact = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { error } = await supabase
+      .from('archived_contacts')
+      .delete()
+      .eq('sae_id', id);
+
+    if (error) throw error;
+    
+    res.json({ success: true, message: 'Contacto recuperado exitosamente.' });
+  } catch (err) {
+    console.error('unarchiveContact error:', err);
+    res.status(500).json({ success: false, message: 'Error al recuperar contacto.' });
+  }
+};
+
 // GET /api/crm/contacts/:id
 export const getContactById = async (req, res) => {
   const { id } = req.params;
@@ -267,6 +294,10 @@ export const createContact = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre del contacto es obligatorio.' });
     }
 
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    }
+
     const insertPayload = { name, position, contact_type: contact_type || 'oficina', email, phone, phone_alt, whatsapp, notes, created_by: userId };
 
     // Tag contact to the user's company for proper multi-tenant isolation
@@ -303,6 +334,10 @@ export const updateContact = async (req, res) => {
   const updatedBy = req.user?.name || 'Un ejecutivo';
   try {
     const { name, position, contact_type, email, phone, phone_alt, whatsapp, notes, original_sae_id, sae_company_id } = req.body;
+
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    }
 
     const isSae = id.startsWith('sae-contact-') || original_sae_id;
 
@@ -424,13 +459,210 @@ export const deleteContact = async (req, res) => {
 export const linkContactToCompany = async (req, res) => {
   const { id: contact_id } = req.params;
   const { company_id, role } = req.body;
+  const userId = req.user?.userId;
+  const userCompanyId = req.user?.companyId;
+
   try {
+    let resolvedContactId = contact_id;
+    let resolvedCompanyId = company_id;
+
+    // 1. Resolver contacto si es de SAE
+    if (contact_id && String(contact_id).startsWith('sae-contact-')) {
+      const parts = String(contact_id).split('-');
+      const saeClave = parts.slice(2, parts.length - 1).join('-');
+      const indexStr = parts[parts.length - 1];
+      const indexVal = parseInt(indexStr) - 1;
+
+      if (saeClave) {
+        const { data: saeConts } = await saeSupabase
+          .from('contac03')
+          .select('nombre, telefono, email')
+          .eq('cve_clie', saeClave)
+          .eq('status', 'A');
+
+        const saeCont = (saeConts && saeConts.length > indexVal) ? saeConts[indexVal] : (saeConts && saeConts.length > 0 ? saeConts[0] : null);
+
+        if (saeCont) {
+          const cleanName = saeCont.nombre ? saeCont.nombre.trim() : 'Contacto SAE';
+          const cleanPhone = saeCont.telefono ? saeCont.telefono.trim() : '';
+          const cleanEmail = saeCont.email ? saeCont.email.trim() : '';
+
+          let existingContact = null;
+          if (cleanPhone) {
+            const { data } = await supabase
+              .from('contacts')
+              .select('id')
+              .eq('phone', cleanPhone)
+              .maybeSingle();
+            existingContact = data;
+          }
+          if (!existingContact && cleanName) {
+            const { data } = await supabase
+              .from('contacts')
+              .select('id')
+              .ilike('name', cleanName)
+              .maybeSingle();
+            existingContact = data;
+          }
+
+          if (existingContact) {
+            resolvedContactId = existingContact.id;
+          } else {
+            const { data: newCont, error: contErr } = await supabase
+              .from('contacts')
+              .insert([{
+                name: cleanName,
+                phone: cleanPhone,
+                email: cleanEmail,
+                position: 'Representante Autorizado',
+                contact_type: 'oficina',
+                created_by: userId,
+                notes: `Importado automáticamente al vincular desde SAE.`
+              }])
+              .select('id')
+              .single();
+
+            if (contErr) throw contErr;
+            if (newCont) {
+              resolvedContactId = newCont.id;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Resolver empresa si es de SAE
+    if (company_id && String(company_id).startsWith('sae-')) {
+      const saeClave = String(company_id).replace('sae-', '').trim();
+      const { data: existingCos } = await supabase
+        .from('companies')
+        .select('id')
+        .like('notes', `%"sae_clave":"${saeClave}"%`)
+        .limit(1);
+
+      if (existingCos && existingCos.length > 0) {
+        resolvedCompanyId = existingCos[0].id;
+      } else {
+        const isGarza = req.user?.companyCode === 'GARZA';
+        if (isGarza) {
+          const { data: client } = await saeSupabase
+            .from('clie03')
+            .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
+            .eq('clave', saeClave)
+            .maybeSingle();
+
+          if (client) {
+            const name = client.nombre ? client.nombre.trim() : 'Empresa SAE';
+            const alias = client.nombrecomercial ? client.nombrecomercial.trim() : name;
+            
+            const notesPayload = JSON.stringify({
+              general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
+              sae_clave: saeClave,
+              timeline: []
+            });
+
+            const { data: newCo, error: insertErr } = await supabase
+              .from('companies')
+              .insert([{
+                name,
+                alias,
+                type: 'cliente',
+                rfc: client.rfc ? client.rfc.trim() : '',
+                address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+                city: client.municipio ? client.municipio.trim() : '',
+                state: client.estado ? client.estado.trim() : '',
+                phone_main: client.telefono ? client.telefono.trim() : '',
+                email_main: client.mail ? client.mail.trim() : '',
+                status: 'activa',
+                notes: notesPayload,
+                created_by: userId,
+                company_id: userCompanyId && !String(userCompanyId).startsWith('company-') ? userCompanyId : null
+              }])
+              .select('id')
+              .single();
+
+            if (insertErr) throw insertErr;
+            if (newCo) {
+              resolvedCompanyId = newCo.id;
+            }
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('contact_companies')
-      .upsert([{ contact_id, company_id, role }], { onConflict: 'contact_id,company_id' })
+      .upsert([{ contact_id: resolvedContactId, company_id: resolvedCompanyId, status: 'activo', role }], { onConflict: 'contact_id,company_id' })
       .select();
 
     if (error) throw error;
+
+    // 1. Establecer contact_main en companies si es null
+    const { data: compCheck } = await supabase
+      .from('companies')
+      .select('contact_main, name')
+      .eq('id', resolvedCompanyId)
+      .maybeSingle();
+
+    if (compCheck) {
+      if (!compCheck.contact_main) {
+        await supabase
+          .from('companies')
+          .update({ contact_main: resolvedContactId })
+          .eq('id', resolvedCompanyId);
+      }
+
+      // 2. Sincronizar con el lead (customer crm) correspondiente
+      const { data: contact } = await supabase
+        .from('contacts')
+        .select('phone, email')
+        .eq('id', resolvedContactId)
+        .maybeSingle();
+
+      if (contact) {
+        const { data: leadsToUpdate } = await supabase
+          .from('leads')
+          .select('id, phone, email, notes')
+          .eq('type', 'crm_customer');
+
+        if (leadsToUpdate) {
+          for (const lead of leadsToUpdate) {
+            let matches = false;
+            if (contact.phone && lead.phone && lead.phone.trim() === contact.phone.trim()) matches = true;
+            if (contact.email && lead.email && lead.email.toLowerCase().trim() === contact.email.toLowerCase().trim()) matches = true;
+            
+            if (lead.notes) {
+              try {
+                const parsed = JSON.parse(lead.notes.trim());
+                if (parsed.contact_id && String(parsed.contact_id) === String(resolvedContactId)) matches = true;
+              } catch (e) {}
+            }
+
+            if (matches) {
+              let parsedNotes = {};
+              if (lead.notes) {
+                try {
+                  parsedNotes = JSON.parse(lead.notes.trim());
+                } catch (e) {
+                  parsedNotes = { general: lead.notes };
+                }
+              }
+              parsedNotes.company_id = resolvedCompanyId;
+              parsedNotes.contact_id = resolvedContactId;
+
+              await supabase
+                .from('leads')
+                .update({
+                  company: compCheck.name,
+                  notes: JSON.stringify(parsedNotes)
+                })
+                .eq('id', lead.id);
+            }
+          }
+        }
+      }
+    }
+
     res.status(201).json({ success: true, link: data[0] });
   } catch (err) {
     console.error('linkContactToCompany error:', err);
@@ -453,6 +685,82 @@ export const unlinkContactFromCompany = async (req, res) => {
       .eq('company_id', company_id);
 
     if (error) throw error;
+
+    // 1. Si la empresa tenía a este contacto como contact_main, limpiarlo o reasignarlo
+    const { data: compCheck } = await supabase
+      .from('companies')
+      .select('contact_main')
+      .eq('id', company_id)
+      .maybeSingle();
+
+    if (compCheck && String(compCheck.contact_main) === String(contact_id)) {
+      const { data: activeLinks } = await supabase
+        .from('contact_companies')
+        .select('contact_id')
+        .eq('company_id', company_id)
+        .eq('status', 'activo')
+        .neq('contact_id', contact_id)
+        .limit(1);
+
+      const nextContactId = (activeLinks && activeLinks.length > 0) ? activeLinks[0].contact_id : null;
+      await supabase
+        .from('companies')
+        .update({ contact_main: nextContactId })
+        .eq('id', company_id);
+    }
+
+    // 2. Desvincular en el lead (customer crm) correspondiente
+    const { data: contact } = await supabase
+      .from('contacts')
+      .select('phone, email')
+      .eq('id', contact_id)
+      .maybeSingle();
+
+    if (contact) {
+      const { data: leadsToUpdate } = await supabase
+        .from('leads')
+        .select('id, phone, email, notes')
+        .eq('type', 'crm_customer');
+
+      if (leadsToUpdate) {
+        for (const lead of leadsToUpdate) {
+          let matches = false;
+          if (contact.phone && lead.phone && lead.phone.trim() === contact.phone.trim()) matches = true;
+          if (contact.email && lead.email && lead.email.toLowerCase().trim() === contact.email.toLowerCase().trim()) matches = true;
+          
+          if (lead.notes) {
+            try {
+              const parsed = JSON.parse(lead.notes.trim());
+              if (parsed.contact_id && String(parsed.contact_id) === String(contact_id)) matches = true;
+            } catch (e) {}
+          }
+
+          if (matches) {
+            let parsedNotes = {};
+            if (lead.notes) {
+              try {
+                parsedNotes = JSON.parse(lead.notes.trim());
+              } catch (e) {
+                parsedNotes = { general: lead.notes };
+              }
+            }
+
+            if (parsedNotes.company_id && String(parsedNotes.company_id) === String(company_id)) {
+              parsedNotes.company_id = null;
+
+              await supabase
+                .from('leads')
+                .update({
+                  company: 'Particular',
+                  notes: JSON.stringify(parsedNotes)
+                })
+                .eq('id', lead.id);
+            }
+          }
+        }
+      }
+    }
+
     res.json({ success: true, message: 'Vínculo marcado como inactivo.' });
   } catch (err) {
     console.error('unlinkContactFromCompany error:', err);

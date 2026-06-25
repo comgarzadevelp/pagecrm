@@ -1,5 +1,12 @@
 import { supabase, saeSupabase, cleanCompanyId } from '../supabaseClient.js';
 
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
+
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
   try {
@@ -1953,6 +1960,7 @@ export const getCustomers = async (req, res) => {
         status,
         type,
         company,
+        company_id,
         notes,
         created_at,
         assigned_to (id, name)
@@ -2067,8 +2075,9 @@ export const getCustomers = async (req, res) => {
     // Enriquecer con conteo de oportunidades, última visita y estado de seguimiento automático de forma ultra-eficiente
     try {
       // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads
-      const { data: localCompanies } = await supabase.from('companies').select('id, notes');
-      const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email');
+      const { data: localCompanies } = await supabase.from('companies').select('id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
+      const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email, whatsapp, position, phone_alt, notes');
+      const { data: contactLinks } = await supabase.from('contact_companies').select('contact_id, company_id').eq('status', 'activo');
 
       const companyUuidToSaeClave = {};
       const leadIdByCompanyId = {};
@@ -2102,7 +2111,7 @@ export const getCustomers = async (req, res) => {
 
       const { data: allOpps } = await supabase
         .from('crm_opportunities')
-        .select('id, company_id, contact_id, created_at, updated_at');
+        .select('id, company_id, contact_id, created_at, updated_at, stage');
       
       const { data: allVisits } = await supabase
         .from('crm_visitas')
@@ -2114,12 +2123,32 @@ export const getCustomers = async (req, res) => {
       const lastOppByCompany = {};
       const lastOppByContact = {};
 
+      const wonCountByCompany = {};
+      const wonCountByContact = {};
+      const activeCountByCompany = {};
+      const activeCountByContact = {};
+      const lastWonOppDateByCompany = {};
+      const lastWonOppDateByContact = {};
+
       (allOpps || []).forEach(opp => {
         const oppDate = opp.updated_at || opp.created_at;
+        const stageLower = opp.stage ? opp.stage.toLowerCase().trim() : '';
+        const isWon = stageLower === 'ganado' || stageLower === 'venta_ganada';
+        const isActive = ['nuevo', 'negociando', 'cotizando'].includes(stageLower);
+
         if (opp.company_id) {
           oppsCountByCompany[opp.company_id] = (oppsCountByCompany[opp.company_id] || 0) + 1;
           if (oppDate && (!lastOppByCompany[opp.company_id] || new Date(oppDate) > new Date(lastOppByCompany[opp.company_id]))) {
             lastOppByCompany[opp.company_id] = oppDate;
+          }
+          if (isWon) {
+            wonCountByCompany[opp.company_id] = (wonCountByCompany[opp.company_id] || 0) + 1;
+            if (oppDate && (!lastWonOppDateByCompany[opp.company_id] || new Date(oppDate) > new Date(lastWonOppDateByCompany[opp.company_id]))) {
+              lastWonOppDateByCompany[opp.company_id] = oppDate;
+            }
+          }
+          if (isActive) {
+            activeCountByCompany[opp.company_id] = (activeCountByCompany[opp.company_id] || 0) + 1;
           }
 
           // Mapeo a SAE
@@ -2130,6 +2159,15 @@ export const getCustomers = async (req, res) => {
             if (oppDate && (!lastOppByCompany[saeKey] || new Date(oppDate) > new Date(lastOppByCompany[saeKey]))) {
               lastOppByCompany[saeKey] = oppDate;
             }
+            if (isWon) {
+              wonCountByCompany[saeKey] = (wonCountByCompany[saeKey] || 0) + 1;
+              if (oppDate && (!lastWonOppDateByCompany[saeKey] || new Date(oppDate) > new Date(lastWonOppDateByCompany[saeKey]))) {
+                lastWonOppDateByCompany[saeKey] = oppDate;
+              }
+            }
+            if (isActive) {
+              activeCountByCompany[saeKey] = (activeCountByCompany[saeKey] || 0) + 1;
+            }
           }
 
           // Mapeo a Lead Nativo
@@ -2139,12 +2177,31 @@ export const getCustomers = async (req, res) => {
             if (oppDate && (!lastOppByCompany[leadId] || new Date(oppDate) > new Date(lastOppByCompany[leadId]))) {
               lastOppByCompany[leadId] = oppDate;
             }
+            if (isWon) {
+              wonCountByCompany[leadId] = (wonCountByCompany[leadId] || 0) + 1;
+              if (oppDate && (!lastWonOppDateByCompany[leadId] || new Date(oppDate) > new Date(lastWonOppDateByCompany[leadId]))) {
+                lastWonOppDateByCompany[leadId] = oppDate;
+              }
+            }
+            if (isActive) {
+              activeCountByCompany[leadId] = (activeCountByCompany[leadId] || 0) + 1;
+            }
           }
         }
+
         if (opp.contact_id) {
           oppsCountByContact[opp.contact_id] = (oppsCountByContact[opp.contact_id] || 0) + 1;
           if (oppDate && (!lastOppByContact[opp.contact_id] || new Date(oppDate) > new Date(lastOppByContact[opp.contact_id]))) {
             lastOppByContact[opp.contact_id] = oppDate;
+          }
+          if (isWon) {
+            wonCountByContact[opp.contact_id] = (wonCountByContact[opp.contact_id] || 0) + 1;
+            if (oppDate && (!lastWonOppDateByContact[opp.contact_id] || new Date(oppDate) > new Date(lastWonOppDateByContact[opp.contact_id]))) {
+              lastWonOppDateByContact[opp.contact_id] = oppDate;
+            }
+          }
+          if (isActive) {
+            activeCountByContact[opp.contact_id] = (activeCountByContact[opp.contact_id] || 0) + 1;
           }
 
           // Mapeo a Lead Nativo
@@ -2153,6 +2210,15 @@ export const getCustomers = async (req, res) => {
             oppsCountByContact[leadId] = (oppsCountByContact[leadId] || 0) + 1;
             if (oppDate && (!lastOppByContact[leadId] || new Date(oppDate) > new Date(lastOppByContact[leadId]))) {
               lastOppByContact[leadId] = oppDate;
+            }
+            if (isWon) {
+              wonCountByContact[leadId] = (wonCountByContact[leadId] || 0) + 1;
+              if (oppDate && (!lastWonOppDateByContact[leadId] || new Date(oppDate) > new Date(lastWonOppDateByContact[leadId]))) {
+                lastWonOppDateByContact[leadId] = oppDate;
+              }
+            }
+            if (isActive) {
+              activeCountByContact[leadId] = (activeCountByContact[leadId] || 0) + 1;
             }
           }
         }
@@ -2195,20 +2261,92 @@ export const getCustomers = async (req, res) => {
       for (let i = 0; i < merged.length; i++) {
         const cust = merged[i];
         const isSae = cust.id.startsWith('sae-');
+
+        // Buscar contacto y empresa locales correspondientes para enriquecer
+        let contactId = null;
+        let companyId = null;
+        if (cust.notes) {
+          try {
+            const parsed = JSON.parse(cust.notes.trim());
+            if (parsed && parsed.contact_id) contactId = parsed.contact_id;
+            if (parsed && parsed.company_id) companyId = parsed.company_id;
+          } catch (e) {}
+        }
+
+        let contact = null;
+        if (contactId) {
+          contact = (localContacts || []).find(c => String(c.id) === String(contactId));
+        }
+        if (!contact) {
+          contact = (localContacts || []).find(c => 
+            (c.phone && cust.phone && c.phone.trim() === cust.phone.trim()) ||
+            (c.email && cust.email && c.email.toLowerCase().trim() === cust.email.toLowerCase().trim())
+          );
+        }
+
+        // Fallback: Si el contacto tiene una empresa vinculada en contact_companies
+        if (contact && !companyId) {
+          const activeLink = (contactLinks || []).find(l => String(l.contact_id) === String(contact.id));
+          if (activeLink) {
+            companyId = activeLink.company_id;
+          }
+        }
+
+        let company = null;
+        if (companyId) {
+          company = (localCompanies || []).find(c => String(c.id) === String(companyId));
+        }
+        if (!company && cust.company) {
+          company = (localCompanies || []).find(c => c.name && c.name.toLowerCase().trim() === cust.company.toLowerCase().trim());
+        }
+
+        // Inyectar datos del contacto
+        merged[i].contact_id = contact ? contact.id : null;
+        merged[i].whatsapp = contact ? contact.whatsapp : (isSae ? cust.phone : null);
+        merged[i].position = contact ? contact.position : (isSae ? 'Representante B2B' : null);
+        merged[i].phone_alt = contact ? contact.phone_alt : null;
+        merged[i].contact_notes = contact ? contact.notes : null;
+
+        // Inyectar datos de la empresa
+        if (company) {
+          merged[i].company_id = company.id;
+          merged[i].company = company.name;
+          merged[i].rfc = company.rfc || cust.rfc || '';
+          merged[i].calle = company.address || cust.calle || '';
+          merged[i].municipio = company.city || cust.municipio || '';
+          merged[i].estado = company.state || cust.estado || '';
+          merged[i].company_phone = company.phone_main || '';
+          merged[i].company_email = company.email_main || '';
+        } else {
+          merged[i].company = cust.company || 'Particular';
+          merged[i].rfc = cust.rfc || '';
+          merged[i].calle = cust.calle || '';
+          merged[i].municipio = cust.municipio || '';
+          merged[i].estado = cust.estado || '';
+        }
         
         let oppsCount = 0;
+        let wonCount = 0;
+        let activeCount = 0;
         let lastVisit = null;
         let lastOppDate = null;
+        let lastWonOppDate = null;
         let lastNoteDate = null;
 
         if (isSae) {
           oppsCount = oppsCountByCompany[cust.id] || 0;
+          wonCount = wonCountByCompany[cust.id] || 0;
+          activeCount = activeCountByCompany[cust.id] || 0;
           lastVisit = lastVisitByCompany[cust.id] || null;
           lastOppDate = lastOppByCompany[cust.id] || null;
+          lastWonOppDate = lastWonOppDateByCompany[cust.id] || null;
         } else {
           oppsCount = oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
+          wonCount = wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
+          activeCount = activeCountByContact[cust.id] || activeCountByCompany[cust.id] || 0;
           lastVisit = lastVisitByContact[cust.id] || lastVisitByCompany[cust.id] || null;
           lastOppDate = lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
+          lastWonOppDate = lastWonOppDateByContact[cust.id] || lastWonOppDateByCompany[cust.id] || null;
 
           // Parsear notas para buscar la fecha de la última nota en el timeline
           if (cust.notes) {
@@ -2230,18 +2368,19 @@ export const getCustomers = async (req, res) => {
         }
 
         // Consolidar fechas de actividad para obtener la última fecha de interacción real
-        const dates = [
+        const activityDates = [
           lastVisit,
           lastOppDate,
           lastNoteDate,
           cust.created_at
         ].filter(Boolean).map(d => new Date(d));
 
-        const lastActivityDate = dates.length > 0 ? new Date(Math.max(...dates)).toISOString() : cust.created_at;
+        const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : cust.created_at;
 
-        // Calcular e clasificar el estado de seguimiento: activo (<=15 días), regular (<=30 días), frío (>30 días)
-        const diffTime = Math.abs(new Date() - new Date(lastActivityDate));
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // Calcular días de inactividad
+        const now = new Date();
+        const diffTime = Math.abs(now - new Date(lastActivityDate));
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
         let followupStatus = 'frio';
         if (diffDays <= 15) {
@@ -2250,10 +2389,63 @@ export const getCustomers = async (req, res) => {
           followupStatus = 'regular';
         }
 
+        // Calcular días transcurridos desde la última compra ganada o creación
+        const purchaseAnchor = lastWonOppDate || cust.created_at;
+        const purchaseDiffTime = Math.abs(now - new Date(purchaseAnchor));
+        const daysSinceLastPurchase = Math.floor(purchaseDiffTime / (1000 * 60 * 60 * 24));
+
+        // Clasificación automatizada de Niveles (1 al 5)
+        const statusLower = (cust.status || '').toLowerCase().trim();
+        const isDiscarded = ['inactiva', 'inactivo', 'descartado', 'descartada'].includes(statusLower);
+
+        let nivel = 1;
+        let nivelLabel = 'Prospectos';
+
+        if (isDiscarded) {
+          nivel = 5;
+          nivelLabel = 'Descartados';
+        } else {
+          let baseNivel = 1;
+          if (wonCount >= 3) {
+            baseNivel = 3;
+          } else if (activeCount >= 1) {
+            baseNivel = 2;
+          }
+
+          // Evaluar umbral de inactividad para migración al Nivel 4
+          let isInactive = false;
+          if (baseNivel === 3 && diffDays >= 3) {
+            isInactive = true;
+          } else if (baseNivel === 2 && (diffDays >= 3 || daysSinceLastPurchase >= 30)) {
+            isInactive = true;
+          } else if (baseNivel === 1 && diffDays >= 7) {
+            isInactive = true;
+          }
+
+          if (isInactive) {
+            nivel = 4;
+            nivelLabel = 'Recontactar ahora';
+          } else {
+            nivel = baseNivel;
+            if (nivel === 3) nivelLabel = 'Compradores activos';
+            else if (nivel === 2) nivelLabel = 'En proceso de reactivación';
+            else nivelLabel = 'Prospectos';
+          }
+        }
+
         merged[i].opportunities_count = oppsCount;
         merged[i].last_visit_date = lastVisit;
         merged[i].last_activity_date = lastActivityDate;
         merged[i].followup_status = followupStatus;
+
+        // Inyectar propiedades nuevas del sistema de 5 niveles
+        merged[i].nivel = nivel;
+        merged[i].nivel_label = nivelLabel;
+        merged[i].won_count = wonCount;
+        merged[i].active_count = activeCount;
+        merged[i].diff_days = diffDays;
+        merged[i].days_since_last_purchase = daysSinceLastPurchase;
+        merged[i].last_won_opp_date = lastWonOppDate;
       }
     } catch (enrichErr) {
       console.warn('[Enrich Customers] Error enriching customers list:', enrichErr.message);
@@ -2274,6 +2466,10 @@ export const createCustomer = async (req, res) => {
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre del cliente es obligatorio.' });
+    }
+
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
     }
     if (!companyId) {
       return res.status(401).json({ success: false, message: 'Company ID required' });
@@ -2311,13 +2507,22 @@ export const createCustomer = async (req, res) => {
 export const updateCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, email, phone, company, company_id, notes, status } = req.body;
+    const {
+      name, email, phone, company, company_id, notes, status,
+      position, phone_alt, whatsapp, contact_notes,
+      company_rfc, company_address, company_city, company_state
+    } = req.body;
     const userId = req.user?.userId;
 
-    if (id.startsWith('sae-')) {
-      const saeClave = id.replace('sae-', '').trim();
+    if (email && !isValidEmail(email)) {
+      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    }
 
-      // Find if we already have a record in `leads` that matches this SAE key in its notes JSON
+    // 1. Obtener prospecto/cliente (lead) existente
+    let matchedLead = null;
+    let saeClave = null;
+    if (id.startsWith('sae-')) {
+      saeClave = id.replace('sae-', '').trim();
       const { data: existingLeads, error: fetchErr } = await supabase
         .from('leads')
         .select('*')
@@ -2325,7 +2530,6 @@ export const updateCustomer = async (req, res) => {
 
       if (fetchErr) throw fetchErr;
 
-      let matchedLead = null;
       for (const lead of existingLeads || []) {
         if (lead.notes) {
           try {
@@ -2334,83 +2538,414 @@ export const updateCustomer = async (req, res) => {
               matchedLead = lead;
               break;
             }
-          } catch (e) {
-            // ignore
+          } catch (e) {}
+        }
+      }
+    } else {
+      const { data: leadData, error: fetchErr } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', id)
+        .eq('type', 'crm_customer')
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      matchedLead = leadData;
+    }
+
+    // 2. Obtener Contacto y Empresa asociados
+    let contactId = null;
+    let resolvedCompanyId = company_id || (matchedLead ? matchedLead.company_id : null);
+
+    if (matchedLead && matchedLead.notes) {
+      try {
+        const parsed = JSON.parse(matchedLead.notes.trim());
+        if (parsed.contact_id) contactId = parsed.contact_id;
+        if (!resolvedCompanyId && parsed.company_id) resolvedCompanyId = parsed.company_id;
+      } catch (e) {}
+    }
+
+    // Resolver contactId si es de SAE
+    if (contactId && String(contactId).startsWith('sae-contact-')) {
+      const parts = String(contactId).split('-');
+      const saeClave = parts.slice(2, parts.length - 1).join('-');
+      const indexStr = parts[parts.length - 1];
+      const indexVal = parseInt(indexStr) - 1;
+
+      if (saeClave) {
+        const { data: saeConts } = await saeSupabase
+          .from('contac03')
+          .select('nombre, telefono, email')
+          .eq('cve_clie', saeClave)
+          .eq('status', 'A');
+
+        const saeCont = (saeConts && saeConts.length > indexVal) ? saeConts[indexVal] : (saeConts && saeConts.length > 0 ? saeConts[0] : null);
+
+        if (saeCont) {
+          const cleanName = saeCont.nombre ? saeCont.nombre.trim() : 'Contacto SAE';
+          const cleanPhone = saeCont.telefono ? saeCont.telefono.trim() : '';
+          const cleanEmail = saeCont.email ? saeCont.email.trim() : '';
+
+          let foundC = null;
+          if (cleanPhone) {
+            const { data } = await supabase.from('contacts').select('id').eq('phone', cleanPhone).maybeSingle();
+            foundC = data;
+          }
+          if (!foundC && cleanName) {
+            const { data } = await supabase.from('contacts').select('id').ilike('name', cleanName).maybeSingle();
+            foundC = data;
+          }
+
+          if (foundC) {
+            contactId = foundC.id;
+          } else {
+            const { data: newCont, error: contErr } = await supabase
+              .from('contacts')
+              .insert([{
+                name: cleanName,
+                phone: cleanPhone,
+                email: cleanEmail,
+                position: 'Representante Autorizado',
+                contact_type: 'oficina',
+                created_by: userId,
+                notes: `Importado automáticamente desde SAE.`
+              }])
+              .select('id')
+              .single();
+
+            if (!contErr && newCont) {
+              contactId = newCont.id;
+            }
           }
         }
       }
+    }
 
-      // Clean notes format ensuring we store the sae_clave
-      let notesPayload = notes;
-      try {
-        const parsedNotes = JSON.parse(notes.trim());
-        parsedNotes.sae_clave = saeClave;
-        notesPayload = JSON.stringify(parsedNotes);
-      } catch (e) {
-        notesPayload = JSON.stringify({
-          general: notes,
-          sae_clave: saeClave,
-          timeline: []
+    // Resolver resolvedCompanyId si es de SAE
+    if (resolvedCompanyId && String(resolvedCompanyId).startsWith('sae-')) {
+      const saeClave = String(resolvedCompanyId).replace('sae-', '').trim();
+      const { data: existingCos } = await supabase
+        .from('companies')
+        .select('id')
+        .like('notes', `%"sae_clave":"${saeClave}"%`)
+        .limit(1);
+
+      if (existingCos && existingCos.length > 0) {
+        resolvedCompanyId = existingCos[0].id;
+      } else {
+        const isGarza = req.user?.companyCode === 'GARZA';
+        if (isGarza) {
+          const { data: client } = await saeSupabase
+            .from('clie03')
+            .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
+            .eq('clave', saeClave)
+            .maybeSingle();
+
+          if (client) {
+            const name = client.nombre ? client.nombre.trim() : 'Empresa SAE';
+            const alias = client.nombrecomercial ? client.nombrecomercial.trim() : name;
+            
+            const notesPayload = JSON.stringify({
+              general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
+              sae_clave: saeClave,
+              timeline: []
+            });
+
+            const { data: newCo, error: insertErr } = await supabase
+              .from('companies')
+              .insert([{
+                name,
+                alias,
+                type: 'cliente',
+                rfc: client.rfc ? client.rfc.trim() : '',
+                address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+                city: client.municipio ? client.municipio.trim() : '',
+                state: client.estado ? client.estado.trim() : '',
+                phone_main: client.telefono ? client.telefono.trim() : '',
+                email_main: client.mail ? client.mail.trim() : '',
+                status: 'activa',
+                notes: notesPayload,
+                created_by: userId,
+                company_id: req.user?.companyId
+              }])
+              .select('id')
+              .single();
+
+            if (!insertErr && newCo) {
+              resolvedCompanyId = newCo.id;
+            }
+          }
+        }
+      }
+    }
+
+    let existingContact = null;
+    if (contactId) {
+      const { data: cData } = await supabase.from('contacts').select('*').eq('id', contactId).maybeSingle();
+      existingContact = cData;
+    }
+    if (!existingContact && phone) {
+      const { data: cData } = await supabase.from('contacts').select('*').eq('phone', phone.trim()).maybeSingle();
+      existingContact = cData;
+    }
+    if (!existingContact && email) {
+      const { data: cData } = await supabase.from('contacts').select('*').ilike('email', email.trim()).maybeSingle();
+      existingContact = cData;
+    }
+
+    // Lógica de Auditoría (Historial de Cambios)
+    const changeHistory = [];
+    const auditUser = req.user?.name || 'Ejecutivo';
+
+    const addChange = (fieldName, oldVal, newVal) => {
+      const cleanOld = (oldVal || '').toString().trim();
+      const cleanNew = (newVal || '').toString().trim();
+      if (cleanNew !== cleanOld) {
+        changeHistory.push({
+          date: new Date().toISOString(),
+          field: fieldName,
+          old_value: cleanOld || 'N/A',
+          new_value: cleanNew || 'N/A',
+          author: auditUser
         });
       }
+    };
 
-      if (matchedLead) {
-        const { data, error } = await supabase
-          .from('leads')
-          .update({
-            name,
-            email,
-            phone,
-            company,
-            company_id,
-            notes: notesPayload,
-            status: status || 'calificado'
-          })
-          .eq('id', matchedLead.id)
-          .select();
+    // 3. Actualizar o crear contacto
+    let finalWhatsapp = whatsapp;
+    let finalPosition = position;
+    let finalPhoneAlt = phone_alt;
+    let finalContactNotes = contact_notes;
 
-        if (error) throw error;
-        res.json({ success: true, customer: { ...data[0], id } });
-      } else {
-        const { data, error } = await supabase
-          .from('leads')
-          .insert([
-            {
-              name,
-              email,
-              phone,
-              company,
-              company_id,
-              notes: notesPayload,
-              status: status || 'calificado',
-              type: 'crm_customer',
-              assigned_to: userId
-            }
-          ])
-          .select();
+    if (existingContact) {
+      contactId = existingContact.id;
+      if (name !== undefined) addChange('Nombre del Contacto', existingContact.name, name);
+      if (email !== undefined) addChange('Correo Electrónico', existingContact.email, email);
+      if (phone !== undefined) addChange('Teléfono Principal', existingContact.phone, phone);
+      if (position !== undefined) addChange('Cargo / Posición', existingContact.position, position);
+      if (phone_alt !== undefined) addChange('Teléfono Alternativo', existingContact.phone_alt, phone_alt);
+      if (whatsapp !== undefined) addChange('WhatsApp del Contacto', existingContact.whatsapp, whatsapp);
+      if (contact_notes !== undefined) addChange('Notas del Contacto', existingContact.notes, contact_notes);
 
-        if (error) throw error;
-        res.json({ success: true, customer: { ...data[0], id } });
-      }
+      const updateContactData = {
+        name: name !== undefined ? name : existingContact.name,
+        email: email !== undefined ? email : existingContact.email,
+        phone: phone !== undefined ? phone : existingContact.phone,
+        position: position !== undefined ? position : existingContact.position,
+        phone_alt: phone_alt !== undefined ? phone_alt : existingContact.phone_alt,
+        whatsapp: whatsapp !== undefined ? whatsapp : existingContact.whatsapp,
+        notes: contact_notes !== undefined ? contact_notes : existingContact.notes,
+        updated_at: new Date().toISOString()
+      };
+
+      await supabase.from('contacts').update(updateContactData).eq('id', existingContact.id);
+
+      finalWhatsapp = updateContactData.whatsapp;
+      finalPosition = updateContactData.position;
+      finalPhoneAlt = updateContactData.phone_alt;
+      finalContactNotes = updateContactData.notes;
     } else {
+      const insertContactData = {
+        name: name || 'Contacto nuevo',
+        email: email || '',
+        phone: phone || '',
+        position: position || 'Representante Autorizado',
+        phone_alt: phone_alt || '',
+        whatsapp: whatsapp || '',
+        notes: contact_notes || '',
+        created_by: userId
+      };
+      const { data: newCont } = await supabase.from('contacts').insert([insertContactData]).select('id').single();
+      if (newCont) contactId = newCont.id;
+
+      finalWhatsapp = insertContactData.whatsapp;
+      finalPosition = insertContactData.position;
+      finalPhoneAlt = insertContactData.phone_alt;
+      finalContactNotes = insertContactData.notes;
+    }
+
+    // 4. Actualizar o crear empresa
+    let existingCompany = null;
+    if (resolvedCompanyId) {
+      const { data: coData } = await supabase.from('companies').select('*').eq('id', resolvedCompanyId).maybeSingle();
+      existingCompany = coData;
+    } else if (company) {
+      const { data: coData } = await supabase.from('companies').select('*').ilike('name', company.trim()).maybeSingle();
+      existingCompany = coData;
+    }
+
+    let finalRfc = company_rfc;
+    let finalAddress = company_address;
+    let finalCity = company_city;
+    let finalState = company_state;
+
+    if (existingCompany) {
+      resolvedCompanyId = existingCompany.id;
+      if (company !== undefined) addChange('Razón Social / Empresa', existingCompany.name, company);
+      if (company_rfc !== undefined) addChange('RFC de Empresa', existingCompany.rfc, company_rfc);
+      if (company_address !== undefined) addChange('Dirección de Empresa', existingCompany.address, company_address);
+      if (company_city !== undefined) addChange('Municipio de Empresa', existingCompany.city, company_city);
+      if (company_state !== undefined) addChange('Estado de Empresa', existingCompany.state, company_state);
+
+      const updateCompanyData = {
+        name: company !== undefined ? company : existingCompany.name,
+        rfc: company_rfc !== undefined ? company_rfc : existingCompany.rfc,
+        address: company_address !== undefined ? company_address : existingCompany.address,
+        city: company_city !== undefined ? company_city : existingCompany.city,
+        state: company_state !== undefined ? company_state : existingCompany.state,
+        updated_at: new Date().toISOString()
+      };
+
+      await supabase.from('companies').update(updateCompanyData).eq('id', existingCompany.id);
+
+      finalRfc = updateCompanyData.rfc;
+      finalAddress = updateCompanyData.address;
+      finalCity = updateCompanyData.city;
+      finalState = updateCompanyData.state;
+    } else if (company) {
+      const insertCompanyData = {
+        name: company,
+        rfc: company_rfc || '',
+        address: company_address || '',
+        city: company_city || '',
+        state: company_state || '',
+        created_by: userId,
+        status: 'activa'
+      };
+      const { data: newCo } = await supabase.from('companies').insert([insertCompanyData]).select('id').single();
+      if (newCo) resolvedCompanyId = newCo.id;
+
+      finalRfc = insertCompanyData.rfc;
+      finalAddress = insertCompanyData.address;
+      finalCity = insertCompanyData.city;
+      finalState = insertCompanyData.state;
+    }
+
+    // Sincronizar en contact_companies y establecer contact_main en la empresa si es null
+    if (contactId && resolvedCompanyId) {
+      await supabase
+        .from('contact_companies')
+        .upsert([
+          { 
+            contact_id: contactId, 
+            company_id: resolvedCompanyId, 
+            status: 'activo' 
+          }
+        ], { onConflict: 'contact_id,company_id' });
+
+      const { data: compCheck } = await supabase
+        .from('companies')
+        .select('contact_main')
+        .eq('id', resolvedCompanyId)
+        .maybeSingle();
+
+      if (compCheck && !compCheck.contact_main) {
+        await supabase
+          .from('companies')
+          .update({ contact_main: contactId })
+          .eq('id', resolvedCompanyId);
+      }
+    }
+
+    // 5. Comparar campos del lead (bandeja)
+    if (matchedLead) {
+      if (name !== undefined) addChange('Nombre', matchedLead.name, name);
+      if (email !== undefined) addChange('Email', matchedLead.email, email);
+      if (phone !== undefined) addChange('Teléfono', matchedLead.phone, phone);
+      if (company !== undefined) addChange('Empresa', matchedLead.company, company);
+    }
+
+    // 6. Preparar JSON de notas con historial de cambios estructurado
+    let notesData = { general: '', timeline: [], change_history: [] };
+    if (matchedLead && matchedLead.notes) {
+      try {
+        const parsed = JSON.parse(matchedLead.notes.trim());
+        notesData = { ...parsed };
+      } catch (e) {
+        notesData.general = matchedLead.notes;
+      }
+    } else if (notes) {
+      try {
+        const parsed = JSON.parse(notes.trim());
+        notesData = { ...parsed };
+      } catch (e) {
+        notesData.general = notes;
+      }
+    }
+
+    if (!notesData.timeline) notesData.timeline = [];
+    if (!notesData.change_history) notesData.change_history = [];
+
+    if (changeHistory.length > 0) {
+      notesData.change_history.push(...changeHistory);
+    }
+
+    notesData.contact_id = contactId;
+    notesData.company_id = resolvedCompanyId;
+    if (saeClave) {
+      notesData.sae_clave = saeClave;
+    }
+
+    const notesPayload = JSON.stringify(notesData);
+
+    // 7. Insertar o Actualizar el lead (customer crm)
+    let updatedCustomerRec = null;
+
+    if (matchedLead) {
       const { data, error } = await supabase
         .from('leads')
         .update({
-          name,
-          email,
-          phone,
-          company,
-          company_id,
-          notes,
-          status: status || 'calificado'
+          name: name !== undefined ? name : matchedLead.name,
+          email: email !== undefined ? email : matchedLead.email,
+          phone: phone !== undefined ? phone : matchedLead.phone,
+          company: company !== undefined ? company : matchedLead.company,
+          company_id: matchedLead.company_id,
+          notes: notesPayload,
+          status: status || matchedLead.status || 'calificado'
         })
-        .eq('id', id)
-        .eq('type', 'crm_customer')
-        .select();
+        .eq('id', matchedLead.id)
+        .select()
+        .single();
 
       if (error) throw error;
-      res.json({ success: true, customer: data[0] });
+      updatedCustomerRec = data;
+    } else {
+      const { data, error } = await supabase
+        .from('leads')
+        .insert([
+          {
+            name: name || '',
+            email: email || '',
+            phone: phone || '',
+            company: company || '',
+            company_id: req.user?.companyId && !String(req.user.companyId).startsWith('company-') ? req.user.companyId : null,
+            notes: notesPayload,
+            status: status || 'calificado',
+            type: 'crm_customer',
+            assigned_to: userId
+          }
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+      updatedCustomerRec = data;
     }
+
+    const returnCust = {
+      ...updatedCustomerRec,
+      id,
+      whatsapp: finalWhatsapp,
+      position: finalPosition,
+      phone_alt: finalPhoneAlt,
+      contact_notes: finalContactNotes,
+      rfc: finalRfc,
+      calle: finalAddress,
+      municipio: finalCity,
+      estado: finalState
+    };
+
+    res.json({ success: true, customer: returnCust });
   } catch (err) {
     console.error('updateCustomer error:', err);
     res.status(500).json({ success: false, message: 'Error al actualizar cliente.' });

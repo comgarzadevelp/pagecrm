@@ -18,11 +18,11 @@ import {
 
 import {
   getContacts, getContactById, createContact, updateContact, deleteContact,
-  linkContactToCompany, unlinkContactFromCompany, getArchivedContacts, archiveContact, searchContacts
+  linkContactToCompany, unlinkContactFromCompany, getArchivedContacts, archiveContact, unarchiveContact, searchContacts
 } from '../controllers/contactController.js';
 
 import {
-  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany, getArchivedCompanies, archiveCompany, searchCompanies
+  getCompanies, getCompanyById, createCompany, updateCompany, deleteCompany, getArchivedCompanies, archiveCompany, unarchiveCompany, searchCompanies
 } from '../controllers/companyController.js';
 
 import {
@@ -85,6 +85,7 @@ router.get('/contacts', getContacts);
 router.get('/contacts/search', searchContacts);
 router.get('/contacts/archived', getArchivedContacts);
 router.post('/contacts/:id/archive', archiveContact);
+router.delete('/contacts/:id/unarchive', unarchiveContact);
 router.get('/contacts/:id', getContactById);
 router.post('/contacts', createContact);
 router.put('/contacts/:id', updateContact);
@@ -97,6 +98,7 @@ router.get('/companies', getCompanies);
 router.get('/companies/search', searchCompanies);
 router.get('/companies/archived', getArchivedCompanies);
 router.post('/companies/:id/archive', archiveCompany);
+router.delete('/companies/:id/unarchive', unarchiveCompany);
 router.get('/companies/:id', getCompanyById);
 router.post('/companies', createCompany);
 router.put('/companies/:id', updateCompany);

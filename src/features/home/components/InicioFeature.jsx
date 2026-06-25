@@ -1,183 +1,169 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './InicioFeature.css';
 
-// Modales del CRM
+// Nuevos flujos unificados
+import FieldFlowWizard from '../../fieldflow/FieldFlowWizard';
+
+// Modales del CRM conservados
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
-import EmpresaFormModal from '../../directory/components/EmpresaFormModal';
-import ContactoFormModal from '../../directory/components/ContactoFormModal';
+
+// Drawer y Modales para notificaciones
+import NotificacionesDrawer from './NotificacionesDrawer';
+import FichaEmpresaModal from '../../directory/components/FichaEmpresaModal';
+import FichaContactoModal from '../../directory/components/FichaContactoModal';
+import DetallesProspectoFeature from '../../leads/components/DetallesProspectoFeature';
 
 export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpportunitiesList }) {
-  // Controles de visibilidad de modales
+  // Controles de visibilidad
+  const [showFieldFlow, setShowFieldFlow] = useState(false);
   const [showNegociacionModal, setShowNegociacionModal] = useState(false);
-  const [showVisitaModal, setShowVisitaModal] = useState(false);
   const [showRecordatorioModal, setShowRecordatorioModal] = useState(false);
+  const [showNotifDrawer, setShowNotifDrawer] = useState(false);
   
-  // Controles de creación de entidades
-  const [showEntidadSelector, setShowEntidadSelector] = useState(false);
-  const [showEmpresaModal, setShowEmpresaModal] = useState(false);
-  const [showContactoModal, setShowContactoModal] = useState(false);
+  // Modales invocados desde Notificaciones
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState(null);
+  const [selectedContactoId, setSelectedContactoId] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
+
+  // Notificaciones
+  const [notifications, setNotifications] = useState([]);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoadingNotifs(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/notifications`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNotifications(data.notifications || []);
+      }
+    } catch (err) {
+      console.error('Error fetching notifications:', err);
+    } finally {
+      setLoadingNotifs(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
   const handleSuccess = () => {
     if (typeof fetchCustomers === 'function') fetchCustomers();
     if (typeof fetchOpportunitiesList === 'function') fetchOpportunitiesList();
   };
 
+  const handleOpenEntity = async (type, id) => {
+    if (type === 'empresa') {
+      setSelectedEmpresaId(id);
+    } else if (type === 'contacto') {
+      setSelectedContactoId(id);
+    } else if (type === 'prospecto') {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/crm/leads/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) {
+          setSelectedLead(data.lead);
+        }
+      } catch (e) {
+        console.error('Error fetching lead details:', e);
+      }
+    } else if (type === 'cita') {
+      // Para citas abrimos el modal general de recordatorio por ahora
+      setShowRecordatorioModal(true);
+    }
+  };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
   return (
     <div className="inicio-panel-container fade-in">
-      <header className="inicio-header glass">
-        <div className="header-content">
-          <div className="title-wrapper">
-            <h1 className="inicio-title">Inicio</h1>
-            <p className="inicio-subtitle">
-              Panel de acceso rápido y acciones principales.
-            </p>
-          </div>
-        </div>
+      {/* Header con diseño premium */}
+      <header className="inicio-header">
+        <h1>Inicio</h1>
+        <p>Acceso centralizado a las operaciones comerciales y de campo.</p>
       </header>
 
-      <div className="inicio-grid">
-        {/* Card 1: Registrar Nueva Negociación */}
-        <div className="inicio-card glass action-card">
-          <div className="card-icon-wrapper" style={{ backgroundColor: 'rgba(234, 88, 12, 0.1)', color: '#ea580c' }}>
-            <i className="fas fa-handshake"></i>
+      {/* Nuevo Banner de Recordatorio / Actividad Futura - Alta Visibilidad movido arriba */}
+      <div className="inicio-reminder-banner" style={{ marginTop: '0', marginBottom: '2.5rem' }}>
+        <div className="reminder-left">
+          <div className="reminder-icon-box">
+            <i className="fas fa-calendar-check"></i>
           </div>
-          <h3 className="card-title">Registrar Nueva Negociación</h3>
-          <p className="card-description">
-            Abre el formulario para ingresar un requerimiento comercial, vincular una obra y relacionar al cliente (empresa o contacto).
-          </p>
-          <div className="card-use-case">
-            <h4><i className="fas fa-info-circle"></i> Caso de Uso</h4>
-            <ul>
-              <li>Cuando un cliente te pide una cotización o tiene un requerimiento formal de venta.</li>
-              <li>Cuando recibes un Lead de Marketing que ya está calificado para cotizar.</li>
-              <li>El objetivo es iniciar el flujo de embudo (Kanban).</li>
-            </ul>
+          <div className="reminder-text">
+            <h3>¿Tienes una actividad futura programada?</h3>
+            <p>Agenda una llamada, reunión o visita de seguimiento para que aparezca de inmediato en tu agenda de pendientes.</p>
           </div>
-          <button className="card-btn btn-primary" onClick={() => setShowNegociacionModal(true)}>
-            Nueva Negociación
-          </button>
         </div>
-
-        {/* Card 2: Visita en Campo */}
-        <div className="inicio-card glass action-card">
-          <div className="card-icon-wrapper" style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-            <i className="fas fa-map-marker-alt"></i>
-          </div>
-          <h3 className="card-title">Registrar Visita en Campo</h3>
-          <p className="card-description">
-            Permite documentar una visita presencial a una obra o empresa, capturando ubicación GPS, fotos de evidencia y acuerdos.
-          </p>
-          <div className="card-use-case">
-            <h4><i className="fas fa-info-circle"></i> Caso de Uso</h4>
-            <ul>
-              <li>Cuando estás físicamente en la obra o con el cliente.</li>
-              <li>Para reportar avances y dejar evidencia fotográfica en el historial.</li>
-              <li>Alimenta el expediente y suma al KPI de visitas semanales.</li>
-            </ul>
-          </div>
-          <button className="card-btn btn-secondary" onClick={() => setShowVisitaModal(true)}>
-            Registrar Visita
-          </button>
-        </div>
-
-        {/* Card 3: Prospecto / Entidad */}
-        <div className="inicio-card glass action-card">
-          <div className="card-icon-wrapper" style={{ backgroundColor: 'rgba(56, 189, 248, 0.1)', color: '#0284c7' }}>
-            <i className="fas fa-address-book"></i>
-          </div>
-          <h3 className="card-title">Nueva Entidad (Prospecto / Empresa)</h3>
-          <p className="card-description">
-            Guarda los datos de contacto de una persona o empresa en la base de datos, sin iniciar una negociación todavía.
-          </p>
-          <div className="card-use-case">
-            <h4><i className="fas fa-info-circle"></i> Caso de Uso</h4>
-            <ul>
-              <li>Conoces a alguien en la calle o recibes una tarjeta de presentación.</li>
-              <li>Aún no hay interés de compra ni requerimiento, pero quieres guardarlo en tu "Directorio".</li>
-              <li>Se usará para enviar correos de nutrición o llamadas en el futuro.</li>
-            </ul>
-          </div>
-          <button className="card-btn btn-secondary" onClick={() => setShowEntidadSelector(true)}>
-            Crear Entidad
-          </button>
-        </div>
-
-        {/* Card 4: Recordatorio / Actividad */}
-        <div className="inicio-card glass action-card">
-          <div className="card-icon-wrapper" style={{ backgroundColor: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' }}>
-            <i className="fas fa-bell"></i>
-          </div>
-          <h3 className="card-title">Programar Recordatorio</h3>
-          <p className="card-description">
-            Crea una tarea, cita o llamada futura en tu agenda personal. Puedes vincularlo a una Entidad o a una Negociación.
-          </p>
-          <div className="card-use-case">
-            <h4><i className="fas fa-info-circle"></i> Caso de Uso</h4>
-            <ul>
-              <li>Te piden "mándame mensaje la próxima semana".</li>
-              <li>Tienes agendada una reunión virtual de seguimiento.</li>
-              <li>Para no olvidar enviar una cotización modificada al día siguiente.</li>
-            </ul>
-          </div>
-          <button className="card-btn btn-secondary" onClick={() => setShowRecordatorioModal(true)}>
-            Programar Actividad
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowRecordatorioModal(true)}
+          className="btn-reminder-action"
+        >
+          Programar Recordatorio
+        </button>
       </div>
 
-      {/* MODAL INTERMEDIA: Selector de tipo de Entidad (Empresa o Contacto) */}
-      {showEntidadSelector && (
-        <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
-          <div className="crm-modal-content glass" style={{ maxWidth: '420px', width: '96%', padding: '1.5rem' }}>
-            <div className="crm-modal-header" style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.05)', paddingBottom: '10px', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.15rem', color: 'var(--color-brand-primary, #05393a)', fontWeight: 'bold' }}>Crear Nueva Entidad</h3>
-              <button className="crm-close-modal" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#64748b' }} onClick={() => setShowEntidadSelector(false)}>
-                <i className="fas fa-times" />
-              </button>
+      {/* Pilares Principales (Tarjetas de alto impacto) */}
+      <div className="inicio-pillars-grid">
+
+        {/* Pilar 1: OPERACIÓN EN CAMPO (FieldFlow) - Destacado en Deep Teal */}
+        <div className="inicio-card fieldflow-card">
+          <div>
+            <div className="card-icon-wrapper">
+              <i className="fas fa-bolt"></i>
             </div>
-            <div className="crm-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0 0 0.5rem 0', textAlign: 'center', lineHeight: 1.4 }}>
-                Selecciona el tipo de registro que deseas guardar en tu directorio comercial para seguimiento futuro.
-              </p>
-              
-              <button
-                type="button"
-                className="btn-primary-golden"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '0.85rem', borderRadius: '8px',
-                  fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', border: 'none'
-                }}
-                onClick={() => {
-                  setShowEmpresaModal(true);
-                  setShowEntidadSelector(false);
-                }}
-              >
-                🏢 Registrar Empresa / Obra
-              </button>
-              
-              <button
-                type="button"
-                className="btn-primary"
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '0.85rem', borderRadius: '8px',
-                  fontWeight: 'bold', fontSize: '0.9rem', cursor: 'pointer', border: 'none'
-                }}
-                onClick={() => {
-                  setShowContactoModal(true);
-                  setShowEntidadSelector(false);
-                }}
-              >
-                👤 Registrar Contacto (Persona)
-              </button>
-            </div>
+            <h2>Registro en Campo </h2>
+            <p>
+              El canal único e inteligente para registrar tu actividad de inmediato. Busca o crea entidades, captura visitas con GPS, fotos de evidencia y agenda tus seguimientos en un solo flujo continuo de menos de 2 minutos.
+            </p>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowFieldFlow(true)}
+            className="inicio-btn btn-fieldflow-primary"
+          >
+            <i className="fas fa-play text-xs opacity-90"></i> Iniciar FieldFlow
+          </button>
         </div>
+
+        {/* Pilar 2: OPERACIÓN COMERCIAL - Diseño blanco limpio y elegante */}
+        <div className="inicio-card comercial-card">
+          <div>
+            <div className="card-icon-wrapper">
+              <i className="fas fa-handshake"></i>
+            </div>
+            <h2>Nueva Negociación</h2>
+            <p>
+              Inicia un flujo comercial formal para el embudo de ventas. Utilízalo cuando tengas una oportunidad clara de negocio, cotización requerida o licitación en puerta que requiera seguimiento administrativo completo.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowNegociacionModal(true)}
+            className="inicio-btn btn-comercial-secondary"
+          >
+            <i className="fas fa-plus text-xs"></i> Nueva Negociación
+          </button>
+        </div>
+
+      </div>
+
+      {/* Barra de Utilidades Inferior */}
+      <div className="inicio-footer-bar">
+        <span>Comercializadora GARZA — Panel de Control v2</span>
+      </div>
+
+      {/* MODALES A PANTALLA COMPLETA / FLUX */}
+      {showFieldFlow && (
+        <FieldFlowWizard onClose={() => setShowFieldFlow(false)} />
       )}
 
-      {/* MODALES FUNCIONALES PRINCIPALES */}
-      
-      {/* 1. Modal Registrar Nueva Negociación */}
       {showNegociacionModal && (
         <CrearProspectoModal
           isOpen={true}
@@ -187,37 +173,6 @@ export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpp
         />
       )}
 
-      {/* 2. Modal Registrar Visita en Campo */}
-      {showVisitaModal && (
-        <RegistrarVisitaModal
-          isOpen={true}
-          onClose={() => setShowVisitaModal(false)}
-          API_BASE={API_BASE}
-          defaultFuture={false}
-        />
-      )}
-
-      {/* 3. Modales de Creación de Entidades */}
-      {showEmpresaModal && (
-        <EmpresaFormModal
-          editMode={false}
-          API_BASE={API_BASE}
-          onClose={() => setShowEmpresaModal(false)}
-          refetch={handleSuccess}
-        />
-      )}
-
-      {showContactoModal && (
-        <ContactoFormModal
-          editMode={false}
-          API_BASE={API_BASE}
-          onClose={() => setShowContactoModal(false)}
-          refetch={handleSuccess}
-          token={() => localStorage.getItem('token')}
-        />
-      )}
-
-      {/* 4. Modal Programar Actividad / Recordatorio */}
       {showRecordatorioModal && (
         <RegistrarVisitaModal
           isOpen={true}

@@ -1,5 +1,13 @@
 import React from 'react';
 import '../../../features/directory/styles/Directorio.css';
+import { computeDataQuality, getQualityConfig, isValidPhone } from '../utils/dataQuality.js';
+
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -35,8 +43,6 @@ const TYPE_LABELS = {
   cliente: 'Cliente SAE'
 };
 
-const STATUS_COLORS = { activo: '#10b981', inactivo: '#94a3b8', prospecto: '#f59e0b' };
-
 export default function DirectoryCard({
   type,
   data,
@@ -60,175 +66,211 @@ export default function DirectoryCard({
   };
 
   if (type === 'contact') {
-    const isContactIncomplete = !data.phone || !data.email;
+    const isPhoneValid = isValidPhone(data.phone);
+    const isEmailValid2 = isValidEmail(data.email);
+    const hasCargo = !!(data.position && data.position.trim().length > 0);
+
+    // Build per-field alert chips
+    const contactAlerts = [];
+    if (data.phone && !isPhoneValid) contactAlerts.push({ label: 'Tel. Inválido', type: 'error' });
+    if (!data.phone) contactAlerts.push({ label: 'Sin Teléfono', type: 'warn' });
+    if (data.email && !isEmailValid2) contactAlerts.push({ label: 'Correo Inválido', type: 'error' });
+    if (!data.email) contactAlerts.push({ label: 'Sin Correo', type: 'warn' });
+    if (!hasCargo) contactAlerts.push({ label: 'Sin Cargo', type: 'warn' });
+
+    // Quality score
+    const contactQualityScore = data.data_quality?.score || computeDataQuality(data, 'contact');
+    const contactQualityCfg = getQualityConfig(contactQualityScore);
+
+    // WA number — prefer whatsapp field, fall back to phone if valid
+    const waNumber = data.whatsapp || (isPhoneValid ? data.phone : null);
+
     return (
-      <div className="contact-card glass compact-card" key={data.id}>
-        {/* Source Badge */}
-        <div className="card-source-badge-wrap">
-          {isSae ? (
-            <span className="source-badge sae">
-              <i className="fas fa-database" /> SAE
-            </span>
-          ) : (
-            <span className="source-badge crm">
-              <i className="fas fa-laptop" /> CRM
-            </span>
-          )}
+      <div className="ct-card" onClick={() => onViewDetails && onViewDetails(data)}>
+
+        {/* ── ROW 1: Source + Quality badge */}
+        <div className="ct-card-toprow">
+          <div className="ct-source-group">
+            {isSae ? (
+              <span className="source-badge sae"><i className="fas fa-database" /> SAE</span>
+            ) : (
+              <span className="source-badge crm"><i className="fas fa-laptop" /> CRM</span>
+            )}
+            {creatorName && (
+              <span className="ct-creator-tag">
+                <i className="fas fa-user-circle" /> {creatorName}
+              </span>
+            )}
+          </div>
+          <span
+            className="ct-quality-pill"
+            style={{ background: contactQualityCfg.bg, color: contactQualityCfg.color, border: `1px solid ${contactQualityCfg.border}` }}
+            title={`Calidad del contacto: ${contactQualityCfg.label}`}
+          >
+            <i className={contactQualityCfg.icon} style={{ marginRight: 4, fontSize: '0.65rem' }} />
+            {contactQualityCfg.label}
+          </span>
         </div>
 
-        {/* Avatar and Main Info Header */}
-        <div className="card-header-compact">
-          <div className="contact-card-avatar compact">
+        {/* ── ROW 2: Avatar + Name + Cargo */}
+        <div className="ct-card-titlerow">
+          <div className="ct-avatar">
             {data.avatar_url
               ? <img src={resolveMediaUrl(data.avatar_url)} alt={data.name} />
               : <span>{data.name?.charAt(0).toUpperCase()}</span>}
           </div>
-          <div className="card-title-area">
-            <h4 className="contact-card-name">{data.name}</h4>
-            {data.position && <span className="contact-card-position">{data.position}</span>}
+          <div className="ct-namecol">
+            <h4 className="ct-card-name">{data.name}</h4>
+            {hasCargo
+              ? <span className="ct-cargo">{data.position}</span>
+              : <span className="ct-cargo missing">Sin cargo definido</span>}
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="contact-card-body compact">
-          {isContactIncomplete && (
-            <div className="incomplete-alert">
-              <i className="fas fa-exclamation-circle" />
-              <span>Incompleto: {!data.phone ? 'Sin Tel' : 'Sin Correo'}</span>
-            </div>
-          )}
+        {/* ── ROW 3: Alert chips for invalid/missing data */}
+        {contactAlerts.length > 0 && (
+          <div className="ct-card-alerts">
+            {contactAlerts.map(alert => (
+              <span
+                key={alert.label}
+                className="ct-alert-chip"
+                style={alert.type === 'error'
+                  ? { background: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5' }
+                  : { background: '#fefce8', color: '#ca8a04', border: '1px solid #fde047' }}
+              >
+                <i className={alert.type === 'error' ? 'fas fa-times-circle' : 'fas fa-exclamation-circle'} />
+                {alert.label}
+              </span>
+            ))}
+          </div>
+        )}
 
-          <div className="contact-card-data compact">
-            {data.email ? (
-              <span><i className="fas fa-envelope" /> {data.email}</span>
-            ) : (
-              <span className="missing-field"><i className="fas fa-envelope" /> Sin correo</span>
-            )}
-            {data.phone ? (
-              <span><i className="fas fa-phone" /> {data.phone}</span>
-            ) : (
-              <span className="missing-field"><i className="fas fa-phone" /> Sin teléfono</span>
-            )}
-            {data.whatsapp && (
-              <a href={`https://wa.me/52${data.whatsapp.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="contact-wa-link">
-                <i className="fab fa-whatsapp" /> WhatsApp
+        {/* ── ROW 4: Contact data block */}
+        <div className="ct-contact-block">
+          {/* Email */}
+          <div
+            className="ct-data-row"
+            style={!isEmailValid2 && data.email ? { color: '#ef4444' } : {}}
+            title={data.email || 'Sin correo registrado'}
+          >
+            <i className="fas fa-envelope" />
+            <span className="ct-data-value">
+              {data.email
+                ? <>{data.email}{!isEmailValid2 && <em className="ct-invalid-flag"> ✕</em>}</>
+                : <span className="ct-missing">Sin correo</span>}
+            </span>
+          </div>
+
+          {/* Phone */}
+          <div
+            className="ct-data-row"
+            style={!isPhoneValid && data.phone ? { color: '#ef4444' } : {}}
+            title={data.phone || 'Sin teléfono registrado'}
+          >
+            <i className="fas fa-phone" />
+            <span className="ct-data-value">
+              {data.phone
+                ? <>{data.phone}{!isPhoneValid && <em className="ct-invalid-flag"> ✕</em>}</>
+                : <span className="ct-missing">Sin teléfono</span>}
+            </span>
+
+            {/* WhatsApp inline button */}
+            {waNumber && (
+              <a
+                href={`https://wa.me/52${waNumber.replace(/\D/g, '')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ct-wa-btn"
+                onClick={e => e.stopPropagation()}
+                title="Abrir chat en WhatsApp"
+              >
+                <i className="fab fa-whatsapp" /> WA
               </a>
             )}
           </div>
+        </div>
 
-          {/* Creator tag (Super Admin View) */}
-          {creatorName && (
-            <div className="creator-attribution-tag">
-              <i className="fas fa-user-circle" />
-              <span>Creado por: <strong>{creatorName}</strong></span>
-            </div>
-          )}
-
-          {/* Linked Companies */}
-          {data.contact_companies && data.contact_companies.length > 0 && (
-            <div className="contact-card-companies compact">
-              {[...data.contact_companies]
-                .sort((a, b) => (a.status === 'inactivo' ? 1 : 0) - (b.status === 'inactivo' ? 1 : 0))
-                .map(cc => {
-                  const compListaPrec = cc.company?.lista_prec;
-                  const plName = compListaPrec ? getPriceListName(compListaPrec) : null;
-                  const plStyle = compListaPrec ? getPriceListStyle(compListaPrec) : null;
-                  const isInactive = cc.status === 'inactivo';
-                  return (
-                    <div
-                      className={`contact-company-tag compact ${isInactive ? 'inactive-company' : ''}`}
-                      key={cc.company?.id || cc.company_id}
-                      onClick={() => onViewCompanyDetails && cc.company && onViewCompanyDetails(cc.company)}
-                      style={isInactive ? { opacity: 0.7, background: '#f8fafc', border: '1px dashed #cbd5e1' } : {}}
-                    >
-                      <div className="tag-row-content">
-                        <i className="fas fa-building" style={isInactive ? { color: '#94a3b8' } : {}} />
-                        <span style={isInactive ? { color: '#64748b' } : {}}>{cc.company?.name}</span>
-                        {cc.role && <em>({cc.role})</em>}
-                        {isInactive && <em style={{ color: '#ef4444', marginLeft: 6, fontSize: '0.7rem' }}>(Inactivo)</em>}
-                        {onUnlinkCompany && !isInactive && (
-                          <button
-                            type="button"
-                            className="btn-unlink-company"
-                            title="Finalizar vínculo (Marcar Inactivo)"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onUnlinkCompany(data.id, cc.company?.id);
-                            }}
-                          >×</button>
-                        )}
-                      </div>
-                      {plName && plStyle && !isInactive && (
-                        <span className="price-list-sub-badge" style={{
-                          background: plStyle.bg,
-                          color: plStyle.color,
-                          border: `1px solid ${plStyle.border}`
-                        }}>
-                          <i className="fas fa-tag" /> {plName}
-                        </span>
+        {/* ── ROW 5: Linked companies */}
+        {data.contact_companies && data.contact_companies.length > 0 && (
+          <div className="ct-companies">
+            {[...data.contact_companies]
+              .sort((a, b) => (a.status === 'inactivo' ? 1 : 0) - (b.status === 'inactivo' ? 1 : 0))
+              .map(cc => {
+                const plName = cc.company?.lista_prec ? getPriceListName(cc.company.lista_prec) : null;
+                const plStyle = cc.company?.lista_prec ? getPriceListStyle(cc.company.lista_prec) : null;
+                const isInactive = cc.status === 'inactivo';
+                return (
+                  <div
+                    key={cc.company?.id || cc.company_id}
+                    className={`ct-company-tag${isInactive ? ' inactive' : ''}`}
+                    onClick={e => { e.stopPropagation(); onViewCompanyDetails && cc.company && onViewCompanyDetails(cc.company); }}
+                  >
+                    <div className="ct-company-tag-row">
+                      <i className="fas fa-building" />
+                      <span className="ct-company-name">{cc.company?.name}</span>
+                      {cc.role && <em className="ct-company-role">({cc.role})</em>}
+                      {isInactive && <em className="ct-inactive-flag">inactivo</em>}
+                      {onUnlinkCompany && !isInactive && (
+                        <button
+                          type="button"
+                          className="ct-btn-unlink"
+                          title="Finalizar vínculo"
+                          onClick={e => { e.stopPropagation(); onUnlinkCompany(data.id, cc.company?.id); }}
+                        >×</button>
                       )}
                     </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
+                    {plName && plStyle && !isInactive && (
+                      <span className="ct-price-badge" style={{ background: plStyle.bg, color: plStyle.color, border: `1px solid ${plStyle.border}` }}>
+                        <i className="fas fa-tag" /> {plName}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
-        {/* Actions Footer */}
-        <div className="contact-card-actions compact">
-          {onViewDetails && (
-            <button type="button" className="btn-view-details compact" onClick={() => onViewDetails(data)}>
-              <i className="fas fa-eye" /> Ver
-            </button>
-          )}
-          {onEdit && (
-            <button type="button" className="btn-view-details compact" onClick={() => onEdit(data)}>
-              <i className="fas fa-edit" /> Editar
-            </button>
-          )}
-          {onLinkCompany && (
-            <button type="button" className="btn-link-company compact" onClick={() => onLinkCompany(data)}>
-              <i className="fas fa-link" /> Empresa
-            </button>
-          )}
-          {onArchive && (
-            <button type="button" className="btn-logout compact-archive-btn" onClick={() => onArchive(data)} title="Archivar">
-              <i className="fas fa-archive" />
-            </button>
-          )}
-        </div>
       </div>
     );
   }
 
-  // ──────── COMPANY CARD ────────
-  const isCompanyIncomplete = !data.phone_main || !data.email_main || !data.contact_main;
+  // ── EMPRESA CARD ──────────────────────────────────────────────────────────
+  // Compute quality score — use backend pre-computed value or calculate on-the-fly
+  const qualityScore = data.data_quality?.score || computeDataQuality(data, 'company');
+  const qualityCfg = getQualityConfig(qualityScore);
+
+  const isEmailValid = data.email_main && isValidEmail(data.email_main);
+  const hasContacts = (data.contacts && data.contacts.length > 0) || !!data.contact_main;
+  const isCompanyIncomplete = !data.phone_main || !isEmailValid || !hasContacts;
 
   // Notificaciones de datos faltantes
   const missingItems = [];
   if (!data.phone_main) missingItems.push('Teléfono');
-  if (!data.email_main) missingItems.push('Correo');
-  if (!data.contact_main) missingItems.push('Contacto');
+  if (!data.email_main) {
+    missingItems.push('Correo');
+  } else if (!isEmailValid) {
+    missingItems.push('Correo (Inválido)');
+  }
+  if (!hasContacts) missingItems.push('Contacto');
 
-  const STATUS_LABELS = {
-    activa:                 { label: 'Activa',            bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
-    inactiva:               { label: 'Inactiva',          bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' },
-    reactivado_seguimiento: { label: 'Seguimiento',       bg: '#fefce8', color: '#ca8a04', border: '#fef08a' },
-    reactivado_venta:       { label: 'Reactivando venta', bg: '#fdf2f8', color: '#db2777', border: '#fbcfe8' },
-    pendiente_revision:     { label: 'Pend. Revisión',    bg: '#fff7ed', color: '#ea580c', border: '#fed7aa' }
-  };
-  const FALLBACK_STATUS = STATUS_LABELS.pendiente_revision;
-  const rawStatus = (data.status || '').toString().toLowerCase().trim();
-  const statusInfo = STATUS_LABELS[rawStatus] || FALLBACK_STATUS;
 
   // Colección de contactos para preview rápido
   const contactPreviews = [];
-  if (data.contact_main) contactPreviews.push({ name: data.contact_main.name, role: 'Principal' });
-  if (data.contact_purchases && data.contact_purchases.id !== data.contact_main?.id) {
-    contactPreviews.push({ name: data.contact_purchases.name, role: 'Compras' });
-  }
-  if (data.contact_payments && data.contact_payments.id !== data.contact_main?.id && data.contact_payments.id !== data.contact_purchases?.id) {
-    contactPreviews.push({ name: data.contact_payments.name, role: 'Pagos' });
+  if (data.contacts && data.contacts.length > 0) {
+    data.contacts.forEach((c) => {
+      contactPreviews.push({
+        name: c.name,
+        role: c.position || 'Contacto'
+      });
+    });
+  } else {
+    if (data.contact_main) contactPreviews.push({ name: data.contact_main.name, role: 'Principal' });
+    if (data.contact_purchases && data.contact_purchases.id !== data.contact_main?.id) {
+      contactPreviews.push({ name: data.contact_purchases.name, role: 'Compras' });
+    }
+    if (data.contact_payments && data.contact_payments.id !== data.contact_main?.id && data.contact_payments.id !== data.contact_purchases?.id) {
+      contactPreviews.push({ name: data.contact_payments.name, role: 'Pagos' });
+    }
   }
 
   return (
@@ -245,11 +287,14 @@ export default function DirectoryCard({
             <span className="source-badge crm"><i className="fas fa-laptop" /> CRM</span>
           )}
         </div>
+        {/* Quality Badge — reemplaza el badge de estado manual */}
         <span
           className="co-status-pill"
-          style={{ background: statusInfo.bg, color: statusInfo.color, border: `1px solid ${statusInfo.border}` }}
+          style={{ background: qualityCfg.bg, color: qualityCfg.color, border: `1px solid ${qualityCfg.border}` }}
+          title={`Calidad de datos: ${qualityCfg.label}`}
         >
-          {statusInfo.label}
+          <i className={qualityCfg.icon} style={{ marginRight: '4px', fontSize: '0.65rem' }} />
+          {qualityCfg.label}
         </span>
       </div>
 
@@ -269,11 +314,18 @@ export default function DirectoryCard({
       {/* ── ROW 3: Notification chips (missing data alerts) */}
       {missingItems.length > 0 && (
         <div className="co-card-alerts">
-          {missingItems.map((item) => (
-            <span key={item} className="co-alert-chip">
-              <i className="fas fa-exclamation-circle" /> Falta: {item}
-            </span>
-          ))}
+          {missingItems.map((item) => {
+            const isInvalid = item.includes('Inválido');
+            return (
+              <span 
+                key={item} 
+                className="co-alert-chip" 
+                style={isInvalid ? { background: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5' } : {}}
+              >
+                <i className="fas fa-exclamation-circle" /> {isInvalid ? item : `Falta: ${item}`}
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -286,8 +338,12 @@ export default function DirectoryCard({
             </span>
           )}
           {data.email_main && (
-            <span className="co-contact-detail-item" title={data.email_main}>
-              <i className="fas fa-envelope" /> {data.email_main}
+            <span 
+              className="co-contact-detail-item" 
+              title={!isEmailValid ? 'Correo con formato no válido' : data.email_main}
+              style={!isEmailValid ? { color: '#ef4444', fontWeight: 'bold' } : {}}
+            >
+              <i className="fas fa-envelope" /> {data.email_main} {!isEmailValid && ' (Inválido)'}
             </span>
           )}
         </div>

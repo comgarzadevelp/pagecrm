@@ -349,3 +349,41 @@
   cursor: pointer;
   transition: all 0.15s ease;
 }
+
+/* Animación de pulso para tarjetas de Nivel 4 (Recontactar Ahora) */
+.pulseWarning {
+  animation: borderPulse 2s infinite ease-in-out;
+  border-color: #dc2626 !important;
+  box-shadow: 0 0 8px rgba(220, 38, 38, 0.15) !important;
+}
+
+@keyframes borderPulse {
+  0% {
+    border-color: rgba(220, 38, 38, 0.35);
+    box-shadow: 0 0 4px rgba(220, 38, 38, 0.08);
+  }
+  50% {
+    border-color: rgba(220, 38, 38, 0.95);
+    box-shadow: 0 0 14px rgba(220, 38, 38, 0.3);
+  }
+  100% {
+    border-color: rgba(220, 38, 38, 0.35);
+    box-shadow: 0 0 4px rgba(220, 38, 38, 0.08);
+  }
+}
+
+/* Animación sutil de pulso para el badge rojo */
+.badgePulse {
+  animation: badgeBlink 1.5s infinite alternate ease-in-out;
+}
+
+@keyframes badgeBlink {
+  from {
+    opacity: 0.82;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}

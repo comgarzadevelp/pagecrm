@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient.js';
 export const runLeadNotificationCheck = async () => {
   try {
     console.log('[SLA JOB] Starting lead SLA inactivity check...');
-    
+
     // 1. Fetch active leads (not discarded, not customer, having assigned_to)
     const { data: leads, error: leadsError } = await supabase
       .from('leads')
@@ -117,8 +117,8 @@ export const runLeadNotificationCheck = async () => {
         await triggerSlaNotification(
           sellerId,
           'sla_7d',
-          '🚨 ALERTA CRÍTICA: Lead en el olvido',
-          `El prospecto "${lead.name}" lleva más de 7 días sin contacto. Por favor actualízalo de inmediato.`
+          '🚨 ALERTA CRÍTICA: Negociación en el olvido',
+          `La negociación "${lead.name}" lleva más de 7 días sin contacto. Por favor actualízala de inmediato.`
         );
 
         // Send to Supervisor
@@ -127,7 +127,7 @@ export const runLeadNotificationCheck = async () => {
             seller.supervisor_id,
             'sla_7d_super',
             '⚠️ Alerta Crítica (Asesor bajo tu cargo)',
-            `El prospecto "${lead.name}" asignado a ${sellerName} lleva más de 7 días sin contacto.`
+            `La negociación "${lead.name}" asignada a ${sellerName} lleva más de 7 días sin contacto.`
           );
         }
 
@@ -138,8 +138,8 @@ export const runLeadNotificationCheck = async () => {
             await triggerSlaNotification(
               adminId,
               'sla_7d_admin',
-              '🚨 Alerta Crítica Global: Lead sin contacto',
-              `El prospecto "${lead.name}" asignado a ${sellerName} lleva 7 días congelado.`
+              '🚨 Alerta Crítica Global: Negociación sin contacto',
+              `La negociación "${lead.name}" asignada a ${sellerName} lleva 7 días congelada.`
             );
           }
         }
@@ -150,8 +150,8 @@ export const runLeadNotificationCheck = async () => {
         await triggerSlaNotification(
           sellerId,
           'sla_72h',
-          '⚠️ ALERTA: Lead sin contacto (>72h)',
-          `El prospecto "${lead.name}" lleva más de 72 horas sin registrar interacción.`
+          '⚠️ Notificación: Negociación sin avance',
+          `La negociación "${lead.name}" lleva más de 72 horas sin registrar interacción.`
         );
 
         // Send to Supervisor
@@ -159,8 +159,8 @@ export const runLeadNotificationCheck = async () => {
           await triggerSlaNotification(
             seller.supervisor_id,
             'sla_72h_super',
-            '⚠️ Alerta: Lead sin contacto (>72h)',
-            `El prospecto "${lead.name}" asignado a ${sellerName} lleva más de 72 horas sin interacción.`
+            '⚠️ Notificación: Negociación sin avance',
+            `La negociación "${lead.name}" asignada a ${sellerName} lleva más de 72 horas sin interacción.`
           );
         }
       }
@@ -171,7 +171,7 @@ export const runLeadNotificationCheck = async () => {
           sellerId,
           'sla_48h',
           '⏱️ Recordatorio: 48 horas sin actualizar',
-          `El prospecto "${lead.name}" no ha tenido actualizaciones en las últimas 48 horas.`
+          `La negociación "${lead.name}" no ha tenido actualizaciones en las últimas 48 horas.`
         );
       }
       // 4. Light Reminder (24 Hours)
@@ -181,7 +181,7 @@ export const runLeadNotificationCheck = async () => {
           sellerId,
           'sla_24h',
           '⏱️ Recordatorio: 24 horas sin actualizar',
-          `El prospecto "${lead.name}" no ha tenido movimientos en 24 horas.`
+          `La negociación "${lead.name}" no ha tenido movimientos en 24 horas.`
         );
       }
     }

@@ -18,19 +18,19 @@ npm run build
 Write-Host "`n[2/4] Subiendo Frontend (dist/) al VPS..." -ForegroundColor Yellow
 # Limpiar todo el dist anterior para evitar acumulación de archivos basura de builds viejas
 ssh $ServerDest "rm -rf /var/www/garza_crm_page/frontend/dist/*"
-# Subir carpeta dist/ completa con rsync-style (-r sin glob) para garantizar subdirectorios
-# Usamos el folder completo con trailing slash para copiar solo el contenido
-Get-ChildItem -Path dist | ForEach-Object {
-    scp -r $_.FullName "${ServerDest}:/var/www/garza_crm_page/frontend/dist/"
-}
+
+# Subir carpeta dist/ completa en UN SOLO COMANDO para evitar que pida contraseña por cada archivo
+$distFiles = Get-ChildItem -Path dist | Select-Object -ExpandProperty FullName
+scp -r $distFiles "${ServerDest}:/var/www/garza_crm_page/frontend/dist/"
+
 Write-Host "   Verificando assets en servidor..." -ForegroundColor Gray
 $assetCount = ssh $ServerDest "ls /var/www/garza_crm_page/frontend/dist/assets/*.js 2>/dev/null | wc -l"
 Write-Host "   Assets JS encontrados en servidor: $assetCount" -ForegroundColor Gray
 
 # 3. Desplegar Backend al VPS
 Write-Host "`n[3/4] Subiendo Backend al VPS..." -ForegroundColor Yellow
-# Subir directorios del backend
-scp -r backend/config backend/controllers backend/middleware backend/migrations backend/public backend/routes backend/scripts backend/services "${ServerDest}:/var/www/garza_crm_page/backend/"
+# Subir directorios del backend (AHORA INCLUYE backend/utils que faltaba)
+scp -r backend/config backend/controllers backend/middleware backend/migrations backend/public backend/routes backend/scripts backend/services backend/utils "${ServerDest}:/var/www/garza_crm_page/backend/"
 # Subir archivos raíz del backend (no se sobrescribe el .env de producción a menos que se requiera)
 scp backend/server.js backend/supabaseClient.js backend/ecosystem.config.cjs backend/package.json backend/package-lock.json "${ServerDest}:/var/www/garza_crm_page/backend/"
 

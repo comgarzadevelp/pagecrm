@@ -92,15 +92,15 @@ export default function GenerarVentaModal({
 
   return ReactDOM.createPortal(
     <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
-      <div 
-        className="crm-modal-content" 
-        onClick={(e) => e.stopPropagation()} 
+      <div
+        className="crm-modal-content"
+        onClick={(e) => e.stopPropagation()}
         style={{ maxWidth: '550px', width: '96%' }}
       >
         {/* Botón X de Cierre */}
-        <button 
-          type="button" 
-          className="close-modal-btn" 
+        <button
+          type="button"
+          className="close-modal-btn"
           onClick={onClose}
           aria-label="Cerrar modal"
         >
@@ -109,17 +109,17 @@ export default function GenerarVentaModal({
 
         {/* Cabecera del Modal */}
         <div className="modal-header" style={{ marginBottom: '1.5rem' }}>
-          <h2 style={{ 
-            fontSize: '1.35rem', 
-            fontWeight: 800, 
-            color: 'var(--color-brand-primary, #05393a)', 
+          <h2 style={{
+            fontSize: '1.35rem',
+            fontWeight: 800,
+            color: 'var(--color-brand-primary, #05393a)',
             margin: 0,
             display: 'flex',
             alignItems: 'center',
             gap: '8px'
           }}>
             <i className="fas fa-handshake" style={{ color: 'var(--color-brand-accent, #d4a359)' }}></i>
-            Generar venta
+            Gasda
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0' }}>
             Registrando oportunidad para <strong style={{ color: '#334155' }}>{customer.name}</strong> {customer.company ? `(${customer.company})` : ''}
@@ -129,7 +129,7 @@ export default function GenerarVentaModal({
         {/* Formulario */}
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingRight: '4px' }}>
-            
+
             {/* Título de la Negociación */}
             <div className="modal-input-group">
               <label htmlFor="negoc-title">Título de la Negociación *</label>
@@ -206,17 +206,17 @@ export default function GenerarVentaModal({
 
           {/* Footer del Modal */}
           <div className="modal-footer" style={{ marginTop: '1.5rem', paddingWithoutBorder: true }}>
-            <button 
-              type="button" 
-              className="btn-secondary" 
+            <button
+              type="button"
+              className="btn-secondary"
               onClick={onClose}
               disabled={isSubmitting}
             >
               Cancelar
             </button>
-            <button 
-              type="submit" 
-              className="btn-primary" 
+            <button
+              type="submit"
+              className="btn-primary"
               disabled={isSubmitting}
               style={{
                 display: 'flex',

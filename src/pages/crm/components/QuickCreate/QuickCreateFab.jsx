@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import CrearProspectoModal from '../CrearProspectoModal';
-import RegistrarClienteModal from '../RegistrarClienteModal';
-import EmpresaFormModal from '../../../../features/directory/components/EmpresaFormModal';
-import ContactoFormModal from '../../../../features/directory/components/ContactoFormModal';
+import FieldFlowWizard from '../../../../features/fieldflow/FieldFlowWizard';
 import './QuickCreateFab.css';
 
 export default function QuickCreateFab({
@@ -39,12 +36,12 @@ export default function QuickCreateFab({
       <div className="crm-fab-container">
         <button
           type="button"
-          className="crm-fab-btn"
+          className="crm-fab-btn bg-[#05393A] hover:bg-[#084e4f] shadow-lg"
           onClick={() => setShowSheet(!showSheet)}
           title="Creación rápida"
         >
-          <i className="fas fa-plus"></i>
-          <span>NUEVO</span>
+          <i className="fas fa-bolt"></i>
+          <span>REGISTRAR ACTIVIDAD</span>
         </button>
       </div>
 
@@ -55,12 +52,31 @@ export default function QuickCreateFab({
             <div className="quick-create-handle"></div>
             <h3 className="quick-create-title">Creación Rápida</h3>
 
-            <div className="quick-create-options-grid">
-              {/* Opción Cotización */}
+            <div className="quick-create-options-grid flex flex-col gap-3 p-4">
+              
+              {/* Opción FieldFlow (Primaria) */}
+              <button
+                type="button"
+                className="w-full flex items-center gap-4 p-4 bg-[#05393A]/5 hover:bg-[#05393A]/10 border-2 border-[#05393A] rounded-xl transition-colors text-left"
+                onClick={() => {
+                  setActiveModal('fieldflow');
+                  setShowSheet(false);
+                }}
+              >
+                <div className="w-12 h-12 bg-[#05393A] rounded-full flex items-center justify-center text-white shrink-0">
+                  <i className="fas fa-bolt text-xl"></i>
+                </div>
+                <div className="flex-1">
+                  <span className="block font-bold text-[#05393A] text-lg">FieldFlow / Visita</span>
+                  <span className="block text-sm text-gray-600">Registro guiado inteligente en campo</span>
+                </div>
+              </button>
+
+              {/* Opción Cotización (Secundaria) */}
               {hasQuotes && (
                 <button
                   type="button"
-                  className="quick-create-option-btn quote"
+                  className="w-full flex items-center gap-4 p-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl transition-colors text-left shadow-sm"
                   onClick={() => {
                     if (typeof setActiveTab === 'function') {
                       setActiveTab('quotes');
@@ -68,113 +84,23 @@ export default function QuickCreateFab({
                     setShowSheet(false);
                   }}
                 >
-                  <div className="icon-box-fab">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 shrink-0">
                     <i className="fas fa-calculator"></i>
                   </div>
-                  <span>Nueva Cotización</span>
+                  <div className="flex-1">
+                    <span className="block font-semibold text-gray-800">Nueva Cotización</span>
+                    <span className="block text-xs text-gray-500">Flujo de escritorio</span>
+                  </div>
                 </button>
               )}
-
-              {/* Opción Prospecto */}
-              <button
-                type="button"
-                className="quick-create-option-btn prospect"
-                onClick={() => {
-                  setActiveModal('prospect');
-                  setShowSheet(false);
-                }}
-              >
-                <div className="icon-box-fab">
-                  <i className="fas fa-handshake"></i> {/* Changed icon to handshake */}
-                </div>
-                <span>Nueva Negociación</span>
-              </button>
-
-              {/* Opción Cliente */}
-              <button
-                type="button"
-                className="quick-create-option-btn client"
-                onClick={() => {
-                  setActiveModal('client');
-                  setShowSheet(false);
-                }}
-              >
-                <div className="icon-box-fab">
-                  <i className="fas fa-building-user"></i>
-                </div>
-                <span>Nuevo Cliente</span>
-              </button>
-
-              {/* Opción Empresa */}
-              <button
-                type="button"
-                className="quick-create-option-btn company"
-                onClick={() => {
-                  setActiveModal('company');
-                  setShowSheet(false);
-                }}
-              >
-                <div className="icon-box-fab">
-                  <i className="fas fa-industry"></i>
-                </div>
-                <span>Nueva Empresa</span>
-              </button>
-
-              {/* Opción Contacto */}
-              <button
-                type="button"
-                className="quick-create-option-btn contact"
-                onClick={() => {
-                  setActiveModal('contact');
-                  setShowSheet(false);
-                }}
-              >
-                <div className="icon-box-fab">
-                  <i className="fas fa-address-book"></i>
-                </div>
-                <span>Nuevo Contacto</span>
-              </button>
             </div>
           </div>
         </div>
       )}
 
       {/* Modales Fullscreen Condicionales */}
-      {activeModal === 'prospect' && (
-        <CrearProspectoModal
-          isOpen={true}
-          API_BASE={API_BASE}
-          onClose={() => setActiveModal(null)}
-          onSuccess={handleRefetch}
-        />
-      )}
-
-      {activeModal === 'client' && (
-        <RegistrarClienteModal
-          isOpen={true}
-          API_BASE={API_BASE}
-          onClose={() => setActiveModal(null)}
-          onSuccess={handleRefetch}
-        />
-      )}
-
-      {activeModal === 'company' && (
-        <EmpresaFormModal
-          editMode={false}
-          API_BASE={API_BASE}
-          onClose={() => setActiveModal(null)}
-          refetch={handleRefetch}
-        />
-      )}
-
-      {activeModal === 'contact' && (
-        <ContactoFormModal
-          editMode={false}
-          API_BASE={API_BASE}
-          onClose={() => setActiveModal(null)}
-          refetch={handleRefetch}
-          token={() => localStorage.getItem('token')}
-        />
+      {activeModal === 'fieldflow' && (
+        <FieldFlowWizard onClose={() => setActiveModal(null)} />
       )}
     </>
   );

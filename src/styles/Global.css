@@ -1,5 +1,6 @@
+@import "tailwindcss";
+
 :root {
-  /* Colors - Garza Identity */
   --color-primary: #05393A; /* Deep Teal */
   --color-accent: #E0922B;  /* Industrial Orange */
   --color-black: #050505;

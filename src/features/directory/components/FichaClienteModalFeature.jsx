@@ -5,8 +5,8 @@ import TabPerfil from '../../../pages/crm/components/FichaCliente/TabPerfil';
 import TabCotizaciones from '../../../pages/crm/components/FichaCliente/TabCotizaciones';
 import TabActualizaciones from '../../../pages/crm/components/FichaCliente/TabActualizaciones';
 import TabHistorialUnificado from '../../../pages/crm/components/FichaCliente/TabHistorialUnificado';
-
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
+import { computeDataQuality, getQualityConfig } from '../utils/dataQuality.js';
 import '../../../pages/crm/components/FichaCliente/FichaCliente.css';
 
 export default function FichaClienteModal({
@@ -21,13 +21,13 @@ export default function FichaClienteModal({
   const { showToast } = useUX();
   const [customerQuotes, setCustomerQuotes] = useState([]);
   const [loadingCustomerQuotes, setLoadingCustomerQuotes] = useState(false);
-  
+
   const [linkedContacts, setLinkedContacts] = useState([]);
   const [loadingLinkedContacts, setLoadingLinkedContacts] = useState(false);
-  
+
   const [linkedCompanies, setLinkedCompanies] = useState([]);
   const [loadingLinkedCompanies, setLoadingLinkedCompanies] = useState(false);
-  
+
   const [linkedObras, setLinkedObras] = useState([]);
   const [loadingLinkedObras, setLoadingLinkedObras] = useState(false);
 
@@ -40,19 +40,60 @@ export default function FichaClienteModal({
   const [customerAppointments, setCustomerAppointments] = useState([]);
   const [loadingAppointments, setLoadingAppointments] = useState(false);
 
+  const normalizeCompany = (comp) => {
+    if (!comp) return null;
+    const CRM_STATES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
+    const rawStatus = (comp.status || '').toString().toLowerCase().trim();
+    const normalizedStatus = CRM_STATES.includes(rawStatus) ? rawStatus : 'pendiente_revision';
+
+    return {
+      ...comp,
+      isCompany: true,
+      name: comp.name || comp.company || '',
+      email: comp.email_main || comp.email || '',
+      phone: comp.phone_main || comp.phone || '',
+      company: comp.alias || comp.name || comp.company || '',
+      notes: comp.notes || '',
+      status: normalizedStatus,
+      limcred: comp.limcred || 0,
+      saldo: comp.saldo || 0,
+      lista_prec: comp.lista_prec || 1,
+      clasific: comp.clasific || '',
+      calle: comp.calle || '',
+      colonia: comp.colonia || '',
+      codigo: comp.codigo || '',
+      municipio: comp.city || comp.municipio || '',
+      estado: comp.state || comp.estado || '',
+      rfc: comp.rfc || 'N/A',
+      address: comp.address || '',
+      website: comp.website || comp.pag_web || '',
+      pag_web: comp.website || comp.pag_web || '',
+      maps_url: comp.maps_url || ''
+    };
+  };
+
   const normalizeCustomerStatus = (cust) => {
     if (!cust) return null;
-    const CRM_STATES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
-    if (cust.isCompany) {
-      const rawStatus = (cust.status || '').toString().toLowerCase().trim();
-      const status = CRM_STATES.includes(rawStatus) ? rawStatus : 'pendiente_revision';
-      return { ...cust, status };
+    if (cust.isCompany || ('email_main' in cust) || ('phone_main' in cust)) {
+      return normalizeCompany(cust);
     }
     return cust;
   };
 
   const [activeCustomerTab, setActiveCustomerTab] = useState('profile');
-  const [currentCustomer, setCurrentCustomer] = useState(() => normalizeCustomerStatus(selectedCustomer));
+  const [currentCustomer, setRawCustomer] = useState(() => normalizeCustomerStatus(selectedCustomer));
+
+  const setCurrentCustomer = (custOrFn) => {
+    setRawCustomer(prev => {
+      const updated = typeof custOrFn === 'function' ? custOrFn(prev) : custOrFn;
+      if (!updated) return null;
+      const isComp = updated.isCompany || (prev && prev.isCompany);
+      if (isComp) {
+        return normalizeCompany(updated);
+      }
+      return updated;
+    });
+  };
   const [showVisitaModal, setShowVisitaModal] = useState(false);
   const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [archiveReason, setArchiveReason] = useState('');
@@ -66,14 +107,14 @@ export default function FichaClienteModal({
     if (selectedCustomer) {
       const normalized = normalizeCustomerStatus(selectedCustomer);
       setCurrentCustomer(normalized);
-      
+
       const isComp = !!normalized.isCompany;
       if (isComp) {
         fetchLinkedContacts(normalized.id);
       } else {
         fetchLinkedCompanies(normalized.id);
       }
-      
+
       fetchLinkedObras(normalized.id, isComp);
       fetchCustomerOpportunities(normalized.id, isComp);
       fetchCustomerVisitas(normalized.id, isComp);
@@ -459,7 +500,7 @@ export default function FichaClienteModal({
                 alignItems: 'center',
                 gap: '4px'
               }}>
-                <i className="fas fa-database" style={{ fontSize: '0.65rem' }}></i> SINCRONIZADO DESDE SAE
+                <i className="fas fa-database" style={{ fontSize: '0.65rem' }}></i> OBTENIDO DESDE SAE
               </span>
             )}
           </div>
@@ -535,6 +576,7 @@ export default function FichaClienteModal({
               fetchCustomers={fetchCustomers}
               API_BASE={API_BASE}
               role={role}
+              onCompanyUpdated={onCompanyStatusUpdated}
             />
           )}
 
@@ -924,6 +966,7 @@ export default function FichaClienteModal({
               appointments={customerAppointments}
               refreshAppointments={() => fetchCustomerAppointments(currentCustomer.name)}
               refreshVisitas={() => fetchCustomerVisitas(currentCustomer.id, !!currentCustomer.isCompany)}
+              onCompanyUpdated={onCompanyStatusUpdated}
             />
           )}
 
@@ -944,46 +987,68 @@ export default function FichaClienteModal({
 
         <div className="modal-footer" style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', flexShrink: 0, gap: '1rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginRight: 'auto' }}>
-            <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748b' }}>Estado Actual:</label>
-            <select
-              value={currentCustomer.status || (currentCustomer.isCompany ? 'pendiente_revision' : 'calificado')}
-              onChange={(e) => handleStatusChange(e.target.value)}
-              style={{
-                padding: '0.45rem 2.2rem 0.45rem 1rem',
-                borderRadius: '8px',
-                border: `1px solid ${currentStatusStyles.border}`,
-                fontSize: '0.85rem',
-                fontWeight: '700',
-                outline: 'none',
-                background: currentStatusStyles.bg,
-                color: currentStatusStyles.color,
-                cursor: 'pointer',
-                appearance: 'none',
-                backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${encodeURIComponent(currentStatusStyles.color)}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
-                backgroundRepeat: 'no-repeat',
-                backgroundPosition: 'right 0.6rem center',
-                backgroundSize: '1.1em',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
-              }}
-            >
-              {currentCustomer.isCompany ? (
-                <>
-                  <option value="pendiente_revision" style={{ background: '#ffffff', color: '#ea580c', fontWeight: '600', padding: '10px' }}>Pendiente de Revisión</option>
-                  <option value="activa" style={{ background: '#ffffff', color: '#16a34a', fontWeight: '600', padding: '10px' }}>Activa</option>
-                  <option value="reactivado_seguimiento" style={{ background: '#ffffff', color: '#ca8a04', fontWeight: '600', padding: '10px' }}>Reactivado/Seguimiento</option>
-                  <option value="inactiva" style={{ background: '#ffffff', color: '#475569', fontWeight: '600', padding: '10px' }}>Inactiva</option>
-                  <option value="reactivado_venta" style={{ background: '#ffffff', color: '#db2777', fontWeight: '600', padding: '10px' }}>Reactivando venta</option>
-                </>
-              ) : (
-                <>
+            {currentCustomer.isCompany ? (
+              // ── Empresas: badge de calidad automático (solo lectura) ──
+              (() => {
+                const qualityScore = currentCustomer.data_quality?.score || computeDataQuality(currentCustomer, 'company');
+                const qCfg = getQualityConfig(qualityScore);
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '0.82rem', fontWeight: '700', color: '#64748b' }}>Calidad:</span>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: qCfg.bg,
+                      color: qCfg.color,
+                      border: `1px solid ${qCfg.border}`,
+                      borderRadius: '20px',
+                      padding: '4px 12px',
+                      fontSize: '0.82rem',
+                      fontWeight: '700'
+                    }}>
+                      <i className={qCfg.icon} style={{ fontSize: '0.72rem' }} />
+                      {qCfg.label}
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                      Calculado automáticamente
+                    </span>
+                  </div>
+                );
+              })()
+            ) : (
+              // ── Contactos/Leads: selector de estado manual (flujo de seguimiento) ──
+              <>
+                <label style={{ fontSize: '0.85rem', fontWeight: '700', color: '#64748b' }}>Estado Actual:</label>
+                <select
+                  value={currentCustomer.status || 'calificado'}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  style={{
+                    padding: '0.45rem 2.2rem 0.45rem 1rem',
+                    borderRadius: '8px',
+                    border: `1px solid ${currentStatusStyles.border}`,
+                    fontSize: '0.85rem',
+                    fontWeight: '700',
+                    outline: 'none',
+                    background: currentStatusStyles.bg,
+                    color: currentStatusStyles.color,
+                    cursor: 'pointer',
+                    appearance: 'none',
+                    backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='${encodeURIComponent(currentStatusStyles.color)}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e")`,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundPosition: 'right 0.6rem center',
+                    backgroundSize: '1.1em',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+                  }}
+                >
                   <option value="nuevo" style={{ background: '#ffffff', color: '#2563eb', fontWeight: '600', padding: '10px' }}>Nuevo</option>
                   <option value="pendiente_revision" style={{ background: '#ffffff', color: '#ea580c', fontWeight: '600', padding: '10px' }}>Pendiente de Revisión</option>
                   <option value="contactado" style={{ background: '#ffffff', color: '#9333ea', fontWeight: '600', padding: '10px' }}>Contactado</option>
                   <option value="calificado" style={{ background: '#ffffff', color: '#16a34a', fontWeight: '600', padding: '10px' }}>Calificado</option>
                   <option value="descartado" style={{ background: '#ffffff', color: '#475569', fontWeight: '600', padding: '10px' }}>Descartado</option>
-                </>
-              )}
-            </select>
+                </select>
+              </>
+            )}
           </div>
           <button className="btn-secondary" onClick={() => setShowArchiveModal(true)} style={{ padding: '0.6rem 1.5rem', borderRadius: '8px', background: '#fee2e2', color: '#ef4444', border: '1px solid #fca5a5', fontWeight: '600', display: isEditingProfile ? 'none' : 'block' }}>
             <i className="fas fa-archive" style={{ marginRight: '6px' }}></i> Archivar

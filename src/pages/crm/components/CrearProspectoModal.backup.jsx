@@ -185,7 +185,7 @@ export default function CrearProspectoModal({
     setAcquiringGps(true);
     setAcquiredCoords(null);
     setGpsOmitted(false);
-    
+
     if (!navigator.geolocation) {
       showToast('Tu navegador no soporta geolocalización.', 'error');
       setAcquiringGps(false);
@@ -257,16 +257,16 @@ export default function CrearProspectoModal({
     setIsSubmittingLead(true);
     try {
       const token = localStorage.getItem('token');
-      
+
       let uploadedPhotoUrls = [];
-      
+
       // If there are photos, upload them first
       if (photos.length > 0) {
         showToast('Subiendo fotos...', 'info');
         const uploadPromises = photos.map(async (p) => {
           const formData = new FormData();
           formData.append('file', p.file);
-          
+
           const res = await fetch(`${API_BASE}/api/crm/files`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -324,8 +324,8 @@ export default function CrearProspectoModal({
   };
 
   const handleContactSelect = (contact) => {
-    setCreateForm({ 
-      ...createForm, 
+    setCreateForm({
+      ...createForm,
       name: contact.name,
       phone: contact.phone || createForm.phone,
       email: contact.email || createForm.email
@@ -343,10 +343,10 @@ export default function CrearProspectoModal({
             Ingresa los datos del prospecto para iniciar el seguimiento.
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
-            
+
             {/* Sección 1: Datos del Contacto */}
             <div className="form-section">
               <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>👤 Sección 1: Datos del Contacto</h3>
@@ -371,8 +371,8 @@ export default function CrearProspectoModal({
                         <div className="autocomplete-loading">Buscando contactos...</div>
                       ) : contactOptions.length > 0 ? (
                         contactOptions.map((co) => (
-                          <div 
-                            key={co.id} 
+                          <div
+                            key={co.id}
                             className="autocomplete-option"
                             onClick={() => handleContactSelect(co)}
                             style={{ display: 'flex', flexDirection: 'column' }}
@@ -439,8 +439,8 @@ export default function CrearProspectoModal({
                         <div className="autocomplete-loading">Buscando empresas...</div>
                       ) : companyOptions.length > 0 ? (
                         companyOptions.map((co) => (
-                          <div 
-                            key={co.id} 
+                          <div
+                            key={co.id}
                             className="autocomplete-option"
                             onClick={() => handleCompanySelect(co.name)}
                           >
@@ -469,11 +469,11 @@ export default function CrearProspectoModal({
                   <label style={{ color: '#0f172a', fontWeight: '700', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     📍 Ubicación de la Obra (Requerido)
                   </label>
-                  
+
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginTop: '8px' }}>
                     {!acquiredCoords && !gpsOmitted ? (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={handleAcquireGps}
                         disabled={acquiringGps}
                         style={{
@@ -495,30 +495,30 @@ export default function CrearProspectoModal({
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#475569' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={gpsOmitted} 
+                        <input
+                          type="checkbox"
+                          checked={gpsOmitted}
                           onChange={(e) => {
                             setGpsOmitted(e.target.checked);
                             if (e.target.checked) setAcquiredCoords(null);
-                          }} 
+                          }}
                           style={{ accentColor: '#05393a', width: '16px', height: '16px' }}
                         />
                         Omitir ubicación GPS
                       </label>
-                      
+
                       {gpsOmitted && (
                         <div ref={omitSelectRef} style={{ position: 'relative', width: '100%' }}>
-                          <div 
+                          <div
                             onClick={() => setIsOmitSelectOpen(!isOmitSelectOpen)}
-                            style={{ 
-                              padding: '12px 16px', 
-                              borderRadius: '8px', 
-                              border: isOmitSelectOpen ? '2px solid #05393a' : '1px solid #cbd5e1', 
-                              width: '100%', 
-                              fontSize: '0.9rem', 
+                            style={{
+                              padding: '12px 16px',
+                              borderRadius: '8px',
+                              border: isOmitSelectOpen ? '2px solid #05393a' : '1px solid #cbd5e1',
+                              width: '100%',
+                              fontSize: '0.9rem',
                               color: gpsOmitReason ? '#0f172a' : '#64748b',
-                              backgroundColor: '#fff', 
+                              backgroundColor: '#fff',
                               cursor: 'pointer',
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -531,7 +531,7 @@ export default function CrearProspectoModal({
                             {gpsOmitReason || "-- Selecciona el motivo --"}
                             <i className={`fas fa-chevron-${isOmitSelectOpen ? 'up' : 'down'}`} style={{ color: '#64748b', fontSize: '0.8rem' }}></i>
                           </div>
-                          
+
                           {isOmitSelectOpen && (
                             <div style={{
                               position: 'absolute',
@@ -552,7 +552,7 @@ export default function CrearProspectoModal({
                                 "Prospecto contactado en evento / exposición",
                                 "Registro post-visita (olvidé capturarlo en sitio)"
                               ].map((option, idx) => (
-                                <div 
+                                <div
                                   key={idx}
                                   onClick={() => {
                                     setGpsOmitReason(option);
@@ -584,12 +584,12 @@ export default function CrearProspectoModal({
                 <div className="modal-input-group" style={{ marginTop: '1rem' }}>
                   <label style={{ color: '#334155', fontWeight: '600', fontSize: '0.95rem' }}>📷 Fotos de la Obra (Opcional)</label>
                   <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 10px 0' }}>Sube hasta 3 imágenes del acceso o avance de obra.</p>
-                  
+
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
                     {photos.map(p => (
                       <div key={p.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '6px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                         <img src={p.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleRemovePhoto(p.id)}
                           style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px' }}
@@ -639,7 +639,7 @@ export default function CrearProspectoModal({
               </div>
             </div>
           </div>
-          
+
           <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
             <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button
@@ -648,7 +648,7 @@ export default function CrearProspectoModal({
               disabled={isSubmittingLead || !!phoneWarning}
               style={{ background: 'linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #c2781b 100%)', borderColor: 'var(--color-brand-accent, #d4a359)' }}
             >
-              {isSubmittingLead ? 'Guardando...' : 'Registrar Prospecto'}
+              {isSubmittingLead ? 'Guardando...' : 'Registrar '}
             </button>
           </div>
         </form>

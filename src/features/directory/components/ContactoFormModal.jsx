@@ -3,6 +3,13 @@ import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import '../styles/MisContactos.module.css';
 
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
+
 const emptyForm = { name: '', position: '', contact_type: 'oficina', email: '', phone: '', phone_alt: '', whatsapp: '', notes: '', company_id: '', company_name: '' };
 
 const OFICINA_ROLES = ['RH', 'Almacén', 'Compras', 'Facturación', 'Contabilidad', 'Legal', 'Dirección', 'Ventas', 'Asistente'];
@@ -88,6 +95,10 @@ export default function ContactoFormModal({ editMode, selectedContact, onClose, 
 
   const handleSave = async (e) => {
     e.preventDefault();
+    if (form.email && !isValidEmail(form.email)) {
+      showToast('Por favor, ingresa un correo electrónico válido (ejemplo@dominio.com).', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -272,8 +283,21 @@ export default function ContactoFormModal({ editMode, selectedContact, onClose, 
               </div>
             </div>
             <div className="form-group">
-              <label>Correo Electrónico</label>
-              <input type="email" value={form.email} onChange={inputChange('email')} placeholder="correo@empresa.com" />
+              <label style={form.email && !isValidEmail(form.email) ? { color: '#ef4444' } : {}}>
+                Correo Electrónico {form.email && !isValidEmail(form.email) && ' (Inválido)'}
+              </label>
+              <input 
+                type="text" 
+                value={form.email} 
+                onChange={inputChange('email')} 
+                placeholder="correo@empresa.com" 
+                style={form.email && !isValidEmail(form.email) ? { border: '1px solid #ef4444' } : {}}
+              />
+              {form.email && !isValidEmail(form.email) && (
+                <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block', fontWeight: '600' }}>
+                  Debe cumplir con el formato estándar (ejemplo@dominio.com).
+                </span>
+              )}
             </div>
             <div className="form-group">
               <label>Teléfono Principal</label>

@@ -15,7 +15,7 @@ export default defineConfig({
     },
   },
   server: {
-    allowedHosts: ['.ngrok-free.app', '.locallt.me'],
+    allowedHosts: ['.ngrok-free.app', '.locallt.me', '.loca.lt'],
     host: true,        // Expone el servidor a la red local
     port: 5174,        // Puerto fijo para consistencia con firewall
     strictPort: false, // Si 5174 está ocupado, usa siguiente disponible

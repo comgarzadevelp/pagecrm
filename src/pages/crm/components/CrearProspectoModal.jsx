@@ -10,7 +10,8 @@ export default function CrearProspectoModal({
   onClose,
   onSuccess,
   API_BASE,
-  initialNotes = ''
+  initialNotes = '',
+  customer
 }) {
   const { showToast } = useUX();
 
@@ -18,15 +19,15 @@ export default function CrearProspectoModal({
   const [createForm, setCreateForm] = useState({
     companyText: '',
     companyId: null,
-    
+
     obraId: 'new', // 'new' or UUID
     obraText: '',
-    
+
     contactId: 'new', // 'new' or UUID
     contactName: '',
     contactPhone: '',
     contactEmail: '',
-    
+
     requirementTitle: '',
     notes: initialNotes || ''
   });
@@ -165,13 +166,13 @@ export default function CrearProspectoModal({
       try {
         setLinkedLoading(true);
         const token = localStorage.getItem('token');
-        
+
         // Fetch Obras
         const resObras = await fetch(`${API_BASE}/api/crm/obras/company/${createForm.companyId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const dataObras = await resObras.json();
-        
+
         // Fetch Contacts using Company endpoint
         const resComp = await fetch(`${API_BASE}/api/crm/companies/${createForm.companyId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -183,7 +184,7 @@ export default function CrearProspectoModal({
           obrasList = dataObras.obras || [];
           setLinkedObras(obrasList);
         }
-        
+
         let contactsList = [];
         if (dataComp.success && dataComp.linkedContacts) {
           contactsList = dataComp.linkedContacts.map(lc => lc.contact || lc) || [];
@@ -196,10 +197,26 @@ export default function CrearProspectoModal({
           const nextObraId = obrasList.length > 0 ? obrasList[0].id : 'new';
           const nextObraText = obrasList.length > 0 ? obrasList[0].name : '';
 
-          const nextContactId = contactsList.length > 0 ? contactsList[0].id : 'new';
-          const nextContactName = contactsList.length > 0 ? contactsList[0].name : '';
-          const nextContactPhone = contactsList.length > 0 ? (contactsList[0].phone || '') : '';
-          const nextContactEmail = contactsList.length > 0 ? (contactsList[0].email || '') : '';
+          const currentContactInList = contactsList.find(c => String(c.id) === String(prev.contactId));
+
+          let nextContactId = prev.contactId;
+          let nextContactName = prev.contactName;
+          let nextContactPhone = prev.contactPhone;
+          let nextContactEmail = prev.contactEmail;
+
+          if (!currentContactInList && contactsList.length > 0) {
+            if (prev.contactId === 'new') {
+              nextContactId = contactsList[0].id;
+              nextContactName = contactsList[0].name;
+              nextContactPhone = contactsList[0].phone || '';
+              nextContactEmail = contactsList[0].email || '';
+            }
+          } else if (currentContactInList) {
+            nextContactId = currentContactInList.id;
+            nextContactName = currentContactInList.name;
+            nextContactPhone = currentContactInList.phone || '';
+            nextContactEmail = currentContactInList.email || '';
+          }
 
           return {
             ...prev,
@@ -218,7 +235,7 @@ export default function CrearProspectoModal({
         setLinkedLoading(false);
       }
     };
-    
+
     if (createForm.companyId) {
       fetchLinkedData();
     } else {
@@ -247,15 +264,23 @@ export default function CrearProspectoModal({
   // Reset form when modal opens or closes
   useEffect(() => {
     if (isOpen) {
+      const initialCompanyText = customer?.company || '';
+      const initialCompanyId = customer?.company_id || null;
+
+      const initialContactId = customer?.id || 'new';
+      const initialContactName = customer?.name || '';
+      const initialContactPhone = customer?.phone || '';
+      const initialContactEmail = customer?.email || '';
+
       setCreateForm({
-        companyText: '',
-        companyId: null,
+        companyText: initialCompanyText,
+        companyId: initialCompanyId,
         obraId: 'new',
         obraText: '',
-        contactId: 'new',
-        contactName: '',
-        contactPhone: '',
-        contactEmail: '',
+        contactId: initialContactId,
+        contactName: initialContactName,
+        contactPhone: initialContactPhone,
+        contactEmail: initialContactEmail,
         requirementTitle: '',
         notes: initialNotes || ''
       });
@@ -267,17 +292,28 @@ export default function CrearProspectoModal({
       setGpsOmitted(false);
       setGpsOmitReason('');
       setPhotos([]);
+
+      if (initialContactId !== 'new' && initialContactName) {
+        setLinkedContacts([{
+          id: initialContactId,
+          name: initialContactName,
+          phone: initialContactPhone,
+          email: initialContactEmail
+        }]);
+      } else {
+        setLinkedContacts([]);
+      }
+
       setLinkedObras([]);
-      setLinkedContacts([]);
     }
-  }, [isOpen, initialNotes]);
+  }, [isOpen, initialNotes, customer]);
 
   // GPS Handling
   const handleAcquireGps = () => {
     setAcquiringGps(true);
     setAcquiredCoords(null);
     setGpsOmitted(false);
-    
+
     if (!navigator.geolocation) {
       showToast('Tu navegador no soporta geolocalización.', 'error');
       setAcquiringGps(false);
@@ -327,7 +363,7 @@ export default function CrearProspectoModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     const isNewContact = createForm.contactId === 'new';
     const isNewObra = createForm.obraId === 'new';
 
@@ -338,7 +374,7 @@ export default function CrearProspectoModal({
         return;
       }
     }
-    
+
     if (isNewObra) {
       if (!createForm.obraText.trim()) {
         showToast('Por favor ingresa el nombre de la obra.', 'error');
@@ -369,16 +405,16 @@ export default function CrearProspectoModal({
     setIsSubmittingLead(true);
     try {
       const token = localStorage.getItem('token');
-      
+
       let uploadedPhotoUrls = [];
-      
+
       // Upload photos
       if (photos.length > 0) {
         showToast('Subiendo fotos...', 'info');
         const uploadPromises = photos.map(async (p) => {
           const formData = new FormData();
           formData.append('file', p.file);
-          
+
           const res = await fetch(`${API_BASE}/api/crm/files`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
@@ -400,11 +436,11 @@ export default function CrearProspectoModal({
         // Company
         company_id: createForm.companyId,
         company_name: createForm.companyId ? undefined : createForm.companyText.trim(),
-        
+
         // Obra
         obra_id: createForm.obraId === 'new' ? null : createForm.obraId,
         obra_name: createForm.obraId === 'new' ? createForm.obraText.trim() : undefined,
-        
+
         // Contact
         contact_id: createForm.contactId === 'new' ? null : createForm.contactId,
         contact_name: (createForm.contactId === 'new' || String(createForm.contactId).startsWith('sae-')) ? createForm.contactName.trim() : undefined,
@@ -414,7 +450,7 @@ export default function CrearProspectoModal({
         // Requirement
         requirement_title: createForm.requirementTitle.trim(),
         notes: createForm.notes.trim(),
-        
+
         // Evidence (to be attached to Obra and copied to notes)
         evidence_photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
         gps_coords: acquiredCoords || null,
@@ -446,8 +482,8 @@ export default function CrearProspectoModal({
   };
 
   const handleCompanySelect = (co) => {
-    setCreateForm({ 
-      ...createForm, 
+    setCreateForm({
+      ...createForm,
       companyText: co.name,
       companyId: co.id,
       obraId: 'new',
@@ -541,10 +577,10 @@ export default function CrearProspectoModal({
             Vincula este trato comercial a una empresa o contacto existente, o créalos sobre la marcha.
           </p>
         </div>
-        
+
         <form onSubmit={handleSubmit}>
           <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
-            
+
             {/* Paso 1: Empresa */}
             <div className="form-section">
               <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>🏢 Paso 1: Empresa / Cliente</h3>
@@ -571,12 +607,12 @@ export default function CrearProspectoModal({
                             <div className="autocomplete-loading">Buscando empresas...</div>
                           ) : companyOptions.length > 0 ? (
                             companyOptions.map((co) => (
-                              <div 
-                                key={co.id} 
+                              <div
+                                key={co.id}
                                 className="autocomplete-option"
                                 onClick={() => handleCompanySelect(co)}
                               >
-                                {co.name} {co.id.startsWith('sae-') && <span style={{fontSize:'0.7rem', color:'#64748b', marginLeft:'4px'}}>(SAE)</span>}
+                                {co.name} {co.id.startsWith('sae-') && <span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '4px' }}>(SAE)</span>}
                               </div>
                             ))
                           ) : (
@@ -603,7 +639,7 @@ export default function CrearProspectoModal({
             <div className="form-section">
               <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>🏗️ Paso 2: Obra y Evidencia</h3>
               <div className="modal-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                
+
                 {createForm.companyId && linkedObras.length > 0 ? (
                   <div className="modal-input-group">
                     <label>Seleccionar Obra *</label>
@@ -643,8 +679,8 @@ export default function CrearProspectoModal({
                           <div className="autocomplete-loading">Buscando obras...</div>
                         ) : obraOptions.length > 0 ? (
                           obraOptions.map((o) => (
-                            <div 
-                              key={o.id} 
+                            <div
+                              key={o.id}
                               className="autocomplete-option"
                               onClick={() => handleObraSelect(o)}
                             >
@@ -666,11 +702,11 @@ export default function CrearProspectoModal({
                   <label style={{ color: '#0f172a', fontWeight: '700', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                     📍 Ubicación de la Obra (Requerido)
                   </label>
-                  
+
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginTop: '8px' }}>
                     {!acquiredCoords && !gpsOmitted ? (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         onClick={handleAcquireGps}
                         disabled={acquiringGps}
                         style={{
@@ -692,30 +728,30 @@ export default function CrearProspectoModal({
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#475569' }}>
-                        <input 
-                          type="checkbox" 
-                          checked={gpsOmitted} 
+                        <input
+                          type="checkbox"
+                          checked={gpsOmitted}
                           onChange={(e) => {
                             setGpsOmitted(e.target.checked);
                             if (e.target.checked) setAcquiredCoords(null);
-                          }} 
+                          }}
                           style={{ accentColor: '#05393a', width: '16px', height: '16px' }}
                         />
                         Omitir ubicación GPS
                       </label>
-                      
+
                       {gpsOmitted && (
                         <div ref={omitSelectRef} style={{ position: 'relative', width: '100%' }}>
-                          <div 
+                          <div
                             onClick={() => setIsOmitSelectOpen(!isOmitSelectOpen)}
-                            style={{ 
-                              padding: '12px 16px', 
-                              borderRadius: '8px', 
-                              border: isOmitSelectOpen ? '2px solid #05393a' : '1px solid #cbd5e1', 
-                              width: '100%', 
-                              fontSize: '0.9rem', 
+                            style={{
+                              padding: '12px 16px',
+                              borderRadius: '8px',
+                              border: isOmitSelectOpen ? '2px solid #05393a' : '1px solid #cbd5e1',
+                              width: '100%',
+                              fontSize: '0.9rem',
                               color: gpsOmitReason ? '#0f172a' : '#64748b',
-                              backgroundColor: '#fff', 
+                              backgroundColor: '#fff',
                               cursor: 'pointer',
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -728,7 +764,7 @@ export default function CrearProspectoModal({
                             {gpsOmitReason || "-- Selecciona el motivo --"}
                             <i className={`fas fa-chevron-${isOmitSelectOpen ? 'up' : 'down'}`} style={{ color: '#64748b', fontSize: '0.8rem' }}></i>
                           </div>
-                          
+
                           {isOmitSelectOpen && (
                             <div style={{
                               position: 'absolute',
@@ -749,7 +785,7 @@ export default function CrearProspectoModal({
                                 "Prospecto contactado en evento / exposición",
                                 "Registro post-visita (olvidé capturarlo en sitio)"
                               ].map((option, idx) => (
-                                <div 
+                                <div
                                   key={idx}
                                   onClick={() => {
                                     setGpsOmitReason(option);
@@ -781,12 +817,12 @@ export default function CrearProspectoModal({
                 <div className="modal-input-group" style={{ marginTop: '1rem' }}>
                   <label style={{ color: '#334155', fontWeight: '600', fontSize: '0.95rem' }}>📷 Fotos de la Obra (Opcional)</label>
                   <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 10px 0' }}>Sube hasta 3 imágenes del acceso o avance de obra.</p>
-                  
+
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
                     {photos.map(p => (
                       <div key={p.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '6px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
                         <img src={p.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button 
+                        <button
                           type="button"
                           onClick={() => handleRemovePhoto(p.id)}
                           style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px' }}
@@ -812,7 +848,7 @@ export default function CrearProspectoModal({
             <div className="form-section">
               <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>👤 Paso 3: Datos del Contacto</h3>
               <div className="modal-form-grid">
-                
+
                 {createForm.companyId && linkedContacts.length > 0 ? (
                   <div className="modal-input-group" style={{ gridColumn: '1 / -1' }}>
                     <label>Seleccionar Contacto *</label>
@@ -908,7 +944,7 @@ export default function CrearProspectoModal({
               </div>
             </div>
           </div>
-          
+
           <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
             <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
             <button
@@ -917,7 +953,7 @@ export default function CrearProspectoModal({
               disabled={isSubmittingLead || !!phoneWarning}
               style={{ background: 'linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #c2781b 100%)', borderColor: 'var(--color-brand-accent, #d4a359)' }}
             >
-              {isSubmittingLead ? 'Guardando...' : 'Registrar Prospecto'}
+              {isSubmittingLead ? 'Guardando...' : 'Registrar'}
             </button>
           </div>
         </form>
@@ -932,5 +968,6 @@ CrearProspectoModal.propTypes = {
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,
   API_BASE: PropTypes.string.isRequired,
-  initialNotes: PropTypes.string
+  initialNotes: PropTypes.string,
+  customer: PropTypes.object
 };

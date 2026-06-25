@@ -3,6 +3,13 @@ import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import '../styles/Empresas.module.css';
 
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
+
 const emptyForm = {
   name: '', alias: '', type: 'empresa', rfc: '',
   address: '', city: 'Monterrey', state: 'Nuevo León', maps_url: '', website: '', industry: '',
@@ -118,6 +125,10 @@ export default function EmpresaFormModal({ editMode, selectedCompany, onClose, r
 
   const handleSave = async (e) => {
     e.preventDefault(); 
+    if (form.email_main && !isValidEmail(form.email_main)) {
+      showToast('Por favor, ingresa un correo electrónico principal válido (ejemplo@dominio.com).', 'error');
+      return;
+    }
     setSaving(true);
     try {
       const url = editMode ? `${API_BASE}/api/crm/companies/${selectedCompany.id}` : `${API_BASE}/api/crm/companies`;
@@ -229,8 +240,20 @@ export default function EmpresaFormModal({ editMode, selectedCompany, onClose, r
                     <input value={form.phone_main} onChange={f('phone_main')} placeholder="81 1234 5678" />
                   </div>
                   <div className="form-group">
-                    <label>Email Principal</label>
-                    <input type="email" value={form.email_main} onChange={f('email_main')} />
+                    <label style={form.email_main && !isValidEmail(form.email_main) ? { color: '#ef4444' } : {}}>
+                      Email Principal {form.email_main && !isValidEmail(form.email_main) && ' (Inválido)'}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={form.email_main} 
+                      onChange={f('email_main')} 
+                      style={form.email_main && !isValidEmail(form.email_main) ? { border: '1px solid #ef4444' } : {}}
+                    />
+                    {form.email_main && !isValidEmail(form.email_main) && (
+                      <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', display: 'block', fontWeight: '600' }}>
+                        Debe cumplir con el formato estándar (ejemplo@dominio.com).
+                      </span>
+                    )}
                   </div>
                   <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                     <label>Sitio Web / URL de Mapas</label>

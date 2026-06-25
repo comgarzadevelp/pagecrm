@@ -9,27 +9,23 @@ import { useState, useEffect, useMemo } from 'react';
  */
 export function useDirectorioClientes(customers) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('todos'); // 'todos' | 'prospectos' | 'activos' | 'regulares' | 'frios'
+  const [selectedCategory, setSelectedCategory] = useState('todos'); // 'todos' | 'prospectos' | 'reactivacion' | 'activos' | 'recontactar' | 'descartados'
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
 
   // Calcular contadores por categoría de forma eficiente
   const categoryCounts = useMemo(() => {
-    const counts = { todos: 0, prospectos: 0, activos: 0, regulares: 0, frios: 0 };
+    const counts = { todos: 0, prospectos: 0, reactivacion: 0, activos: 0, recontactar: 0, descartados: 0 };
     if (!customers) return counts;
     
     counts.todos = customers.length;
     customers.forEach(c => {
-      const isPending = (c.status || '').toLowerCase().trim() === 'pendiente_revision';
-      const followup = (c.followup_status || 'frio').toLowerCase().trim();
-      
-      if (isPending) {
-        counts.prospectos++;
-      } else {
-        if (followup === 'activo') counts.activos++;
-        else if (followup === 'regular') counts.regulares++;
-        else counts.frios++;
-      }
+      const lvl = Number(c.nivel || 1);
+      if (lvl === 1) counts.prospectos++;
+      else if (lvl === 2) counts.reactivacion++;
+      else if (lvl === 3) counts.activos++;
+      else if (lvl === 4) counts.recontactar++;
+      else if (lvl === 5) counts.descartados++;
     });
     return counts;
   }, [customers]);
@@ -42,21 +38,12 @@ export function useDirectorioClientes(customers) {
     let list = customers;
     if (selectedCategory !== 'todos') {
       list = customers.filter(c => {
-        const isPending = (c.status || '').toLowerCase().trim() === 'pendiente_revision';
-        const followup = (c.followup_status || 'frio').toLowerCase().trim();
-        
-        if (selectedCategory === 'prospectos') {
-          return isPending;
-        }
-        if (selectedCategory === 'activos') {
-          return !isPending && followup === 'activo';
-        }
-        if (selectedCategory === 'regulares') {
-          return !isPending && followup === 'regular';
-        }
-        if (selectedCategory === 'frios') {
-          return !isPending && followup === 'frio';
-        }
+        const lvl = Number(c.nivel || 1);
+        if (selectedCategory === 'prospectos') return lvl === 1;
+        if (selectedCategory === 'reactivacion') return lvl === 2;
+        if (selectedCategory === 'activos') return lvl === 3;
+        if (selectedCategory === 'recontactar') return lvl === 4;
+        if (selectedCategory === 'descartados') return lvl === 5;
         return true;
       });
     }

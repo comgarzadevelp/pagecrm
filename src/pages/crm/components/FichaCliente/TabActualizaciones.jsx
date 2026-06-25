@@ -9,7 +9,8 @@ export default function TabActualizaciones({
   fetchCustomers,
   appointments,
   refreshAppointments,
-  refreshVisitas
+  refreshVisitas,
+  onCompanyUpdated
 }) {
   const { showToast } = useUX();
   const [activeSubTab, setActiveSubTab] = useState('visita'); // 'visita' | 'nota' | 'recordatorio'
@@ -193,6 +194,9 @@ export default function TabActualizaciones({
         setCurrentCustomer(isCompany ? data.company : data.customer);
         setNewNoteText('');
         if (fetchCustomers) fetchCustomers();
+        if (isCompany && onCompanyUpdated && data.company) {
+          onCompanyUpdated(data.company);
+        }
       } else {
         showToast('Error al agregar nota: ' + data.message, 'error');
       }

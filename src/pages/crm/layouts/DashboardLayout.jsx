@@ -20,7 +20,8 @@ import MiPerfilFeature from '../../../features/system/components/MiPerfilFeature
 import ProspectosHuerfanosFeature from '../../../features/leads/components/ProspectosHuerfanosFeature';
 import EquipoVentasFeature from '../../../features/system/components/EquipoVentasFeature';
 import DirectorioClientesFeature from '../../../features/directory/components/DirectorioClientesFeature';
-import FichaClienteModalFeature from '../../../features/directory/components/FichaClienteModalFeature';
+import FichaEmpresaModal from '../../../features/directory/components/FichaEmpresaModal';
+import FichaClienteIndividualModal from '../../../features/directory/components/FichaClienteIndividualModal';
 import DirectorioObrasFeature from '../../../features/directory/components/DirectorioObrasFeature';
 import ModuleConfigPanel from '../../../features/superadmin/components/ModuleConfigPanel';
 import ChatbotConfigPanel from '../../../features/superadmin/components/ChatbotConfigPanel';
@@ -268,29 +269,38 @@ export default function DashboardLayout({ role, enabledModules }) {
       {activeTab === 'personnel' && role === 'super_admin' && <PersonalGarza />}
       {activeTab === 'agenda' && role === 'super_admin' && <AdminAgendaPanel />}
 
-      {selectedCustomer && (
-        <FichaClienteModalFeature
-          selectedCustomer={selectedCustomer}
+      {selectedCustomer && selectedCustomer.isCompany ? (
+        <FichaEmpresaModal
+          company={selectedCustomer}
           onClose={() => setSelectedCustomer(null)}
           role={role}
           API_BASE={API_BASE}
-          fetchCustomers={fetchCustomers}
+          refetch={fetchCustomers}
           onCompanyStatusUpdated={(updatedCompany) => {
             // 1. Actualiza la modal abierta
             setSelectedCustomer(prev => prev && prev.id === updatedCompany.id
-              ? { ...prev, status: updatedCompany.status }
+              ? { ...prev, ...updatedCompany }
               : prev
             );
             // 2. Actualiza la card en la lista de EmpresasFeature sin recargar
             if (empresasSetCompaniesRef.current) {
               empresasSetCompaniesRef.current(prev =>
                 prev.map(c => c.id === updatedCompany.id
-                  ? { ...c, status: updatedCompany.status }
+                  ? { ...c, ...updatedCompany }
                   : c
                 )
               );
             }
           }}
+          onViewCustomerDetails={setSelectedCustomer}
+        />
+      ) : selectedCustomer && (
+        <FichaClienteIndividualModal
+          selectedCustomer={selectedCustomer}
+          onClose={() => setSelectedCustomer(null)}
+          role={role}
+          API_BASE={API_BASE}
+          fetchCustomers={fetchCustomers}
           handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
         />
       )}

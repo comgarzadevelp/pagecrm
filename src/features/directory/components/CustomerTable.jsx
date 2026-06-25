@@ -22,23 +22,55 @@ export default function CustomerTable({
     );
   }
 
-  const FOLLOWUP_STYLES = {
-    activo: { label: 'Activo', bg: '#ecfdf5', color: '#059669', border: '#a7f3d0', icon: 'fa-check-circle' },
-    regular: { label: 'Regular', bg: '#fffbeb', color: '#d97706', border: '#fde68a', icon: 'fa-hourglass-half' },
-    frio: { label: 'Frío', bg: '#fef2f2', color: '#dc2626', border: '#fca5a5', icon: 'fa-snowflake' }
+  const NIVEL_STYLES = {
+    1: { label: 'Prospecto', bg: '#fff7ed', color: '#ea580c', border: '#ffedd5', icon: 'fa-user-tag' },
+    2: { label: 'En Reactivación', bg: '#eff6ff', color: '#3b82f6', border: '#dbeafe', icon: 'fa-undo-alt' },
+    3: { label: 'Comprador Activo', bg: '#ecfdf5', color: '#059669', border: '#d1fae5', icon: 'fa-check-circle' },
+    4: { label: 'RECONTACTAR AHORA', bg: '#fef2f2', color: '#dc2626', border: '#fee2e2', icon: 'fa-exclamation-circle', isAlert: true },
+    5: { label: 'Descartado', bg: '#f8fafc', color: '#64748b', border: '#e2e8f0', icon: 'fa-times-circle' }
   };
-  const FALLBACK_FOLLOWUP = FOLLOWUP_STYLES.frio;
+  const FALLBACK_NIVEL = NIVEL_STYLES[1];
 
   return (
     <div className={styles.grid}>
       {customers.map((cust) => {
-        const rawFollowup = (cust.followup_status || 'frio').toLowerCase().trim();
-        const followupInfo = FOLLOWUP_STYLES[rawFollowup] || FALLBACK_FOLLOWUP;
+        const lvl = Number(cust.nivel || 1);
+        const nivelInfo = NIVEL_STYLES[lvl] || FALLBACK_NIVEL;
 
         const initial = cust.name ? cust.name.charAt(0).toUpperCase() : 'C';
 
+        // Construir tooltip dinámico con información de auditoría comercial
+        const diffDays = cust.diff_days || 0;
+        const daysSincePurchase = cust.days_since_last_purchase || 0;
+        let tooltipText = '';
+
+        if (lvl === 1) {
+          tooltipText = `Último movimiento: hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}. Inactividad máxima permitida para Prospectos: 7 días.`;
+        } else if (lvl === 2) {
+          tooltipText = `Último movimiento: hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}. Sin compra ganada en ${daysSincePurchase} días (Límite: 30 días). Inactividad máxima: 3 días.`;
+        } else if (lvl === 3) {
+          tooltipText = `Último movimiento: hace ${diffDays} ${diffDays === 1 ? 'día' : 'días'}. Inactividad máxima permitida para Compradores Activos: 3 días.`;
+        } else if (lvl === 4) {
+          tooltipText = `¡RECONTACTAR AHORA! Inactividad comercial crítica de ${diffDays} días. Sin compras ganadas en ${daysSincePurchase} días.`;
+        } else if (lvl === 5) {
+          tooltipText = `Cliente descartado o marcado como inactivo de manera definitiva.`;
+        } else {
+          tooltipText = cust.last_activity_date
+            ? `Última actividad: ${new Date(cust.last_activity_date).toLocaleDateString('es-MX')}`
+            : 'Sin actividad registrada';
+        }
+
+        // Agregar animación de borde intermitente para tarjetas críticas de Nivel 4
+        const cardClass = nivelInfo.isAlert
+          ? `${styles.card} ${styles.pulseWarning}`
+          : styles.card;
+
+        const badgeClass = nivelInfo.isAlert
+          ? `${styles.statusPill} ${styles.badgePulse}`
+          : styles.statusPill;
+
         return (
-          <div key={cust.id} className={styles.card} onClick={() => onViewDetails && onViewDetails(cust)}>
+          <div key={cust.id} className={cardClass} onClick={() => onViewDetails && onViewDetails(cust)}>
             {/* Row 1: Header (Avatar + Name / Email) */}
             <div className={styles.cardHeader}>
               <div className={styles.avatar}>{initial}</div>
@@ -53,16 +85,16 @@ export default function CustomerTable({
             {/* Row 2: Badges (Followup Pill + Company tag) */}
             <div className={styles.badgesRow}>
               <span
-                className={styles.statusPill}
+                className={badgeClass}
                 style={{
-                  background: followupInfo.bg,
-                  color: followupInfo.color,
-                  border: `1px solid ${followupInfo.border}`
+                  background: nivelInfo.bg,
+                  color: nivelInfo.color,
+                  border: `1px solid ${nivelInfo.border}`
                 }}
-                title={cust.last_activity_date ? `Última actividad: ${new Date(cust.last_activity_date).toLocaleDateString('es-MX')}` : 'Sin actividad registrada'}
+                title={tooltipText}
               >
-                <i className={`fas ${followupInfo.icon}`} style={{ marginRight: '4px' }}></i>
-                {followupInfo.label}
+                <i className={`fas ${nivelInfo.icon}`} style={{ marginRight: '4px' }} />
+                {nivelInfo.label}
               </span>
               {cust.company ? (
                 <span className={styles.companyBadge} title={`Empresa: ${cust.company}`}>
@@ -151,9 +183,9 @@ export default function CustomerTable({
                 <button
                   className={styles.btnPrimaryGolden}
                   onClick={() => onStartNegotiation(cust)}
-                  title="Generar venta"
+                  title="Iniciar negociación"
                 >
-                  <i className="fas fa-handshake"></i> Generar venta
+                  <i className="fas fa-handshake"></i> Iniciar negociación
                 </button>
               )}
               {onRegisterVisita && (

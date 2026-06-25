@@ -1,9 +1,11 @@
-import { supabase } from '../supabaseClient.js';
+import { supabase, saeSupabase } from '../supabaseClient.js';
 
 // POST /api/crm/visitas
 export const createVisita = async (req, res) => {
   try {
     const userId = req.user?.userId;
+    const userCompanyId = req.user?.companyId;
+    const userCompanyCode = req.user?.companyCode;
     const { contact_id, company_id, obra_id, tipo, resultado, gps_lat, gps_lng, notas, timestamp_servidor } = req.body;
 
     if (!tipo || !resultado) {
@@ -17,10 +19,150 @@ export const createVisita = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Para una visita presencial en tiempo real se requiere la geolocalización (GPS).' });
     }
 
+    let resolvedContactId = contact_id;
+    let resolvedCompanyId = company_id;
+
+    // 1. Resolver contacto si es de SAE
+    if (contact_id && String(contact_id).startsWith('sae-contact-')) {
+      const parts = String(contact_id).split('-');
+      const saeClave = parts.slice(2, parts.length - 1).join('-');
+      const indexStr = parts[parts.length - 1];
+      const indexVal = parseInt(indexStr) - 1;
+
+      if (saeClave) {
+        const { data: saeConts } = await saeSupabase
+          .from('contac03')
+          .select('nombre, telefono, email')
+          .eq('cve_clie', saeClave)
+          .eq('status', 'A');
+
+        const saeCont = (saeConts && saeConts.length > indexVal) ? saeConts[indexVal] : (saeConts && saeConts.length > 0 ? saeConts[0] : null);
+
+        if (saeCont) {
+          const cleanName = saeCont.nombre ? saeCont.nombre.trim() : 'Contacto SAE';
+          const cleanPhone = saeCont.telefono ? saeCont.telefono.trim() : '';
+          const cleanEmail = saeCont.email ? saeCont.email.trim() : '';
+
+          let existingContact = null;
+          if (cleanPhone) {
+            const { data } = await supabase
+              .from('contacts')
+              .select('id')
+              .eq('phone', cleanPhone)
+              .maybeSingle();
+            existingContact = data;
+          }
+          if (!existingContact && cleanName) {
+            const { data } = await supabase
+              .from('contacts')
+              .select('id')
+              .ilike('name', cleanName)
+              .maybeSingle();
+            existingContact = data;
+          }
+
+          if (existingContact) {
+            resolvedContactId = existingContact.id;
+          } else {
+            const { data: newCont, error: contErr } = await supabase
+              .from('contacts')
+              .insert([{
+                name: cleanName,
+                phone: cleanPhone,
+                email: cleanEmail,
+                position: 'Representante Autorizado',
+                contact_type: 'oficina',
+                created_by: userId,
+                company_id: userCompanyId && !String(userCompanyId).startsWith('company-') ? userCompanyId : null,
+                notes: `Importado automáticamente al registrar visita desde SAE.`
+              }])
+              .select('id')
+              .single();
+
+            if (contErr) throw contErr;
+            if (newCont) {
+              resolvedContactId = newCont.id;
+            }
+          }
+        }
+      }
+    }
+
+    // 2. Resolver empresa si es de SAE
+    if (company_id && String(company_id).startsWith('sae-')) {
+      const saeClave = String(company_id).replace('sae-', '').trim();
+      const { data: existingCos } = await supabase
+        .from('companies')
+        .select('id')
+        .like('notes', `%"sae_clave":"${saeClave}"%`)
+        .limit(1);
+
+      if (existingCos && existingCos.length > 0) {
+        resolvedCompanyId = existingCos[0].id;
+      } else {
+        const isGarza = userCompanyCode === 'GARZA';
+        if (isGarza) {
+          const { data: client } = await saeSupabase
+            .from('clie03')
+            .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
+            .eq('clave', saeClave)
+            .maybeSingle();
+
+          if (client) {
+            const name = client.nombre ? client.nombre.trim() : 'Empresa SAE';
+            const alias = client.nombrecomercial ? client.nombrecomercial.trim() : name;
+            
+            const notesPayload = JSON.stringify({
+              general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
+              sae_clave: saeClave,
+              timeline: []
+            });
+
+            const { data: newCo, error: insertErr } = await supabase
+              .from('companies')
+              .insert([{
+                name,
+                alias,
+                type: 'cliente',
+                rfc: client.rfc ? client.rfc.trim() : '',
+                address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+                city: client.municipio ? client.municipio.trim() : '',
+                state: client.estado ? client.estado.trim() : '',
+                phone_main: client.telefono ? client.telefono.trim() : '',
+                email_main: client.mail ? client.mail.trim() : '',
+                status: 'activa',
+                notes: notesPayload,
+                created_by: userId,
+                company_id: userCompanyId && !String(userCompanyId).startsWith('company-') ? userCompanyId : null
+              }])
+              .select('id')
+              .single();
+
+            if (insertErr) throw insertErr;
+            if (newCo) {
+              resolvedCompanyId = newCo.id;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Vincular contacto a la empresa si ambos están resueltos y reales
+    if (resolvedContactId && resolvedCompanyId) {
+      await supabase
+        .from('contact_companies')
+        .upsert([{ 
+          contact_id: resolvedContactId, 
+          company_id: resolvedCompanyId, 
+          role: 'Contacto',
+          status: 'activo'
+        }], { onConflict: 'contact_id,company_id' });
+    }
+
     const payload = {
       user_id: userId,
-      contact_id,
-      company_id,
+      contact_id: resolvedContactId,
+      company_id: resolvedCompanyId,
       obra_id,
       tipo,
       resultado,

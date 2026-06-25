@@ -1,7 +1,15 @@
 // backend/controllers/companyController.js
 import { supabase, saeSupabase } from '../supabaseClient.js';
+import { computeDataQuality } from '../utils/dataQuality.js';
 
 const CRM_STATUSES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
+
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
 
 // GET /api/crm/companies/search
 export const searchCompanies = async (req, res) => {
@@ -13,7 +21,7 @@ export const searchCompanies = async (req, res) => {
 
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name')
+      .select('id, name, rfc, address, city, state')
       .ilike('name', `%${q}%`)
       .limit(10);
 
@@ -60,14 +68,29 @@ export const getCompanies = async (req, res) => {
       }
     }
 
-    // 2. Seller Isolation: salespeople only see companies they created themselves
+    // 2. Seller Isolation: salespeople only see companies they created themselves OR SAE companies (which are filtered by seller key anyway)
     if (role === 'sales') {
-      query = query.eq('created_by', userId);
+      query = query.or(`created_by.eq.${userId},notes.ilike.%sae_clave%`);
     }
 
     const { data: crmCompanies, error: crmError } = await query;
 
     if (crmError) throw crmError;
+
+    // Fetch all active links in contact_companies to group them in memory (prevents N+1 queries)
+    const { data: allLcs } = await supabase
+      .from('contact_companies')
+      .select('company_id, role, contact:contacts (id, name, phone, email, position)')
+      .eq('status', 'activo');
+
+    const crmContactsMap = {};
+    (allLcs || []).forEach(lc => {
+      const coId = lc.company_id;
+      if (!crmContactsMap[coId]) {
+        crmContactsMap[coId] = [];
+      }
+      crmContactsMap[coId].push(lc);
+    });
 
     // Parse crmCompanies to find any that are linked to SAE
     const saeLinkedMap = {};
@@ -93,7 +116,34 @@ export const getCompanies = async (req, res) => {
         if (!CRM_STATUSES.includes(normalizedStatus)) {
           normalizedStatus = 'pendiente_revision';
         }
-        nativeCompanies.push({ ...co, status: normalizedStatus });
+
+        const crmLinked = crmContactsMap[co.id] || [];
+        const contacts = crmLinked.map(lc => ({
+          id: lc.contact?.id,
+          name: lc.contact?.name,
+          phone: lc.contact?.phone,
+          email: lc.contact?.email ? lc.contact.email.trim() : '',
+          position: lc.contact?.position || lc.role || 'Representante',
+          isSae: false
+        }));
+
+        const rawEmail = co.email_main ? co.email_main.trim() : '';
+
+        const hasPhone = !!co.phone_main;
+        const hasEmail = isValidEmail(rawEmail);
+        const hasContacts = contacts.length > 0 || !!co.contact_main;
+
+        if (normalizedStatus === 'pendiente_revision' && hasPhone && hasEmail && hasContacts) {
+          normalizedStatus = 'activa';
+          supabase.from('companies').update({ status: 'activa' }).eq('id', co.id).then();
+        }
+
+        nativeCompanies.push({ 
+          ...co, 
+          email_main: rawEmail,
+          status: normalizedStatus,
+          contacts 
+        });
       }
     });
 
@@ -120,17 +170,37 @@ export const getCompanies = async (req, res) => {
         .eq('status', 'A');
 
       if (!saeError && saeData) {
+        const saeClaves = saeData.map(client => client.clave.trim());
+        let saeContacts = [];
+        if (saeClaves.length > 0) {
+          const { data: contactsData } = await saeSupabase
+            .from('contac03')
+            .select('cve_clie, nombre, telefono, email, status')
+            .in('cve_clie', saeClaves)
+            .eq('status', 'A');
+          saeContacts = contactsData || [];
+        }
+
+        const saeContactsMap = {};
+        saeContacts.forEach(c => {
+          const clieKey = c.cve_clie.trim();
+          if (!saeContactsMap[clieKey]) {
+            saeContactsMap[clieKey] = [];
+          }
+          saeContactsMap[clieKey].push(c);
+        });
+
         saeCompanies = saeData.map(client => {
           const clave = client.clave.trim();
           const linkedCo = saeLinkedMap[clave];
 
           const clientMail = client.mail ? client.mail.trim() : '';
-          const cleanedMail = (clientMail.toUpperCase() === 'S' || clientMail.toUpperCase() === 'S/D' || clientMail.trim() === '') ? '' : clientMail;
+          const cleanedMail = clientMail;
 
           // Merge fields from CRM DB if available
           const name = linkedCo ? linkedCo.name : (client.nombre ? client.nombre.trim() : 'Empresa SAE Sin Nombre');
           const alias = linkedCo ? linkedCo.alias : (client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'));
-          const type = linkedCo ? linkedCo.type : 'no_asignado';
+          const type = linkedCo ? linkedCo.type : 'cliente';
           const rfc = linkedCo ? linkedCo.rfc : (client.rfc ? client.rfc.trim() : '');
           const address = linkedCo ? linkedCo.address : (client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '');
           const city = linkedCo ? linkedCo.city : (client.municipio ? client.municipio.trim() : '');
@@ -138,18 +208,56 @@ export const getCompanies = async (req, res) => {
           const maps_url = linkedCo ? linkedCo.maps_url : '';
           const website = linkedCo ? linkedCo.website : (client.pag_web ? client.pag_web.trim() : '');
           
-          // Giro / Industria starts in blank/empty for SAE if not custom defined
-          const industry = linkedCo ? linkedCo.industry : '';
-          
           const phone_main = linkedCo ? linkedCo.phone_main : (client.telefono ? client.telefono.trim() : '');
           const phone_purchases = linkedCo ? linkedCo.phone_purchases : '';
           const phone_payments = linkedCo ? linkedCo.phone_payments : '';
-          const email_main = linkedCo ? linkedCo.email_main : cleanedMail;
+          const rawEmail = linkedCo ? linkedCo.email_main : cleanedMail;
+          const email_main = rawEmail;
           const email_purchases = linkedCo ? linkedCo.email_purchases : '';
           const email_payments = linkedCo ? linkedCo.email_payments : '';
+          
           let status = linkedCo ? linkedCo.status : 'pendiente_revision';
           if (!CRM_STATUSES.includes(status)) {
             status = 'pendiente_revision';
+          }
+
+          // Gather contacts for this SAE company (from both CRM linked and SAE contac03)
+          const crmLinked = linkedCo ? (crmContactsMap[linkedCo.id] || []) : [];
+          const saeClieContacts = saeContactsMap[clave] || [];
+
+          const contacts = [];
+          
+          crmLinked.forEach(lc => {
+            contacts.push({
+              id: lc.contact?.id,
+              name: lc.contact?.name,
+              phone: lc.contact?.phone,
+              email: lc.contact?.email ? lc.contact.email.trim() : '',
+              position: lc.contact?.position || lc.role || 'Representante',
+              isSae: false
+            });
+          });
+
+          saeClieContacts.forEach((c, index) => {
+            contacts.push({
+              id: `sae-contact-${clave}-${index}`,
+              name: c.nombre ? c.nombre.trim() : 'Contacto SAE',
+              phone: c.telefono ? c.telefono.trim() : '',
+              email: c.email ? c.email.trim() : '',
+              position: 'Representante Autorizado / Compras',
+              isSae: true
+            });
+          });
+
+          const hasPhone = !!phone_main;
+          const hasEmail = isValidEmail(email_main);
+          const hasContacts = contacts.length > 0 || (linkedCo && !!linkedCo.contact_main);
+
+          if (status === 'pendiente_revision' && hasPhone && hasEmail && hasContacts) {
+            status = 'activa';
+            if (linkedCo) {
+              supabase.from('companies').update({ status: 'activa' }).eq('id', linkedCo.id).then();
+            }
           }
 
           const notes = linkedCo ? linkedCo.notes : JSON.stringify({
@@ -157,6 +265,14 @@ export const getCompanies = async (req, res) => {
             sae_clave: clave,
             timeline: []
           });
+
+          const mockContactMain = contacts[0] ? {
+            id: contacts[0].id,
+            name: contacts[0].name,
+            phone: contacts[0].phone,
+            email: contacts[0].email,
+            position: contacts[0].position
+          } : null;
 
           return {
             id: `sae-${clave}`,
@@ -169,7 +285,7 @@ export const getCompanies = async (req, res) => {
             state,
             maps_url,
             website,
-            industry,
+            industry: linkedCo ? linkedCo.industry : 'Sincronizado SAE',
             phone_main,
             phone_purchases,
             phone_payments,
@@ -178,10 +294,11 @@ export const getCompanies = async (req, res) => {
             email_payments,
             status,
             notes,
+            contacts,
             created_at: client.fch_ultcom || new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            created_by: { id: userId, name: req.user?.name || 'Ejecutivo' },
-            contact_main: linkedCo ? linkedCo.contact_main : null,
+            created_by: linkedCo ? linkedCo.created_by : { id: userId, name: req.user?.name || 'Ejecutivo' },
+            contact_main: linkedCo ? linkedCo.contact_main : mockContactMain,
             contact_purchases: linkedCo ? linkedCo.contact_purchases : null,
             contact_payments: linkedCo ? linkedCo.contact_payments : null,
             limcred: parseFloat(client.limcred || 0),
@@ -197,8 +314,9 @@ export const getCompanies = async (req, res) => {
       }
     }
 
-    // Merge lists
-    const merged = [...nativeCompanies.filter(c => !archivedIds.has(c.id)), ...saeCompanies];
+    // Merge lists + inyectar score de calidad en cada registro
+    const merged = [...nativeCompanies.filter(c => !archivedIds.has(c.id)), ...saeCompanies]
+      .map(co => ({ ...co, data_quality: computeDataQuality(co, 'company') }));
 
     res.json({ success: true, companies: merged });
   } catch (err) {
@@ -264,6 +382,33 @@ export const archiveCompany = async (req, res) => {
   }
 };
 
+// DELETE /api/crm/companies/:id/unarchive
+export const unarchiveCompany = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { error } = await supabase
+      .from('archived_companies')
+      .delete()
+      .eq('sae_id', id);
+
+    if (error) throw error;
+    
+    // Si es nativa de CRM (UUID), regresarla a estado "pendiente_revision" si estaba "archivado"
+    if (!id.startsWith('sae-')) {
+      await supabase
+        .from('companies')
+        .update({ status: 'pendiente_revision' })
+        .eq('id', id)
+        .eq('status', 'archivado');
+    }
+    
+    res.json({ success: true, message: 'Empresa recuperada exitosamente.' });
+  } catch (err) {
+    console.error('unarchiveCompany error:', err);
+    res.status(500).json({ success: false, message: 'Error al recuperar empresa.' });
+  }
+};
+
 // GET /api/crm/companies/:id — company with full history of quotes
 export const getCompanyById = async (req, res) => {
   const { id } = req.params;
@@ -287,44 +432,76 @@ export const getCompanyById = async (req, res) => {
       // Buscar si existe en CRM vinculada a este saeKey
       const { data: existingCos } = await supabase
         .from('companies')
-        .select('status')
+        .select(`
+          id, name, alias, type, rfc, address, city, state, maps_url, website, industry,
+          phone_main, phone_purchases, phone_payments,
+          email_main, email_purchases, email_payments,
+          status, notes, created_by, contact_main, contact_purchases, contact_payments
+        `)
         .like('notes', `%"sae_clave":"${saeKey}"%`)
         .limit(1);
 
       let dbStatus = 'pendiente_revision';
+      let linkedCo = null;
       if (existingCos && existingCos.length > 0) {
-        const statusVal = existingCos[0].status;
+        linkedCo = existingCos[0];
+        const statusVal = linkedCo.status;
         if (CRM_STATUSES.includes(statusVal)) {
           dbStatus = statusVal;
         }
       }
 
+      const name = linkedCo ? linkedCo.name : (client.nombre ? client.nombre.trim() : 'Empresa SAE Sin Nombre');
+      const alias = linkedCo ? linkedCo.alias : (client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'));
+      const type = linkedCo ? linkedCo.type : 'cliente';
+      const rfc = linkedCo ? linkedCo.rfc : (client.rfc ? client.rfc.trim() : '');
+      const address = linkedCo ? linkedCo.address : (client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '');
+      const city = linkedCo ? linkedCo.city : (client.municipio ? client.municipio.trim() : '');
+      const state = linkedCo ? linkedCo.state : (client.estado ? client.estado.trim() : '');
+      const maps_url = linkedCo ? linkedCo.maps_url : '';
+      const website = linkedCo ? linkedCo.website : (client.pag_web ? client.pag_web.trim() : '');
+      
+      const phone_main = linkedCo ? linkedCo.phone_main : (client.telefono ? client.telefono.trim() : '');
+      const phone_purchases = linkedCo ? linkedCo.phone_purchases : '';
+      const phone_payments = linkedCo ? linkedCo.phone_payments : '';
+      
+      const rawEmail = linkedCo ? linkedCo.email_main : (client.mail ? client.mail.trim() : '');
+      const email_main = rawEmail;
+      const email_purchases = linkedCo ? linkedCo.email_purchases : '';
+      const email_payments = linkedCo ? linkedCo.email_payments : '';
+      
+      const notes = linkedCo ? linkedCo.notes : JSON.stringify({
+        general: `Empresa importada de ASPEL SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+        sae_clave: client.clave.trim(),
+        timeline: []
+      });
+
       const companyMapped = {
         id: `sae-${client.clave.trim()}`,
-        name: client.nombre ? client.nombre.trim() : 'Empresa SAE Sin Nombre',
-        alias: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
-        type: 'cliente',
-        rfc: client.rfc ? client.rfc.trim() : '',
-        address: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
-        city: client.municipio ? client.municipio.trim() : '',
-        state: client.estado ? client.estado.trim() : '',
-        maps_url: '',
-        website: client.pag_web ? client.pag_web.trim() : '',
-        industry: 'Sincronizado SAE',
-        phone_main: client.telefono ? client.telefono.trim() : '',
-        phone_purchases: '',
-        phone_payments: '',
-        email_main: client.mail ? client.mail.trim() : '',
-        email_purchases: '',
-        email_payments: '',
+        name,
+        alias,
+        type,
+        rfc,
+        address,
+        city,
+        state,
+        maps_url,
+        website,
+        industry: linkedCo ? linkedCo.industry : 'Sincronizado SAE',
+        phone_main,
+        phone_purchases,
+        phone_payments,
+        email_main,
+        email_purchases,
+        email_payments,
         status: dbStatus,
-        notes: `Empresa importada de ASPEL SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+        notes,
         created_at: client.fch_ultcom || new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        created_by: null,
-        contact_main: null,
-        contact_purchases: null,
-        contact_payments: null,
+        created_by: linkedCo ? linkedCo.created_by : null,
+        contact_main: linkedCo ? linkedCo.contact_main : null,
+        contact_purchases: linkedCo ? linkedCo.contact_purchases : null,
+        contact_payments: linkedCo ? linkedCo.contact_payments : null,
         limcred: parseFloat(client.limcred || 0),
         saldo: parseFloat(client.saldo || 0),
         lista_prec: parseInt(client.lista_prec || 1),
@@ -359,10 +536,10 @@ export const getCompanyById = async (req, res) => {
       // Add CRM contacts that are manually linked to this SAE company OR to a CRM company with the same name
       const companyIdsToSearch = [];
       const { data: crmCompaniesWithSameName } = await supabase
-        .from('companies')
-        .select('id')
-        .ilike('name', companyMapped.name.trim());
-        
+          .from('companies')
+          .select('id')
+          .ilike('name', companyMapped.name.trim());
+          
       if (crmCompaniesWithSameName && crmCompaniesWithSameName.length > 0) {
         crmCompaniesWithSameName.forEach(c => companyIdsToSearch.push(c.id));
       }
@@ -374,7 +551,25 @@ export const getCompanyById = async (req, res) => {
           .in('company_id', companyIdsToSearch);
 
         if (!crmLcError && crmLinkedContacts) {
-          linkedContactsMapped.push(...crmLinkedContacts);
+          const mappedCRM = crmLinkedContacts.map(lc => ({
+            role: lc.role,
+            contact: {
+              ...lc.contact,
+              email: lc.contact?.email ? lc.contact.email.trim() : ''
+            }
+          }));
+          linkedContactsMapped.push(...mappedCRM);
+        }
+      }
+      // Check if complete and pending revision -> auto-upgrade to active
+      const hasPhone = !!companyMapped.phone_main;
+      const hasEmail = isValidEmail(companyMapped.email_main);
+      const hasContacts = linkedContactsMapped.length > 0 || !!companyMapped.contact_main;
+
+      if (companyMapped.status === 'pendiente_revision' && hasPhone && hasEmail && hasContacts) {
+        companyMapped.status = 'activa';
+        if (existingCos && existingCos.length > 0) {
+          supabase.from('companies').update({ status: 'activa' }).eq('id', existingCos[0].id).then();
         }
       }
 
@@ -403,9 +598,8 @@ export const getCompanyById = async (req, res) => {
     if (!CRM_STATUSES.includes(normalizedStatus)) {
       normalizedStatus = 'pendiente_revision';
     }
-    const companyMapped = { ...company, status: normalizedStatus };
+    const cleanEmail = company.email_main ? company.email_main.trim() : '';
 
-    // Get all contacts linked to this company
     const { data: linkedContacts, error: lcError } = await supabase
       .from('contact_companies')
       .select(`role, contact:contacts (id, name, position, email, phone, whatsapp)`)
@@ -413,7 +607,13 @@ export const getCompanyById = async (req, res) => {
 
     if (lcError) throw lcError;
 
-    const mergedContacts = [...(linkedContacts || [])];
+    const mergedContacts = (linkedContacts || []).map(lc => ({
+      role: lc.role,
+      contact: {
+        ...lc.contact,
+        email: lc.contact?.email ? lc.contact.email.trim() : ''
+      }
+    }));
 
     // Extract sae_clave if it exists in notes
     let saeClave = null;
@@ -454,6 +654,17 @@ export const getCompanyById = async (req, res) => {
       }
     }
 
+    const hasPhone = !!company.phone_main;
+    const hasEmail = isValidEmail(cleanEmail);
+    const hasContacts = mergedContacts.length > 0 || !!company.contact_main;
+
+    if (normalizedStatus === 'pendiente_revision' && hasPhone && hasEmail && hasContacts) {
+      normalizedStatus = 'activa';
+      supabase.from('companies').update({ status: 'activa' }).eq('id', id).then();
+    }
+
+    const companyMapped = { ...company, email_main: cleanEmail, status: normalizedStatus };
+
     res.json({ success: true, company: companyMapped, linkedContacts: mergedContacts });
   } catch (err) {
     console.error('getCompanyById error:', err);
@@ -475,6 +686,10 @@ export const createCompany = async (req, res) => {
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre de la empresa es obligatorio.' });
+    }
+
+    if (email_main && !isValidEmail(email_main)) {
+      return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
     }
 
     let finalStatus = status || 'pendiente_revision';
@@ -630,6 +845,10 @@ export const updateCompany = async (req, res) => {
         res.json({ success: true, company: { ...data[0], id } });
       }
     } else {
+      if (email_main && !isValidEmail(email_main)) {
+        return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
+      }
+
       let finalStatus = status;
       if (finalStatus && !CRM_STATUSES.includes(finalStatus)) {
         finalStatus = 'pendiente_revision';

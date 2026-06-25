@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { computeDataQuality } from '../utils/dataQuality';
 
 /**
  * useMisContactos
@@ -16,6 +17,7 @@ export function useMisContactos(API_BASE) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [qualityFilter, setQualityFilter] = useState('all');
 
   const token = useCallback(() => localStorage.getItem('token'), []);
 
@@ -67,10 +69,19 @@ export function useMisContactos(API_BASE) {
 
   // Lógica de filtrado en cliente
   const filteredContacts = useMemo(() => {
-    if (!search.trim()) return contacts;
+    let result = contacts;
+
+    if (qualityFilter !== 'all') {
+      result = result.filter(c => {
+        const score = c.data_quality?.score || computeDataQuality(c, 'contact');
+        return score === qualityFilter;
+      });
+    }
+
+    if (!search.trim()) return result;
     const t = search.toLowerCase();
     
-    return contacts.filter(c => {
+    return result.filter(c => {
       // Búsqueda directa en los campos del contacto
       if (
         (c.name && c.name.toLowerCase().includes(t)) ||
@@ -89,7 +100,7 @@ export function useMisContactos(API_BASE) {
         (co.industry && co.industry.toLowerCase().includes(t))
       );
     });
-  }, [contacts, search]);
+  }, [contacts, search, qualityFilter]);
 
   return {
     contacts,
@@ -100,6 +111,8 @@ export function useMisContactos(API_BASE) {
     error,
     search,
     setSearch,
+    qualityFilter,
+    setQualityFilter,
     fetchContacts,
     fetchCompanies,
     token

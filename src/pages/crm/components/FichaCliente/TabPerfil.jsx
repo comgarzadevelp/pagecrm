@@ -1,6 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useUX } from '../../../../components/common/UXProvider';
 
+const isValidEmail = (email) => {
+  if (!email) return false;
+  const cleaned = email.trim();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(cleaned);
+};
+
 export default function TabPerfil({
   currentCustomer,
   setCurrentCustomer,
@@ -9,7 +16,8 @@ export default function TabPerfil({
   role,
   isEditingProfile,
   setIsEditingProfile,
-  triggerProfileSave
+  triggerProfileSave,
+  onCompanyUpdated
 }) {
   const { showToast } = useUX();
 
@@ -151,6 +159,12 @@ export default function TabPerfil({
   const handleUpdateCustomerSubmit = async (e) => {
     e.preventDefault();
     if (!currentCustomer) return;
+
+    if (editCustEmail && !isValidEmail(editCustEmail)) {
+      showToast('Por favor, ingresa un correo electrónico válido (ejemplo@dominio.com).', 'error');
+      return;
+    }
+
     const token = localStorage.getItem('token');
 
     // Respetar el JSON de timeline existente si hay notas
@@ -227,6 +241,9 @@ export default function TabPerfil({
         setCurrentCustomer(isCompany ? data.company : data.customer);
         setIsEditingProfile(false);
         if (fetchCustomers) fetchCustomers();
+        if (isCompany && onCompanyUpdated && data.company) {
+          onCompanyUpdated(data.company);
+        }
       } else {
         showToast('Error: ' + data.message, 'error');
       }
@@ -309,15 +326,32 @@ export default function TabPerfil({
             />
           </div>
           <div className="crm-input-group">
-            <label className="crm-input-label">Correo de contacto</label>
+            <label 
+              className="crm-input-label" 
+              style={isEditingProfile && editCustEmail && !isValidEmail(editCustEmail) ? { color: '#ef4444' } : {}}
+            >
+              Correo de contacto {isEditingProfile && editCustEmail && !isValidEmail(editCustEmail) && ' (Formato no válido)'}
+            </label>
             <input
-              type="email"
+              type="text"
               className="crm-login-input"
               value={editCustEmail}
               onChange={(e) => { if (isEditingProfile) setEditCustEmail(e.target.value); }}
               readOnly={!isEditingProfile}
-              style={!isEditingProfile ? { background: '#f8fafc', color: '#64748b', fontWeight: '600', border: '1px dashed #cbd5e1' } : {}}
+              style={
+                !isEditingProfile 
+                  ? { background: '#f8fafc', color: '#64748b', fontWeight: '600', border: '1px dashed #cbd5e1' } 
+                  : (editCustEmail && !isValidEmail(editCustEmail) 
+                      ? { border: '1px solid #ef4444', boxShadow: '0 0 0 2px rgba(239, 68, 68, 0.2)' } 
+                      : {})
+              }
             />
+            {isEditingProfile && editCustEmail && !isValidEmail(editCustEmail) && (
+              <span style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px', fontWeight: '600', display: 'block' }}>
+                <i className="fas fa-exclamation-circle" style={{ marginRight: '4px' }} />
+                El correo debe cumplir con la estructura estándar (ejemplo@dominio.com).
+              </span>
+            )}
           </div>
         </div>
 

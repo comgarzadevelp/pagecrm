@@ -5,11 +5,17 @@ import { useUX } from '../../components/common/UXProvider';
 import './Dashboard.css';
 import './MobileApp.css';
 
+// Notificaciones Drawer y Modales
+import NotificacionesDrawer from '../../features/home/components/NotificacionesDrawer';
+import FichaEmpresaModal from '../../features/directory/components/FichaEmpresaModal';
+import FichaContactoModal from '../../features/directory/components/FichaContactoModal';
+import DetallesProspectoFeature from '../../features/leads/components/DetallesProspectoFeature';
+
 // Sleek Global Bell Notifications Component (Fixed in top-right, solid high-contrast neon styling)
-const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
+const GlobalBellNotifications = ({ setActiveTab, role, activeTab, onOpenEntity }) => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [showDropdown, setShowDropdown] = useState(false);
+  const [showDrawer, setShowDrawer] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [isBtnHovered, setIsBtnHovered] = useState(false);
   const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -45,14 +51,14 @@ const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
     fetchNotifications();
 
     const interval = setInterval(() => {
-      const isUserTyping = document.activeElement && 
-        (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) || 
-         document.activeElement.getAttribute('contenteditable') === 'true');
+      const isUserTyping = document.activeElement &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) ||
+          document.activeElement.getAttribute('contenteditable') === 'true');
 
       const hasOpenModal = document.querySelector(
         '.evc-modal-overlay, .modal-overlay-glass, .modal-overlay, [role="dialog"]'
       );
-      
+
       if (activeTab === 'personal-agenda' || isUserTyping || hasOpenModal) {
         return;
       }
@@ -180,79 +186,36 @@ const GlobalBellNotifications = ({ setActiveTab, role, activeTab }) => {
   };
 
   return (
-    <div className="crm-global-bell-wrapper hide-on-print">
-      <button
-        type="button"
-        className={`crm-global-bell-btn ${unreadCount > 0 ? 'has-unread' : ''}`}
-        style={btnStyle}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-        onClick={() => setShowDropdown(!showDropdown)}
-        title="Alertas de Actividad Comercial"
-      >
-        <i className="fas fa-bell" />
-        {unreadCount > 0 && (
-          <span className="crm-global-bell-badge">
-            {unreadCount}
-          </span>
-        )}
-      </button>
+    <>
+      <div className="crm-global-bell-wrapper hide-on-print">
+        <button
+          type="button"
+          className={`crm-global-bell-btn ${unreadCount > 0 ? 'has-unread' : ''}`}
+          style={btnStyle}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onClick={() => setShowDrawer(true)}
+          title="Alertas de Actividad Comercial"
+        >
+          <i className="fas fa-bell" />
+          {unreadCount > 0 && (
+            <span className="crm-global-bell-badge">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      </div>
 
-      {showDropdown && (
-        <div className="crm-global-bell-dropdown glass animate-slide-up" style={dropdownStyle}>
-          <div className="dropdown-header">
-            <h4>Actividad del CRM</h4>
-            {unreadCount > 0 && (
-              <span style={{
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.15)',
-                color: '#ef4444'
-              }}>
-                {unreadCount} nuevas
-              </span>
-            )}
-          </div>
-
-          <div className="dropdown-list">
-            {notifications.length === 0 ? (
-              <div className="dropdown-empty">
-                <i className="far fa-bell-slash" style={{ color: bellColor, opacity: 0.6 }} />
-                <p>Sin alertas comerciales recientes</p>
-              </div>
-            ) : (
-              notifications.slice(0, 5).map(notif => (
-                <div
-                  key={notif.id}
-                  className={`dropdown-item ${notif.read ? 'read' : 'unread'}`}
-                  style={!notif.read ? { borderLeft: `4px solid ${bellColor}` } : {}}
-                  onClick={() => handleNotifClick(notif)}
-                >
-                  <div className="item-title-row">
-                    <strong className="item-title">{notif.title}</strong>
-                    <span className="item-time">
-                      {new Date(notif.created_at).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="item-msg">{notif.message}</p>
-                  {!notif.read && <span className="item-badge-unread" style={{ background: bellColor }}>Nueva</span>}
-                </div>
-              ))
-            )}
-          </div>
-
-          <button
-            type="button"
-            className="dropdown-view-all"
-            style={viewAllStyle}
-            onMouseEnter={() => setIsBtnHovered(true)}
-            onMouseLeave={() => setIsBtnHovered(false)}
-            onClick={handleViewAll}
-          >
-            <i className="fas fa-history" /> Ver historial completo
-          </button>
-        </div>
-      )}
-    </div>
+      <NotificacionesDrawer 
+        isOpen={showDrawer}
+        onClose={() => {
+          setShowDrawer(false);
+          fetchNotifications();
+        }}
+        API_BASE={API_BASE}
+        onOpenEntity={onOpenEntity}
+      />
+    </>
   );
 };
 
@@ -276,6 +239,32 @@ const DashboardShell = ({
   fetchOpportunitiesList,
   customers = []
 }) => {
+  // Modals for notifications
+  const [selectedEmpresaId, setSelectedEmpresaId] = useState(null);
+  const [selectedContactoId, setSelectedContactoId] = useState(null);
+  const [selectedLead, setSelectedLead] = useState(null);
+
+  const handleOpenEntity = async (type, id) => {
+    if (type === 'empresa') {
+      setSelectedEmpresaId(id);
+    } else if (type === 'contacto') {
+      setSelectedContactoId(id);
+    } else if (type === 'prospecto') {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/crm/leads/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await res.json();
+        if (data.success) {
+          setSelectedLead(data.lead);
+        }
+      } catch (e) {
+        console.error('Error fetching lead details:', e);
+      }
+    } else if (type === 'cita') {
+      // Just redirect to calendar for now
+      setActiveTab('calendar');
+    }
+  };
   const formatRoleLabel = (r) => ROLE_LABELS[r] || 'Usuario';
   const getRoleIcon = (r) => ROLE_ICONS[r] || 'fas fa-user';
 
@@ -359,10 +348,15 @@ const DashboardShell = ({
   return (
     <div className={`crm-dashboard-page crm-modular-layout ${role === 'super_admin' ? 'superadmin-dashboard-root' : ''}`}>
       {/* PERSISTENT GLOBAL BELL NOTIFICATIONS WITH DYNAMIC COLORING */}
-      <GlobalBellNotifications setActiveTab={setActiveTab} role={role} activeTab={activeTab} />
+      <GlobalBellNotifications 
+        setActiveTab={setActiveTab} 
+        role={role} 
+        activeTab={activeTab} 
+        onOpenEntity={handleOpenEntity} 
+      />
 
       {/* SIDEBAR NAVIGATION PANEL */}
-      <aside 
+      <aside
         ref={sidebarRef}
         className={`crm-sidebar glass hide-on-print ${sidebarCollapsed ? 'collapsed' : ''}`}
       >
@@ -423,8 +417,8 @@ const DashboardShell = ({
         </nav>
 
         <div className="crm-sidebar-footer">
-          <div 
-            className="crm-sidebar-user" 
+          <div
+            className="crm-sidebar-user"
             data-tooltip={`${userName || formatRoleLabel(role)} (${formatRoleLabel(role)}) - Ver Perfil`}
             onClick={() => setActiveTab('profile')}
             style={{ cursor: 'pointer', transition: 'background 0.2s ease', borderRadius: '12px' }}
@@ -590,6 +584,31 @@ const DashboardShell = ({
           fetchOpportunitiesList={fetchOpportunitiesList}
           enabledModules={enabledModules}
           customers={customers}
+        />
+      )}
+      {/* MODALS */}
+      {selectedEmpresaId && (
+        <FichaEmpresaModal 
+          company={{ id: selectedEmpresaId }} 
+          onClose={() => setSelectedEmpresaId(null)} 
+          API_BASE={API_BASE} 
+        />
+      )}
+      
+      {selectedContactoId && (
+        <FichaContactoModal 
+          contact={{ id: selectedContactoId }} 
+          onClose={() => setSelectedContactoId(null)} 
+        />
+      )}
+
+      {selectedLead && (
+        <DetallesProspectoFeature 
+          isOpen={true} 
+          lead={selectedLead} 
+          onClose={() => setSelectedLead(null)} 
+          API_BASE={API_BASE} 
+          role={role} 
         />
       )}
     </div>

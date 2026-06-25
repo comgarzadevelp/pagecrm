@@ -4,8 +4,8 @@ import CustomerTable from './CustomerTable';
 import styles from '../styles/DirectorioClientes.module.css';
 
 import RegistrarClienteModal from '../../../pages/crm/components/RegistrarClienteModal';
-import FichaClienteModal from './FichaClienteModalFeature';
-import GenerarVentaModal from '../../../pages/crm/components/GenerarVentaModal';
+import FichaClienteIndividualModal from './FichaClienteIndividualModal';
+import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
 import useDirectorio from '../../../pages/crm/hooks/useDirectorio';
@@ -93,12 +93,6 @@ export default function DirectorioClientesFeature({
             Bandeja general de clientes y empresas. Inicia nuevas negociaciones desde aquí.
           </p>
         </div>
-        <button
-          className={styles.btnPrimaryGolden}
-          onClick={() => setShowAddCustomerModal(true)}
-        >
-          <i className="fas fa-plus"></i> Nuevo Cliente
-        </button>
       </header>
 
       <div className={styles.filtersBar} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -107,11 +101,10 @@ export default function DirectorioClientesFeature({
           {[
             { id: 'todos', label: 'Todos', color: '#64748b', bg: '#f1f5f9' },
             { id: 'prospectos', label: 'Prospectos', color: '#ea580c', bg: '#fff7ed' },
-            { id: 'activos', label: 'Activos', color: '#059669', bg: '#ecfdf5' },
-            { id: 'regulares', label: 'Compra esporádica', color: '#d97706', bg: '#fffbeb' },
-            { id: 'frios', label: 'RECONTACTAR AHORA', color: '#dc2626', bg: '#fef2f2' },
-            { id: 'muertos', label: 'Descartados', color: '#050505ff', bg: '#fffbeb' }
-
+            { id: 'reactivacion', label: 'En Reactivación', color: '#3b82f6', bg: '#eff6ff' },
+            { id: 'activos', label: 'Compradores Activos', color: '#059669', bg: '#ecfdf5' },
+            { id: 'recontactar', label: 'Recontactar Ahora', color: '#dc2626', bg: '#fef2f2' },
+            { id: 'descartados', label: 'Descartados', color: '#111827', bg: '#f3f4f6' }
           ].map(cat => {
             const count = categoryCounts[cat.id] || 0;
             const isActive = selectedCategory === cat.id;
@@ -208,19 +201,21 @@ export default function DirectorioClientesFeature({
       )}
 
       {selectedCustomer && (
-        <FichaClienteModal
+        <FichaClienteIndividualModal
           selectedCustomer={selectedCustomer}
           onClose={() => setSelectedCustomer(null)}
           role={role}
           API_BASE={API_BASE}
           fetchCustomers={fetchCustomers}
           handleLoadPastQuote={handleLoadPastQuote}
+          onStartNegotiation={handleStartNegotiation}
+          onRegisterVisita={handleRegisterVisita}
         />
       )}
 
-      {/* Modal para iniciar negociación simplificado */}
+      {/* Modal para iniciar negociación (CrearProspectoModal) */}
       {showCreateDealModal && (
-        <GenerarVentaModal
+        <CrearProspectoModal
           isOpen={showCreateDealModal}
           onClose={() => {
             setShowCreateDealModal(false);

@@ -157,11 +157,11 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
   // Columns logic
   const columns = useMemo(() => {
     const baseStagesMap = {
-      nuevo:            { key: 'nuevo',            label: 'Bandeja de entrada', color: '#0086c0', isDeletable: false },
-      contactado:       { key: 'contactado',        label: 'En negociación',     color: '#ffcb00', isDeletable: false },
-      cotizando:        { key: 'cotizando',         label: 'Cotización',         color: '#7c3aed', isDeletable: false },
-      cierre_ganado:    { key: 'cierre_ganado',     label: 'Cierre Ganado',     color: '#16a34a', isDeletable: false },
-      cierre_perdido:   { key: 'cierre_perdido',    label: 'Cierre Perdido',    color: '#dc2626', isDeletable: false }
+      nuevo:            { key: 'nuevo',            label: 'Nueva negociación',     color: '#0086c0', isDeletable: false },
+      contactado:       { key: 'contactado',        label: 'En plática con cliente', color: '#ffcb00', isDeletable: false },
+      cotizando:        { key: 'cotizando',         label: 'Se le hizo cotización',  color: '#7c3aed', isDeletable: false },
+      cierre_ganado:    { key: 'cierre_ganado',     label: 'Venta Exitosa',          color: '#16a34a', isDeletable: false },
+      cierre_perdido:   { key: 'cierre_perdido',    label: 'Venta perdida',          color: '#dc2626', isDeletable: false }
     };
 
     const allColMap = { ...baseStagesMap };

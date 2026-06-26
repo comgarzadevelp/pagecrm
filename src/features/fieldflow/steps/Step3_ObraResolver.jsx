@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { useFieldFlow } from '../FieldFlowContext';
 import EntityResolver from '../engine/EntityResolver';
 import Fuse from 'fuse.js';
+import { CheckCircle2, ChevronRight, Circle } from 'lucide-react';
 
 export default function Step3_ObraResolver() {
   const { wizardState, updateEntity, paginate, cache } = useFieldFlow();
   const [query, setQuery] = useState('');
   const [obrasResults, setObrasResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  
+  // Estado para indicar si se ha marcado el check de "Sin obra / Omitir"
+  const [sinObraChecked, setSinObraChecked] = useState(wizardState.obra === null && cache.obras.length > 0);
 
   // Búsqueda híbrida para Obras (Local + Deep API)
   useEffect(() => {
@@ -25,7 +29,7 @@ export default function Step3_ObraResolver() {
     // 2. Capa API Fallback
     if (localRes.length < 3) {
       setIsSearching(true);
-      
+
       const timer = setTimeout(async () => {
         const API_BASE = import.meta.env.VITE_API_URL || '';
         const token = localStorage.getItem('token');
@@ -73,28 +77,68 @@ export default function Step3_ObraResolver() {
     }
   }, [query, cache.obras]);
 
-  const handleSkip = () => {
-    updateEntity('obra', null);
-    paginate(1);
+  // Si se selecciona o crea una obra en EntityResolver, desactivamos el check de sin obra
+  const handleResolveObra = (entity) => {
+    setSinObraChecked(false);
+    updateEntity('obra', entity);
   };
+
+  const toggleSinObra = () => {
+    const nextVal = !sinObraChecked;
+    setSinObraChecked(nextVal);
+    if (nextVal) {
+      updateEntity('obra', null); // Limpiamos cualquier obra asignada si se activa el check
+    }
+  };
+
+  const handleProceed = () => {
+    // Solo avanzamos si hay obra seleccionada/creada, o si el check de Sin Obra está activo
+    if (wizardState.obra || sinObraChecked) {
+      paginate(1);
+    }
+  };
+
+  const isProceedDisabled = !wizardState.obra && !sinObraChecked;
 
   return (
     <div className="fieldflow-step-container">
       {/* Contenido Deslizable */}
-      <div className="fieldflow-step-content">
+      <div className="fieldflow-step-content" style={{ paddingBottom: '7rem' }}>
         <div className="step-title-block">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
             <div>
               <h3>Obra Relacionada</h3>
-              <p>Opcional: Vincula la ubicación física o proyecto destino de tu interacción.</p>
+              <p>Vincula la ubicación física o proyecto destino de tu interacción.</p>
             </div>
+            
+            {/* Toggle interactivo en lugar de botón pulsable de acción inmediata */}
             <button
               type="button"
-              onClick={handleSkip}
-              className="fieldflow-btn-secondary"
-              style={{ width: 'auto', padding: '0 1.25rem', height: '40px', fontSize: '0.775rem' }}
+              onClick={toggleSinObra}
+              className={`fieldflow-btn-secondary ${sinObraChecked ? 'active-check' : ''}`}
+              style={{
+                width: 'auto',
+                padding: '0 1.25rem',
+                height: '42px',
+                fontSize: '0.8rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                borderRadius: '12px',
+                border: sinObraChecked ? '2px solid #05393A' : '1px solid rgba(0,0,0,0.12)',
+                background: sinObraChecked ? 'rgba(5, 57, 58, 0.05)' : '#ffffff',
+                color: '#05393A',
+                fontWeight: '700',
+                transition: 'all 0.2s',
+                cursor: 'pointer'
+              }}
             >
-              Saltar Obra / No aplica
+              {sinObraChecked ? (
+                <CheckCircle2 style={{ width: '16px', height: '16px', color: '#05393A' }} />
+              ) : (
+                <Circle style={{ width: '16px', height: '16px', color: '#9ca3af' }} />
+              )}
+              Omitir / Sin obra
             </button>
           </div>
         </div>
@@ -118,18 +162,38 @@ export default function Step3_ObraResolver() {
               <div className="bg-white border border-gray-100 rounded-xl p-4 h-16 mt-2"></div>
             </div>
           )}
-          
+
           {!isSearching && (
             <EntityResolver
               entityType="obra"
               searchResults={obrasResults}
-              onResolve={(entity) => {
-                updateEntity('obra', entity);
-                paginate(1);
-              }}
+              onResolve={handleResolveObra}
             />
           )}
         </div>
+      </div>
+
+      {/* Footer Fijo con el Botón "Listo, continuemos" controlado por estado */}
+      <div className="fieldflow-footer-fixed" style={{ background: '#ffffff', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <button
+          type="button"
+          onClick={handleProceed}
+          disabled={isProceedDisabled}
+          className="fieldflow-btn-primary"
+          style={{
+            opacity: isProceedDisabled ? 0.5 : 1,
+            cursor: isProceedDisabled ? 'not-allowed' : 'pointer',
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            fontWeight: '800'
+          }}
+        >
+          <span>Listo, continuemos</span>
+          <ChevronRight style={{ width: '18px', height: '18px' }} />
+        </button>
       </div>
     </div>
   );

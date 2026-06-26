@@ -1,5 +1,31 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+// Constante centralizada de colores, iconos y etiquetas para los tipos de interacción.
+// Esta constante se puede importar en cualquier parte de la aplicación para mantener la consistencia visual.
+export const INTERACTION_COLORS = {
+  field_visit: {
+    color: '#059669',       // Verde esmeralda oscuro (institucional/campo)
+    bg: 'rgba(16, 185, 129, 0.08)',
+    border: 'rgba(16, 185, 129, 0.2)',
+    label: 'Visita en Obra',
+    icon: 'fa-map-marker-alt'
+  },
+  call: {
+    color: '#2563eb',       // Azul (comunicación/llamadas)
+    bg: 'rgba(37, 99, 235, 0.08)',
+    border: 'rgba(37, 99, 235, 0.2)',
+    label: 'Llamada / WhatsApp',
+    icon: 'fa-phone-alt'
+  },
+  office: {
+    color: '#7c3aed',       // Púrpura (junta formal/oficina)
+    bg: 'rgba(124, 58, 237, 0.08)',
+    border: 'rgba(124, 58, 237, 0.2)',
+    label: 'Junta en Oficina',
+    icon: 'fa-building'
+  }
+};
+
 const FieldFlowContext = createContext(null);
 
 export function FieldFlowProvider({ children }) {
@@ -47,46 +73,62 @@ export function FieldFlowProvider({ children }) {
       try {
         const headers = { Authorization: `Bearer ${token}` };
         
-        // Carga paralela de entidades
-        const [leadsRes, companiesRes, contactsRes, obrasRes] = await Promise.all([
-          fetch(`${API_BASE}/api/crm/leads`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
-          fetch(`${API_BASE}/api/crm/companies`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
-          fetch(`${API_BASE}/api/crm/contacts`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
+        // Carga únicamente de los clientes asignados/propios (incluye locales crm_customer y SAE)
+        const [customersRes, obrasRes] = await Promise.all([
+          fetch(`${API_BASE}/api/crm/customers`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
           fetch(`${API_BASE}/api/crm/obras/search`, { headers }).then(r => r.json()).catch(() => ({ success: false }))
         ]);
 
         const newCache = {
-          prospectos: [],
-          empresas: [],
-          contactos: [],
+          prospectos: [], // crm_customers mapped here for compatibility or future use
+          empresas: [],   // mapped from customers
+          contactos: [],  // mapped from customers
           obras: []
         };
 
-        if (leadsRes.success && Array.isArray(leadsRes.leads)) {
-          newCache.prospectos = leadsRes.leads.map(l => ({
-            id: String(l.id),
-            nombre: l.name || '',
-            tipo: 'prospecto',
-            estatus: l.status || 'Activo'
-          }));
-        }
-
-        if (companiesRes.success && Array.isArray(companiesRes.companies)) {
-          newCache.empresas = companiesRes.companies.map(c => ({
+        if (customersRes.success && Array.isArray(customersRes.customers)) {
+          // El endpoint /api/crm/customers ya aplica aislamiento de vendedor (role === 'sales')
+          // Mapeamos los clientes para el buscador de Step0
+          newCache.prospectos = customersRes.customers.map(c => ({
             id: String(c.id),
-            nombre: c.name || c.alias || '',
-            tipo: 'empresa',
-            rfc: c.rfc || '',
-            estatus: c.status || 'Activo'
+            nombre: c.name || '',
+            tipo: 'prospecto',
+            estatus: c.status || 'Activo',
+            company: c.company || '',
+            phone: c.phone || '',
+            email: c.email || '',
+            entityType: 'prospecto'
           }));
-        }
 
-        if (contactsRes.success && Array.isArray(contactsRes.contacts)) {
-          newCache.contactos = contactsRes.contacts.map(co => ({
-            id: String(co.id),
-            nombre: co.name || '',
+          // Mapeamos empresas únicas de estos clientes
+          const uniqueCompanies = new Map();
+          customersRes.customers.forEach(c => {
+            if (c.company) {
+              const compName = c.company.trim();
+              if (!uniqueCompanies.has(compName)) {
+                uniqueCompanies.set(compName, {
+                  id: c.company_id ? String(c.company_id) : `company-ref-${c.id}`,
+                  nombre: compName,
+                  tipo: 'empresa',
+                  rfc: c.rfc || '',
+                  estatus: c.status || 'Activo',
+                  entityType: 'empresa'
+                });
+              }
+            }
+          });
+          newCache.empresas = Array.from(uniqueCompanies.values());
+
+          // Mapeamos contactos de estos clientes
+          newCache.contactos = customersRes.customers.map(c => ({
+            id: String(c.id),
+            nombre: c.name || '',
             tipo: 'contacto',
-            cargo: co.position || 'Contacto'
+            cargo: c.clasific || 'Cliente',
+            company: c.company || '',
+            phone: c.phone || '',
+            email: c.email || '',
+            entityType: 'contacto'
           }));
         }
 
@@ -100,7 +142,6 @@ export function FieldFlowProvider({ children }) {
           }));
         }
 
-        // Solo actualizamos el caché local si obtuvimos resultados exitosos de la base de datos
         setCache(prev => ({
           prospectos: newCache.prospectos.length > 0 ? newCache.prospectos : prev.prospectos,
           empresas: newCache.empresas.length > 0 ? newCache.empresas : prev.empresas,

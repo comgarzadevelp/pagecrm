@@ -1,6 +1,24 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import '../styles/EventCreatorModal.css';
+import { 
+  X, 
+  Calendar, 
+  Clock, 
+  User, 
+  Briefcase, 
+  MapPin, 
+  Search, 
+  Plus, 
+  Trash2, 
+  Check, 
+  AlertTriangle, 
+  Mail, 
+  FileText,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Tag
+} from 'lucide-react';
 import { useUX } from '../../../components/common/UXProvider';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
@@ -12,9 +30,10 @@ const EventCreatorModal = ({
   onSave,
   editingEventId,
   prefillData,
-  leads,
+  leads = [],
   API_BASE
 }) => {
+  const { showToast } = useUX();
   const [title, setTitle] = useState('');
   const [clientName, setClientName] = useState('');
   const [description, setDescription] = useState('');
@@ -27,24 +46,24 @@ const EventCreatorModal = ({
   const [activeAppointment, setActiveAppointment] = useState(null);
   const [dismissedWarning, setDismissedWarning] = useState(false);
   const [localEditingEventId, setLocalEditingEventId] = useState(editingEventId || null);
-  
-  // Custom states for Simplified Date & Time UX
   const [duration, setDuration] = useState('60');
 
-  // Autocomplete search states for Client/Lead
-  const [dbCustomers, setDbCustomers] = useState([]);
-  const [dbContacts, setDbContacts] = useState([]);
-  const [dbCompanies, setDbCompanies] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
+  // Estados del selector dual de entidades alineado con el nuevo CRM
+  const [activeTab, setActiveTab] = useState('cliente'); // 'cliente' | 'obra'
+  const [searchText, setSearchText] = useState('');
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [customersCache, setCustomersCache] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Custom Time & Date Picker states
+  // Estados del selector premium de fecha y hora
   const [showTimeDropdown, setShowTimeDropdown] = useState(false);
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const [viewYear, setViewYear] = useState(new Date().getFullYear());
   const [viewMonth, setViewMonth] = useState(new Date().getMonth());
 
-  // Google Maps States & Refs
+  // Google Maps
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
   const [mapsApiError, setMapsApiError] = useState(false);
   const [coords, setCoords] = useState(null);
@@ -53,8 +72,7 @@ const EventCreatorModal = ({
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markerInstanceRef = useRef(null);
-  // Guarda de inicialización: evita re-cargar los datos del formulario si el modal
-  // ya fue inicializado y el padre re-renderiza creando una nueva referencia de prefillData.
+  const searchContainerRef = useRef(null);
   const hasInitializedRef = useRef(false);
 
   const [creating, setCreating] = useState(false);
@@ -64,13 +82,11 @@ const EventCreatorModal = ({
   const token = () => localStorage.getItem('token');
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
-  // Format 24h (HH:MM) to standard display string
   const formatTimeDisplay = (time24) => {
     if (!time24) return '';
     return `${time24} hrs`;
   };
 
-  // Format YYYY-MM-DD to DD/MM/YYYY for text field
   const formatDateDisplay = (dateStr) => {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
@@ -78,54 +94,106 @@ const EventCreatorModal = ({
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
   };
 
-  // Generate days in a month for calendar grid (42 cells to complete 6 rows)
   const getDaysInMonth = (year, month) => {
     const date = new Date(year, month, 1);
     const days = [];
-    const firstDayIndex = date.getDay(); // 0 = Sunday, 1 = Monday...
+    const firstDayIndex = date.getDay();
     
-    // Previous month padding
     const prevMonth = month === 0 ? 11 : month - 1;
     const prevYear = month === 0 ? year - 1 : year;
     const prevLastDay = new Date(year, month, 0).getDate();
     for (let i = firstDayIndex - 1; i >= 0; i--) {
-      days.push({ 
-        day: prevLastDay - i, 
-        month: prevMonth, 
-        year: prevYear, 
-        isCurrentMonth: false 
-      });
+      days.push({ day: prevLastDay - i, month: prevMonth, year: prevYear, isCurrentMonth: false });
     }
     
-    // Days of current month
     const lastDay = new Date(year, month + 1, 0).getDate();
     for (let i = 1; i <= lastDay; i++) {
-      days.push({ 
-        day: i, 
-        month: month, 
-        year: year, 
-        isCurrentMonth: true 
-      });
+      days.push({ day: i, month: month, year: year, isCurrentMonth: true });
     }
     
-    // Padding for next month to complete 42 cells (6 rows)
     const nextMonth = month === 11 ? 0 : month + 1;
     const nextYear = month === 11 ? year + 1 : year;
     const totalCells = 42;
     const nextMonthDays = totalCells - days.length;
     for (let i = 1; i <= nextMonthDays; i++) {
-      days.push({ 
-        day: i, 
-        month: nextMonth, 
-        year: nextYear, 
-        isCurrentMonth: false 
-      });
+      days.push({ day: i, month: nextMonth, year: nextYear, isCurrentMonth: false });
     }
     
     return days;
   };
 
-  // Keep calendar view in sync with selected date
+  // Cargar Clientes para la pestaña "Cliente / Prospecto" (Capa B: Local 0ms)
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchCustomers = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/crm/customers`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.customers)) {
+          const mapped = data.customers.map(c => ({
+            id: String(c.id),
+            nombre: c.name || '',
+            company: c.company || '',
+            email: c.email || '',
+            phone: c.phone || '',
+            type: 'cliente'
+          }));
+          setCustomersCache(mapped);
+        }
+      } catch (err) {
+        console.error('Error al precargar clientes:', err);
+      }
+    };
+    fetchCustomers();
+  }, [isOpen, API_BASE]);
+
+  // Manejo de búsqueda en tiempo real
+  useEffect(() => {
+    if (!searchText.trim() || searchText.trim().length < 2 || selectedEntity) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (activeTab === 'cliente') {
+      const query = searchText.toLowerCase();
+      const filtered = customersCache.filter(c => 
+        c.nombre.toLowerCase().includes(query) || 
+        c.company.toLowerCase().includes(query)
+      );
+      setSearchResults(filtered.slice(0, 10));
+      setShowSuggestions(true);
+    } else if (activeTab === 'obra') {
+      const delayDebounce = setTimeout(async () => {
+        setSearching(true);
+        try {
+          const res = await fetch(`${API_BASE}/api/crm/obras/search?q=${encodeURIComponent(searchText.trim())}`, {
+            headers: { Authorization: `Bearer ${token()}` }
+          });
+          const data = await res.json();
+          if (res.ok && data.success && Array.isArray(data.obras)) {
+            const mapped = data.obras.map(o => ({
+              id: o.id,
+              nombre: o.name || 'Sin nombre',
+              company: o.empresa_nombre || '',
+              type: 'obra'
+            }));
+            setSearchResults(mapped);
+            setShowSuggestions(true);
+          }
+        } catch (err) {
+          console.error('Error al buscar obras:', err);
+        } finally {
+          setSearching(false);
+        }
+      }, 400);
+
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [searchText, activeTab, customersCache, selectedEntity]);
+
+  // Sincronizar el mes y año del calendario
   useEffect(() => {
     if (startDate) {
       const parts = startDate.split('-');
@@ -138,14 +206,13 @@ const EventCreatorModal = ({
     }
   }, [startDate]);
 
-  // 1. Load Google Maps API script dynamically
+  // Load Google Maps API script
   useEffect(() => {
     if (!isOpen) return;
     if (!apiKey) {
       setMapsApiError(true);
       return;
     }
-
     if (window.google && window.google.maps) {
       setIsMapsApiLoaded(true);
       return;
@@ -163,13 +230,8 @@ const EventCreatorModal = ({
       document.head.appendChild(script);
     }
 
-    const handleScriptLoad = () => {
-      setIsMapsApiLoaded(true);
-    };
-
-    const handleScriptError = () => {
-      setMapsApiError(true);
-    };
+    const handleScriptLoad = () => setIsMapsApiLoaded(true);
+    const handleScriptError = () => setMapsApiError(true);
 
     script.addEventListener('load', handleScriptLoad);
     script.addEventListener('error', handleScriptError);
@@ -182,14 +244,12 @@ const EventCreatorModal = ({
     };
   }, [isOpen, apiKey]);
 
-  // 2. Initialize Google Places Autocomplete on Location input
+  // Initialize Google Places Autocomplete on Location input
   useEffect(() => {
     if (!isMapsApiLoaded || !isOpen) return;
-
     const input = document.getElementById('location-autocomplete-input');
     if (!input) return;
 
-    // Prevent submitting the form when pressing enter inside suggestion popup
     const preventEnter = (e) => {
       if (e.key === 'Enter') e.preventDefault();
     };
@@ -206,7 +266,6 @@ const EventCreatorModal = ({
         const lat = place.geometry.location.lat();
         const lng = place.geometry.location.lng();
         const address = place.formatted_address || place.name || '';
-        
         setLocation(address);
         setCoords({ lat, lng });
       }
@@ -216,13 +275,13 @@ const EventCreatorModal = ({
 
     return () => {
       input.removeEventListener('keydown', preventEnter);
-      if (window.google && window.google.maps && window.google.maps.event) {
+      if (window.google?.maps?.event) {
         window.google.maps.event.clearInstanceListeners(input);
       }
     };
   }, [isMapsApiLoaded, isOpen]);
 
-  // 3. Initialize/Update Google Minimap Instance
+  // Google Minimap Instance
   useEffect(() => {
     if (!isMapsApiLoaded || !coords || !mapRef.current) return;
 
@@ -247,7 +306,6 @@ const EventCreatorModal = ({
         const lng = newPos.lng();
         setCoords({ lat, lng });
         
-        // Reverse Geocoding
         const geocoder = new window.google.maps.Geocoder();
         geocoder.geocode({ location: { lat, lng } }, (results, status) => {
           if (status === 'OK' && results[0]) {
@@ -264,42 +322,12 @@ const EventCreatorModal = ({
     }
   }, [isMapsApiLoaded, coords]);
 
-  // Load database entities for the autocomplete list (Client/Prospect)
+  // Click outside handlers
   useEffect(() => {
-    if (isOpen) {
-      const loadSearchData = async () => {
-        try {
-          const authHeaders = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-          const [resCust, resCont, resComp] = await Promise.all([
-            fetch(`${API_BASE}/api/crm/customers`, { headers: authHeaders }),
-            fetch(`${API_BASE}/api/crm/contacts`, { headers: authHeaders }),
-            fetch(`${API_BASE}/api/crm/companies`, { headers: authHeaders })
-          ]);
-          
-          if (resCust.ok) {
-            const data = await resCust.json();
-            setDbCustomers(data.customers || []);
-          }
-          if (resCont.ok) {
-            const data = await resCont.json();
-            setDbContacts(data.contacts || []);
-          }
-          if (resComp.ok) {
-            const data = await resComp.json();
-            setDbCompanies(data.companies || []);
-          }
-        } catch (e) {
-          console.error('[Autocomplete] Error loading search data:', e);
-        }
-      };
-      loadSearchData();
-    }
-  }, [isOpen, API_BASE]);
-
-  // Close suggestions, calendar, and time picker when clicking outside
-  useEffect(() => {
-    const handleOutsideClick = () => {
-      setShowSuggestions(false);
+    const handleOutsideClick = (e) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target)) {
+        setShowSuggestions(false);
+      }
       setShowTimeDropdown(false);
       setShowCalendarDropdown(false);
     };
@@ -307,97 +335,9 @@ const EventCreatorModal = ({
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Build the list of autocomplete candidates
-  const searchCandidates = useMemo(() => {
-    const list = [];
-    
-    // 1. Active Leads
-    if (leads) {
-      leads.forEach(l => {
-        list.push({
-          id: l.id,
-          name: l.name || '',
-          type: 'prospecto',
-          email: l.email || '',
-          phone: l.phone || '',
-          companyName: l.company || '',
-        });
-      });
-    }
-    
-    // 2. Customers
-    dbCustomers.forEach(c => {
-      list.push({
-        id: c.id,
-        name: c.name || '',
-        type: 'cliente',
-        email: c.email || '',
-        phone: c.phone || '',
-        companyName: c.company || '',
-      });
-    });
-
-    // 3. Contacts
-    dbContacts.forEach(c => {
-      const displayName = c.name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
-      list.push({
-        id: c.id,
-        name: displayName,
-        type: 'contacto',
-        email: c.email || '',
-        phone: c.phone || '',
-        companyName: c.company_name || '',
-      });
-    });
-
-    // 4. Companies
-    dbCompanies.forEach(c => {
-      list.push({
-        id: c.id,
-        name: c.name || '',
-        type: 'empresa',
-        email: c.email || '',
-        phone: c.phone || '',
-        companyName: c.name || '',
-      });
-    });
-    
-    return list;
-  }, [leads, dbCustomers, dbContacts, dbCompanies]);
-
-  // Filter candidates based on current input text
-  const filteredCandidates = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const term = searchQuery.toLowerCase();
-    
-    // Filter duplicates by name and match search term
-    const seenNames = new Set();
-    const matches = [];
-    
-    searchCandidates.forEach(c => {
-      if (!c.name) return;
-      const key = `${c.name.toLowerCase()}-${c.type}`;
-      if (seenNames.has(key)) return;
-      
-      const nameMatches = c.name.toLowerCase().includes(term);
-      const emailMatches = c.email.toLowerCase().includes(term);
-      const companyMatches = c.companyName.toLowerCase().includes(term);
-      
-      if (nameMatches || emailMatches || companyMatches) {
-        seenNames.add(key);
-        matches.push(c);
-      }
-    });
-    
-    return matches.slice(0, 8); // Limit to top 8 items
-  }, [searchCandidates, searchQuery]);
-
-  // Reset or fill data between modal openings
+  // Sync Prefill Data and state initialization
   useEffect(() => {
     if (isOpen) {
-      // GUARDA: Si el modal ya fue inicializado, ignorar re-ejecuciones causadas
-      // por nuevas referencias de prefillData (re-renders del padre por polling).
-      // Esto previene que los campos del formulario se borren mientras el usuario escribe.
       if (hasInitializedRef.current) return;
       hasInitializedRef.current = true;
       setLocalEditingEventId(editingEventId || null);
@@ -410,7 +350,6 @@ const EventCreatorModal = ({
         setDescription(prefillData.description || '');
         setStartDate(prefillData.startDate || '');
         
-        // Normalize prefilled time (round to closest 5 minutes)
         if (prefillData.startTime) {
           try {
             const parts = prefillData.startTime.split(':');
@@ -440,7 +379,6 @@ const EventCreatorModal = ({
         setCategory(prefillData.category || 'negocios');
         setLocation(prefillData.location || '');
         
-        // Calculate initial duration if start and end dates/times are present
         if (prefillData.startDate && prefillData.startTime && prefillData.endDate && prefillData.endTime) {
           try {
             const start = new Date(`${prefillData.startDate}T${prefillData.startTime}`);
@@ -459,14 +397,12 @@ const EventCreatorModal = ({
         setClientName('');
         setDescription('');
         
-        // Default start date (today)
         const now = new Date();
         const year = now.getFullYear();
         const month = String(now.getMonth() + 1).padStart(2, '0');
         const day = String(now.getDate()).padStart(2, '0');
         setStartDate(`${year}-${month}-${day}`);
         
-        // Default start time (rounded to next 5 minutes)
         const minutesObj = now.getMinutes();
         const roundedMin = Math.ceil(minutesObj / 5) * 5;
         let hoursNum = now.getHours();
@@ -486,7 +422,6 @@ const EventCreatorModal = ({
       setFormSuccess('');
       setError('');
     } else {
-      // Al cerrar el modal, resetear la guarda para la próxima apertura
       hasInitializedRef.current = false;
       setLocalEditingEventId(null);
       setActiveAppointment(null);
@@ -504,14 +439,16 @@ const EventCreatorModal = ({
       setCoords(null);
       mapInstanceRef.current = null;
       markerInstanceRef.current = null;
+      setSelectedEntity(null);
+      setSearchText('');
       setFormSuccess('');
       setError('');
       setShowTimeDropdown(false);
       setShowCalendarDropdown(false);
     }
-  }, [isOpen, prefillData]);
+  }, [isOpen, prefillData, editingEventId]);
 
-  // Detección de citas futuras duplicadas para el cliente
+  // Check duplicated appointments
   useEffect(() => {
     if (!isOpen || localEditingEventId || !clientName.trim()) {
       setActiveAppointment(null);
@@ -542,9 +479,6 @@ const EventCreatorModal = ({
 
     return () => clearTimeout(delayDebounce);
   }, [isOpen, clientName, localEditingEventId, API_BASE]);
-
-
-
 
   const handleAddAttendee = (val) => {
     const cleanVal = val.trim();
@@ -586,15 +520,10 @@ const EventCreatorModal = ({
     }
   };
 
-  const handleAttendeeBlur = () => {
-    handleAddAttendee(attendeeInput);
-  };
-
   const handleSelectRescheduleExisting = () => {
     if (!activeAppointment) return;
     
     setLocalEditingEventId(activeAppointment.google_event_id);
-    
     setTitle(activeAppointment.title || '');
     setClientName(activeAppointment.client_name || '');
     
@@ -653,7 +582,10 @@ const EventCreatorModal = ({
         throw new Error('La fecha y la hora de inicio son obligatorias.');
       }
 
-      // Calculate start and end ISO strings based on duration
+      if (!clientName && !selectedEntity) {
+        throw new Error('Debes vincular la cita a un Cliente o Negociación.');
+      }
+
       const startObj = new Date(`${startDate}T${startTime}`);
       if (isNaN(startObj.getTime())) {
         throw new Error('La fecha o la hora seleccionadas son inválidas.');
@@ -674,6 +606,8 @@ const EventCreatorModal = ({
         method = 'PUT';
       }
 
+      const finalClientName = clientName || (selectedEntity ? selectedEntity.nombre : '');
+
       const res = await fetch(url, {
         method: method,
         headers: {
@@ -688,7 +622,7 @@ const EventCreatorModal = ({
           attendees: attendeeList.join(', '),
           category,
           location,
-          client_name: clientName
+          client_name: finalClientName
         })
       });
 
@@ -697,14 +631,13 @@ const EventCreatorModal = ({
 
       setFormSuccess(localEditingEventId ? '¡Cita reprogramada con éxito!' : '¡Evento programado con éxito!');
       
-      // AUTO-MOVE Lead in CRM and Sync Email if matches
-      if (leads && leads.length > 0 && clientName) {
+      // Sincronización bidireccional automática del lead/cliente si aplica
+      if (leads && leads.length > 0 && finalClientName) {
         const matchingLead = leads.find(l => 
-          l.name?.toLowerCase() === clientName.toLowerCase() &&
+          l.name?.toLowerCase() === finalClientName.toLowerCase() &&
           !['descartado', 'cierre_ganado', 'cierre_perdido'].includes(l.status?.toLowerCase())
         );
         if (matchingLead) {
-          // A. Mover de etapa
           if (matchingLead.status?.toLowerCase() !== 'reunion_agendada') {
             try {
               await fetch(`${API_BASE}/api/crm/leads/${matchingLead.id}/stage`, {
@@ -715,17 +648,15 @@ const EventCreatorModal = ({
                 },
                 body: JSON.stringify({ stage: 'reunion_agendada' })
               });
-              console.log(`[Bidirectional Sync] Lead ${matchingLead.id} auto-moved to "reunion_agendada"`);
             } catch (e) {
-              console.error('[Bidirectional Sync] Error auto-moving lead:', e);
+              console.error('Error auto-moving lead stage:', e);
             }
           }
 
-          // B. Sincronizar correo electrónico si se ingresó uno manual y no tenía o cambió
           const firstAttendeeEmail = attendeeList[0];
           if (firstAttendeeEmail && (!matchingLead.email || matchingLead.email.toLowerCase() !== firstAttendeeEmail.toLowerCase())) {
             try {
-              const leadUpdateRes = await fetch(`${API_BASE}/api/crm/leads/${matchingLead.id}`, {
+              await fetch(`${API_BASE}/api/crm/leads/${matchingLead.id}`, {
                 method: 'PUT',
                 headers: {
                   'Authorization': `Bearer ${token()}`,
@@ -733,12 +664,8 @@ const EventCreatorModal = ({
                 },
                 body: JSON.stringify({ email: firstAttendeeEmail })
               });
-              const leadUpdateData = await leadUpdateRes.json();
-              if (leadUpdateRes.ok && leadUpdateData.success) {
-                console.log(`[Bidirectional Sync] Lead ${matchingLead.id} email updated to ${firstAttendeeEmail}`);
-              }
             } catch (e) {
-              console.error('[Bidirectional Sync] Error updating lead email:', e);
+              console.error('Error auto-syncing email:', e);
             }
           }
         }
@@ -760,433 +687,563 @@ const EventCreatorModal = ({
     }
   };
 
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchText('');
+    setSelectedEntity(null);
+    setSearchResults([]);
+    setShowSuggestions(false);
+  };
+
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
-    <div className="calendar-modal-backdrop">
-      <div className="calendar-modal-card animate-slide-up">
-        <button className="calendar-modal-close" onClick={onClose}>
-          <i className="fas fa-times" />
-        </button>
-        
-        <div className="calendar-modal-header">
-          <h3>{localEditingEventId ? 'Reprogramar Cita' : 'Programar Cita'}</h3>
-          <p>{localEditingEventId ? 'Modifica la fecha y hora de esta cita. El resto de los datos están bloqueados por Dirección.' : 'Se creará el evento en tu calendario y se enviará la invitación por correo.'}</p>
+    <div className="calendar-modal-backdrop" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(5, 57, 58, 0.45)', zIndex: 9999 }}>
+      <div className="calendar-modal-card animate-slide-up glass" style={{ 
+        maxWidth: '560px', 
+        borderRadius: '20px', 
+        background: 'rgba(255,255,255,0.96)',
+        boxShadow: '0 20px 40px rgba(5, 57, 58, 0.15)',
+        border: '1px solid rgba(5, 57, 58, 0.15)',
+        padding: 0,
+        overflow: 'hidden'
+      }}>
+        {/* Cabecera del modal */}
+        <div style={{
+          padding: '1.5rem',
+          borderBottom: '1px solid rgba(5, 57, 58, 0.08)',
+          background: 'linear-gradient(to right, rgba(5, 57, 58, 0.02), rgba(224, 146, 43, 0.02))',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <h3 style={{ 
+              margin: 0, 
+              fontFamily: "'Roc Grotesk', sans-serif", 
+              fontSize: '1.25rem', 
+              color: '#05393A', 
+              fontWeight: '850',
+              textTransform: 'uppercase',
+              letterSpacing: '-0.02em'
+            }}>
+              {localEditingEventId ? 'Reprogramar Cita' : 'Programar Cita'}
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.775rem', color: '#738787', fontFamily: "'Public Sans', sans-serif" }}>
+              {localEditingEventId ? 'Modifica la fecha y hora de la cita actual.' : 'Sincroniza y agenda eventos comerciales directamente con Google Calendar.'}
+            </p>
+          </div>
+          <button 
+            onClick={onClose} 
+            style={{ 
+              background: 'rgba(5, 57, 58, 0.05)', 
+              border: 'none', 
+              borderRadius: '50%', 
+              width: '32px', 
+              height: '32px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              color: '#05393A',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <X size={16} />
+          </button>
         </div>
 
+        {/* Banner de cita duplicada */}
         {activeAppointment && !dismissedWarning && (
-          <div className="duplicate-appointment-banner animate-slide-up">
-            <div className="banner-icon-container">
-              <i className="fas fa-exclamation-triangle" />
-            </div>
-            <div className="banner-details">
-              <h5>Prospecto con cita activa</h5>
-              <p>
-                <strong>{clientName}</strong> ya tiene una cita futura agendada para el{' '}
-                <strong>{new Date(activeAppointment.start_time).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</strong>.
+          <div style={{
+            padding: '1rem 1.25rem',
+            background: 'rgba(245, 158, 11, 0.08)',
+            borderBottom: '1px solid rgba(245, 158, 11, 0.2)',
+            display: 'flex',
+            gap: '12px',
+            fontFamily: "'Public Sans', sans-serif",
+            fontSize: '0.8rem'
+          }}>
+            <AlertTriangle size={18} style={{ color: '#E0922B', flexShrink: 0, marginTop: '2px' }} />
+            <div style={{ flex: 1 }}>
+              <h5 style={{ margin: 0, fontWeight: '800', color: '#92400e', textTransform: 'uppercase', fontSize: '0.775rem', fontFamily: "'Roc Grotesk', sans-serif" }}>Cita Activa Detectada</h5>
+              <p style={{ margin: '4px 0 8px 0', color: '#78350f', lineHeight: '1.4' }}>
+                Este cliente ya tiene una cita agendada para el <strong>{new Date(activeAppointment.start_time).toLocaleString('es-MX', { dateStyle: 'medium', timeStyle: 'short' })}</strong>.
               </p>
-              <div className="banner-buttons">
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button
                   type="button"
-                  className="banner-btn-action-reprogram"
                   onClick={handleSelectRescheduleExisting}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: '#E0922B',
+                    color: '#fff',
+                    border: 'none',
+                    fontSize: '0.725rem',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
                 >
-                  <i className="fas fa-history" /> Reprogramar Cita Actual
+                  Reprogramar Cita Actual
                 </button>
                 <button
                   type="button"
-                  className="banner-btn-action-keep"
                   onClick={() => setDismissedWarning(true)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    background: 'transparent',
+                    color: '#78350f',
+                    border: '1px solid rgba(245, 158, 11, 0.3)',
+                    fontSize: '0.725rem',
+                    fontWeight: '700',
+                    cursor: 'pointer'
+                  }}
                 >
-                  Agendar nueva de todos modos
+                  Ignorar y agendar nueva
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {formSuccess && <div className="calendar-success-msg"><i className="fas fa-check-circle" /> {formSuccess}</div>}
-        {error && <div className="calendar-error-msg" style={{ color: 'red', marginBottom: '1rem', fontSize: '0.9rem' }}><i className="fas fa-exclamation-triangle" /> {error}</div>}
+        {formSuccess && (
+          <div style={{ margin: '1rem 1.5rem 0 1.5rem', padding: '10px 14px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.2)', color: '#065f46', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Public Sans', sans-serif" }}>
+            <Check size={16} /> {formSuccess}
+          </div>
+        )}
 
-        <form onSubmit={handleCreateOrUpdateEvent} className="calendar-modal-form">
-          <div className="form-row-expert">
-            <div className="form-group-expert">
-              <label>Título del Evento *</label>
-              <div className="input-with-icon">
-                <i className="far fa-edit input-icon" />
-                <input required value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Demostración ERP o Seguimiento Comercial" disabled={!!localEditingEventId} />
+        {error && (
+          <div style={{ margin: '1rem 1.5rem 0 1.5rem', padding: '10px 14px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: '#991b1b', borderRadius: '8px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '8px', fontFamily: "'Public Sans', sans-serif" }}>
+            <AlertTriangle size={16} /> {error}
+          </div>
+        )}
+
+        <form onSubmit={handleCreateOrUpdateEvent} style={{ margin: 0, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem', maxHeight: '74vh', overflowY: 'auto' }}>
+          {/* Fila 1: Título y Selector de Entidad */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Título del Evento *</label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  required 
+                  value={title} 
+                  onChange={e => setTitle(e.target.value)} 
+                  placeholder="Ej: Demostración ERP o Seguimiento Comercial" 
+                  disabled={!!localEditingEventId}
+                  style={{
+                    width: '100%',
+                    height: '40px',
+                    borderRadius: '10px',
+                    border: '1px solid rgba(5, 57, 58, 0.15)',
+                    padding: '0 12px',
+                    fontSize: '0.825rem',
+                    fontFamily: "'Public Sans', sans-serif",
+                    outline: 'none',
+                    background: '#fff'
+                  }}
+                />
               </div>
             </div>
 
-            <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-              <label>Cliente / Prospecto *</label>
-              <div className="input-with-icon">
-                <i className="fas fa-building input-icon" />
-                <input 
-                  required 
-                  value={clientName} 
-                  onChange={e => {
-                    setClientName(e.target.value);
-                    setSearchQuery(e.target.value);
-                    setShowSuggestions(true);
-                  }} 
-                  onFocus={() => {
-                    setShowSuggestions(true);
-                  }}
-                  placeholder="Busca por nombre..." 
-                  disabled={!!localEditingEventId} 
-                  autoComplete="off"
-                />
-              </div>
+            {/* Selector de Cliente/Obra unificado */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }} onClick={e => e.stopPropagation()}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Vincular a Cliente o Negociación *</label>
               
-              {showSuggestions && filteredCandidates.length > 0 && (
-                <ul className="autocomplete-dropdown">
-                  {filteredCandidates.map((c, idx) => {
-                    let badgeColor = '#0086c0'; // prospecto
-                    if (c.type === 'cliente') badgeColor = '#16a34a';
-                    if (c.type === 'contacto') badgeColor = '#7c3aed';
-                    if (c.type === 'empresa') badgeColor = '#f97316';
-                    
-                    return (
-                      <li 
-                        key={`${c.type}-${c.id}-${idx}`}
-                        onClick={() => {
-                          setClientName(c.name);
-                          setSearchQuery('');
-                          setShowSuggestions(false);
-                          // Prefill attendees email if available
-                          if (c.email) {
-                            setAttendeeList(prev => {
-                              if (prev.includes(c.email)) return prev;
-                              return [...prev, c.email];
-                            });
-                          }
-                        }}
-                      >
-                        <span className="autocomplete-name">{c.name}</span>
-                        <span className="autocomplete-badge" style={{ backgroundColor: badgeColor }}>
-                          {c.type}
+              {localEditingEventId ? (
+                <div style={{ 
+                  padding: '10px 12px', 
+                  background: 'rgba(5, 57, 58, 0.04)', 
+                  border: '1px solid rgba(5, 57, 58, 0.12)', 
+                  borderRadius: '10px',
+                  fontSize: '0.825rem',
+                  fontWeight: '700',
+                  color: '#05393A'
+                }}>
+                  👤 {clientName}
+                </div>
+              ) : (
+                <div style={{ 
+                  background: 'rgba(5, 57, 58, 0.02)', 
+                  border: '1px solid rgba(5, 57, 58, 0.08)', 
+                  borderRadius: '12px', 
+                  padding: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  {/* Sub-tabs */}
+                  <div style={{ display: 'flex', gap: '4px', background: 'rgba(5, 57, 58, 0.04)', padding: '2px', borderRadius: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('cliente')}
+                      style={{
+                        flex: 1, padding: '6px', fontSize: '0.7rem', borderRadius: '6px', border: 'none',
+                        background: activeTab === 'cliente' ? '#05393A' : 'transparent',
+                        color: activeTab === 'cliente' ? '#fff' : '#738787',
+                        fontWeight: '700', cursor: 'pointer', fontFamily: "'Public Sans', sans-serif"
+                      }}
+                    >
+                      Cliente / Prospecto
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTabChange('obra')}
+                      style={{
+                        flex: 1, padding: '6px', fontSize: '0.7rem', borderRadius: '6px', border: 'none',
+                        background: activeTab === 'obra' ? '#05393A' : 'transparent',
+                        color: activeTab === 'obra' ? '#fff' : '#738787',
+                        fontWeight: '700', cursor: 'pointer', fontFamily: "'Public Sans', sans-serif"
+                      }}
+                    >
+                      Negociación / Obra
+                    </button>
+                  </div>
+
+                  <div style={{ position: 'relative' }} ref={searchContainerRef}>
+                    {!selectedEntity ? (
+                      <>
+                        <input
+                          type="text"
+                          value={searchText}
+                          onChange={(e) => {
+                            setSearchText(e.target.value);
+                            setClientName(e.target.value);
+                          }}
+                          style={{
+                            width: '100%',
+                            height: '38px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(5, 57, 58, 0.15)',
+                            padding: '0 10px 0 30px',
+                            fontSize: '0.8rem',
+                            fontFamily: "'Public Sans', sans-serif",
+                            outline: 'none',
+                            background: '#fff'
+                          }}
+                          placeholder={activeTab === 'cliente' ? 'Buscar cliente...' : 'Buscar obra...'}
+                        />
+                        <Search size={12} style={{ position: 'absolute', left: '10px', top: '13px', color: '#738787' }} />
+                        
+                        {showSuggestions && searchResults.length > 0 && (
+                          <ul style={{
+                            position: 'absolute', top: '100%', left: 0, width: '100%', background: '#fff',
+                            border: '1px solid rgba(5, 57, 58, 0.12)', borderRadius: '10px', listStyle: 'none',
+                            padding: '4px', margin: '4px 0 0 0', zIndex: 99, maxHeight: '150px', overflowY: 'auto',
+                            boxShadow: '0 10px 25px rgba(5, 57, 58, 0.1)'
+                          }}>
+                            {searchResults.map((item, idx) => (
+                              <li
+                                key={`${item.id}-${idx}`}
+                                onClick={() => {
+                                  setSelectedEntity(item);
+                                  setClientName(item.nombre);
+                                  setSearchText(item.nombre);
+                                  setShowSuggestions(false);
+                                  if (item.email) {
+                                    setAttendeeList(prev => prev.includes(item.email) ? prev : [...prev, item.email]);
+                                  }
+                                }}
+                                style={{
+                                  padding: '8px 10px', cursor: 'pointer', fontSize: '0.775rem', borderRadius: '6px',
+                                  fontFamily: "'Public Sans', sans-serif", color: '#334155', display: 'flex', flexDirection: 'column'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 57, 58, 0.04)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <span style={{ fontWeight: '700' }}>{item.nombre}</span>
+                                {item.company && <span style={{ fontSize: '0.65rem', color: '#738787' }}>🏢 {item.company}</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'rgba(16, 185, 129, 0.06)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '8px' }}>
+                        <span style={{ fontSize: '0.775rem', fontWeight: '700', color: '#065f46' }}>
+                          ✓ {selectedEntity.nombre} {selectedEntity.company ? `(🏢 ${selectedEntity.company})` : ''}
                         </span>
-                      </li>
-                    );
-                  })}
-                </ul>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEntity(null);
+                            setSearchText('');
+                            setClientName('');
+                          }}
+                          style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.7rem', fontWeight: '800' }}
+                        >
+                          Cambiar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
             </div>
           </div>
 
-          <div className="form-row-expert" style={{ alignItems: 'flex-start' }}>
-            <div className="form-group-expert" style={{ display: 'flex', flexDirection: 'column' }}>
-              <label>Lugar / Ubicación *</label>
-              <div className="input-with-icon">
-                <i className="fas fa-map-marker-alt input-icon" />
-                <input 
-                  id="location-autocomplete-input"
-                  required 
-                  value={location} 
-                  onChange={e => setLocation(e.target.value)} 
-                  placeholder={isMapsApiLoaded ? "Busca una dirección o negocio..." : "Ej: Oficinas Cliente, Microsoft Teams..."} 
-                  autoComplete="off"
-                />
-              </div>
-              {!apiKey && (
-                <span style={{ fontSize: '0.725rem', color: '#94a3b8', marginTop: '2px', display: 'block', textAlign: 'left' }}>
-                  💡 Google Maps no configurado. Escribe la dirección manualmente.
-                </span>
-              )}
-              {/* Google Minimap Container */}
-              {isMapsApiLoaded && coords && (
-                <div 
-                  ref={mapRef} 
-                  style={{ 
-                    width: '100%', 
-                    height: '180px', 
-                    borderRadius: '8px', 
-                    border: '1px solid #cbd5e1', 
-                    marginTop: '0.25rem',
-                    flexShrink: 0
-                  }} 
-                />
-              )}
+          {/* Fila 2: Lugar y Tipo */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Lugar / Ubicación *</label>
+              <input 
+                id="location-autocomplete-input"
+                required 
+                value={location} 
+                onChange={e => setLocation(e.target.value)} 
+                placeholder={isMapsApiLoaded ? "Busca una dirección..." : "Ej: Oficinas Cliente, Teams..."}
+                style={{
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(5, 57, 58, 0.15)',
+                  padding: '0 12px',
+                  fontSize: '0.825rem',
+                  fontFamily: "'Public Sans', sans-serif",
+                  outline: 'none',
+                  background: '#fff'
+                }}
+              />
             </div>
 
-            <div className="form-group-expert">
-              <label>Tipo de Evento</label>
-              <div className="input-with-icon">
-                <i className="fas fa-tags input-icon" />
-                <select value={category} onChange={e => setCategory(e.target.value)} className="modal-select" disabled={!!editingEventId}>
-                  <option value="negocios">💼 Reunión de Negocios</option>
-                  <option value="llamada">📞 Llamada Comercial</option>
-                  <option value="demo">🖥️ Demostración</option>
-                  <option value="seguimiento">⏳ Seguimiento</option>
-                  <option value="otro">🌟 Otro / Personal</option>
-                </select>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Categoría</label>
+              <select 
+                value={category} 
+                onChange={e => setCategory(e.target.value)}
+                style={{
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(5, 57, 58, 0.15)',
+                  padding: '0 10px',
+                  fontSize: '0.825rem',
+                  fontFamily: "'Public Sans', sans-serif",
+                  outline: 'none',
+                  background: '#fff',
+                  fontWeight: '600'
+                }}
+                disabled={!!editingEventId}
+              >
+                <option value="negocios">💼 Reunión de Negocios</option>
+                <option value="llamada">📞 Llamada Comercial</option>
+                <option value="demo">🖥️ Demostración</option>
+                <option value="seguimiento">⏳ Seguimiento</option>
+                <option value="otro">🌟 Otro / Personal</option>
+              </select>
             </div>
           </div>
 
-          <div className="form-row-expert-3">
-            {/* Custom Premium Date Picker */}
-            <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-              <label>Fecha de Inicio *</label>
-              <div className="input-with-icon">
-                <i className="far fa-calendar input-icon" />
-                <input 
-                  type="text" 
-                  readOnly
-                  required 
-                  className="picker-input"
-                  value={startDate ? formatDateDisplay(startDate) : 'Selecciona fecha...'} 
-                  onClick={() => {
-                    setShowCalendarDropdown(!showCalendarDropdown);
-                    setShowTimeDropdown(false);
-                  }}
-                />
-              </div>
-
+          {/* Fila 3: Fecha, Hora y Duración */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Fecha *</label>
+              <input 
+                type="text" 
+                readOnly
+                value={startDate ? formatDateDisplay(startDate) : 'Seleccionar...'}
+                onClick={() => { setShowCalendarDropdown(!showCalendarDropdown); setShowTimeDropdown(false); }}
+                style={{
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(5, 57, 58, 0.15)',
+                  padding: '0 12px',
+                  fontSize: '0.825rem',
+                  fontFamily: "'Public Sans', sans-serif",
+                  outline: 'none',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              />
+              
               {showCalendarDropdown && (
-                <div className="calendar-picker-dropdown animate-slide-up">
-                  {/* Calendar Month/Year Selector Header */}
-                  <div className="calendar-picker-header">
-                    <button 
-                      type="button"
-                      className="calendar-picker-nav-btn"
-                      onClick={() => {
-                        if (viewMonth === 0) {
-                          setViewMonth(11);
-                          setViewYear(viewYear - 1);
-                        } else {
-                          setViewMonth(viewMonth - 1);
-                        }
-                      }}
-                    >
-                      <i className="fas fa-chevron-left" />
-                    </button>
-                    <span className="calendar-picker-month-year">
-                      {MONTH_NAMES[viewMonth]} {viewYear}
-                    </span>
-                    <button 
-                      type="button"
-                      className="calendar-picker-nav-btn"
-                      onClick={() => {
-                        if (viewMonth === 11) {
-                          setViewMonth(0);
-                          setViewYear(viewYear + 1);
-                        } else {
-                          setViewMonth(viewMonth + 1);
-                        }
-                      }}
-                    >
-                      <i className="fas fa-chevron-right" />
-                    </button>
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, background: '#fff',
+                  border: '1px solid rgba(5, 57, 58, 0.12)', borderRadius: '12px', padding: '12px',
+                  zIndex: 999, width: '250px', boxShadow: '0 10px 25px rgba(5, 57, 58, 0.1)', fontFamily: "'Public Sans', sans-serif"
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <button type="button" onClick={() => { if (viewMonth === 0) { setViewMonth(11); setViewYear(viewYear - 1); } else { setViewMonth(viewMonth - 1); } }} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><ChevronLeft size={16} /></button>
+                    <span style={{ fontWeight: '700', fontSize: '0.8rem', color: '#05393A' }}>{MONTH_NAMES[viewMonth]} {viewYear}</span>
+                    <button type="button" onClick={() => { if (viewMonth === 11) { setViewMonth(0); setViewYear(viewYear + 1); } else { setViewMonth(viewMonth + 1); } }} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><ChevronRight size={16} /></button>
+                  </div>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontSize: '0.7rem', color: '#738787', marginBottom: '4px' }}>
+                    {WEEK_DAYS.map(d => <span key={d}>{d}</span>)}
                   </div>
 
-                  {/* Week Days Header */}
-                  <div className="calendar-picker-weekdays">
-                    {WEEK_DAYS.map(day => (
-                      <span key={day} className="calendar-picker-weekday">
-                        {day}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Days grid */}
-                  <div className="calendar-picker-days">
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
                     {getDaysInMonth(viewYear, viewMonth).map((item, idx) => {
                       const itemDateStr = `${item.year}-${String(item.month + 1).padStart(2, '0')}-${String(item.day).padStart(2, '0')}`;
                       const isSelected = startDate === itemDateStr;
-                      
-                      const today = new Date();
-                      const isToday = today.getDate() === item.day && 
-                                      today.getMonth() === item.month && 
-                                      today.getFullYear() === item.year;
-
                       return (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => {
-                            setStartDate(itemDateStr);
-                            setShowCalendarDropdown(false);
+                          onClick={() => { setStartDate(itemDateStr); setShowCalendarDropdown(false); }}
+                          style={{
+                            padding: '6px 0', border: 'none', borderRadius: '6px', fontSize: '0.75rem', cursor: 'pointer',
+                            background: isSelected ? '#05393A' : 'transparent',
+                            color: isSelected ? '#fff' : item.isCurrentMonth ? '#1a1a1a' : '#cbd5e1',
+                            fontWeight: isSelected ? '700' : 'normal'
                           }}
-                          className={`calendar-picker-day-btn ${!item.isCurrentMonth ? 'is-other-month' : ''} ${isToday ? 'is-today' : ''} ${isSelected ? 'is-selected' : ''}`}
                         >
                           {item.day}
                         </button>
                       );
                     })}
                   </div>
-
-                  {/* Today Quick selection button */}
-                  <button
-                    type="button"
-                    className="calendar-picker-today-btn"
-                    onClick={() => {
-                      const today = new Date();
-                      const y = today.getFullYear();
-                      const m = String(today.getMonth() + 1).padStart(2, '0');
-                      const d = String(today.getDate()).padStart(2, '0');
-                      setStartDate(`${y}-${m}-${d}`);
-                      setShowCalendarDropdown(false);
-                    }}
-                  >
-                    Hoy
-                  </button>
                 </div>
               )}
             </div>
 
-            {/* Custom Premium Time Picker */}
-            <div className="form-group-expert" style={{ position: 'relative' }} onClick={e => e.stopPropagation()}>
-              <label>Hora de Inicio *</label>
-              <div className="input-with-icon">
-                <i className="far fa-clock input-icon" />
-                <input 
-                  type="text" 
-                  readOnly
-                  required 
-                  className="picker-input"
-                  value={formatTimeDisplay(startTime) || 'Selecciona hora...'} 
-                  onClick={() => {
-                    setShowTimeDropdown(!showTimeDropdown);
-                    setShowCalendarDropdown(false);
-                  }}
-                />
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', position: 'relative' }} onClick={e => e.stopPropagation()}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Hora *</label>
+              <input 
+                type="text" 
+                readOnly
+                value={formatTimeDisplay(startTime) || 'Seleccionar...'}
+                onClick={() => { setShowTimeDropdown(!showTimeDropdown); setShowCalendarDropdown(false); }}
+                style={{
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(5, 57, 58, 0.15)',
+                  padding: '0 12px',
+                  fontSize: '0.825rem',
+                  fontFamily: "'Public Sans', sans-serif",
+                  outline: 'none',
+                  background: '#fff',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              />
               
               {showTimeDropdown && (
-                <div className="time-picker-dropdown animate-slide-up">
-                  <div className="time-picker-columns">
-                    {/* Hours Column */}
-                    <div className="time-col-wrapper time-col">
-                      <div className="time-col-header">Hora</div>
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, background: '#fff',
+                  border: '1px solid rgba(5, 57, 58, 0.12)', borderRadius: '12px', padding: '8px',
+                  zIndex: 999, width: '180px', boxShadow: '0 10px 25px rgba(5, 57, 58, 0.1)'
+                }}>
+                  <div style={{ display: 'flex', gap: '8px', maxHeight: '140px', overflowY: 'auto' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: '700', textAlign: 'center', color: '#738787' }}>Hora</span>
                       {Array.from({ length: 24 }).map((_, i) => {
-                        const hr24 = String(i).padStart(2, '0');
-                        const isSelected = startTime.split(':')[0] === hr24;
+                        const hr = String(i).padStart(2, '0');
                         return (
-                          <button
-                            key={i}
-                            type="button"
-                            onClick={() => {
-                              const currentMin = startTime.split(':')[1] || '00';
-                              setStartTime(`${hr24}:${currentMin}`);
-                            }}
-                            className={`time-select-btn ${isSelected ? 'is-selected' : ''}`}
-                          >
-                            {hr24}
-                          </button>
+                          <button key={i} type="button" onClick={() => setStartTime(`${hr}:${startTime.split(':')[1] || '00'}`)} style={{ padding: '4px', fontSize: '0.75rem', border: 'none', background: startTime.split(':')[0] === hr ? 'rgba(5, 57, 58, 0.1)' : 'transparent', color: '#05393A', borderRadius: '4px', cursor: 'pointer' }}>{hr}</button>
                         );
                       })}
                     </div>
-                    
-                    {/* Minutes Column (5-minute increments) */}
-                    <div className="time-col-wrapper time-col">
-                      <div className="time-col-header">Min</div>
-                      {['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'].map(m => {
-                        const isSelected = startTime.split(':')[1] === m;
-                        return (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => {
-                              const currentHr = startTime.split(':')[0] || '09';
-                              setStartTime(`${currentHr}:${m}`);
-                              setShowTimeDropdown(false); // Close on final step
-                            }}
-                            className={`time-select-btn ${isSelected ? 'is-selected' : ''}`}
-                          >
-                            {m}
-                          </button>
-                        );
-                      })}
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: '700', textAlign: 'center', color: '#738787' }}>Min</span>
+                      {['00', '15', '30', '45'].map(m => (
+                        <button key={m} type="button" onClick={() => { setStartTime(`${startTime.split(':')[0] || '09'}:${m}`); setShowTimeDropdown(false); }} style={{ padding: '4px', fontSize: '0.75rem', border: 'none', background: startTime.split(':')[1] === m ? 'rgba(5, 57, 58, 0.1)' : 'transparent', color: '#05393A', borderRadius: '4px', cursor: 'pointer' }}>{m}</button>
+                      ))}
                     </div>
                   </div>
-                  <button 
-                    type="button"
-                    className="time-confirm-btn"
-                    onClick={() => setShowTimeDropdown(false)}
-                  >
-                    Confirmar
-                  </button>
                 </div>
               )}
             </div>
 
-            <div className="form-group-expert">
-              <label>Duración de la Cita *</label>
-              <div className="input-with-icon">
-                <i className="far fa-clock input-icon" style={{ zIndex: 2 }} />
-                <select 
-                  value={duration} 
-                  onChange={e => setDuration(e.target.value)} 
-                  className="modal-select"
-                >
-                  <option value="15">15 minutos</option>
-                  <option value="30">30 minutos</option>
-                  <option value="45">45 minutos</option>
-                  <option value="60">1 hora</option>
-                  <option value="90">1.5 horas</option>
-                  <option value="120">2 horas</option>
-                  <option value="180">3 horas</option>
-                </select>
-              </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Duración *</label>
+              <select 
+                value={duration} 
+                onChange={e => setDuration(e.target.value)}
+                style={{
+                  height: '40px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(5, 57, 58, 0.15)',
+                  padding: '0 10px',
+                  fontSize: '0.825rem',
+                  fontFamily: "'Public Sans', sans-serif",
+                  outline: 'none',
+                  background: '#fff',
+                  fontWeight: '600'
+                }}
+              >
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="45">45 min</option>
+                <option value="60">1 hora</option>
+                <option value="90">1.5 horas</option>
+                <option value="120">2 horas</option>
+              </select>
             </div>
           </div>
 
-          <div className="form-group-expert">
-            <label>Invitados (Correos electrónicos)</label>
-            <div className="chips-input-container" onClick={() => document.getElementById('attendees-chip-input')?.focus()}>
-              <i className="far fa-envelope input-icon-chips" />
-              <div className="chips-wrapper">
-                {attendeeList.map((email, index) => (
-                  <span 
-                    key={index} 
-                    className="email-chip"
-                    title={!editingEventId ? "Doble clic para editar" : undefined}
-                    onDoubleClick={() => {
-                      if (editingEventId) return;
-                      setAttendeeList(prev => prev.filter((_, idx) => idx !== index));
-                      setAttendeeInput(email);
-                    }}
-                  >
-                    {email}
-                    {!editingEventId && (
-                      <button
-                        type="button"
-                        className="email-chip-remove"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setAttendeeList(prev => prev.filter((_, idx) => idx !== index));
-                        }}
-                      >
-                        &times;
-                      </button>
-                    )}
-                  </span>
-                ))}
-                <input
-                  id="attendees-chip-input"
-                  type="text"
-                  value={attendeeInput}
-                  onChange={(e) => setAttendeeInput(e.target.value)}
-                  onKeyDown={handleAttendeeKeyDown}
-                  onBlur={handleAttendeeBlur}
-                  placeholder={attendeeList.length === 0 ? "cliente@correo.com, gerente@garza.com" : "Otro correo..."}
-                  disabled={!!editingEventId}
-                  className="chips-inline-input"
-                  autoComplete="off"
-                />
-              </div>
+          {/* Invitados (Correos) */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Invitados (Correos electrónicos)</label>
+            <div style={{ 
+              border: '1px solid rgba(5, 57, 58, 0.15)', borderRadius: '10px', padding: '8px 12px', minHeight: '40px',
+              background: '#fff', display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center'
+            }}>
+              {attendeeList.map((email, idx) => (
+                <span key={idx} style={{ background: 'rgba(5, 57, 58, 0.06)', color: '#05393A', padding: '4px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {email}
+                  {!editingEventId && <button type="button" onClick={() => setAttendeeList(prev => prev.filter((_, i) => i !== idx))} style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: '0.8rem', cursor: 'pointer', padding: '0 2px' }}>&times;</button>}
+                </span>
+              ))}
+              <input
+                type="text"
+                value={attendeeInput}
+                onChange={e => setAttendeeInput(e.target.value)}
+                onKeyDown={handleAttendeeKeyDown}
+                onBlur={handleAttendeeBlur}
+                placeholder={attendeeList.length === 0 ? "Ej: cliente@correo.com..." : ""}
+                disabled={!!editingEventId}
+                style={{ border: 'none', outline: 'none', fontSize: '0.8rem', flex: 1, minWidth: '120px', background: 'transparent' }}
+              />
             </div>
           </div>
 
-          <div className="form-group-expert">
-            <label>Descripción / Notas</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} placeholder="Agrega ligas de videollamada, notas o temas clave a tratar..." disabled={!!editingEventId} />
+          {/* Notas / Descripción */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase', fontFamily: "'Public Sans', sans-serif" }}>Descripción / Notas de la Reunión</label>
+            <textarea 
+              value={description} 
+              onChange={e => setDescription(e.target.value)} 
+              rows={3} 
+              placeholder="Agrega temas clave a tratar o ligas de videollamada..."
+              disabled={!!editingEventId}
+              style={{
+                borderRadius: '10px',
+                border: '1px solid rgba(5, 57, 58, 0.15)',
+                padding: '10px 12px',
+                fontSize: '0.825rem',
+                fontFamily: "'Public Sans', sans-serif",
+                outline: 'none',
+                background: '#fff',
+                resize: 'vertical'
+              }}
+            />
           </div>
 
-          <button type="submit" className="btn-calendar-primary btn-modal-submit" disabled={creating}>
-            {creating ? <><i className="fas fa-spinner fa-spin" /> Guardando...</> : <><i className="far fa-calendar-check" /> {editingEventId ? 'Confirmar Reprogramación' : 'Agendar en Google Calendar'}</>}
+          {/* Google Minimap */}
+          {isMapsApiLoaded && coords && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '750', color: '#738787', textTransform: 'uppercase' }}>Ubicación en Mapa</label>
+              <div ref={mapRef} style={{ width: '100%', height: '150px', borderRadius: '10px', border: '1px solid rgba(5, 57, 58, 0.15)' }} />
+            </div>
+          )}
+
+          {/* Botón de Enviar */}
+          <button 
+            type="submit" 
+            disabled={creating}
+            style={{
+              height: '42px', borderRadius: '10px', border: 'none', background: '#E0922B', color: '#fff',
+              fontWeight: '800', fontSize: '0.825rem', cursor: 'pointer',
+              fontFamily: "'Public Sans', sans-serif",
+              boxShadow: '0 4px 14px rgba(224, 146, 43, 0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+              transition: 'all 0.2s', marginTop: '0.5rem'
+            }}
+          >
+            {creating ? 'Guardando...' : (localEditingEventId ? 'Confirmar Reprogramación' : 'Agendar en Google Calendar')}
           </button>
         </form>
       </div>
@@ -1196,5 +1253,5 @@ const EventCreatorModal = ({
 };
 
 export default function EventCreatorModalFeature(props) {
-    return <EventCreatorModal {...props} />;
+  return <EventCreatorModal {...props} />;
 }

@@ -133,7 +133,7 @@ export default function Step1_CustomerResolver() {
       telefono: empresaForm.telefono.trim(),
       isNew: true
     };
-    
+
     updateEntity('empresa', newEmp);
     setIsCreatingEmpresa(false);
 
@@ -203,7 +203,7 @@ export default function Step1_CustomerResolver() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '5rem' }}>
-          
+
           {/* ================= SECCIÓN EMPRESA ================= */}
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -221,10 +221,10 @@ export default function Step1_CustomerResolver() {
                   <h4>{wizardState.empresa.nombre}</h4>
                   <p>{wizardState.empresa.direccion ? `${wizardState.empresa.direccion}` : 'Empresa / Constructora Registrada'}</p>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => updateEntity('empresa', null)} 
-                  className="btn-resolver-back" 
+                <button
+                  type="button"
+                  onClick={() => updateEntity('empresa', null)}
+                  className="btn-resolver-back"
                   style={{ color: '#ef4444', borderColor: 'transparent' }}
                   title="Desvincular Empresa"
                 >
@@ -242,15 +242,15 @@ export default function Step1_CustomerResolver() {
                   </button>
                   <h4 style={{ fontSize: '0.85rem' }}>Nueva Empresa / Constructora</h4>
                 </div>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                   <div className="resolver-field-group" style={{ marginBottom: 0 }}>
                     <label className="resolver-field-label">Nombre o Razón Social *</label>
-                    <input 
-                      type="text" 
-                      value={empresaForm.nombre} 
+                    <input
+                      type="text"
+                      value={empresaForm.nombre}
                       onChange={(e) => setEmpresaForm(prev => ({ ...prev, nombre: e.target.value }))}
-                      className="resolver-inline-input" 
+                      className="resolver-inline-input"
                       placeholder="Ej: Constructora Garza S.A."
                       style={{ height: '36px', fontSize: '0.8rem' }}
                     />
@@ -258,31 +258,31 @@ export default function Step1_CustomerResolver() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                     <div className="resolver-field-group" style={{ marginBottom: 0 }}>
                       <label className="resolver-field-label">Ubicación de oficinas (Dirección / URL Maps)</label>
-                      <input 
-                        type="text" 
-                        value={empresaForm.direccion} 
+                      <input
+                        type="text"
+                        value={empresaForm.direccion}
                         onChange={(e) => setEmpresaForm(prev => ({ ...prev, direccion: e.target.value }))}
-                        className="resolver-inline-input" 
+                        className="resolver-inline-input"
                         placeholder="Ej. Av. Constitución 123..."
                         style={{ height: '36px', fontSize: '0.8rem' }}
                       />
                     </div>
                     <div className="resolver-field-group" style={{ marginBottom: 0 }}>
                       <label className="resolver-field-label">Teléfono</label>
-                      <input 
-                        type="tel" 
-                        value={empresaForm.telefono} 
+                      <input
+                        type="tel"
+                        value={empresaForm.telefono}
                         onChange={(e) => setEmpresaForm(prev => ({ ...prev, telefono: e.target.value }))}
-                        className="resolver-inline-input" 
+                        className="resolver-inline-input"
                         placeholder="8112345678"
                         style={{ height: '36px', fontSize: '0.8rem' }}
                       />
                     </div>
                   </div>
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={handleConfirmCreateEmpresa}
-                    className="resolver-confirm-btn valid" 
+                    className="resolver-confirm-btn valid"
                     style={{ height: '36px', marginTop: '0.25rem', fontSize: '0.75rem' }}
                   >
                     Vincular Nueva Empresa
@@ -340,7 +340,7 @@ export default function Step1_CustomerResolver() {
                         No se encontraron constructoras.
                       </div>
                     )}
-                    
+
                     <button
                       type="button"
                       onClick={handleStartCreateEmpresa}
@@ -372,10 +372,10 @@ export default function Step1_CustomerResolver() {
                   <h4>{wizardState.contacto.nombre}</h4>
                   <p>{wizardState.contacto.cargo ? `${wizardState.contacto.cargo}` : 'Contacto Registrado'}</p>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={() => updateEntity('contacto', null)} 
-                  className="btn-resolver-back" 
+                <button
+                  type="button"
+                  onClick={() => updateEntity('contacto', null)}
+                  className="btn-resolver-back"
                   style={{ color: '#ef4444', borderColor: 'transparent' }}
                   title="Desvincular Contacto"
                 >
@@ -393,16 +393,16 @@ export default function Step1_CustomerResolver() {
                   </button>
                   <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: '#05393A', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Nuevo Contacto</h4>
                 </div>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   {/* Fila 1: Nombre Completo */}
                   <div className="resolver-field-group">
                     <label className="resolver-field-label">Nombre Completo *</label>
-                    <input 
-                      type="text" 
-                      value={contactoForm.nombre} 
+                    <input
+                      type="text"
+                      value={contactoForm.nombre}
                       onChange={(e) => setContactoForm(prev => ({ ...prev, nombre: e.target.value }))}
-                      className="resolver-inline-input" 
+                      className="resolver-inline-input"
                       placeholder="Nombre del contacto"
                       style={{ height: '38px', fontSize: '0.825rem' }}
                     />
@@ -461,8 +461,8 @@ export default function Step1_CustomerResolver() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <div className="resolver-field-group">
                       <label className="resolver-field-label">Cargo / Posición</label>
-                      <select 
-                        value={contactoForm.cargo} 
+                      <select
+                        value={contactoForm.cargo}
                         onChange={(e) => setContactoForm(prev => ({ ...prev, cargo: e.target.value }))}
                         className="resolver-inline-select"
                         style={{ height: '38px', fontSize: '0.825rem', paddingRight: '2rem' }}
@@ -475,11 +475,11 @@ export default function Step1_CustomerResolver() {
                     </div>
                     <div className="resolver-field-group">
                       <label className="resolver-field-label">Correo Electrónico</label>
-                      <input 
-                        type="email" 
-                        value={contactoForm.email} 
+                      <input
+                        type="email"
+                        value={contactoForm.email}
                         onChange={(e) => setContactoForm(prev => ({ ...prev, email: e.target.value }))}
-                        className="resolver-inline-input" 
+                        className="resolver-inline-input"
                         placeholder="correo@empresa.com"
                         style={{ height: '38px', fontSize: '0.825rem' }}
                       />
@@ -490,17 +490,17 @@ export default function Step1_CustomerResolver() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                     <div className="resolver-field-group">
                       <label className="resolver-field-label">Teléfono Principal *</label>
-                      <input 
-                        type="tel" 
-                        value={contactoForm.telefono} 
+                      <input
+                        type="tel"
+                        value={contactoForm.telefono}
                         onChange={(e) => setContactoForm(prev => ({ ...prev, telefono: e.target.value }))}
-                        className="resolver-inline-input" 
+                        className="resolver-inline-input"
                         placeholder="81 1234 5678"
                         style={{ height: '38px', fontSize: '0.825rem' }}
                       />
                       <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '6px', fontSize: '0.75rem', color: '#05393A', cursor: 'pointer' }}>
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={contactoForm.tiene_whatsapp}
                           onChange={(e) => setContactoForm(prev => ({ ...prev, tiene_whatsapp: e.target.checked }))}
                           style={{ accentColor: '#10b981', cursor: 'pointer' }}
@@ -511,22 +511,22 @@ export default function Step1_CustomerResolver() {
                     </div>
                     <div className="resolver-field-group">
                       <label className="resolver-field-label">Teléfono Alternativo</label>
-                      <input 
-                        type="tel" 
-                        value={contactoForm.telefono_alt} 
+                      <input
+                        type="tel"
+                        value={contactoForm.telefono_alt}
                         onChange={(e) => setContactoForm(prev => ({ ...prev, telefono_alt: e.target.value }))}
-                        className="resolver-inline-input" 
+                        className="resolver-inline-input"
                         placeholder="Número alternativo"
                         style={{ height: '38px', fontSize: '0.825rem' }}
                       />
                     </div>
                   </div>
 
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={handleConfirmCreateContacto}
                     disabled={!contactoForm.nombre.trim() || !contactoForm.telefono.trim()}
-                    className="resolver-confirm-btn valid" 
+                    className="resolver-confirm-btn valid"
                     style={{ height: '40px', marginTop: '0.5rem', fontSize: '0.775rem' }}
                   >
                     Vincular Nuevo Contacto
@@ -584,7 +584,7 @@ export default function Step1_CustomerResolver() {
                         No se encontraron contactos.
                       </div>
                     )}
-                    
+
                     <button
                       type="button"
                       onClick={handleStartCreateContacto}
@@ -610,9 +610,10 @@ export default function Step1_CustomerResolver() {
           disabled={!isReadyToProceed}
           className="fieldflow-btn-primary"
         >
-          <span>Confirmar y Continuar a la Obra</span>
-          <ChevronRight style={{ width: '16px', height: '16px' }} />
+          <span>Todo correcto, continuar </span>
+          <ChevronRight style={{ width: '20x', height: '20px' }} />
         </button>
+
       </div>
     </div>
   );

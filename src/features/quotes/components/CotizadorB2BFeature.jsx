@@ -768,8 +768,6 @@ export default function CotizadorB2BFeature({
                   </div>
 
                   <select
-                    className="crm-login-input"
-                    style={{ width: '45%', cursor: 'pointer', height: '46px', borderRadius: '10px' }}
                     value={selectedLeadId || ''}
                     onChange={(e) => {
                       if (e.target.value) {
@@ -778,6 +776,29 @@ export default function CotizadorB2BFeature({
                       }
                     }}
                     disabled={allLeads.length === 0}
+                    style={{
+                      width: '45%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '0.82rem',
+                      fontWeight: '700',
+                      color: '#1e293b',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      height: '46px',
+                      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--color-brand-primary, #05393a)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(5, 57, 58, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.boxShadow = 'none';
+                    }}
                   >
                     <option value="">-- O Seleccionar de Lista --</option>
                     {allLeads.map(l => (
@@ -872,14 +893,35 @@ export default function CotizadorB2BFeature({
                   </div>
 
                   <select
-                    className="crm-login-input"
-                    style={{ width: '45%', cursor: 'pointer', height: '46px', borderRadius: '10px' }}
                     value={selectedOpportunityId}
                     onChange={(e) => {
                       if (e.target.value) {
                         setSelectedOpportunityId(e.target.value);
                         setOpportunitySearch('');
                       }
+                    }}
+                    style={{
+                      width: '45%',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #cbd5e1',
+                      background: '#ffffff',
+                      fontSize: '0.82rem',
+                      fontWeight: '700',
+                      color: '#1e293b',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      height: '46px',
+                      transition: 'border-color 0.15s ease, box-shadow 0.15s ease',
+                      boxSizing: 'border-box'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--color-brand-primary, #05393a)';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(5, 57, 58, 0.08)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#cbd5e1';
+                      e.target.style.boxShadow = 'none';
                     }}
                   >
                     <option value="">-- O Seleccionar de Lista --</option>

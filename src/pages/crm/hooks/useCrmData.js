@@ -216,7 +216,7 @@ export function useCrmData(role, enabledModules = []) {
   };
 
   // 7. Handle status update
-  const handleStatusChange = async (leadId, newStatus) => {
+  const handleStatusChange = async (leadId, newStatus, extraFields = {}) => {
     const token = localStorage.getItem('token');
     try {
       const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
@@ -225,7 +225,7 @@ export function useCrmData(role, enabledModules = []) {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ stage: newStatus })
+        body: JSON.stringify({ stage: newStatus, ...extraFields })
       });
 
       const data = await res.json();

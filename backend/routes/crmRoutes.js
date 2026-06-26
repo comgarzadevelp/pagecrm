@@ -43,7 +43,7 @@ import {
   getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany, updateEnterpriseCompany
 } from '../controllers/moduleConfigController.js';
 
-import { createVisita, getVisitasByEntity } from '../controllers/visitaController.js';
+import { createVisita, getVisitasByEntity, getMyActivities } from '../controllers/visitaController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -166,6 +166,7 @@ router.put('/enterprise-companies/:id', updateEnterpriseCompany);
 
 // ── VISITAS VERIFICADAS ───────────────────────────────────────
 router.post('/visitas', createVisita);
+router.get('/visitas/my-activities', getMyActivities);
 router.get('/visitas/:entityType/:entityId', getVisitasByEntity);
 
 export default router;

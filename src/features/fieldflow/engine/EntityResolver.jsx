@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle2, ChevronRight, PlusCircle, ArrowLeft, Building2, User, Landmark, Briefcase, MapPin, Loader2 } from 'lucide-react';
 import { useFieldFlow } from '../FieldFlowContext';
@@ -24,17 +24,17 @@ const getFieldLabel = (field) => FIELD_LABELS[field] || field;
  * Utiliza clases CSS nativas ultra-premium definidas en FieldFlowWizard.css
  * para sobreescribir cualquier estilo global tosco y evadir bugs de Tailwind.
  */
-export default function EntityResolver({ 
-  entityType, 
-  searchResults = [], 
-  onResolve 
+export default function EntityResolver({
+  entityType,
+  searchResults = [],
+  onResolve
 }) {
   // Si hay resultados, entramos en modo select, si no, directo a create
   const [mode, setMode] = useState(searchResults.length > 0 ? 'select' : 'create');
 
   if (mode === 'select') {
     return (
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -10 }}
@@ -42,23 +42,23 @@ export default function EntityResolver({
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {searchResults.map(entity => (
-            <CardMatch 
-              key={entity.id} 
+            <CardMatch
+              key={entity.id}
               entityType={entityType}
-              entity={entity} 
-              onSelect={(patchedEntity) => onResolve({ ...patchedEntity, isNew: false })} 
+              entity={entity}
+              onSelect={(patchedEntity) => onResolve({ ...patchedEntity, isNew: false })}
             />
           ))}
         </div>
-        
-        <button 
-           type="button"
-           onClick={() => setMode('create')}
-           className="w-full h-13 mt-4 flex items-center justify-center gap-2 text-[#05393A] font-bold text-sm border-2 border-dashed border-gray-200 rounded-xl hover:border-[#05393A]/30 hover:bg-[#05393A]/5 active:bg-[#05393A]/10 transition-all shadow-sm"
-           style={{ height: '50px', background: 'transparent', cursor: 'pointer' }}
+
+        <button
+          type="button"
+          onClick={() => setMode('create')}
+          className="w-full h-13 mt-4 flex items-center justify-center gap-2 text-[#05393A] font-bold text-sm border-2 border-dashed border-gray-200 rounded-xl hover:border-[#05393A]/30 hover:bg-[#05393A]/5 active:bg-[#05393A]/10 transition-all shadow-sm"
+          style={{ height: '50px', background: 'transparent', cursor: 'pointer' }}
         >
-           <PlusCircle className="w-4.5 h-4.5" />
-           No está en la lista, crear nuevo registro
+          <PlusCircle className="w-4.5 h-4.5" />
+          No está en la lista, crear nuevo registro
         </button>
       </motion.div>
     );
@@ -70,10 +70,10 @@ export default function EntityResolver({
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
     >
-      <CreateInline 
-        entityType={entityType} 
-        onCancel={searchResults.length > 0 ? () => setMode('select') : null} 
-        onCreate={(newEntity) => onResolve({ ...newEntity, isNew: true })} 
+      <CreateInline
+        entityType={entityType}
+        onCancel={searchResults.length > 0 ? () => setMode('select') : null}
+        onCreate={(newEntity) => onResolve({ ...newEntity, isNew: true })}
       />
     </motion.div>
   );
@@ -88,7 +88,7 @@ function CardMatch({ entityType, entity, onSelect }) {
   const { cache } = useFieldFlow();
   const [localData, setLocalData] = useState(entity);
   const audit = auditEntity(entityType, localData);
-  
+
   const handlePatch = (field, value) => {
     setLocalData(prev => ({ ...prev, [field]: value }));
   };
@@ -126,15 +126,14 @@ function CardMatch({ entityType, entity, onSelect }) {
                 {entityType}
               </span>
               {localData.estatus && (
-                <span className={`resolver-badge ${
-                  localData.estatus.toLowerCase().includes('activo') || 
-                  localData.estatus.toLowerCase().includes('cliente') || 
-                  localData.estatus.toLowerCase().includes('ganado')
-                    ? 'activo-status' 
-                    : localData.estatus.toLowerCase().includes('inactivo') 
-                      ? 'inactivo-status' 
+                <span className={`resolver-badge ${localData.estatus.toLowerCase().includes('activo') ||
+                    localData.estatus.toLowerCase().includes('cliente') ||
+                    localData.estatus.toLowerCase().includes('ganado')
+                    ? 'activo-status'
+                    : localData.estatus.toLowerCase().includes('inactivo')
+                      ? 'inactivo-status'
                       : 'prospecto-status'
-                }`}>
+                  }`}>
                   {localData.estatus}
                 </span>
               )}
@@ -156,7 +155,7 @@ function CardMatch({ entityType, entity, onSelect }) {
       {/* Renderizado de campos faltantes inline */}
       <AnimatePresence>
         {!audit.isValid && (
-          <motion.div 
+          <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -172,7 +171,7 @@ function CardMatch({ entityType, entity, onSelect }) {
                 <label className="resolver-field-label">
                   {getFieldLabel(field)} <span style={{ color: '#dc2626' }}>*</span>
                 </label>
-                
+
                 <div className="resolver-field-input-wrapper">
                   {field === 'empresa_id' ? (
                     <select
@@ -240,12 +239,48 @@ function CreateInline({ entityType, onCancel, onCreate }) {
   const [errors, setErrors] = useState([]);
   const [isLocating, setIsLocating] = useState(false);
 
+  // Autocompletado de Direcciones (Nominatim)
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false);
+
+  // Efecto para buscar sugerencias de dirección en tiempo real
+  useEffect(() => {
+    const query = formData.direccion;
+    if (!query || query.trim().length < 3) {
+      setAddressSuggestions([]);
+      return;
+    }
+
+    // Debounce de 450ms para evitar saturar la API
+    const delayDebounceFn = setTimeout(async () => {
+      setIsSearchingAddress(true);
+      try {
+        const encodedQuery = encodeURIComponent(query.trim());
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodedQuery}&countrycodes=mx&limit=5`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAddressSuggestions(data.map(item => ({
+            display_name: item.display_name,
+            lat: item.lat,
+            lon: item.lon
+          })));
+        }
+      } catch (err) {
+        console.warn("Error buscando sugerencias de dirección:", err);
+      } finally {
+        setIsSearchingAddress(false);
+      }
+    }, 450);
+
+    return () => clearTimeout(delayDebounceFn);
+  }, [formData.direccion]);
+
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       alert('Tu navegador no soporta geolocalización.');
       return;
     }
-    
+
     setIsLocating(true);
     navigator.geolocation.getCurrentPosition(async (position) => {
       try {
@@ -254,12 +289,27 @@ function CreateInline({ entityType, onCancel, onCreate }) {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`);
         const data = await res.json();
         if (data && data.display_name) {
-          setFormData(prev => ({ ...prev, direccion: data.display_name }));
+          setFormData(prev => ({
+            ...prev,
+            direccion: data.display_name,
+            lat: latitude,
+            lng: longitude
+          }));
         } else {
-          setFormData(prev => ({ ...prev, direccion: `${latitude}, ${longitude}` }));
+          setFormData(prev => ({
+            ...prev,
+            direccion: `${latitude}, ${longitude}`,
+            lat: latitude,
+            lng: longitude
+          }));
         }
       } catch (err) {
-        setFormData(prev => ({ ...prev, direccion: `${position.coords.latitude}, ${position.coords.longitude}` }));
+        setFormData(prev => ({
+          ...prev,
+          direccion: `${position.coords.latitude}, ${position.coords.longitude}`,
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        }));
       } finally {
         setIsLocating(false);
       }
@@ -267,6 +317,16 @@ function CreateInline({ entityType, onCancel, onCreate }) {
       alert('No se pudo obtener la ubicación: ' + error.message);
       setIsLocating(false);
     });
+  };
+
+  const handleSelectSuggestion = (suggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      direccion: suggestion.display_name,
+      lat: parseFloat(suggestion.lat),
+      lng: parseFloat(suggestion.lon)
+    }));
+    setAddressSuggestions([]);
   };
 
   const handleSubmit = () => {
@@ -285,9 +345,9 @@ function CreateInline({ entityType, onCancel, onCreate }) {
     <div className="resolver-create-container">
       <div className="resolver-create-header">
         {onCancel && (
-          <button 
+          <button
             type="button"
-            onClick={onCancel} 
+            onClick={onCancel}
             className="btn-resolver-back"
           >
             <ArrowLeft style={{ width: '16px', height: '16px' }} />
@@ -302,7 +362,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
         {schema.map(field => {
           const isError = errors.includes(field);
           return (
-            <motion.div 
+            <motion.div
               key={field}
               animate={isError ? { x: [-5, 5, -5, 5, 0] } : {}}
               transition={{ duration: 0.4 }}
@@ -349,11 +409,12 @@ function CreateInline({ entityType, onCancel, onCreate }) {
                       style={isError ? { borderColor: '#dc2626', background: '#fef2f2', paddingRight: field === 'direccion' ? '2.5rem' : '1rem' } : { paddingRight: field === 'direccion' ? '2.5rem' : '1rem' }}
                       autoComplete="off"
                     />
+
                     {field === 'direccion' && (
                       <button
                         type="button"
                         onClick={handleGetLocation}
-                        disabled={isLocating}
+                        disabled={isLocating || isSearchingAddress}
                         title="Obtener ubicación por GPS"
                         style={{
                           position: 'absolute',
@@ -362,16 +423,66 @@ function CreateInline({ entityType, onCancel, onCreate }) {
                           transform: 'translateY(-50%)',
                           background: 'transparent',
                           border: 'none',
-                          color: isLocating ? '#9ca3af' : '#05393A',
-                          cursor: isLocating ? 'not-allowed' : 'pointer',
+                          color: isLocating || isSearchingAddress ? '#9ca3af' : '#05393A',
+                          cursor: isLocating || isSearchingAddress ? 'not-allowed' : 'pointer',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           padding: '4px'
                         }}
                       >
-                        {isLocating ? <Loader2 className="animate-spin w-4 h-4" /> : <MapPin className="w-4 h-4" />}
+                        {isLocating || isSearchingAddress ? (
+                          <Loader2 className="animate-spin w-4 h-4" />
+                        ) : (
+                          <MapPin className="w-4 h-4" />
+                        )}
                       </button>
+                    )}
+
+                    {/* Sugerencias de Dirección Flotantes */}
+                    {field === 'direccion' && addressSuggestions.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '42px',
+                        left: 0,
+                        right: 0,
+                        background: '#ffffff',
+                        border: '1px solid rgba(0,0,0,0.08)',
+                        borderRadius: '12px',
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+                        zIndex: 100,
+                        maxHeight: '180px',
+                        overflowY: 'auto',
+                        padding: '0.35rem'
+                      }}>
+                        {addressSuggestions.map((suggestion, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleSelectSuggestion(suggestion)}
+                            style={{
+                              width: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              padding: '0.55rem 0.75rem',
+                              background: 'transparent',
+                              border: 'none',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                              transition: 'background 0.15s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <MapPin style={{ width: '13px', height: '13px', color: '#05393A', flexShrink: 0 }} />
+                            <span style={{ fontSize: '0.725rem', color: '#334155', lineHeight: '1.3' }}>
+                              {suggestion.display_name}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
@@ -381,14 +492,16 @@ function CreateInline({ entityType, onCancel, onCreate }) {
         })}
       </div>
 
-      <button
-        type="button"
-        onClick={handleSubmit}
-        className="resolver-confirm-btn valid"
-      >
-        Guardar y Continuar
-        <ChevronRight style={{ width: '16px', height: '16px' }} />
-      </button>
+      {entityType !== 'obra' && (
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="resolver-confirm-btn valid"
+        >
+          Listo, continuemos
+          <ChevronRight style={{ width: '16px', height: '16px' }} />
+        </button>
+      )}
     </div>
   );
 }

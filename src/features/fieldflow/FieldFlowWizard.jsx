@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FieldFlowProvider, useFieldFlow } from './FieldFlowContext';
 import Step0_SmartSearch from './steps/Step0_SmartSearch';
@@ -303,15 +304,14 @@ function WizardContent({ onClose }) {
               className="fieldflow-btn-circle"
               title="Atrás"
             >
-              <i className="fas fa-arrow-left text-base"></i>
+              <i className="fas fa-arrow-left text-sm"></i>
             </button>
           )}
           <h2>
-            {step === 0 ? "Buscar Registro" : `Paso ${step} de 4: ${
-              step === 1 ? "Resolver Empresa y Contacto" :
-              step === 2 ? "Obra Relacionada" :
-              step === 3 ? "Registrar Interacción" : "Resumen de Actividad"
-            }`}
+            {step === 0 ? "Buscar Registro en Campo" : 
+             step === 1 ? "Empresa y Contacto" :
+             step === 2 ? "Obra Vinculada" :
+             step === 3 ? "Detalle de Interacción" : "Resumen de Registro"}
           </h2>
         </div>
         {status !== 'submitting' && (
@@ -321,18 +321,35 @@ function WizardContent({ onClose }) {
             className="fieldflow-btn-circle"
             title="Cerrar"
           >
-            <i className="fas fa-times text-lg"></i>
+            <i className="fas fa-times text-base"></i>
           </button>
         )}
       </header>
 
-      {/* Progress Bar (Visual indicator of steps 1-4) */}
+      {/* Stepper Premium */}
       {step > 0 && status === 'idle' && (
-        <div className="fieldflow-progress-container">
-          <div 
-            className="fieldflow-progress-bar"
-            style={{ width: `${(step / 4) * 100}%` }}
-          />
+        <div className="fieldflow-stepper-container">
+          <div className="fieldflow-stepper">
+            <div className={`stepper-step ${step === 1 ? 'active' : step > 1 ? 'completed' : ''}`}>
+              <span className="stepper-step-dot">{step > 1 ? '✓' : '1'}</span>
+              <span className="stepper-step-label">Contacto</span>
+            </div>
+            <div className={`stepper-line ${step > 1 ? 'completed' : ''}`} />
+            <div className={`stepper-step ${step === 2 ? 'active' : step > 2 ? 'completed' : ''}`}>
+              <span className="stepper-step-dot">{step > 2 ? '✓' : '2'}</span>
+              <span className="stepper-step-label">Obra</span>
+            </div>
+            <div className={`stepper-line ${step > 2 ? 'completed' : ''}`} />
+            <div className={`stepper-step ${step === 3 ? 'active' : step > 3 ? 'completed' : ''}`}>
+              <span className="stepper-step-dot">{step > 3 ? '✓' : '3'}</span>
+              <span className="stepper-step-label">Reporte</span>
+            </div>
+            <div className={`stepper-line ${step > 3 ? 'completed' : ''}`} />
+            <div className={`stepper-step ${step === 4 ? 'active' : ''}`}>
+              <span className="stepper-step-dot">4</span>
+              <span className="stepper-step-label">Resumen</span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -598,12 +615,11 @@ function WizardContent({ onClose }) {
                     </div>
 
                     {/* Footer Fijo con Acciones de Confirmación */}
-                    <div className="fieldflow-footer-fixed" style={{ display: 'flex', gap: '0.75rem', background: '#ffffff', borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
+                    <div className="fieldflow-footer-fixed" style={{ background: '#ffffff', borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
                       <button
                         type="button"
                         onClick={() => paginate(-1)}
                         className="fieldflow-btn-secondary"
-                        style={{ width: '100px', height: '42px', fontSize: '0.775rem' }}
                       >
                         Atrás
                       </button>
@@ -611,9 +627,8 @@ function WizardContent({ onClose }) {
                         type="button"
                         onClick={handleDispatch}
                         className="fieldflow-btn-primary"
-                        style={{ flex: 1, height: '42px', fontSize: '0.775rem' }}
                       >
-                        Despachar Actividad
+                        Guardar
                       </button>
                     </div>
                   </>
@@ -628,9 +643,10 @@ function WizardContent({ onClose }) {
 }
 
 export default function FieldFlowWizard({ onClose }) {
-  return (
+  return createPortal(
     <FieldFlowProvider>
       <WizardContent onClose={onClose} />
-    </FieldFlowProvider>
+    </FieldFlowProvider>,
+    document.body
   );
 }

@@ -82,8 +82,8 @@ router.get('/status', verifyToken, async (req, res) => {
 
 // GET /api/calendar/events - Fetch upcoming Google Calendar events
 router.get('/events', verifyToken, async (req, res) => {
+  const userId = req.user?.userId;
   try {
-    const userId = req.user?.userId;
     const { data: user } = await supabase
       .from('crm_users')
       .select('google_calendar_connected')
@@ -138,6 +138,25 @@ router.get('/events', verifyToken, async (req, res) => {
     res.json({ success: true, events: enrichedEvents });
   } catch (err) {
     console.error('Error fetching Google events:', err);
+    
+    // Auto-recuperación (auto-heal) para invalid_grant (tokens revocados o expirados)
+    const isInvalidGrant = err.message?.includes('invalid_grant') || 
+                           (err.response?.data?.error === 'invalid_grant') ||
+                           (err.cause?.message?.includes('invalid_grant'));
+                           
+    if (isInvalidGrant) {
+      try {
+        await supabase
+          .from('crm_users')
+          .update({ google_calendar_connected: false })
+          .eq('id', userId);
+        console.log(`[Google Calendar] Usuario ${userId} marcado como desconectado debido a invalid_grant`);
+      } catch (dbErr) {
+        console.error('Error al actualizar estado de conexión en BD:', dbErr);
+      }
+      return res.json({ success: true, events: [], notConnected: true });
+    }
+    
     res.status(500).json({ success: false, message: 'Error al obtener eventos de Google Calendar.' });
   }
 });

@@ -421,12 +421,13 @@ export const getLeadById = async (req, res) => {
 
 export const updateLeadStage = async (req, res) => {
   const { id } = req.params;
-  const { stage } = req.body;
+  const { stage, finalValue, invoiceNumber, closingNotes } = req.body;
 
   try {
+    // Fetch the full lead including phone and email for merge lookup
     const { data: lead, error: fetchError } = await supabase
       .from('leads')
-      .select('id, notes, status')
+      .select('id, name, email, phone, notes, status, company_id, type')
       .eq('id', id)
       .single();
 
@@ -445,9 +446,135 @@ export const updateLeadStage = async (req, res) => {
       }
     }
 
+    let timelineText = `Cambio de estatus: de "${lead.status || 'nuevo'}" a "${stage}".`;
+
+    if (stage === 'cierre_ganado') {
+      const parsedValue = parseFloat(finalValue) || 0;
+      notesData.final_value = parsedValue;
+      notesData.invoice_number = invoiceNumber || '';
+      notesData.closing_notes = closingNotes || '';
+      
+      const formattedValue = parsedValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      timelineText = `¡Cierre Ganado! Monto Final: $${formattedValue} MXN. Ref/Pedido: ${invoiceNumber || 'N/A'}. Notas: ${closingNotes || 'Sin comentarios.'}`;
+
+      // Auto-activate linked company in notes or lead company_id
+      const linkedCoId = notesData.company_id || lead.company_id;
+      if (linkedCoId) {
+        await supabase
+          .from('companies')
+          .update({ status: 'activo' })
+          .eq('id', linkedCoId);
+      }
+
+      // Auto-activate linked contact in notes
+      if (notesData.contact_id) {
+        await supabase
+          .from('contacts')
+          .update({ notes: JSON.stringify({ general: 'Contacto activado por cierre de venta ganado.', timeline: [] }) })
+          .eq('id', notesData.contact_id);
+      }
+
+      // ── SMART MERGE: buscar crm_customer existente con mismo teléfono o email ──
+      // Si el lead ya tiene un registro en el directorio de clientes, actualizar ESE
+      // en lugar de crear un duplicado cambiando el type del lead.
+      if (lead.type !== 'crm_customer') {
+        let existingCustomerId = null;
+
+        // Buscar por teléfono
+        if (lead.phone) {
+          const { data: byPhone } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('type', 'crm_customer')
+            .eq('phone', lead.phone.trim())
+            .neq('id', id)
+            .maybeSingle();
+          if (byPhone) existingCustomerId = byPhone.id;
+        }
+
+        // Fallback: buscar por email
+        if (!existingCustomerId && lead.email) {
+          const { data: byEmail } = await supabase
+            .from('leads')
+            .select('id')
+            .eq('type', 'crm_customer')
+            .ilike('email', lead.email.trim())
+            .neq('id', id)
+            .maybeSingle();
+          if (byEmail) existingCustomerId = byEmail.id;
+        }
+
+        if (existingCustomerId) {
+          // Actualizar el cliente existente con el cierre ganado
+          const { data: existingCust } = await supabase
+            .from('leads')
+            .select('notes')
+            .eq('id', existingCustomerId)
+            .single();
+
+          let existingNotesData = { general: '', timeline: [] };
+          if (existingCust?.notes) {
+            try {
+              existingNotesData = JSON.parse(existingCust.notes);
+              if (!existingNotesData.timeline) existingNotesData.timeline = [];
+            } catch (e) { existingNotesData.general = existingCust.notes; }
+          }
+
+          existingNotesData.final_value = parsedValue;
+          existingNotesData.invoice_number = invoiceNumber || '';
+          existingNotesData.closing_notes = closingNotes || '';
+          existingNotesData.timeline.push({
+            date: new Date().toISOString(),
+            text: timelineText,
+            author: req.user?.name || 'Ejecutivo',
+            type: 'status_change'
+          });
+
+          await supabase
+            .from('leads')
+            .update({ status: 'cierre_ganado', notes: JSON.stringify(existingNotesData) })
+            .eq('id', existingCustomerId);
+
+          // Marcar el lead original como descartado para evitar duplicados en Kanban
+          notesData.timeline.push({
+            date: new Date().toISOString(),
+            text: `Cierre ganado registrado. Vinculado al cliente ID ${existingCustomerId} en el directorio.`,
+            author: req.user?.name || 'Ejecutivo',
+            type: 'status_change'
+          });
+
+          await supabase
+            .from('leads')
+            .update({ status: 'cierre_ganado', notes: JSON.stringify(notesData) })
+            .eq('id', id);
+
+          // Devolver el cliente actualizado
+          const { data: updatedCust } = await supabase.from('leads').select().eq('id', existingCustomerId).single();
+          return res.json({ success: true, lead: updatedCust });
+        } else {
+          // No existe crm_customer: el lead mismo se convierte en cliente
+          notesData.timeline.push({
+            date: new Date().toISOString(),
+            text: timelineText,
+            author: req.user?.name || 'Ejecutivo',
+            type: 'status_change'
+          });
+
+          const { data, error } = await supabase
+            .from('leads')
+            .update({ status: stage, type: 'crm_customer', notes: JSON.stringify(notesData) })
+            .eq('id', id)
+            .select();
+
+          if (error) throw error;
+          return res.json({ success: true, lead: data[0] });
+        }
+      }
+    }
+
     const newEntry = {
       date: new Date().toISOString(),
-      text: `Cambio de estatus: de "${lead.status || 'nuevo'}" a "${stage}".`,
+      text: timelineText,
       author: req.user?.name || 'Ejecutivo',
       type: 'status_change'
     };
@@ -471,6 +598,7 @@ export const updateLeadStage = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al actualizar lead' });
   }
 };
+
 
 export const updateLead = async (req, res) => {
   const { id } = req.params;
@@ -2113,9 +2241,14 @@ export const getCustomers = async (req, res) => {
         .from('crm_opportunities')
         .select('id, company_id, contact_id, created_at, updated_at, stage');
       
+      // Solo visitas ya ocurridas (timestamp_servidor <= ahora).
+      // Los recordatorios futuros NO cuentan como "última visita".
+      // También se incluyen visitas sin timestamp_servidor (registradas sin fecha explícita).
+      const nowIso = new Date().toISOString();
       const { data: allVisits } = await supabase
         .from('crm_visitas')
         .select('id, company_id, contact_id, timestamp_servidor, created_at')
+        .or(`timestamp_servidor.lte.${nowIso},timestamp_servidor.is.null`)
         .order('timestamp_servidor', { ascending: false });
 
       const oppsCountByCompany = {};
@@ -2227,7 +2360,11 @@ export const getCustomers = async (req, res) => {
       const lastVisitByCompany = {};
       const lastVisitByContact = {};
       (allVisits || []).forEach(v => {
-        const visitDate = v.timestamp_servidor || v.created_at;
+        // Usar created_at como fecha de la visita (es cuando OCURRIÓ el registro),
+        // ya que timestamp_servidor puede ser una fecha futura para recordatorios.
+        // La query ya filtra timestamp_servidor <= ahora, pero usamos created_at
+        // para que la "última visita" refleje cuando el ejecutivo registró la actividad.
+        const visitDate = v.created_at || v.timestamp_servidor;
         if (v.company_id) {
           if (!lastVisitByCompany[v.company_id]) {
             lastVisitByCompany[v.company_id] = visitDate;
@@ -2261,6 +2398,7 @@ export const getCustomers = async (req, res) => {
       for (let i = 0; i < merged.length; i++) {
         const cust = merged[i];
         const isSae = cust.id.startsWith('sae-');
+        const isWonLead = !isSae && cust.status === 'cierre_ganado';
 
         // Buscar contacto y empresa locales correspondientes para enriquecer
         let contactId = null;
@@ -2341,12 +2479,20 @@ export const getCustomers = async (req, res) => {
           lastOppDate = lastOppByCompany[cust.id] || null;
           lastWonOppDate = lastWonOppDateByCompany[cust.id] || null;
         } else {
-          oppsCount = oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
-          wonCount = wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
-          activeCount = activeCountByContact[cust.id] || activeCountByCompany[cust.id] || 0;
-          lastVisit = lastVisitByContact[cust.id] || lastVisitByCompany[cust.id] || null;
-          lastOppDate = lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
-          lastWonOppDate = lastWonOppDateByContact[cust.id] || lastWonOppDateByCompany[cust.id] || null;
+          oppsCount = (contact ? (oppsCountByContact[contact.id] || 0) : 0) || (company ? (oppsCountByCompany[company.id] || 0) : 0) || oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
+          wonCount = (contact ? (wonCountByContact[contact.id] || 0) : 0) || (company ? (wonCountByCompany[company.id] || 0) : 0) || wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
+          activeCount = (contact ? (activeCountByContact[contact.id] || 0) : 0) || (company ? (activeCountByCompany[company.id] || 0) : 0) || activeCountByContact[cust.id] || activeCountByCompany[cust.id] || 0;
+          lastVisit = (contact ? lastVisitByContact[contact.id] : null) || (company ? lastVisitByCompany[company.id] : null) || lastVisitByContact[cust.id] || lastVisitByCompany[cust.id] || null;
+          lastOppDate = (contact ? lastOppByContact[contact.id] : null) || (company ? lastOppByCompany[company.id] : null) || lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
+          lastWonOppDate = (contact ? lastWonOppDateByContact[contact.id] : null) || (company ? lastWonOppDateByCompany[company.id] : null) || lastWonOppDateByContact[cust.id] || lastWonOppDateByCompany[cust.id] || null;
+
+          if (isWonLead) {
+            wonCount += 1;
+            oppsCount += 1;
+            if (!lastWonOppDate) {
+              lastWonOppDate = cust.created_at || new Date().toISOString();
+            }
+          }
 
           // Parsear notas para buscar la fecha de la última nota en el timeline
           if (cust.notes) {
@@ -2377,11 +2523,24 @@ export const getCustomers = async (req, res) => {
 
         const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : cust.created_at;
 
-        // Calcular días de inactividad
-        const now = new Date();
-        const diffTime = Math.abs(now - new Date(lastActivityDate));
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
+        // Calcular días de inactividad usando la fecha local de México (CST/CDT).
+        // Usamos Intl.DateTimeFormat para obtener la fecha calendario correcta
+        // independientemente del timezone del servidor (que puede ser UTC).
+        const getMxDateStr = (date) => {
+          const d = date instanceof Date ? date : new Date(date);
+          return new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Monterrey',
+            year: 'numeric', month: '2-digit', day: '2-digit'
+          }).format(d); // Formato YYYY-MM-DD
+        };
+        const todayStr = getMxDateStr(new Date());
+        const toDateStr = getMxDateStr;
+        const activityStr = toDateStr(lastActivityDate);
+        const msPerDay = 1000 * 60 * 60 * 24;
+        const diffDays = Math.max(0, Math.floor(
+          (new Date(todayStr) - new Date(activityStr)) / msPerDay
+        ));
+
         let followupStatus = 'frio';
         if (diffDays <= 15) {
           followupStatus = 'activo';
@@ -2389,10 +2548,12 @@ export const getCustomers = async (req, res) => {
           followupStatus = 'regular';
         }
 
-        // Calcular días transcurridos desde la última compra ganada o creación
+        // Calcular días desde la última compra ganada usando días calendario
         const purchaseAnchor = lastWonOppDate || cust.created_at;
-        const purchaseDiffTime = Math.abs(now - new Date(purchaseAnchor));
-        const daysSinceLastPurchase = Math.floor(purchaseDiffTime / (1000 * 60 * 60 * 24));
+        const purchaseStr = toDateStr(purchaseAnchor);
+        const daysSinceLastPurchase = Math.max(0, Math.floor(
+          (new Date(todayStr) - new Date(purchaseStr)) / msPerDay
+        ));
 
         // Clasificación automatizada de Niveles (1 al 5)
         const statusLower = (cust.status || '').toLowerCase().trim();
@@ -2408,7 +2569,7 @@ export const getCustomers = async (req, res) => {
           let baseNivel = 1;
           if (wonCount >= 3) {
             baseNivel = 3;
-          } else if (activeCount >= 1) {
+          } else if (wonCount >= 1 || activeCount >= 1) {
             baseNivel = 2;
           }
 
@@ -2857,19 +3018,19 @@ export const updateCustomer = async (req, res) => {
 
     // 6. Preparar JSON de notas con historial de cambios estructurado
     let notesData = { general: '', timeline: [], change_history: [] };
-    if (matchedLead && matchedLead.notes) {
-      try {
-        const parsed = JSON.parse(matchedLead.notes.trim());
-        notesData = { ...parsed };
-      } catch (e) {
-        notesData.general = matchedLead.notes;
-      }
-    } else if (notes) {
+    if (notes) {
       try {
         const parsed = JSON.parse(notes.trim());
         notesData = { ...parsed };
       } catch (e) {
         notesData.general = notes;
+      }
+    } else if (matchedLead && matchedLead.notes) {
+      try {
+        const parsed = JSON.parse(matchedLead.notes.trim());
+        notesData = { ...parsed };
+      } catch (e) {
+        notesData.general = matchedLead.notes;
       }
     }
 

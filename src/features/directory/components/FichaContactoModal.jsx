@@ -58,15 +58,9 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
   const [linking, setLinking]           = useState(false);
 
   // --- Bitácora state ---
-  const [activeTab, setActiveTab]   = useState('nota'); // 'nota' | 'visita'
-  const [noteText, setNoteText]     = useState('');
-  const [visitaTipo, setVisitaTipo] = useState('visita_presencial');
-  const [visitaResultado, setVisitaResultado] = useState('');
-  const [visitaNotas, setVisitaNotas] = useState('');
-  const [gps, setGps]               = useState(null);
-  const [gpsState, setGpsState]     = useState('idle'); // 'idle' | 'loading' | 'ok' | 'error'
-  const [sendingNote, setSendingNote] = useState(false);
-  const [sendingVisita, setSendingVisita] = useState(false);
+  const [activeTab, setActiveTab]   = useState('completo'); // 'notas' | 'visitas' | 'bitacora' | 'cambios' | 'completo'
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentText, setCommentText] = useState('');
 
   // --- Archive state ---
   const [showArchive, setShowArchive]   = useState(false);
@@ -106,20 +100,6 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
     fetchVisitas();
   }, [fetchVisitas]);
 
-  // GPS acquisition when visita presencial selected
-  useEffect(() => {
-    if (activeTab === 'visita' && visitaTipo === 'visita_presencial') {
-      setGpsState('loading');
-      navigator.geolocation?.getCurrentPosition(
-        (pos) => { setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGpsState('ok'); },
-        ()    => { setGpsState('error'); }
-      );
-    } else {
-      setGps(null);
-      setGpsState('idle');
-    }
-  }, [activeTab, visitaTipo]);
-
   // Company search debounce
   useEffect(() => {
     if (linkSearch.length < 2) { setLinkResults([]); return; }
@@ -151,14 +131,62 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
   const handleSave = async () => {
     setSaving(true);
     try {
-      // Preserve timeline when updating notes
+      // -- Comparar campos para el historial de cambios --
+      const changes = [];
+      const fields = [
+        { key: 'name', label: 'Nombre' },
+        { key: 'position', label: 'Cargo' },
+        { key: 'contact_type', label: 'Tipo de Contacto' },
+        { key: 'email', label: 'Correo' },
+        { key: 'phone', label: 'Teléfono' },
+        { key: 'phone_alt', label: 'Teléfono Alternativo' },
+        { key: 'whatsapp', label: 'WhatsApp' }
+      ];
+
+      fields.forEach(f => {
+        const oldVal = (contact[f.key] || '').toString().trim();
+        const newVal = (form[f.key] || '').toString().trim();
+        if (oldVal !== newVal) {
+          changes.push(`${f.label} de "${oldVal || 'N/A'}" a "${newVal || 'N/A'}"`);
+        }
+      });
+
+      // Comparar también notas generales
+      const oldNotesGeneral = (() => { try { return JSON.parse(contact.notes || '{}').general || contact.notes || ''; } catch { return contact.notes || ''; } })().trim();
+      const newNotesGeneral = (form.notes || '').trim();
+      if (oldNotesGeneral !== newNotesGeneral) {
+        changes.push(`Notas de "${oldNotesGeneral || 'N/A'}" a "${newNotesGeneral || 'N/A'}"`);
+      }
+
+      // Preserve timeline when updating notes and inject the change audit log
       let notesPayload = form.notes;
       try {
         const existing = JSON.parse(contact.notes || '{}');
-        if (existing.timeline) {
-          notesPayload = JSON.stringify({ general: form.notes, timeline: existing.timeline });
+        const timeline = existing.timeline || [];
+        
+        if (changes.length > 0) {
+          timeline.push({
+            type: 'change',
+            text: `Se actualizaron los datos del contacto: ${changes.join(', ')}`,
+            date: new Date().toISOString(),
+            author: localStorage.getItem('name') || 'Usuario'
+          });
         }
-      } catch { /* plain text */ }
+
+        notesPayload = JSON.stringify({ general: form.notes, timeline });
+      } catch {
+        if (changes.length > 0) {
+          notesPayload = JSON.stringify({
+            general: form.notes,
+            timeline: [{
+              type: 'change',
+              text: `Se actualizaron los datos del contacto: ${changes.join(', ')}`,
+              date: new Date().toISOString(),
+              author: localStorage.getItem('name') || 'Usuario'
+            }]
+          });
+        }
+      }
 
       const res  = await fetch(`${API_BASE}/api/crm/contacts/${contact.id}`, {
         method: 'PUT',
@@ -175,56 +203,94 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
     finally { setSaving(false); }
   };
 
-  // --- Save note ---
-  const handleSaveNote = async () => {
-    if (!noteText.trim()) return;
-    setSendingNote(true);
+  // --- Add comment with bidirectional sync ---
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
     try {
+      const authorName = localStorage.getItem('name') || 'Vendedor';
       let parsed = { general: '', timeline: [] };
-      try { const p = JSON.parse(contact.notes || '{}'); if (p.timeline) parsed = p; else parsed.general = contact.notes || ''; } catch {}
-      parsed.timeline = [
-        { type: 'nota', text: noteText.trim(), date: new Date().toISOString(), author: 'Vendedor' },
-        ...parsed.timeline
-      ];
+      try { 
+        const p = JSON.parse(contact.notes || '{}'); 
+        if (p.timeline) parsed = p; 
+        else parsed.general = contact.notes || ''; 
+      } catch {}
+      
+      const newComment = { 
+        type: 'nota', 
+        text: commentText.trim(), 
+        date: new Date().toISOString(), 
+        author: authorName,
+        created_from: 'contacto' // Origin marker
+      };
+      
+      parsed.timeline = [newComment, ...(parsed.timeline || [])];
+      
+      // 1. Save to contact notes
       const res = await fetch(`${API_BASE}/api/crm/contacts/${contact.id}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ notes: JSON.stringify(parsed) })
       });
-      if (!res.ok) throw new Error('Error al guardar nota');
-      showToast('Nota guardada.', 'success');
-      setNoteText('');
-      await refreshContact();
-    } catch (err) { showToast(err.message, 'error'); }
-    finally { setSendingNote(false); }
-  };
+      
+      if (!res.ok) throw new Error('Error al guardar comentario en contacto');
 
-  // --- Save visita ---
-  const handleSaveVisita = async () => {
-    if (!visitaResultado.trim()) { showToast('Escribe un resultado de la visita.', 'warning'); return; }
-    setSendingVisita(true);
-    try {
-      const payload = {
-        entity_type: 'contact',
-        entity_id:   contact.id,
-        visit_type:  visitaTipo,
-        result:      visitaResultado,
-        notes:       visitaNotas,
-        lat:         gps?.lat || null,
-        lng:         gps?.lng || null,
-      };
-      const res = await fetch(`${API_BASE}/api/crm/visitas`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) throw new Error('Error al guardar visita');
-      showToast('Visita registrada.', 'success');
-      setVisitaResultado('');
-      setVisitaNotas('');
-      await fetchVisitas();
-    } catch (err) { showToast(err.message, 'error'); }
-    finally { setSendingVisita(false); }
+      // 2. Sync to linked active companies
+      if (contact.contact_companies && contact.contact_companies.length > 0) {
+        for (const cc of contact.contact_companies) {
+          if (cc.status !== 'inactivo' && cc.company?.id) {
+            try {
+              const coRes = await fetch(`${API_BASE}/api/crm/companies/${cc.company.id}`, {
+                headers: { Authorization: `Bearer ${getToken()}` }
+              });
+              const coData = await coRes.json();
+              if (coRes.ok && coData.success) {
+                let coNotes = { general: '', timeline: [] };
+                try {
+                  const p = JSON.parse(coData.company.notes || '{}');
+                  if (p.timeline) coNotes = p;
+                  else coNotes.general = coData.company.notes || '';
+                } catch {}
+                
+                coNotes.timeline = [
+                  { 
+                    type: 'nota', 
+                    text: commentText.trim(), 
+                    date: newComment.date, 
+                    author: authorName,
+                    created_from: 'contacto'
+                  },
+                  ...(coNotes.timeline || [])
+                ];
+                
+                await fetch(`${API_BASE}/api/crm/companies/${cc.company.id}`, {
+                  method: 'PUT',
+                  headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: coData.company.name,
+                    alias: coData.company.alias,
+                    rfc: coData.company.rfc,
+                    phone_main: coData.company.phone_main,
+                    email_main: coData.company.email_main,
+                    status: coData.company.status,
+                    notes: JSON.stringify(coNotes)
+                  })
+                });
+              }
+            } catch (err) {
+              console.error('Error syncing comment to company:', err);
+            }
+          }
+        }
+      }
+
+      showToast('Comentario agregado.', 'success');
+      setCommentText('');
+      setShowCommentInput(false);
+      await refreshContact();
+      refetch?.();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
   };
 
   // --- Link company ---
@@ -287,19 +353,48 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
   // --- Build merged timeline ---
   const buildTimeline = () => {
     const items = [];
-    // Visitas from API
-    visitas.forEach(v => items.push({
-      type: v.visit_type?.includes('presencial') ? 'visita' : (v.visit_type?.includes('llamada') ? 'llamada' : 'visita'),
-      label: v.visit_type?.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Visita',
-      text: v.result || '',
-      sub: v.notes || '',
-      date: v.created_at
-    }));
-    // Notes from JSON field
+    
+    // Visitas de la API
+    visitas.forEach(v => {
+      const tipoReal = v.visit_type || v.tipo || 'visita';
+      const resultReal = v.result || v.resultado || '';
+      const notesReal = v.notes || v.notas || '';
+      const fechaReal = v.created_at || v.fecha || new Date().toISOString();
+      
+      items.push({
+        type: tipoReal.includes('presencial') ? 'visita' : (tipoReal.includes('llamada') ? 'llamada' : 'visita'),
+        label: tipoReal.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()) || 'Visita',
+        text: resultReal,
+        sub: notesReal,
+        date: fechaReal,
+        gps_lat: v.gps_lat || v.lat || null,
+        gps_lng: v.gps_lng || v.lng || null,
+        isNote: false,
+        isVisita: true,
+        isChange: false
+      });
+    });
+
+    // Notes and Changes from JSON field
     try {
       const parsed = JSON.parse(contact.notes || '{}');
-      (parsed.timeline || []).forEach(n => items.push({ type: 'nota', label: 'Nota Comercial', text: n.text, sub: n.author, date: n.date }));
+      (parsed.timeline || []).forEach(n => {
+        const isChange = n.type === 'change' || n.type === 'status_change' || n.type === 'archive';
+        const isNote = n.type === 'nota' || !n.type;
+        items.push({
+          type: n.type || 'nota',
+          label: isChange ? (n.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : 'Nota Comercial',
+          text: n.text,
+          sub: n.author || 'Usuario',
+          date: n.date,
+          created_from: n.created_from,
+          isNote,
+          isVisita: false,
+          isChange
+        });
+      });
     } catch { /* plain text */ }
+
     return items.sort((a, b) => new Date(b.date) - new Date(a.date));
   };
 
@@ -314,19 +409,6 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
   if (!contact) return null;
 
   const roleList = form.contact_type === 'campo' ? CAMPO_ROLES : OFICINA_ROLES;
-
-  const tlIconClass = (type) => {
-    if (type === 'visita') return 'visita';
-    if (type === 'llamada') return 'llamada';
-    if (type === 'nota') return 'nota';
-    return 'visita';
-  };
-
-  const tlIcon = (type) => {
-    if (type === 'llamada') return 'fas fa-phone';
-    if (type === 'nota') return 'fas fa-pencil-alt';
-    return 'fas fa-map-marker-alt';
-  };
 
   return ReactDOM.createPortal(
     <div className="fc-overlay" onClick={onClose}>
@@ -378,9 +460,6 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
                 <i className="fas fa-phone" /> Llamar
               </a>
             )}
-            <button className="fc-action-btn fc-action-visita" onClick={() => setActiveTab('visita')}>
-              <i className="fas fa-map-marker-alt" /> Registrar Visita
-            </button>
             <button className="fc-action-btn fc-action-archive" onClick={() => setShowArchive(true)}>
               <i className="fas fa-archive" /> Archivar
             </button>
@@ -583,91 +662,171 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
             </div>
           </div>
 
-          {/* RIGHT: Bitácora */}
+          {/* RIGHT: Bitácora con Filtros Avanzados */}
           <div className="fc-right">
             <div className="fc-right-header">
-              <div className="fc-tabs">
-                <button className={`fc-tab${activeTab==='nota'?' active':''}`} onClick={()=>setActiveTab('nota')}>
-                  <i className="fas fa-pencil-alt" /> Nota Comercial
+              <div className="fc-tabs" style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
+                <button className={`fc-tab ${activeTab === 'notas' ? 'active' : ''}`} onClick={() => setActiveTab('notas')}>
+                  <i className="fas fa-sticky-note" /> Notas / Comentarios
                 </button>
-                <button className={`fc-tab${activeTab==='visita'?' active':''}`} onClick={()=>setActiveTab('visita')}>
-                  <i className="fas fa-map-marker-alt" /> Visita / Llamada
+                <button className={`fc-tab ${activeTab === 'visitas' ? 'active' : ''}`} onClick={() => setActiveTab('visitas')}>
+                  <i className="fas fa-map-marker-alt" /> Visitas
+                </button>
+                <button className={`fc-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>
+                  <i className="fas fa-clipboard-list" /> Bitácora
+                </button>
+                <button className={`fc-tab ${activeTab === 'cambios' ? 'active' : ''}`} onClick={() => setActiveTab('cambios')}>
+                  <i className="fas fa-history" /> Cambios
+                </button>
+                <button className={`fc-tab ${activeTab === 'completo' ? 'active' : ''}`} onClick={() => setActiveTab('completo')}>
+                  <i className="fas fa-stream" /> Historial Completo
                 </button>
               </div>
             </div>
 
-            {activeTab === 'nota' && (
-              <div className="fc-input-area">
-                <textarea className="fc-textarea" rows={3} value={noteText}
-                  onChange={e=>setNoteText(e.target.value)}
-                  placeholder="Redacta una nota comercial (llamadas, acuerdos, cotizaciones, seguimientos)..." />
-                <div className="fc-input-row">
-                  <button className="fc-btn-send" onClick={handleSaveNote} disabled={!noteText.trim()||sendingNote}>
-                    {sendingNote ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-paper-plane" />} Guardar Nota
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'visita' && (
-              <div className="fc-input-area">
-                <div style={{display:'flex',gap:'8px',marginBottom:'8px'}}>
-                  {['visita_presencial','llamada_telefonica','videoconferencia'].map(tipo=>(
-                    <button key={tipo} type="button"
-                      className={`fc-type-btn${visitaTipo===tipo?' active':''}`}
-                      style={{flex:'none',padding:'0.4rem 0.75rem',fontSize:'0.72rem'}}
-                      onClick={()=>setVisitaTipo(tipo)}>
-                      <i className={tipo==='visita_presencial'?'fas fa-map-marker-alt':tipo==='llamada_telefonica'?'fas fa-phone':'fas fa-video'} />
-                      {tipo==='visita_presencial'?'Presencial':tipo==='llamada_telefonica'?'Llamada':'Video'}
-                    </button>
-                  ))}
-                </div>
-                {visitaTipo==='visita_presencial' && (
-                  <div style={{marginBottom:'8px'}}>
-                    {gpsState==='loading' && <span className="fc-gps-chip loading"><i className="fas fa-spinner fa-spin" /> Obteniendo GPS...</span>}
-                    {gpsState==='ok'      && <span className="fc-gps-chip ok"><i className="fas fa-map-pin" /> GPS: {gps.lat.toFixed(4)}, {gps.lng.toFixed(4)}</span>}
-                    {gpsState==='error'   && <span className="fc-gps-chip error"><i className="fas fa-exclamation-triangle" /> GPS no disponible</span>}
-                  </div>
-                )}
-                <input className="fc-edit-input" value={visitaResultado} onChange={e=>setVisitaResultado(e.target.value)}
-                  placeholder="Resultado de la visita..." style={{marginBottom:'8px'}} />
-                <textarea className="fc-textarea" rows={2} value={visitaNotas} onChange={e=>setVisitaNotas(e.target.value)}
-                  placeholder="Notas adicionales (opcional)..." />
-                <div className="fc-input-row">
-                  <button className="fc-btn-send" onClick={handleSaveVisita} disabled={!visitaResultado.trim()||sendingVisita}>
-                    {sendingVisita ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-check" />} Registrar
-                  </button>
-                </div>
-              </div>
-            )}
-
             {/* Timeline */}
             <div className="fc-timeline">
-              {timeline.length === 0 ? (
-                <div className="fc-timeline-empty">
-                  <i className="fas fa-clock" />
-                  <p>Sin actividad registrada todavía.<br/>Agrega una nota o registra una visita.</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px', marginBottom: '8px' }}>
+                <span className="fc-timeline-section-label" style={{ borderBottom: 'none', marginTop: 0, paddingBottom: 0 }}>
+                  {activeTab === 'notas' && 'Notas y Comentarios'}
+                  {activeTab === 'visitas' && 'Visitas y Actividades'}
+                  {activeTab === 'bitacora' && 'Bitácora (Notas y Visitas)'}
+                  {activeTab === 'cambios' && 'Historial de Cambios'}
+                  {activeTab === 'completo' && 'Historial Completo de Actividad'}
+                </span>
+                <button 
+                  onClick={() => setShowCommentInput(prev => !prev)}
+                  style={{
+                    background: 'var(--color-brand-accent, #E0922B)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '4px 10px',
+                    fontSize: '0.72rem',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <i className="fas fa-comment-medical" /> Agregar Comentario
+                </button>
+              </div>
+
+              {showCommentInput && (
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
+                  <textarea
+                    className="fc-textarea"
+                    rows="3"
+                    placeholder="Escribe un comentario u observaciones rápidas del día..."
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    style={{ fontSize: '0.8rem', width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                    <button 
+                      onClick={() => { setShowCommentInput(false); setCommentText(''); }}
+                      style={{ background: '#fff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 10px', fontSize: '0.72rem', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      onClick={handleAddComment}
+                      disabled={!commentText.trim()}
+                      style={{ background: 'var(--color-brand-primary, #05393A)', color: '#fff', border: 'none', borderRadius: '8px', padding: '4px 12px', fontSize: '0.72rem', fontWeight: '800', cursor: 'pointer', opacity: commentText.trim() ? 1 : 0.5 }}
+                    >
+                      Guardar
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <span className="fc-timeline-section-label">Bitácora de Actividad</span>
-                  {timeline.map((item, i) => (
+              )}
+
+              {(() => {
+                const filteredItems = timeline.filter(item => {
+                  if (activeTab === 'notas') return item.isNote;
+                  if (activeTab === 'visitas') return item.isVisita;
+                  if (activeTab === 'bitacora') return item.isNote || item.isVisita;
+                  if (activeTab === 'cambios') return item.isChange;
+                  return true; // completo
+                });
+
+                if (filteredItems.length === 0) {
+                  return (
+                    <div className="fc-timeline-empty">
+                      <i className="fas fa-clock" />
+                      <p>No hay registros en esta categoría.</p>
+                    </div>
+                  );
+                }
+
+                return filteredItems.map((item, i) => {
+                  let iconClass = 'nota';
+                  let faIcon = 'fa-sticky-note';
+                  if (item.isVisita) {
+                    iconClass = 'visita';
+                    faIcon = item.type === 'llamada' ? 'fa-phone' : 'fa-map-marker-alt';
+                  } else if (item.isChange) {
+                    iconClass = item.type === 'archive' ? 'archive' : 'change';
+                    faIcon = item.type === 'archive' ? 'fa-archive' : 'fa-history';
+                  }
+
+                  return (
                     <div key={i} className="fc-timeline-item">
-                      <div className={`fc-tl-icon ${tlIconClass(item.type)}`}>
-                        <i className={tlIcon(item.type)} />
+                      <div className={`fc-tl-icon ${iconClass}`}>
+                        <i className={`fas ${faIcon}`} />
                       </div>
                       <div className="fc-tl-content">
                         <div className="fc-tl-meta">
-                          <span className="fc-tl-type">{item.label}</span>
+                          <span className="fc-tl-type">
+                            {item.isChange ? (item.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (item.isVisita ? 'Actividad' : 'Nota Comercial')}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {item.sub || 'Usuario'}</span>
                           <span className="fc-tl-date">{formatDate(item.date)}</span>
                         </div>
                         <p className="fc-tl-text">{item.text}</p>
-                        {item.sub && <p className="fc-tl-sub">{item.sub}</p>}
+
+                        {/* Origin tag for comments/notes */}
+                        {!item.isVisita && !item.isChange && (
+                          <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', marginTop: '4px', fontStyle: 'italic', fontWeight: '600' }}>
+                            {item.created_from === 'cliente' 
+                              ? 'Creado desde ficha cliente' 
+                              : (item.created_from === 'empresa' ? 'Creado desde ficha empresa' : 'Creado desde ficha contacto')
+                            }
+                          </span>
+                        )}
+                        
+                        {/* Mini-mapa interactivo para visitas de campo con coordenadas GPS */}
+                        {item.gps_lat && item.gps_lng && (
+                          <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '360px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                            <iframe
+                              width="100%"
+                              height="140"
+                              frameBorder="0"
+                              style={{ border: 0, display: 'block' }}
+                              src={`https://maps.google.com/maps?q=${item.gps_lat},${item.gps_lng}&z=16&output=embed`}
+                              allowFullScreen
+                            ></iframe>
+                            <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                📍 Ubicación en Campo Verificada
+                              </span>
+                              <a 
+                                href={`https://www.google.com/maps/search/?api=1&query=${item.gps_lat},${item.gps_lng}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
+                              >
+                                Abrir Maps ↗
+                              </a>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </>
-              )}
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>

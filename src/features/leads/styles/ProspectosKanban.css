@@ -639,11 +639,51 @@
 
 /* SLA Warnings via border */
 .kanban-card.sla-warning-medium {
-  border-left: 3px solid #f59e0b !important;
+  border-left: 3.5px solid #f59e0b !important;
+}
+.kanban-card.sla-warning-high {
+  border-left: 3.5px solid #ef4444 !important;
+  background: rgba(239, 68, 68, 0.01) !important;
+}
+.kanban-card.stage-warning-medium {
+  border-right: 3.5px dashed rgba(245, 158, 11, 0.45) !important;
+}
+.kanban-card.stage-warning-high {
+  border-right: 3.5px solid #d97706 !important;
+  background: rgba(217, 119, 6, 0.01) !important;
 }
 
-.kanban-card.sla-warning-high {
-  border-left: 3px solid #ef4444 !important;
+/* Badge specific styling overrides */
+.card-age-badge {
+  background: #f1f5f9;
+  color: #475569;
+  transition: all 0.2s;
+}
+.card-age-badge.warning {
+  background: rgba(245, 158, 11, 0.12) !important;
+  color: #d97706 !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+}
+.card-age-badge.critical {
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #dc2626 !important;
+  border: 1px solid rgba(239, 68, 68, 0.25) !important;
+  animation: pulseGlow 2s infinite alternate;
+}
+.card-age-badge.warning-stage {
+  background: rgba(217, 119, 6, 0.08) !important;
+  color: #b45309 !important;
+  border: 1px solid rgba(217, 119, 6, 0.18) !important;
+}
+.card-age-badge.critical-stage {
+  background: rgba(180, 83, 9, 0.15) !important;
+  color: #78350f !important;
+  border: 1px solid rgba(180, 83, 9, 0.3) !important;
+}
+
+@keyframes pulseGlow {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.15); }
+  100% { box-shadow: 0 0 6px 2px rgba(239, 68, 68, 0.25); }
 }
 
 /* Card Header elements */
@@ -1681,3 +1721,64 @@
     overflow: visible;
   }
 }
+
+/* ── Custom Stage Explanation Tooltips ── */
+.stage-tooltip-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+}
+
+.stage-tooltip-trigger {
+  color: #94a3b8;
+  cursor: help;
+  font-size: 0.78rem;
+  transition: color 0.15s ease;
+}
+
+.stage-tooltip-trigger:hover {
+  color: var(--color-brand-primary, #05393a);
+}
+
+.stage-tooltip-text {
+  visibility: hidden;
+  width: 210px;
+  background-color: #1e293b;
+  color: #ffffff;
+  text-align: center;
+  border-radius: 8px;
+  padding: 8px 10px;
+  position: absolute;
+  z-index: 1000;
+  bottom: 125%; /* Position above the icon */
+  left: 50%;
+  transform: translateX(-50%) translateY(0);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  font-size: 0.7rem;
+  font-weight: 550;
+  line-height: 1.35;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  pointer-events: none;
+  text-transform: none; /* Avoid uppercase transfer from header */
+  letter-spacing: normal;
+}
+
+/* Tooltip arrow */
+.stage-tooltip-text::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #1e293b transparent transparent transparent;
+}
+
+.stage-tooltip-container:hover .stage-tooltip-text {
+  visibility: visible;
+  opacity: 1;
+  transform: translateX(-50%) translateY(-4px);
+}

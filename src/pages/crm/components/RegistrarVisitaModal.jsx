@@ -1,6 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
+import { 
+  Search, 
+  User, 
+  Briefcase, 
+  Calendar, 
+  MapPin, 
+  Clock, 
+  Check, 
+  AlertTriangle, 
+  X, 
+  Phone, 
+  Video, 
+  Map, 
+  Navigation,
+  FileText,
+  Activity
+} from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -28,62 +45,97 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
 
   const isFuture = fecha ? new Date(fecha) > new Date() : false;
 
-  // Buscador interactivo de entidades si no hay entityId
-  const [chosenEntityType, setChosenEntityType] = useState('company');
-  const [chosenEntityText, setChosenEntityText] = useState('');
-  const [chosenEntityId, setChosenEntityId] = useState(null);
+  // Selector de entidad alineado con la nueva app (Clientes o Negociaciones)
+  const [activeTab, setActiveTab] = useState('cliente'); // 'cliente' | 'obra'
+  const [searchText, setSearchText] = useState('');
+  const [selectedEntity, setSelectedEntity] = useState(null);
+  const [customersCache, setCustomersCache] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   
   const searchContainerRef = useRef(null);
 
+  // Cargar Clientes para la pestaña "Cliente / Prospecto" (Capa B: Local 0ms)
   useEffect(() => {
-    if (entityId) return; // Si ya hay entidad de prop, no hacer nada
-    if (!chosenEntityText.trim() || chosenEntityText.trim().length < 2 || chosenEntityId) {
+    if (entityId) return;
+    const fetchCustomers = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/crm/customers`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (res.ok && data.success && Array.isArray(data.customers)) {
+          // Mapear al formato unificado
+          const mapped = data.customers.map(c => ({
+            id: String(c.id),
+            nombre: c.name || '',
+            company: c.company || '',
+            company_id: c.company_id,
+            email: c.email || '',
+            phone: c.phone || '',
+            type: 'cliente'
+          }));
+          setCustomersCache(mapped);
+        }
+      } catch (err) {
+        console.error('Error al precargar clientes:', err);
+      }
+    };
+    fetchCustomers();
+  }, [entityId]);
+
+  // Manejo de búsqueda en tiempo real
+  useEffect(() => {
+    if (entityId) return;
+    if (!searchText.trim() || searchText.trim().length < 2 || selectedEntity) {
       setSearchResults([]);
       return;
     }
 
-    const delayDebounce = setTimeout(async () => {
-      setSearching(true);
-      try {
-        const token = localStorage.getItem('token');
-        let endpoint = '';
-        if (chosenEntityType === 'company') {
-          endpoint = `${API_BASE}/api/crm/companies/search?q=${encodeURIComponent(chosenEntityText.trim())}`;
-        } else if (chosenEntityType === 'contact') {
-          endpoint = `${API_BASE}/api/crm/contacts/search?q=${encodeURIComponent(chosenEntityText.trim())}`;
-        } else if (chosenEntityType === 'obra') {
-          endpoint = `${API_BASE}/api/crm/obras/search?q=${encodeURIComponent(chosenEntityText.trim())}`;
-        }
-
-        const res = await fetch(endpoint, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        const data = await res.json();
-        if (res.ok && data.success) {
-          let items = [];
-          if (chosenEntityType === 'company') {
-            items = (data.companies || []).map(c => ({ id: c.id, name: c.name }));
-          } else if (chosenEntityType === 'contact') {
-            items = (data.contacts || []).map(c => ({ id: c.id, name: c.name }));
-          } else if (chosenEntityType === 'obra') {
-            items = (data.obras || []).map(o => ({ id: o.id, name: o.name }));
+    if (activeTab === 'cliente') {
+      // Búsqueda local inmediata en Clientes (0ms)
+      const query = searchText.toLowerCase();
+      const filtered = customersCache.filter(c => 
+        c.nombre.toLowerCase().includes(query) || 
+        c.company.toLowerCase().includes(query)
+      );
+      setSearchResults(filtered.slice(0, 10));
+      setShowSuggestions(true);
+    } else if (activeTab === 'obra') {
+      // Búsqueda en API para Obras/Negociaciones con debounce
+      const delayDebounce = setTimeout(async () => {
+        setSearching(true);
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`${API_BASE}/api/crm/obras/search?q=${encodeURIComponent(searchText.trim())}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (res.ok && data.success && Array.isArray(data.obras)) {
+            const mapped = data.obras.map(o => ({
+              id: o.id,
+              nombre: o.name || 'Sin nombre',
+              company: o.empresa_nombre || '',
+              company_id: o.empresa_id,
+              type: 'obra'
+            }));
+            setSearchResults(mapped);
+            setShowSuggestions(true);
           }
-          setSearchResults(items);
-          setShowSuggestions(true);
+        } catch (err) {
+          console.error('Error al buscar obras:', err);
+        } finally {
+          setSearching(false);
         }
-      } catch (err) {
-        console.error('Error al buscar entidades:', err);
-      } finally {
-        setSearching(false);
-      }
-    }, 400);
+      }, 400);
 
-    return () => clearTimeout(delayDebounce);
-  }, [chosenEntityText, chosenEntityType, entityId]);
+      return () => clearTimeout(delayDebounce);
+    }
+  }, [searchText, activeTab, customersCache, selectedEntity, entityId]);
 
+  // Cerrar sugerencias al hacer clic fuera
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
@@ -94,14 +146,15 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleTypeChange = (type) => {
-    setChosenEntityType(type);
-    setChosenEntityText('');
-    setChosenEntityId(null);
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSearchText('');
+    setSelectedEntity(null);
     setSearchResults([]);
     setShowSuggestions(false);
   };
 
+  // Autocaptura de GPS para visitas presenciales en tiempo real
   useEffect(() => {
     if (isOpen && tipo === 'visita_presencial' && !isFuture) {
       acquireGps();
@@ -143,12 +196,27 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
       return;
     }
     
-    const finalEntityType = entityId ? entityType : chosenEntityType;
-    const finalEntityId = entityId ? entityId : chosenEntityId;
+    // Resolver IDs de entidad
+    let finalContactId = null;
+    let finalCompanyId = null;
+    let finalObraId = null;
 
-    if (!finalEntityId) {
-      showToast('Debes buscar y seleccionar una Empresa, Contacto u Obra para registrar la actividad.', 'warning');
-      return;
+    if (entityId) {
+      if (entityType === 'contact') finalContactId = entityId;
+      else if (entityType === 'company') finalCompanyId = entityId;
+      else if (entityType === 'obra') finalObraId = entityId;
+    } else {
+      if (!selectedEntity) {
+        showToast('Debes buscar y seleccionar un Cliente o Negociación para programar la actividad.', 'warning');
+        return;
+      }
+      if (selectedEntity.type === 'cliente') {
+        finalContactId = selectedEntity.id;
+        finalCompanyId = selectedEntity.company_id || null;
+      } else if (selectedEntity.type === 'obra') {
+        finalObraId = selectedEntity.id;
+        finalCompanyId = selectedEntity.company_id || null;
+      }
     }
 
     if (tipo === 'visita_presencial' && !isFuture && !gps) {
@@ -162,9 +230,9 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
         tipo,
         resultado,
         notas,
-        contact_id: finalEntityType === 'contact' ? finalEntityId : null,
-        company_id: finalEntityType === 'company' ? finalEntityId : null,
-        obra_id: finalEntityType === 'obra' ? finalEntityId : null,
+        contact_id: finalContactId,
+        company_id: finalCompanyId,
+        obra_id: finalObraId,
         gps_lat: (!isFuture && gps) ? gps.lat : null,
         gps_lng: (!isFuture && gps) ? gps.lng : null,
         timestamp_servidor: fecha ? new Date(fecha).toISOString() : null
@@ -188,7 +256,7 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
           : 'Visita registrada con éxito. La hora ha sido grabada correctamente.', 
         'success'
       );
-      onClose(true); // pass true to indicate success/reload
+      onClose(true); // Indica éxito
     } catch (error) {
       showToast(error.message, 'error');
     } finally {
@@ -197,139 +265,326 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
   };
 
   return createPortal(
-    <div className="crm-modal-overlay">
-      <div className="crm-modal-content glass" style={{ maxWidth: '520px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', width: '96%', padding: 0, overflow: 'hidden' }}>
-        <div className="crm-modal-header" style={{ flexShrink: 0, padding: '1.25rem 1.5rem', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-          <h3 style={{ margin: 0 }}>{isFuture ? 'Programar Actividad / Recordatorio' : 'Registrar Actividad / Visita'}</h3>
-          <button className="crm-close-modal" onClick={() => onClose(false)}><i className="fas fa-times" /></button>
+    <div className="crm-modal-overlay" style={{ backdropFilter: 'blur(8px)', backgroundColor: 'rgba(5, 57, 58, 0.4)' }}>
+      <div className="crm-modal-content glass" style={{ 
+        maxWidth: '520px', 
+        maxHeight: '92vh', 
+        display: 'flex', 
+        flexDirection: 'column', 
+        width: '96%', 
+        padding: 0, 
+        overflow: 'hidden',
+        border: '1px solid rgba(5, 57, 58, 0.15)',
+        boxShadow: '0 20px 40px rgba(5, 57, 58, 0.15)',
+        borderRadius: '20px',
+        background: 'rgba(255, 255, 255, 0.95)'
+      }}>
+        {/* Cabecera del modal premium */}
+        <div className="crm-modal-header" style={{ 
+          flexShrink: 0, 
+          padding: '1.5rem', 
+          borderBottom: '1px solid rgba(5, 57, 58, 0.08)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'linear-gradient(to right, rgba(5, 57, 58, 0.02), rgba(224, 146, 43, 0.02))'
+        }}>
+          <div>
+            <h3 style={{ 
+              margin: 0, 
+              fontFamily: "'Roc Grotesk', sans-serif", 
+              fontSize: '1.25rem', 
+              color: '#05393A', 
+              fontWeight: '850',
+              letterSpacing: '-0.02em',
+              textTransform: 'uppercase'
+            }}>
+              {isFuture ? 'Programar Actividad / Recordatorio' : 'Registrar Actividad / Visita'}
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.775rem', color: '#738787', fontFamily: "'Public Sans', sans-serif" }}>
+              Agenda tareas futuras o reporta acciones inmediatas en campo.
+            </p>
+          </div>
+          <button 
+            className="crm-close-modal" 
+            onClick={() => onClose(false)}
+            style={{ 
+              background: 'rgba(5, 57, 58, 0.05)', 
+              border: 'none', 
+              borderRadius: '50%', 
+              width: '32px', 
+              height: '32px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              color: '#05393A',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(5, 57, 58, 0.1)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(5, 57, 58, 0.05)'}
+          >
+            <X size={18} />
+          </button>
         </div>
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', margin: 0 }}>
-          
-          {/* Contenedor de campos con scroll vertical */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+          {/* Cuerpo con Scroll */}
+          <div style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            padding: '1.5rem', 
+            display: 'flex', 
+            flexDirection: 'column', 
+            gap: '1.25rem',
+            scrollbarWidth: 'thin'
+          }}>
             {entityId ? (
-              <div className="crm-alert-box info" style={{ marginBottom: 0 }}>
-                <i className="fas fa-info-circle" />
-                <p>
-                  <strong>{entityName}</strong><br/>
-                  {isFuture 
-                    ? 'Esta actividad se guardará como un recordatorio programado para la fecha seleccionada.' 
-                    : 'La actividad se registrará con la fecha y hora seleccionadas (por defecto, ahora).'}
+              // Vista si ya viene pre-asociado
+              <div style={{ 
+                padding: '1rem 1.25rem', 
+                background: 'rgba(5, 57, 58, 0.04)', 
+                border: '1px solid rgba(5, 57, 58, 0.12)', 
+                borderRadius: '14px', 
+                color: '#05393A', 
+                fontFamily: "'Public Sans', sans-serif", 
+                fontSize: '0.825rem', 
+                display: 'flex', 
+                gap: '10px', 
+                alignItems: 'center' 
+              }}>
+                <Activity size={18} style={{ color: '#E0922B', flexShrink: 0 }} />
+                <p style={{ margin: 0, lineHeight: '1.4' }}>
+                  Vinculado a: <strong>{entityName}</strong><br/>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                    {isFuture 
+                      ? 'La actividad se guardará como un recordatorio para este cliente.' 
+                      : 'La actividad se registrará directamente en su historial.'}
+                  </span>
                 </p>
               </div>
             ) : (
-              <div style={{ background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '1rem', marginBottom: 0 }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: 'var(--color-brand-primary, #05393a)', fontWeight: 'bold' }}>
-                  <i className="fas fa-search" style={{ marginRight: '6px' }} /> Seleccionar Empresa, Contacto u Obra
+              // Selector interactivo alineado con la nueva arquitectura
+              <div style={{ 
+                background: 'rgba(5, 57, 58, 0.02)', 
+                border: '1px solid rgba(5, 57, 58, 0.08)', 
+                borderRadius: '16px', 
+                padding: '1.25rem', 
+                fontFamily: "'Public Sans', sans-serif" 
+              }}>
+                <h4 style={{ 
+                  margin: '0 0 0.85rem 0', 
+                  fontSize: '0.825rem', 
+                  color: '#05393A', 
+                  fontWeight: '800', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '6px',
+                  fontFamily: "'Roc Grotesk', sans-serif"
+                }}>
+                  <Search size={14} style={{ color: '#E0922B' }} /> VINCULAR ACTIVIDAD A:
                 </h4>
                 
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                {/* Tabs Modernos */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', background: 'rgba(5, 57, 58, 0.04)', padding: '4px', borderRadius: '10px' }}>
                   <button
                     type="button"
-                    onClick={() => handleTypeChange('company')}
+                    onClick={() => handleTabChange('cliente')}
                     style={{
-                      flex: 1, padding: '6px', fontSize: '0.75rem', borderRadius: '6px', cursor: 'pointer', border: '1px solid #cbd5e1',
-                      background: chosenEntityType === 'company' ? 'var(--color-brand-primary, #05393a)' : '#fff',
-                      color: chosenEntityType === 'company' ? '#fff' : '#475569',
-                      fontWeight: chosenEntityType === 'company' ? 'bold' : 'normal'
+                      flex: 1, 
+                      padding: '8px 12px', 
+                      fontSize: '0.75rem', 
+                      borderRadius: '8px', 
+                      cursor: 'pointer', 
+                      border: 'none',
+                      background: activeTab === 'cliente' ? '#05393A' : 'transparent',
+                      color: activeTab === 'cliente' ? '#fff' : '#738787',
+                      fontWeight: '700',
+                      transition: 'all 0.2s',
+                      fontFamily: "'Public Sans', sans-serif",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
                     }}
                   >
-                    🏢 Empresa
+                    <User size={12} /> Cliente / Prospecto
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleTypeChange('contact')}
+                    onClick={() => handleTabChange('obra')}
                     style={{
-                      flex: 1, padding: '6px', fontSize: '0.75rem', borderRadius: '6px', cursor: 'pointer', border: '1px solid #cbd5e1',
-                      background: chosenEntityType === 'contact' ? 'var(--color-brand-primary, #05393a)' : '#fff',
-                      color: chosenEntityType === 'contact' ? '#fff' : '#475569',
-                      fontWeight: chosenEntityType === 'contact' ? 'bold' : 'normal'
+                      flex: 1, 
+                      padding: '8px 12px', 
+                      fontSize: '0.75rem', 
+                      borderRadius: '8px', 
+                      cursor: 'pointer', 
+                      border: 'none',
+                      background: activeTab === 'obra' ? '#05393A' : 'transparent',
+                      color: activeTab === 'obra' ? '#fff' : '#738787',
+                      fontWeight: '700',
+                      transition: 'all 0.2s',
+                      fontFamily: "'Public Sans', sans-serif",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
                     }}
                   >
-                    👤 Contacto
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleTypeChange('obra')}
-                    style={{
-                      flex: 1, padding: '6px', fontSize: '0.75rem', borderRadius: '6px', cursor: 'pointer', border: '1px solid #cbd5e1',
-                      background: chosenEntityType === 'obra' ? 'var(--color-brand-primary, #05393a)' : '#fff',
-                      color: chosenEntityType === 'obra' ? '#fff' : '#475569',
-                      fontWeight: chosenEntityType === 'obra' ? 'bold' : 'normal'
-                    }}
-                  >
-                    🏗️ Obra
+                    <Briefcase size={12} /> Negociación / Obra
                   </button>
                 </div>
 
+                {/* Caja de Búsqueda */}
                 <div style={{ position: 'relative' }} ref={searchContainerRef}>
-                  {!chosenEntityId ? (
+                  {!selectedEntity ? (
                     <>
                       <input
                         type="text"
-                        className="crm-login-input"
-                        style={{ fontSize: '0.85rem', padding: '8px 12px' }}
-                        placeholder={`Buscar ${chosenEntityType === 'company' ? 'empresa' : chosenEntityType === 'contact' ? 'contacto' : 'obra'} (mínimo 2 letras)...`}
-                        value={chosenEntityText}
-                        onChange={(e) => {
-                          setChosenEntityText(e.target.value);
-                          setChosenEntityId(null);
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        style={{ 
+                          fontSize: '0.85rem', 
+                          padding: '10px 14px 10px 36px', 
+                          height: '42px', 
+                          border: '1px solid rgba(5, 57, 58, 0.15)', 
+                          borderRadius: '10px', 
+                          width: '100%', 
+                          boxSizing: 'border-box', 
+                          fontFamily: "'Public Sans', sans-serif",
+                          background: '#fff',
+                          outline: 'none',
+                          transition: 'border-color 0.2s'
                         }}
+                        placeholder={activeTab === 'cliente' ? 'Buscar cliente o empresa (mínimo 2 letras)...' : 'Buscar negociación u obra...'}
                         required
                       />
+                      <Search size={14} style={{ position: 'absolute', left: '12px', top: '14px', color: '#738787' }} />
+                      
                       {searching && (
-                        <div style={{ position: 'absolute', right: '10px', top: '10px', fontSize: '0.75rem', color: '#64748b' }}>
+                        <div style={{ position: 'absolute', right: '12px', top: '14px', fontSize: '0.75rem', color: '#738787' }}>
                           <i className="fas fa-spinner fa-spin" />
                         </div>
                       )}
+                      
+                      {/* Dropdown de Autocomplete */}
                       {showSuggestions && searchResults.length > 0 && (
-                        <ul className="crm-autocomplete-dropdown glass" style={{
-                          position: 'absolute', top: '100%', left: 0, width: '100%', background: '#fff',
-                          border: '1px solid #cbd5e1', borderRadius: '8px', listStyle: 'none', padding: 0, margin: '4px 0 0 0',
-                          zIndex: 9999, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                        <ul style={{
+                          position: 'absolute', 
+                          top: '100%', 
+                          left: 0, 
+                          width: '100%', 
+                          background: '#fff',
+                          border: '1px solid rgba(5, 57, 58, 0.12)', 
+                          borderRadius: '12px', 
+                          listStyle: 'none', 
+                          padding: '0.25rem', 
+                          margin: '6px 0 0 0',
+                          zIndex: 999, 
+                          maxHeight: '180px', 
+                          overflowY: 'auto', 
+                          boxShadow: '0 12px 30px rgba(5, 57, 58, 0.1)'
                         }}>
                           {searchResults.map((item) => (
                             <li
                               key={item.id}
                               onClick={() => {
-                                setChosenEntityId(item.id);
-                                setChosenEntityText(item.name);
+                                setSelectedEntity(item);
+                                setSearchText(item.nombre);
                                 setShowSuggestions(false);
                               }}
-                              style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.8rem', borderBottom: '1px solid #f1f5f9' }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                              style={{ 
+                                padding: '10px 12px', 
+                                cursor: 'pointer', 
+                                fontSize: '0.8rem', 
+                                borderRadius: '8px', 
+                                fontFamily: "'Public Sans', sans-serif", 
+                                color: '#334155',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '2px',
+                                transition: 'background 0.2s'
+                              }}
+                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 57, 58, 0.04)'}
                               onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
                             >
-                              <strong>{item.name}</strong>
+                              <span style={{ fontWeight: '700', color: '#05393A' }}>{item.nombre}</span>
+                              {item.company && (
+                                <span style={{ fontSize: '0.7rem', color: '#738787', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  🏢 {item.company}
+                                </span>
+                              )}
                             </li>
                           ))}
                         </ul>
                       )}
-                      {showSuggestions && searchResults.length === 0 && chosenEntityText.trim().length >= 2 && !searching && (
+                      
+                      {showSuggestions && searchResults.length === 0 && searchText.trim().length >= 2 && !searching && (
                         <div style={{
-                          position: 'absolute', top: '100%', left: 0, width: '100%', background: '#fff',
-                          border: '1px solid #cbd5e1', borderRadius: '8px', padding: '8px 12px', margin: '4px 0 0 0',
-                          zIndex: 9999, fontSize: '0.8rem', color: '#64748b', boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                          position: 'absolute', 
+                          top: '100%', 
+                          left: 0, 
+                          width: '100%', 
+                          background: '#fff',
+                          border: '1px solid rgba(5, 57, 58, 0.12)', 
+                          borderRadius: '12px', 
+                          padding: '12px', 
+                          margin: '6px 0 0 0',
+                          zIndex: 999, 
+                          fontSize: '0.775rem', 
+                          color: '#738787', 
+                          boxShadow: '0 12px 30px rgba(5, 57, 58, 0.1)', 
+                          fontFamily: "'Public Sans', sans-serif"
                         }}>
                           No se encontraron resultados para su búsqueda.
                         </div>
                       )}
                     </>
                   ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: '6px' }}>
-                      <span style={{ fontWeight: '600', color: '#065f46', fontSize: '0.85rem' }}>
-                        <i className="fas fa-check-circle" style={{ marginRight: '6px' }} />
-                        {chosenEntityText}
-                      </span>
+                    /* Entidad seleccionada Badge Premium */
+                    <div style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      justifyContent: 'space-between', 
+                      padding: '10px 14px', 
+                      background: 'rgba(16, 185, 129, 0.06)', 
+                      border: '1px solid rgba(16, 185, 129, 0.25)', 
+                      borderRadius: '10px',
+                      fontFamily: "'Public Sans', sans-serif"
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Check size={16} style={{ color: '#10b981' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: '750', color: '#065f46', fontSize: '0.825rem' }}>
+                            {selectedEntity.nombre}
+                          </span>
+                          {selectedEntity.company && (
+                            <span style={{ fontSize: '0.7rem', color: '#047857' }}>
+                              🏢 {selectedEntity.company}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setChosenEntityId(null);
-                          setChosenEntityText('');
+                          setSelectedEntity(null);
+                          setSearchText('');
                         }}
-                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 'bold' }}
+                        style={{ 
+                          background: 'none', 
+                          border: 'none', 
+                          color: '#ef4444', 
+                          cursor: 'pointer', 
+                          fontSize: '0.75rem', 
+                          fontWeight: '800', 
+                          fontFamily: "'Public Sans', sans-serif",
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
                       >
-                        <i className="fas fa-times-circle" /> Cambiar
+                        Cambiar
                       </button>
                     </div>
                   )}
@@ -337,81 +592,225 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
               </div>
             )}
 
-            <div className="crm-input-group">
-              <label className="crm-input-label">Tipo de Actividad</label>
-              <select
-                className="crm-login-input"
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value)}
-                required
-              >
-                <option value="visita_presencial">📍 Visita Presencial</option>
-                <option value="llamada">📞 Llamada Telefónica</option>
-                <option value="reunion_virtual">💻 Reunión Virtual / Teams / Zoom</option>
-              </select>
+            {/* Inputs Tipo, Fecha, y Hora */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
+                  Tipo de Actividad
+                </label>
+                <select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value)}
+                  style={{ 
+                    height: '42px', 
+                    borderRadius: '10px', 
+                    border: '1px solid rgba(5, 57, 58, 0.15)', 
+                    fontSize: '0.825rem', 
+                    padding: '0 10px', 
+                    fontFamily: "'Public Sans', sans-serif", 
+                    fontWeight: '600',
+                    outline: 'none',
+                    background: '#fff'
+                  }}
+                  required
+                >
+                  <option value="visita_presencial">📍 Visita Presencial</option>
+                  <option value="llamada">📞 Llamada Telefónica</option>
+                  <option value="reunion_virtual">💻 Reunión Virtual / Teams</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
+                  Fecha y Hora
+                </label>
+                <input
+                  type="datetime-local"
+                  value={fecha}
+                  onChange={(e) => setFecha(e.target.value)}
+                  style={{ 
+                    height: '42px', 
+                    borderRadius: '10px', 
+                    border: '1px solid rgba(5, 57, 58, 0.15)', 
+                    fontSize: '0.825rem', 
+                    fontFamily: "'Public Sans', sans-serif", 
+                    fontWeight: '600', 
+                    padding: '0 10px',
+                    outline: 'none',
+                    background: '#fff'
+                  }}
+                  required
+                />
+              </div>
             </div>
 
-            <div className="crm-input-group">
-              <label className="crm-input-label">Fecha y Hora de la Actividad / Recordatorio</label>
-              <input
-                type="datetime-local"
-                className="crm-login-input"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                required
-              />
-            </div>
-
+            {/* GPS Alertas Integradas */}
             {tipo === 'visita_presencial' && !isFuture && (
-              <div className={`crm-alert-box ${gps ? 'success' : gpsError ? 'danger' : 'warning'}`} style={{ marginBottom: 0 }}>
+              <div style={{ 
+                padding: '10px 14px', 
+                borderRadius: '10px', 
+                display: 'flex', 
+                alignItems: 'center',
+                gap: '10px', 
+                fontSize: '0.775rem', 
+                fontFamily: "'Public Sans', sans-serif", 
+                border: '1px solid',
+                backgroundColor: gps ? 'rgba(16, 185, 129, 0.06)' : gpsError ? 'rgba(239, 68, 68, 0.06)' : 'rgba(245, 158, 11, 0.06)',
+                borderColor: gps ? 'rgba(16, 185, 129, 0.25)' : gpsError ? 'rgba(239, 68, 68, 0.25)' : 'rgba(245, 158, 11, 0.25)',
+                color: gps ? '#065f46' : gpsError ? '#991b1b' : '#92400e'
+              }}>
                 {gettingGps ? (
-                  <><i className="fas fa-spinner fa-spin" /> <p>Obteniendo ubicación...</p></>
+                  <>
+                    <Clock size={16} className="animate-spin" />
+                    <p style={{ margin: 0 }}>Obteniendo ubicación GPS obligatoria...</p>
+                  </>
                 ) : gps ? (
-                  <><i className="fas fa-map-marker-alt" /> <p>Ubicación capturada: {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</p></>
+                  <>
+                    <MapPin size={16} style={{ color: '#10b981' }} />
+                    <p style={{ margin: 0, fontWeight: '600' }}>Ubicación capturada: {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</p>
+                  </>
                 ) : (
-                  <><i className="fas fa-exclamation-triangle" /> <p>{gpsError || 'Esperando ubicación GPS...'}</p>
-                  <button type="button" className="btn-secondary" style={{ marginTop: '0.5rem', padding: '0.3rem 0.6rem' }} onClick={acquireGps}>
-                    <i className="fas fa-sync" /> Reintentar GPS
-                  </button></>
+                  <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertTriangle size={16} />
+                      <p style={{ margin: 0 }}>{gpsError || 'Esperando ubicación GPS...'}</p>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={acquireGps}
+                      style={{ 
+                        padding: '4px 8px', 
+                        fontSize: '0.7rem', 
+                        borderRadius: '6px', 
+                        border: '1px solid', 
+                        borderColor: 'inherit',
+                        background: 'transparent',
+                        fontWeight: '700',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Reintentar
+                    </button>
+                  </div>
                 )}
               </div>
             )}
 
-            {tipo === 'visita_presencial' && isFuture && (
-              <div className="crm-alert-box info" style={{ marginBottom: 0, backgroundColor: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}>
-                <i className="fas fa-calendar-check" />
-                <p>Visita presencial agendada a futuro. No se requiere geolocalización (GPS) para su programación.</p>
-              </div>
-            )}
-
-            <div className="crm-input-group">
-              <label className="crm-input-label">Resultado / Acuerdos</label>
+            {/* Resultado / Acuerdos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
+                Resumen / Acuerdos
+              </label>
               <textarea
-                className="crm-login-input"
-                style={{ minHeight: '100px', resize: 'vertical' }}
                 value={resultado}
                 onChange={(e) => setResultado(e.target.value)}
-                placeholder={isFuture ? "Ej. Se acordó visitar para presentar catálogo de transformadores..." : "Ej. Se acordó enviar cotización de material eléctrico para el proyecto X..."}
+                placeholder={isFuture ? "Ej. Se acordó visitar al cliente para presentar catálogo de transformadores..." : "Ej. Se conversó sobre los precios de conductores y se agendó cotización..."}
+                style={{ 
+                  minHeight: '85px', 
+                  resize: 'vertical', 
+                  borderRadius: '10px', 
+                  border: '1px solid rgba(5, 57, 58, 0.15)', 
+                  fontSize: '0.825rem', 
+                  padding: '10px 12px', 
+                  fontFamily: "'Public Sans', sans-serif", 
+                  lineHeight: '1.4',
+                  outline: 'none',
+                  background: '#fff'
+                }}
                 required
               />
             </div>
 
-            <div className="crm-input-group">
-              <label className="crm-input-label">Notas Internas (Opcional)</label>
+            {/* Notas Internas Opcionales */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
+                Notas Internas (Opcional)
+              </label>
               <textarea
-                className="crm-login-input"
-                style={{ minHeight: '60px', resize: 'vertical' }}
                 value={notas}
                 onChange={(e) => setNotas(e.target.value)}
-                placeholder="Detalles adicionales para ti..."
+                placeholder="Notas de control interno visible solo para ti..."
+                style={{ 
+                  minHeight: '55px', 
+                  resize: 'vertical', 
+                  borderRadius: '10px', 
+                  border: '1px solid rgba(5, 57, 58, 0.15)', 
+                  fontSize: '0.825rem', 
+                  padding: '10px 12px', 
+                  fontFamily: "'Public Sans', sans-serif", 
+                  lineHeight: '1.4',
+                  outline: 'none',
+                  background: '#fff'
+                }}
               />
             </div>
           </div>
 
           {/* Pie de página fijo */}
-          <div className="crm-modal-footer" style={{ flexShrink: 0, borderTop: '1px solid rgba(0,0,0,0.06)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '10px', background: 'rgba(255,255,255,0.4)', backdropFilter: 'blur(5px)', margin: 0 }}>
-            <button type="button" className="btn-secondary" onClick={() => onClose(false)} disabled={isSubmitting}>Cancelar</button>
-            <button type="submit" className="btn-primary-golden" disabled={isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)}>
+          <div className="crm-modal-footer" style={{ 
+            flexShrink: 0, 
+            borderTop: '1px solid rgba(5, 57, 58, 0.08)', 
+            padding: '1.25rem 1.5rem', 
+            display: 'flex', 
+            justifyContent: 'flex-end', 
+            gap: '12px', 
+            background: 'rgba(255,255,255,0.8)', 
+            backdropFilter: 'blur(10px)', 
+            margin: 0 
+          }}>
+            <button 
+              type="button" 
+              onClick={() => onClose(false)}
+              disabled={isSubmitting}
+              style={{ 
+                height: '40px', 
+                padding: '0 1.25rem', 
+                borderRadius: '10px', 
+                fontSize: '0.8rem', 
+                fontWeight: '700', 
+                border: '1px solid rgba(5, 57, 58, 0.15)', 
+                background: '#fff', 
+                color: '#738787',
+                cursor: 'pointer', 
+                fontFamily: "'Public Sans', sans-serif",
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(5, 57, 58, 0.02)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
+            >
+              Cancelar
+            </button>
+            <button 
+              type="submit" 
+              disabled={isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)}
+              style={{ 
+                height: '40px', 
+                padding: '0 1.5rem', 
+                borderRadius: '10px', 
+                fontSize: '0.8rem', 
+                fontWeight: '800', 
+                border: 'none', 
+                background: '#E0922B', 
+                color: '#fff', 
+                fontFamily: "'Public Sans', sans-serif", 
+                boxShadow: '0 4px 14px rgba(224, 146, 43, 0.25)',
+                transition: 'all 0.2s',
+                opacity: (isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)) ? 0.5 : 1, 
+                cursor: (isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)) ? 'not-allowed' : 'pointer' 
+              }}
+              onMouseEnter={(e) => {
+                if (!isSubmitting && !(tipo === 'visita_presencial' && !isFuture && !gps)) {
+                  e.currentTarget.style.background = '#c97e20';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isSubmitting && !(tipo === 'visita_presencial' && !isFuture && !gps)) {
+                  e.currentTarget.style.background = '#E0922B';
+                  e.currentTarget.style.transform = 'none';
+                }
+              }}
+            >
               {isSubmitting ? 'Guardando...' : isFuture ? 'Programar Recordatorio' : 'Registrar Actividad'}
             </button>
           </div>

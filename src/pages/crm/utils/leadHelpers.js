@@ -1,4 +1,5 @@
-export const getLeadAgeInfo = (createdAt, notes) => {
+export const getLeadAgeInfo = (createdAt, notes, stageUpdatedAt) => {
+  // 1. INACTIVIDAD DE SEGUIMIENTO (Notas/Timeline)
   let refDate = new Date(createdAt);
   if (notes) {
     try {
@@ -16,25 +17,35 @@ export const getLeadAgeInfo = (createdAt, notes) => {
     }
   }
   const diffMs = new Date() - refDate;
-  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   
-  if (diffMinutes < 1) {
-    return { text: 'Hace unos instantes', warning: false };
-  } else if (diffMinutes < 60) {
-    return { text: `Hace ${diffMinutes} min`, warning: false };
+  let followupText = 'Sin seguimiento';
+  const followupWarning = diffHours >= 48; // Recordatorio moderado a partir de 48h
+  const followupCritical = diffHours >= 168; // Alerta crítica a partir de 7 días
+
+  if (diffHours < 1) {
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+    followupText = diffMinutes < 1 ? 'Hace unos instantes' : `Hace ${diffMinutes} min`;
+  } else if (diffHours < 24) {
+    followupText = `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`;
   } else {
-    const diffHours = Math.floor(diffMinutes / 60);
-    if (diffHours < 24) {
-      return { text: `Hace ${diffHours} ${diffHours === 1 ? 'hora' : 'horas'}`, warning: false };
-    } else {
-      const diffDays = Math.floor(diffHours / 24);
-      const warning = diffHours >= 72; // warning if 72 hours (3 days) or more without update
-      if (diffDays === 1) {
-        return { text: 'Hace 1 día', warning };
-      }
-      return { text: `Hace ${diffDays} días`, warning };
-    }
+    const diffDays = Math.floor(diffHours / 24);
+    followupText = diffDays === 1 ? 'Hace 1 día' : `Hace ${diffDays} días`;
   }
+
+  // 2. TIEMPO CONGELADO EN ETAPA (Columna del Kanban)
+  const stageRef = stageUpdatedAt ? new Date(stageUpdatedAt) : new Date(createdAt);
+  const stageDiffMs = new Date() - stageRef;
+  const stageDiffDays = Math.floor(stageDiffMs / (1000 * 60 * 60 * 24));
+  
+  let stageText = stageDiffDays === 0 ? 'Hoy entró a etapa' : `Lleva ${stageDiffDays} ${stageDiffDays === 1 ? 'día' : 'días'} aquí`;
+  const stageWarning = stageDiffDays >= 5; // Estancamiento leve >= 5 días
+  const stageCritical = stageDiffDays >= 10; // Estancamiento crítico >= 10 días
+
+  return {
+    followup: { text: followupText, warning: followupWarning, critical: followupCritical, hours: diffHours },
+    stage: { text: stageText, warning: stageWarning, critical: stageCritical, days: stageDiffDays }
+  };
 };
 
 export const getChannelBadgeInfo = (type) => {

@@ -9,7 +9,7 @@ import './MobileApp.css';
 import NotificacionesDrawer from '../../features/home/components/NotificacionesDrawer';
 import FichaEmpresaModal from '../../features/directory/components/FichaEmpresaModal';
 import FichaContactoModal from '../../features/directory/components/FichaContactoModal';
-import DetallesProspectoFeature from '../../features/leads/components/DetallesProspectoFeature';
+import DetallesNegociacionFeature from '../../features/leads/components/DetallesNegociacionFeature';
 
 // Sleek Global Bell Notifications Component (Fixed in top-right, solid high-contrast neon styling)
 const GlobalBellNotifications = ({ setActiveTab, role, activeTab, onOpenEntity }) => {
@@ -603,7 +603,7 @@ const DashboardShell = ({
       )}
 
       {selectedLead && (
-        <DetallesProspectoFeature 
+        <DetallesNegociacionFeature 
           isOpen={true} 
           lead={selectedLead} 
           onClose={() => setSelectedLead(null)} 

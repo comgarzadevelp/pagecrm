@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
@@ -45,7 +46,10 @@ export default function FichaClienteIndividualModal({
   const [showEditCompanyModal, setShowEditCompanyModal] = useState(false);
 
   // Estado de las pestañas en la columna derecha
-  const [activeRightTab, setActiveRightTab] = useState('activity');
+  const [activeRightTab, setActiveRightTab] = useState('completo'); // 'notas' | 'visitas' | 'bitacora' | 'cambios' | 'completo'
+  const [showCommentInput, setShowCommentInput] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Formularios de Edición
   const [contactNameInput, setContactNameInput] = useState(currentCustomer?.name || '');
@@ -82,6 +86,7 @@ export default function FichaClienteIndividualModal({
   // Estado para la bitácora interactiva de notas rápidas
   const [quickNoteText, setQuickNoteText] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [contactNotes, setContactNotes] = useState(null);
 
   const customerId = currentCustomer?.id;
   const isSae = customerId?.startsWith('sae-');
@@ -223,23 +228,69 @@ export default function FichaClienteIndividualModal({
     }
     setIsSavingContact(true);
 
-    const payload = {
-      name: contactNameInput.trim(),
-      email: contactEmailInput.trim(),
-      phone: contactPhoneInput.trim(),
-      position: contactPositionInput.trim(),
-      phone_alt: contactPhoneAltInput.trim(),
-      whatsapp: contactWhatsappInput.trim(),
-      contact_notes: contactNotesInput.trim(),
-      company: currentCustomer.company || '',
-      company_rfc: currentCustomer.rfc || '',
-      company_address: currentCustomer.calle || '',
-      company_city: currentCustomer.municipio || '',
-      company_state: currentCustomer.estado || '',
-      status: currentCustomer.status
-    };
-
     try {
+      const changes = [];
+      const fields = [
+        { key: 'name', label: 'Nombre del contacto', val: contactNameInput },
+        { key: 'email', label: 'Correo', val: contactEmailInput },
+        { key: 'phone', label: 'Teléfono', val: contactPhoneInput },
+        { key: 'position', label: 'Cargo', val: contactPositionInput },
+        { key: 'phone_alt', label: 'Teléfono Alternativo', val: contactPhoneAltInput },
+        { key: 'whatsapp', label: 'WhatsApp', val: contactWhatsappInput },
+        { key: 'contact_notes', label: 'Notas del contacto', val: contactNotesInput }
+      ];
+
+      fields.forEach(f => {
+        const oldVal = (currentCustomer[f.key] || '').toString().trim();
+        const newVal = (f.val || '').toString().trim();
+        if (oldVal !== newVal) {
+          changes.push(`${f.label} de "${oldVal || 'N/A'}" a "${newVal || 'N/A'}"`);
+        }
+      });
+
+      let timeline = [];
+      let general = '';
+      let sae_clave = '';
+
+      if (currentCustomer.notes) {
+        try {
+          const parsed = JSON.parse(currentCustomer.notes.trim());
+          timeline = parsed.timeline || [];
+          general = parsed.general || '';
+          sae_clave = parsed.sae_clave || '';
+        } catch {
+          general = currentCustomer.notes;
+        }
+      }
+
+      if (changes.length > 0) {
+        timeline.push({
+          type: 'change',
+          text: `Se actualizaron los datos de contacto: ${changes.join(', ')}`,
+          date: new Date().toISOString(),
+          author: localStorage.getItem('name') || localStorage.getItem('user_name') || 'Usuario'
+        });
+      }
+
+      const notesPayload = JSON.stringify({ general, sae_clave, timeline });
+
+      const payload = {
+        name: contactNameInput.trim(),
+        email: contactEmailInput.trim(),
+        phone: contactPhoneInput.trim(),
+        position: contactPositionInput.trim(),
+        phone_alt: contactPhoneAltInput.trim(),
+        whatsapp: contactWhatsappInput.trim(),
+        contact_notes: contactNotesInput.trim(),
+        company: currentCustomer.company || '',
+        company_rfc: currentCustomer.rfc || '',
+        company_address: currentCustomer.calle || '',
+        company_city: currentCustomer.municipio || '',
+        company_state: currentCustomer.estado || '',
+        notes: notesPayload,
+        status: currentCustomer.status
+      };
+
       const res = await fetch(`${API_BASE}/api/crm/customers/${customerId}`, {
         method: 'PUT',
         headers: {
@@ -270,24 +321,68 @@ export default function FichaClienteIndividualModal({
     e.preventDefault();
     setIsSavingCompany(true);
 
-    const payload = {
-      name: currentCustomer.name || '',
-      email: currentCustomer.email || '',
-      phone: currentCustomer.phone || '',
-      position: currentCustomer.position || '',
-      phone_alt: currentCustomer.phone_alt || '',
-      whatsapp: currentCustomer.whatsapp || '',
-      contact_notes: currentCustomer.contact_notes || '',
-      company: companyNameInput.trim(),
-      company_id: selectedCompanyId,
-      company_rfc: companyRfcInput.trim(),
-      company_address: companyAddressInput.trim(),
-      company_city: companyCityInput.trim(),
-      company_state: companyStateInput.trim(),
-      status: currentCustomer.status
-    };
-
     try {
+      const changes = [];
+      const fields = [
+        { key: 'company', label: 'Empresa', val: companyNameInput },
+        { key: 'rfc', label: 'RFC', val: companyRfcInput },
+        { key: 'calle', label: 'Dirección Fiscal', val: companyAddressInput },
+        { key: 'municipio', label: 'Municipio', val: companyCityInput },
+        { key: 'estado', label: 'Estado', val: companyStateInput }
+      ];
+
+      fields.forEach(f => {
+        const oldVal = (currentCustomer[f.key] || '').toString().trim();
+        const newVal = (f.val || '').toString().trim();
+        if (oldVal !== newVal) {
+          changes.push(`${f.label} de "${oldVal || 'N/A'}" a "${newVal || 'N/A'}"`);
+        }
+      });
+
+      let timeline = [];
+      let general = '';
+      let sae_clave = '';
+
+      if (currentCustomer.notes) {
+        try {
+          const parsed = JSON.parse(currentCustomer.notes.trim());
+          timeline = parsed.timeline || [];
+          general = parsed.general || '';
+          sae_clave = parsed.sae_clave || '';
+        } catch {
+          general = currentCustomer.notes;
+        }
+      }
+
+      if (changes.length > 0) {
+        timeline.push({
+          type: 'change',
+          text: `Se actualizaron los datos de la empresa: ${changes.join(', ')}`,
+          date: new Date().toISOString(),
+          author: localStorage.getItem('name') || localStorage.getItem('user_name') || 'Usuario'
+        });
+      }
+
+      const notesPayload = JSON.stringify({ general, sae_clave, timeline });
+
+      const payload = {
+        name: currentCustomer.name || '',
+        email: currentCustomer.email || '',
+        phone: currentCustomer.phone || '',
+        position: currentCustomer.position || '',
+        phone_alt: currentCustomer.phone_alt || '',
+        whatsapp: currentCustomer.whatsapp || '',
+        contact_notes: currentCustomer.contact_notes || '',
+        company: companyNameInput.trim(),
+        company_id: selectedCompanyId,
+        company_rfc: companyRfcInput.trim(),
+        company_address: companyAddressInput.trim(),
+        company_city: companyCityInput.trim(),
+        company_state: companyStateInput.trim(),
+        notes: notesPayload,
+        status: currentCustomer.status
+      };
+
       const res = await fetch(`${API_BASE}/api/crm/customers/${customerId}`, {
         method: 'PUT',
         headers: {
@@ -382,14 +477,42 @@ export default function FichaClienteIndividualModal({
     }
   };
 
+  const fetchContactNotes = async (contactId) => {
+    if (!contactId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/contacts/${contactId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success && data.contact) {
+        setContactNotes(data.contact.notes);
+      }
+    } catch (err) {
+      console.error('Error fetching contact notes:', err);
+    }
+  };
+
   // Cargar datos relacionados al iniciar o cambiar de cliente
   useEffect(() => {
     if (customerId) {
       setCurrentCustomer(selectedCustomer);
       fetchObras(customerId);
       fetchOpportunities(customerId);
-      fetchVisitas(customerId);
+      fetchVisitas(selectedCustomer.contact_id || customerId);
       fetchAppointments(selectedCustomer.name);
+
+      const targetContactId = selectedCustomer.contact_id || (selectedCustomer.notes ? (() => {
+        try {
+          const parsed = JSON.parse(selectedCustomer.notes);
+          return parsed.contact_id;
+        } catch (e) { return null; }
+      })() : null);
+
+      if (targetContactId) {
+        fetchContactNotes(targetContactId);
+      } else {
+        setContactNotes(null);
+      }
     }
   }, [selectedCustomer, customerId]);
 
@@ -416,20 +539,79 @@ export default function FichaClienteIndividualModal({
   const fetchOpportunities = async (id) => {
     setLoadingOpps(true);
     try {
-      const res = await fetch(`${API_BASE}/api/crm/opportunities`, {
+      // 1. Consultar oportunidades tradicionales
+      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        // Filtrar oportunidades vinculadas a este cliente
-        const filtered = (data.opportunities || []).filter(opp =>
+      const dataOpp = await resOpp.json();
+      
+      // 2. Consultar prospectos/negociaciones de la bandeja de entrada
+      const resLeads = await fetch(`${API_BASE}/api/crm/leads`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const dataLeads = await resLeads.json();
+
+      let mergedOpps = [];
+
+      if (resOpp.ok && dataOpp.success) {
+        const filteredOpps = (dataOpp.opportunities || []).filter(opp =>
           String(opp.contact_id) === String(id) ||
           (opp.company_id && currentCustomer.company_id && String(opp.company_id) === String(currentCustomer.company_id))
         );
-        setOpportunities(filtered);
+        mergedOpps = [...filteredOpps];
       }
+
+      if (resLeads.ok && dataLeads.success && dataLeads.leads) {
+        const filteredLeads = dataLeads.leads.filter(lead => {
+          // Evitar auto-referencia si el cliente abierto ya es un lead
+          if (String(lead.id) === String(id)) return false;
+
+          // Coincidencia por teléfono o correo
+          const phoneMatch = lead.phone && currentCustomer.phone && String(lead.phone).trim() === String(currentCustomer.phone).trim();
+          const emailMatch = lead.email && currentCustomer.email && String(lead.email).trim().toLowerCase() === String(currentCustomer.email).trim().toLowerCase();
+          
+          // Coincidencia por ID de contacto/empresa dentro del JSON de notas
+          let notesMatch = false;
+          if (lead.notes) {
+            try {
+              const parsedNotes = JSON.parse(lead.notes);
+              if (parsedNotes.contact_id && String(parsedNotes.contact_id) === String(id)) notesMatch = true;
+              if (parsedNotes.company_id && currentCustomer.company_id && String(parsedNotes.company_id) === String(currentCustomer.company_id)) notesMatch = true;
+            } catch (e) {}
+          }
+
+          return phoneMatch || emailMatch || notesMatch;
+        });
+
+        const mappedLeads = filteredLeads.map(lead => {
+          let requirementTitle = lead.company || lead.name || 'Negociación';
+          let leadNotes = '';
+          if (lead.notes) {
+            try {
+              const parsed = JSON.parse(lead.notes);
+              if (parsed.requirement_title) requirementTitle = parsed.requirement_title;
+              if (parsed.general) leadNotes = parsed.general;
+            } catch (e) {}
+          }
+
+          return {
+            id: lead.id,
+            title: requirementTitle,
+            description: leadNotes,
+            stage: lead.status || 'nuevo',
+            value: 0,
+            created_at: lead.created_at,
+            updated_at: lead.updated_at || lead.created_at,
+            isLead: true
+          };
+        });
+
+        mergedOpps = [...mergedOpps, ...mappedLeads];
+      }
+
+      setOpportunities(mergedOpps);
     } catch (err) {
-      console.error('Error fetching opportunities:', err);
+      console.error('Error al obtener oportunidades y negociaciones:', err);
     } finally {
       setLoadingOpps(false);
     }
@@ -438,13 +620,44 @@ export default function FichaClienteIndividualModal({
   const fetchVisitas = async (id) => {
     setLoadingVisitas(true);
     try {
-      const res = await fetch(`${API_BASE}/api/crm/visitas/contact/${id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setVisitas(data.visitas || []);
+      const urls = [`${API_BASE}/api/crm/visitas/contact/${id}`];
+      
+      // Si el cliente tiene un contact_id real (de la tabla contacts) consultarlo también
+      if (currentCustomer?.contact_id && String(currentCustomer.contact_id) !== String(id)) {
+        urls.push(`${API_BASE}/api/crm/visitas/contact/${currentCustomer.contact_id}`);
       }
+      
+      // Si tiene una empresa vinculada, consultar sus visitas
+      if (currentCustomer?.company_id) {
+        urls.push(`${API_BASE}/api/crm/visitas/company/${currentCustomer.company_id}`);
+      }
+
+      const requests = urls.map(url =>
+        fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json())
+          .catch(() => ({ success: false, visitas: [] }))
+      );
+
+      const results = await Promise.all(requests);
+      
+      let allVisitas = [];
+      results.forEach(res => {
+        if (res.success && res.visitas) {
+          allVisitas = [...allVisitas, ...res.visitas];
+        }
+      });
+
+      // Eliminar duplicados por id
+      const uniqueVisitas = [];
+      const seenIds = new Set();
+      allVisitas.forEach(v => {
+        if (!seenIds.has(v.id)) {
+          seenIds.add(v.id);
+          uniqueVisitas.push(v);
+        }
+      });
+
+      setVisitas(uniqueVisitas);
     } catch (err) {
       console.error('Error fetching visitas:', err);
     } finally {
@@ -516,55 +729,46 @@ export default function FichaClienteIndividualModal({
     }
   };
 
-  // --- GUARDADO DE NOTAS EN BITÁCORA ---
-
-  const handleSaveQuickNote = async () => {
-    if (!quickNoteText.trim()) return;
+  // --- AGREGAR COMENTARIO CON SINCRONIZACIÓN BIDIRECCIONAL ---
+  const handleAddComment = async () => {
+    if (!commentText.trim()) return;
     setIsSavingNote(true);
 
-    // Obtener la línea de tiempo de notas del cliente
-    let timeline = [];
-    let generalNotes = '';
-    let saeClave = '';
-
-    if (currentCustomer.notes) {
-      try {
-        const parsed = JSON.parse(currentCustomer.notes.trim());
-        timeline = parsed.timeline || [];
-        generalNotes = parsed.general || '';
-        saeClave = parsed.sae_clave || '';
-      } catch (e) {
-        generalNotes = currentCustomer.notes;
-      }
-    }
-
-    const userName = localStorage.getItem('user_name') || 'Ejecutivo';
-    const newEntry = {
-      date: new Date().toISOString(),
-      text: quickNoteText.trim(),
-      author: userName,
-      type: 'manual'
-    };
-
-    timeline.push(newEntry);
-
-    const notesPayload = JSON.stringify({
-      general: generalNotes,
-      sae_clave: saeClave,
-      timeline
-    });
-
-    const updateUrl = `${API_BASE}/api/crm/customers/${customerId}`;
-    const payload = {
-      name: currentCustomer.name || 'Sin nombre',
-      email: currentCustomer.email || '',
-      phone: currentCustomer.phone || '',
-      company: currentCustomer.company || '',
-      notes: notesPayload,
-      status: currentCustomer.status
-    };
-
     try {
+      const authorName = localStorage.getItem('name') || localStorage.getItem('user_name') || 'Vendedor';
+      let parsed = { general: '', sae_clave: '', timeline: [] };
+      if (currentCustomer.notes) {
+        try {
+          const p = JSON.parse(currentCustomer.notes.trim());
+          if (p.timeline) parsed = p;
+          else parsed.general = currentCustomer.notes;
+        } catch {
+          parsed.general = currentCustomer.notes;
+        }
+      }
+
+      const newComment = {
+        type: 'nota',
+        text: commentText.trim(),
+        date: new Date().toISOString(),
+        author: authorName,
+        created_from: 'cliente' // Etiqueta de procedencia
+      };
+
+      parsed.timeline = [newComment, ...(parsed.timeline || [])];
+      const notesPayload = JSON.stringify(parsed);
+
+      // 1. Guardar en el cliente/prospecto
+      const updateUrl = `${API_BASE}/api/crm/customers/${customerId}`;
+      const payload = {
+        name: currentCustomer.name || 'Sin nombre',
+        email: currentCustomer.email || '',
+        phone: currentCustomer.phone || '',
+        company: currentCustomer.company || '',
+        notes: notesPayload,
+        status: currentCustomer.status
+      };
+
       const res = await fetch(updateUrl, {
         method: 'PUT',
         headers: {
@@ -573,19 +777,112 @@ export default function FichaClienteIndividualModal({
         },
         body: JSON.stringify(payload)
       });
+
+      if (!res.ok) throw new Error('Error al guardar comentario en cliente');
+
       const data = await res.json();
-      if (res.ok) {
-        showToast('Nota registrada en bitácora', 'success');
-        const updated = data.customer || currentCustomer;
-        setCurrentCustomer(prev => ({ ...prev, ...updated }));
-        setQuickNoteText('');
-        if (fetchCustomers) fetchCustomers();
-      } else {
-        showToast('Error al guardar nota: ' + data.message, 'error');
+      const updatedCustomer = data.customer || currentCustomer;
+      setCurrentCustomer(updatedCustomer);
+
+      // 2. Sincronizar síncronamente al contacto vinculado
+      if (currentCustomer.contact_id) {
+        try {
+          const contactRes = await fetch(`${API_BASE}/api/crm/contacts/${currentCustomer.contact_id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const contactData = await contactRes.json();
+          if (contactRes.ok && contactData.success && contactData.contact) {
+            let contactNotes = { general: '', timeline: [] };
+            try {
+              const p = JSON.parse(contactData.contact.notes || '{}');
+              if (p.timeline) contactNotes = p;
+              else contactNotes.general = contactData.contact.notes || '';
+            } catch {}
+
+            contactNotes.timeline = [
+              {
+                type: 'nota',
+                text: commentText.trim(),
+                date: newComment.date,
+                author: authorName,
+                created_from: 'cliente'
+              },
+              ...(contactNotes.timeline || [])
+            ];
+
+            await fetch(`${API_BASE}/api/crm/contacts/${currentCustomer.contact_id}`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                ...contactData.contact,
+                notes: JSON.stringify(contactNotes)
+              })
+            });
+            setContactNotes(JSON.stringify(contactNotes));
+          }
+        } catch (e) {
+          console.error('Error syncing comment to linked contact:', e);
+        }
       }
+
+      // 3. Sincronizar síncronamente a la empresa vinculada
+      if (currentCustomer.company_id) {
+        try {
+          const companyRes = await fetch(`${API_BASE}/api/crm/companies/${currentCustomer.company_id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const companyData = await companyRes.json();
+          if (companyRes.ok && companyData.success && companyData.company) {
+            let companyNotes = { general: '', timeline: [] };
+            try {
+              const p = JSON.parse(companyData.company.notes || '{}');
+              if (p.timeline) companyNotes = p;
+              else companyNotes.general = companyData.company.notes || '';
+            } catch {}
+
+            companyNotes.timeline = [
+              {
+                type: 'nota',
+                text: commentText.trim(),
+                date: newComment.date,
+                author: authorName,
+                created_from: 'cliente'
+              },
+              ...(companyNotes.timeline || [])
+            ];
+
+            await fetch(`${API_BASE}/api/crm/companies/${currentCustomer.company_id}`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                name: companyData.company.name,
+                alias: companyData.company.alias,
+                rfc: companyData.company.rfc,
+                phone_main: companyData.company.phone_main,
+                email_main: companyData.company.email_main,
+                status: companyData.company.status,
+                notes: JSON.stringify(companyNotes)
+              })
+            });
+          }
+        } catch (e) {
+          console.error('Error syncing comment to linked company:', e);
+        }
+      }
+
+      showToast('Comentario guardado y sincronizado', 'success');
+      setCommentText('');
+      setShowCommentInput(false);
+      if (fetchCustomers) fetchCustomers();
     } catch (err) {
-      console.error('Error saving note:', err);
-      showToast('Error al guardar en el servidor', 'error');
+      console.error(err);
+      showToast(err.message || 'Error al guardar comentario', 'error');
     } finally {
       setIsSavingNote(false);
     }
@@ -662,25 +959,47 @@ export default function FichaClienteIndividualModal({
 
     // 1. Oportunidades
     opportunities.forEach(opp => {
+      const isLead = opp.isLead;
       events.push({
         id: `opp-${opp.id}`,
         date: opp.updated_at || opp.created_at,
         type: 'opportunity',
-        title: 'Oportunidad de Venta',
-        text: `Negocio registrado. Etapa actual: "${opp.stage?.toUpperCase()}". Monto estimado: $${parseFloat(opp.amount || 0).toLocaleString('es-MX')}`,
-        author: 'Sistema de Ventas'
+        title: isLead ? 'Negociación (Bandeja)' : 'Oportunidad de Venta',
+        text: isLead 
+          ? `Trato registrado en bandeja de entrada. Estado actual: "${opp.stage?.toUpperCase()}". ${opp.description ? `Detalles: "${opp.description}"` : ''}`
+          : `Negocio registrado. Etapa actual: "${opp.stage?.toUpperCase()}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
+        author: 'Sistema de Ventas',
+        isNote: false,
+        isVisita: false,
+        isChange: true
       });
     });
 
     // 2. Visitas y Minutas
     visitas.forEach(v => {
+      const tipoReal = v.visit_type || v.tipo || 'visita';
+      const scheduledDateStr = v.timestamp_servidor && new Date(v.timestamp_servidor).getTime() !== new Date(v.created_at).getTime()
+        ? `\nFecha Programada: ${new Date(v.timestamp_servidor).toLocaleDateString('es-MX', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}`
+        : '';
+
       events.push({
         id: `visit-${v.id}`,
-        date: v.timestamp_servidor || v.created_at,
-        type: 'visit',
+        date: v.created_at || v.timestamp_servidor,
+        type: tipoReal.includes('llamada') ? 'llamada' : 'visita',
         title: `Visita Presencial / Minuta`,
-        text: `Resultado: ${v.resultado || 'Sin minuta'}.\nObra: ${v.obra_nombre || 'No especificada'}.`,
-        author: v.vendedor_nombre || 'Asesor Comercial'
+        text: `Resultado: ${v.resultado || 'Sin minuta'}.${v.obra_nombre ? `\nObra: ${v.obra_nombre}.` : ''}${scheduledDateStr}`,
+        author: v.vendedor_nombre || 'Asesor Comercial',
+        gps_lat: v.gps_lat || v.lat || null,
+        gps_lng: v.gps_lng || v.lng || null,
+        isNote: false,
+        isVisita: true,
+        isChange: false
       });
     });
 
@@ -692,34 +1011,120 @@ export default function FichaClienteIndividualModal({
         type: 'appointment',
         title: 'Cita en Calendario',
         text: `Evento agendado: "${evt.summary || evt.title}". Ubicación: ${evt.location || 'N/A'}. Estado: ${evt.status || 'Activo'}`,
-        author: 'Google Calendar'
+        author: 'Google Calendar',
+        isNote: false,
+        isVisita: true,
+        isChange: false
       });
     });
 
-    // 4. Notas manuales del Timeline
-    if (currentCustomer.notes) {
+    // 4. Notas y Cambios de la línea de tiempo (Cliente y Contacto unificados y desduplicados)
+    const rawCustomerNotes = currentCustomer.notes;
+    const rawContactNotes = contactNotes;
+
+    const parsedCustomer = (() => {
+      if (!rawCustomerNotes) return null;
       try {
-        const parsed = JSON.parse(currentCustomer.notes.trim());
-        if (parsed && parsed.timeline) {
-          parsed.timeline.forEach((n, idx) => {
-            events.push({
-              id: `manual-${idx}`,
-              date: n.date || currentCustomer.created_at,
-              type: 'manual',
-              title: n.type === 'status_change' ? 'Cambio de Estatus' : 'Nota de Seguimiento',
-              text: n.text,
-              author: n.author || 'Ejecutivo'
-            });
-          });
+        const cleaned = rawCustomerNotes.trim();
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          return JSON.parse(cleaned);
         }
-      } catch (e) {
-        // No es JSON, no agregamos notas manuales estructuradas
+      } catch (e) {}
+      return null;
+    })();
+
+    const parsedContact = (() => {
+      if (!rawContactNotes) return null;
+      try {
+        const cleaned = rawContactNotes.trim();
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          return JSON.parse(cleaned);
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    const rawTimelineEntries = [];
+    if (parsedCustomer && parsedCustomer.timeline && Array.isArray(parsedCustomer.timeline)) {
+      rawTimelineEntries.push(...parsedCustomer.timeline);
+    }
+    if (parsedContact && parsedContact.timeline && Array.isArray(parsedContact.timeline)) {
+      rawTimelineEntries.push(...parsedContact.timeline);
+    }
+
+    // Desduplicar por combinación de fecha y texto
+    const seenTimeline = new Set();
+    const uniqueTimelineEntries = [];
+    rawTimelineEntries.forEach(n => {
+      const key = `${n.date}_${n.text}`;
+      if (!seenTimeline.has(key)) {
+        seenTimeline.add(key);
+        uniqueTimelineEntries.push(n);
       }
+    });
+
+    uniqueTimelineEntries.forEach((n, idx) => {
+      const isChange = n.type === 'change' || n.type === 'status_change' || n.type === 'archive';
+      const isNote = n.type === 'nota' || !n.type;
+      events.push({
+        id: `manual-${idx}`,
+        date: n.date || currentCustomer.created_at,
+        type: n.type || 'nota',
+        title: isChange ? (n.type === 'change' ? 'Cambio de Datos' : 'Cambio de Estatus') : 'Nota Comercial',
+        text: n.text,
+        author: n.author || 'Ejecutivo',
+        created_from: n.created_from || null,
+        isNote,
+        isVisita: false,
+        isChange
+      });
+    });
+
+    // Desduplicar y renderizar historial de cambios heredado
+    const legacyChanges = [];
+    if (parsedCustomer && parsedCustomer.change_history && Array.isArray(parsedCustomer.change_history)) {
+      legacyChanges.push(...parsedCustomer.change_history);
+    }
+    if (parsedContact && parsedContact.change_history && Array.isArray(parsedContact.change_history)) {
+      legacyChanges.push(...parsedContact.change_history);
+    }
+    const seenChanges = new Set();
+    legacyChanges.forEach((h, idx) => {
+      const key = `${h.date}_${h.field}_${h.new_value}`;
+      if (!seenChanges.has(key)) {
+        seenChanges.add(key);
+        events.push({
+          id: `legacy-change-${idx}`,
+          date: h.date || currentCustomer.created_at,
+          type: 'change',
+          title: 'Cambio de Datos',
+          text: `Campo "${h.field}": antes "${h.old_value || 'N/A'}" modificado a "${h.new_value || 'N/A'}"`,
+          author: h.author || 'Sistema',
+          isNote: false,
+          isVisita: false,
+          isChange: true
+        });
+      }
+    });
+
+    // Si no hay timeline estructurado, pero hay notas planas en el cliente
+    if (!parsedCustomer && !parsedContact && currentCustomer.notes) {
+      events.push({
+        id: `manual-raw`,
+        date: currentCustomer.created_at,
+        type: 'nota',
+        title: 'Nota Comercial',
+        text: currentCustomer.notes,
+        author: 'Ejecutivo',
+        isNote: true,
+        isVisita: false,
+        isChange: false
+      });
     }
 
     // Ordenar cronológicamente (más reciente primero)
     return events.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [opportunities, visitas, appointments, currentCustomer.notes, currentCustomer.created_at]);
+  }, [opportunities, visitas, appointments, currentCustomer.notes, currentCustomer.created_at, contactNotes]);
 
   // --- RENDERIZADO ---
 
@@ -739,7 +1144,34 @@ export default function FichaClienteIndividualModal({
 
   const statusColor = getStatusColor(currentCustomer.status);
 
-  return (
+  // Calcular contadores dinámicos basados en la lista combinada
+  const activeOpportunitiesCount = useMemo(() => {
+    return opportunities.filter(opp => {
+      const stage = (opp.stage || '').toLowerCase();
+      return stage !== 'ganado' && stage !== 'perdido' && stage !== 'descartado' && stage !== 'cierre_ganado' && stage !== 'cierre_perdido' && stage !== 'venta_ganada';
+    }).length;
+  }, [opportunities]);
+
+  const wonOpportunitiesCount = useMemo(() => {
+    return opportunities.filter(opp => {
+      const stage = (opp.stage || '').toLowerCase();
+      return stage === 'ganado' || stage === 'cierre_ganado' || stage === 'venta_ganada';
+    }).length;
+  }, [opportunities]);
+
+  // Traducción de etapas para alineación con el Kanban
+  const translateStage = (stage) => {
+    if (!stage) return 'Nuevo';
+    const s = stage.toLowerCase().trim();
+    if (s === 'contactado') return 'En Negociación';
+    if (s === 'nuevo') return 'Bandeja';
+    if (s === 'cotizando') return 'Cotizando';
+    if (s === 'cierre_ganado' || s === 'ganado' || s === 'venta_ganada') return 'Ganado';
+    if (s === 'cierre_perdido' || s === 'perdido' || s === 'descartado') return 'Perdido';
+    return stage.toUpperCase();
+  };
+
+  return createPortal(
     <div className="client-modal-overlay" onClick={onClose}>
       <div className="client-modal-container" onClick={(e) => e.stopPropagation()}>
 
@@ -841,7 +1273,17 @@ export default function FichaClienteIndividualModal({
               </a>
             )}
             {currentCustomer.email && (
-              <a href={`mailto:${currentCustomer.email}`} className="quickbar-btn quickbar-btn-email">
+              <a
+                href={`mailto:${(() => {
+                  const emailStr = currentCustomer.email.trim();
+                  const match = emailStr.match(/<([^>]+)>/);
+                  if (match && match[1]) return match[1].trim();
+                  const tokens = emailStr.replace(/[,;]/g, ' ').split(/\s+/);
+                  const firstEmail = tokens.find(t => t.includes('@'));
+                  return firstEmail ? firstEmail.trim() : emailStr;
+                })()}`}
+                className="quickbar-btn quickbar-btn-email"
+              >
                 <i className="fas fa-envelope" /> Enviar Correo
               </a>
             )}
@@ -866,10 +1308,42 @@ export default function FichaClienteIndividualModal({
         </header>
 
         {/* CUERPO DEL MODAL (PANEL DUAL) */}
-        <div className="client-modal-body">
+        <div className={`client-modal-body ${isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
 
           {/* PANEL IZQUIERDO: PERFIL COMERCIAL E INFORMACIÓN */}
-          <aside className="client-modal-left-col">
+          <aside className={`client-modal-left-col ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+            {/* BOTÓN PARA COLAPSAR/EXPANDIR LA BARRA LATERAL */}
+            <button
+              type="button"
+              className="sidebar-toggle-btn"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              title={isSidebarCollapsed ? "Expandir datos" : "Colapsar datos"}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                right: '-14px', // Situar justo en el borde del aside
+                transform: 'translateY(-50%)',
+                zIndex: 999, // Prioridad absoluta por encima del scrollbar
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: 'var(--color-brand-primary, #05393a)',
+                color: '#ffffff',
+                border: '2px solid #ffffff',
+                boxShadow: '0 4px 10px rgba(0,0,0,0.15)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'all 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
+                outline: 'none'
+              }}
+            >
+              <i className={`fas ${isSidebarCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}`} style={{ fontSize: '0.65rem' }} />
+            </button>
+
+            {!isSidebarCollapsed && (
+              <>
 
             {/* ALERTA DE INACTIVIDAD CRÍTICA (NIVEL 4) */}
             {currentCustomer.nivel === 4 && (
@@ -935,10 +1409,28 @@ export default function FichaClienteIndividualModal({
                     {currentCustomer.whatsapp || 'No registrado'}
                   </span>
                 </div>
-                {currentCustomer.contact_notes && (
+                {(currentCustomer.contact_notes || currentCustomer.notes) && (
                   <div className="info-item info-item-full">
                     <span className="info-label">Notas de Contacto</span>
-                    <span className="info-value" style={{ fontStyle: 'italic' }}>{currentCustomer.contact_notes}</span>
+                    <span className="info-value" style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#475569', whiteSpace: 'pre-wrap' }}>
+                      {(() => {
+                        const rawNotes = currentCustomer.contact_notes || currentCustomer.notes || '';
+                        try {
+                          if (rawNotes.trim().startsWith('{') && rawNotes.trim().endsWith('}')) {
+                            const parsed = JSON.parse(rawNotes.trim());
+                            return parsed.general || '';
+                          }
+                        } catch (e) {}
+                        // Si falla o no es JSON, mostrar la cadena limpia
+                        try {
+                          const parsedCustomerNotes = JSON.parse((currentCustomer.notes || '').trim());
+                          if (parsedCustomerNotes && parsedCustomerNotes.general) {
+                            return parsedCustomerNotes.general;
+                          }
+                        } catch (e) {}
+                        return rawNotes;
+                      })() || <em style={{ opacity: 0.5 }}>Sin notas comerciales definidas</em>}
+                    </span>
                   </div>
                 )}
               </div>
@@ -1064,11 +1556,11 @@ export default function FichaClienteIndividualModal({
               <div className="kpi-b2b-grid" style={{ marginBottom: '12px' }}>
                 <div className="kpi-b2b-card won-sales" style={{ padding: '8px 12px' }}>
                   <span className="kpi-b2b-title" style={{ fontSize: '0.6rem' }}>Compras Ganadas</span>
-                  <span className="kpi-b2b-value" style={{ fontSize: '1.1rem' }}>{currentCustomer.won_count || 0}</span>
+                  <span className="kpi-b2b-value" style={{ fontSize: '1.1rem' }}>{wonOpportunitiesCount}</span>
                 </div>
                 <div className="kpi-b2b-card active-neg" style={{ padding: '8px 12px' }}>
                   <span className="kpi-b2b-title" style={{ fontSize: '0.6rem' }}>Negociaciones Activas</span>
-                  <span className="kpi-b2b-value" style={{ fontSize: '1.1rem' }}>{currentCustomer.active_count || 0}</span>
+                  <span className="kpi-b2b-value" style={{ fontSize: '1.1rem' }}>{activeOpportunitiesCount}</span>
                 </div>
               </div>
 
@@ -1117,7 +1609,7 @@ export default function FichaClienteIndividualModal({
                           textTransform: 'uppercase',
                           flexShrink: 0
                         }}>
-                          {opp.stage || 'Nuevo'}
+                          {translateStage(opp.stage)}
                         </span>
                       </div>
                     );
@@ -1168,102 +1660,221 @@ export default function FichaClienteIndividualModal({
                 </div>
               </div>
             </section>
+            </>
+            )}
 
           </aside>
 
-          {/* PANEL DERECHO: BITÁCORA COMERCIAL Y TIMELINE */}
+          {/* PANEL DERECHO: BITÁCORA COMERCIAL Y TIMELINE CON FILTROS AVANZADOS */}
           <main className="client-modal-right-col" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-            {/* TAB SELECTOR */}
-            <div className="client-modal-tabs" style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', paddingBottom: '0px', gap: '24px' }}>
+            {/* TAB SELECTOR CON 5 FILTROS */}
+            <div className="client-modal-tabs" style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', paddingBottom: '0px', gap: '8px', overflowX: 'auto' }}>
               <button
                 type="button"
-                className={`client-tab-btn ${activeRightTab === 'activity' ? 'active' : ''}`}
-                onClick={() => setActiveRightTab('activity')}
+                className={`client-tab-btn ${activeRightTab === 'notas' ? 'active' : ''}`}
+                onClick={() => setActiveRightTab('notas')}
                 style={{
                   background: 'none',
                   border: 'none',
-                  padding: '10px 0',
-                  fontSize: '0.88rem',
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
                   fontWeight: '700',
-                  color: activeRightTab === 'activity' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
-                  borderBottom: activeRightTab === 'activity' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                  color: activeRightTab === 'notas' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                  borderBottom: activeRightTab === 'notas' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   outline: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <i className="fas fa-stream" /> Bitácora de Actividad
+                <i className="fas fa-sticky-note" /> Notas / Comentarios
               </button>
               <button
                 type="button"
-                className={`client-tab-btn ${activeRightTab === 'history' ? 'active' : ''}`}
-                onClick={() => setActiveRightTab('history')}
+                className={`client-tab-btn ${activeRightTab === 'visitas' ? 'active' : ''}`}
+                onClick={() => setActiveRightTab('visitas')}
                 style={{
                   background: 'none',
                   border: 'none',
-                  padding: '10px 0',
-                  fontSize: '0.88rem',
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
                   fontWeight: '700',
-                  color: activeRightTab === 'history' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
-                  borderBottom: activeRightTab === 'history' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                  color: activeRightTab === 'visitas' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                  borderBottom: activeRightTab === 'visitas' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   outline: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
                 }}
               >
-                <i className="fas fa-history" /> Historial de Cambios
+                <i className="fas fa-map-marker-alt" /> Visitas
+              </button>
+              <button
+                type="button"
+                className={`client-tab-btn ${activeRightTab === 'bitacora' ? 'active' : ''}`}
+                onClick={() => setActiveRightTab('bitacora')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
+                  fontWeight: '700',
+                  color: activeRightTab === 'bitacora' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                  borderBottom: activeRightTab === 'bitacora' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <i className="fas fa-clipboard-list" /> Bitácora
+              </button>
+              <button
+                type="button"
+                className={`client-tab-btn ${activeRightTab === 'cambios' ? 'active' : ''}`}
+                onClick={() => setActiveRightTab('cambios')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
+                  fontWeight: '700',
+                  color: activeRightTab === 'cambios' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                  borderBottom: activeRightTab === 'cambios' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <i className="fas fa-history" /> Cambios
+              </button>
+              <button
+                type="button"
+                className={`client-tab-btn ${activeRightTab === 'completo' ? 'active' : ''}`}
+                onClick={() => setActiveRightTab('completo')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: '10px 12px',
+                  fontSize: '0.82rem',
+                  fontWeight: '700',
+                  color: activeRightTab === 'completo' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                  borderBottom: activeRightTab === 'completo' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <i className="fas fa-stream" /> Historial Completo
               </button>
             </div>
 
-            {activeRightTab === 'activity' ? (
-              <>
-                {/* ENTRADA DE NOTA RÁPIDA (BITÁCORA INTERACTIVA) */}
-                <section className="quick-note-box">
+            {/* SECCIÓN DEL TIMELINE */}
+            <section className="timeline-feed-box" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '8px', marginBottom: '12px' }}>
+                <h3 className="timeline-feed-title" style={{ margin: 0, padding: 0, borderBottom: 'none' }}>
+                  <i className="fas fa-history" style={{ color: 'var(--color-brand-accent)' }} /> {' '}
+                  {activeRightTab === 'notas' && 'Notas y Comentarios'}
+                  {activeRightTab === 'visitas' && 'Visitas y Actividades'}
+                  {activeRightTab === 'bitacora' && 'Bitácora (Notas y Visitas)'}
+                  {activeRightTab === 'cambios' && 'Historial de Cambios'}
+                  {activeRightTab === 'completo' && 'Historial Completo de Actividad'}
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowCommentInput(prev => !prev)}
+                  style={{
+                    background: 'var(--color-brand-accent, #E0922B)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '6px 12px',
+                    fontSize: '0.72rem',
+                    fontWeight: '800',
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'opacity 0.2s'
+                  }}
+                >
+                  <i className="fas fa-comment-medical" /> Agregar Comentario
+                </button>
+              </div>
+
+              {/* PANEL DESPLEGABLE DE COMENTARIO */}
+              {showCommentInput && (
+                <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
                   <textarea
-                    className="quick-note-textarea"
-                    placeholder="Redacta una nueva nota en la bitácora comercial de este cliente (ej. llamadas, acuerdos de precios, cotizaciones formales)..."
-                    value={quickNoteText}
-                    onChange={(e) => setQuickNoteText(e.target.value)}
-                    disabled={isSavingNote}
+                    rows="3"
+                    placeholder="Redacta un comentario u observaciones rápidas del día..."
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    style={{
+                      fontSize: '0.8rem',
+                      width: '100%',
+                      boxSizing: 'border-box',
+                      fontFamily: 'inherit',
+                      padding: '8px',
+                      borderRadius: '8px',
+                      border: '1px solid #cbd5e1',
+                      resize: 'vertical'
+                    }}
                   />
-                  <div className="quick-note-actions">
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
                     <button
-                      className="quick-note-btn"
-                      onClick={handleSaveQuickNote}
-                      disabled={isSavingNote || !quickNoteText.trim()}
+                      type="button"
+                      onClick={() => { setShowCommentInput(false); setCommentText(''); }}
+                      style={{ background: '#fff', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '4px 10px', fontSize: '0.72rem', fontWeight: '700', cursor: 'pointer' }}
                     >
-                      {isSavingNote ? (
-                        <>
-                          <i className="fas fa-spinner fa-spin" /> Registrando...
-                        </>
-                      ) : (
-                        <>
-                          <i className="fas fa-paper-plane" /> Guardar en Bitácora
-                        </>
-                      )}
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddComment}
+                      disabled={isSavingNote || !commentText.trim()}
+                      style={{ background: 'var(--color-brand-primary, #05393A)', color: '#fff', border: 'none', borderRadius: '8px', padding: '4px 12px', fontSize: '0.72rem', fontWeight: '800', cursor: 'pointer', opacity: commentText.trim() ? 1 : 0.5 }}
+                    >
+                      {isSavingNote ? 'Guardando...' : 'Guardar'}
                     </button>
                   </div>
-                </section>
+                </div>
+              )}
 
-                {/* TIMELINE DE HISTORIAL UNIFICADO */}
-                <section className="timeline-feed-box">
-                  <h3 className="timeline-feed-title">
-                    <i className="fas fa-history" style={{ color: 'var(--color-brand-accent)' }} /> Bitácora de Interacciones y Actividad
-                  </h3>
+              {loadingOpps || loadingVisitas || loadingAppts ? (
+                <div style={{ textAlign: 'center', padding: '4rem' }}>
+                  <div className="spinner" style={{ display: 'inline-block', margin: '0 auto' }} />
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '12px' }}>Consolidando historial comercial...</p>
+                </div>
+              ) : (() => {
+                const filteredItems = unifiedTimeline.filter(item => {
+                  if (activeRightTab === 'notas') return item.isNote;
+                  if (activeRightTab === 'visitas') return item.isVisita;
+                  if (activeRightTab === 'bitacora') return item.isNote || item.isVisita;
+                  if (activeRightTab === 'cambios') return item.isChange;
+                  return true; // completo
+                });
 
-                  {loadingOpps || loadingVisitas || loadingAppts ? (
-                    <div style={{ textAlign: 'center', padding: '4rem' }}>
-                      <div className="spinner" style={{ display: 'inline-block', margin: '0 auto' }} />
-                      <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '12px' }}>Consolidando historial comercial...</p>
-                    </div>
-                  ) : unifiedTimeline.length === 0 ? (
+                if (filteredItems.length === 0) {
+                  return (
                     <div style={{
                       textAlign: 'center',
                       padding: '4rem 2rem',
@@ -1273,107 +1884,97 @@ export default function FichaClienteIndividualModal({
                     }}>
                       <i className="fas fa-stream" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '1rem' }} />
                       <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0, fontWeight: '600' }}>
-                        No hay actividades registradas en la bitácora de este cliente.
+                        No hay registros en esta categoría.
                       </p>
                     </div>
-                  ) : (
-                    <div className="timeline-track">
-                      {unifiedTimeline.map((evt) => {
-                        const nodeClass = `timeline-node timeline-node-${evt.type}`;
-                        let iconName = 'fa-comment-alt';
-                        if (evt.type === 'visit') iconName = 'fa-map-marker-alt';
-                        if (evt.type === 'opportunity') iconName = 'fa-handshake';
-                        if (evt.type === 'appointment') iconName = 'fa-calendar-alt';
+                  );
+                }
 
-                        return (
-                          <div key={evt.id} className={nodeClass}>
-                            <div className="timeline-node-icon">
-                              <i className={`fas ${iconName}`} />
-                            </div>
-                            <div className="timeline-node-card">
-                              <div className="timeline-node-header">
-                                <span className="timeline-node-type">{evt.title}</span>
-                                <span className="timeline-node-time">
-                                  {new Date(evt.date).toLocaleDateString('es-MX', {
-                                    day: 'numeric',
-                                    month: 'short',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit'
-                                  })}
-                                </span>
-                              </div>
-                              <p className="timeline-node-text">{evt.text}</p>
-                              <span className="timeline-node-author">
-                                <i className="fas fa-user-circle" /> {evt.author}
+                return (
+                  <div className="timeline-track" style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {filteredItems.map((evt, idx) => {
+                      const nodeClass = `timeline-node timeline-node-${evt.isVisita ? 'visit' : (evt.isChange ? 'manual' : 'manual')}`;
+                      
+                      let iconName = 'fa-comment-alt';
+                      let nodeStyle = {};
+                      if (evt.isVisita) {
+                        iconName = evt.type === 'llamada' ? 'fa-phone-alt' : 'fa-map-marker-alt';
+                      } else if (evt.type === 'opportunity') {
+                        iconName = 'fa-handshake';
+                        nodeStyle = { background: '#f3e8ff', borderColor: '#e9d5ff', color: '#9333ea' };
+                      } else if (evt.isChange) {
+                        iconName = 'fa-user-shield';
+                        nodeStyle = { background: '#fef2f2', borderColor: '#ef4444', color: '#ef4444' };
+                      }
+
+                      return (
+                        <div key={evt.id || idx} className={nodeClass}>
+                          <div className="timeline-node-icon" style={evt.type === 'opportunity' ? nodeStyle : (evt.isChange ? nodeStyle : {})}>
+                            <i className={`fas ${iconName}`} />
+                          </div>
+                          <div className="timeline-node-card">
+                            <div className="timeline-node-header">
+                              <span className="timeline-node-type" style={evt.type === 'opportunity' ? { color: '#9333ea' } : (evt.isChange ? { color: '#ef4444' } : {})}>{evt.title}</span>
+                              <span className="timeline-node-time">
+                                {new Date(evt.date).toLocaleDateString('es-MX', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
                               </span>
                             </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </section>
-              </>
-            ) : (
-              /* HISTORIAL DE CAMBIOS DE DATOS (AUDIT LOGS) */
-              <section className="timeline-feed-box">
-                <h3 className="timeline-feed-title">
-                  <i className="fas fa-shield-alt" style={{ color: 'var(--color-brand-accent)' }} /> Historial de Cambios (Datos Auditables)
-                </h3>
-                {sortedChangeHistory.length === 0 ? (
-                  <div style={{
-                    textAlign: 'center',
-                    padding: '4rem 2rem',
-                    background: '#ffffff',
-                    borderRadius: '16px',
-                    border: '1px dashed #cbd5e1'
-                  }}>
-                    <i className="fas fa-shield-alt" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '1rem' }} />
-                    <p style={{ color: '#64748b', fontSize: '0.85rem', margin: 0, fontWeight: '600' }}>
-                      No se han registrado modificaciones de datos en este cliente.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="timeline-track">
-                    {sortedChangeHistory.map((item, idx) => (
-                      <div key={idx} className="timeline-node timeline-node-manual">
-                        <div className="timeline-node-icon" style={{ background: '#fef2f2', borderColor: '#ef4444', color: '#ef4444' }}>
-                          <i className="fas fa-user-shield" />
-                        </div>
-                        <div className="timeline-node-card">
-                          <div className="timeline-node-header">
-                            <span className="timeline-node-type" style={{ color: '#ef4444' }}>Campo: {item.field}</span>
-                            <span className="timeline-node-time">
-                              {new Date(item.date).toLocaleDateString('es-MX', {
-                                day: 'numeric',
-                                month: 'short',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
+                            <p className="timeline-node-text" style={{ whiteSpace: 'pre-wrap' }}>{evt.text}</p>
+
+                            {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
+                            {evt.gps_lat && evt.gps_lng && (
+                              <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', marginBottom: '8px' }}>
+                                <iframe
+                                  width="100%"
+                                  height="140"
+                                  frameBorder="0"
+                                  style={{ border: 0, display: 'block' }}
+                                  src={`https://maps.google.com/maps?q=${evt.gps_lat},${evt.gps_lng}&z=16&output=embed`}
+                                  allowFullScreen
+                                ></iframe>
+                                <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                    📍 Ubicación en Campo Verificada
+                                  </span>
+                                  <a
+                                    href={`https://www.google.com/maps/search/?api=1&query=${evt.gps_lat},${evt.gps_lng}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
+                                  >
+                                    Abrir Maps ↗
+                                  </a>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Procedencia del comentario */}
+                            {evt.isNote && (
+                              <span style={{ fontSize: '0.68rem', color: '#94a3b8', display: 'block', margin: '4px 0', fontStyle: 'italic', fontWeight: '600' }}>
+                                {evt.created_from === 'contacto' && 'Creado desde ficha contacto'}
+                                {evt.created_from === 'cliente' && 'Creado desde ficha cliente'}
+                                {evt.created_from === 'empresa' && 'Creado desde ficha empresa'}
+                                {!evt.created_from && 'Creado desde ficha cliente'}
+                              </span>
+                            )}
+
+                            <span className="timeline-node-author">
+                              <i className="fas fa-user-circle" /> {evt.author}
                             </span>
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.78rem', margin: '4px 0' }}>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <span style={{ fontWeight: '700', color: '#94a3b8', width: '60px' }}>Antes:</span>
-                              <span style={{ textDecoration: 'line-through', color: '#64748b' }}>{item.old_value || 'Vacío'}</span>
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <span style={{ fontWeight: '700', color: '#94a3b8', width: '60px' }}>Después:</span>
-                              <span style={{ color: '#059669', fontWeight: '700' }}>{item.new_value || 'Vacío'}</span>
-                            </div>
-                          </div>
-                          <span className="timeline-node-author">
-                            <i className="fas fa-user-circle" /> Modificado por: {item.author}
-                          </span>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                )}
-              </section>
-            )}
+                );
+              })()}
+            </section>
 
           </main>
 
@@ -1720,6 +2321,7 @@ export default function FichaClienteIndividualModal({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }

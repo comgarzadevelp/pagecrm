@@ -2,30 +2,15 @@ import { supabase } from '../supabaseClient.js';
 
 export const runLeadNotificationCheck = async () => {
   try {
-    console.log('[SLA JOB] Starting lead SLA inactivity check...');
+    console.log('[SLA JOB] Starting robust CRM Inactivity & SLA check...');
 
-    // 1. Fetch active leads (not discarded, not customer, having assigned_to)
-    const { data: leads, error: leadsError } = await supabase
-      .from('leads')
-      .select('id, name, created_at, notes, assigned_to, company_id')
-      .neq('status', 'descartado')
-      .neq('status', 'cierre_ganado')
-      .neq('status', 'cierre_perdido')
-      .neq('type', 'crm_customer')
-      .not('assigned_to', 'is', null);
-
-    if (leadsError) throw leadsError;
-    if (!leads || leads.length === 0) {
-      console.log('[SLA JOB] No active leads found.');
-      return;
-    }
-
-    // 2. Fetch all crm_users (need role, supervisor_id, and names)
+    // 1. OBTENER USUARIOS DEL SISTEMA
     const { data: users, error: usersError } = await supabase
       .from('crm_users')
       .select('id, name, role, supervisor_id');
 
     if (usersError) throw usersError;
+    if (!users) return;
 
     const userMap = {};
     const superAdminIds = [];
@@ -38,165 +23,224 @@ export const runLeadNotificationCheck = async () => {
 
     const now = new Date();
 
-    for (const lead of leads) {
-      const sellerId = lead.assigned_to;
+    // Helper para disparar notificaciones evitando duplicidad
+    const triggerSlaNotification = async (targetUserId, type, title, message, entityPayloadId) => {
+      const checkPayload = `[REF: ${entityPayloadId}]`;
+      const { data: existing, error: checkErr } = await supabase
+        .from('crm_notifications')
+        .select('id')
+        .eq('user_id', targetUserId)
+        .eq('type', type)
+        .like('message', `%${checkPayload}%`)
+        .limit(1);
+
+      if (checkErr) {
+        console.error('[SLA JOB] Error checking existing notification:', checkErr);
+        return;
+      }
+
+      if (existing && existing.length > 0) return; // Ya se notificó sobre este umbral
+
+      await supabase.from('crm_notifications').insert([{
+        user_id: targetUserId,
+        title,
+        message: `${message} ${checkPayload}`,
+        type,
+        read: false
+      }]);
+      console.log(`[SLA JOB] SLA notification (${type}) dispatched to user ${targetUserId}`);
+    };
+
+    // ==========================================
+    // SECCIÓN A: CHEQUEO DE INACTIVIDAD EN CLIENTES
+    // ==========================================
+    // Un cliente es de tipo 'crm_customer' en la tabla leads.
+    const { data: customers, error: custError } = await supabase
+      .from('leads')
+      .select('id, name, created_at, notes, assigned_to, company_id, status')
+      .eq('type', 'crm_customer')
+      .neq('status', 'inactiva')
+      .neq('status', 'inactivo')
+      .neq('status', 'descartado')
+      .neq('status', 'descartada')
+      .neq('status', 'cierre_ganado')
+      .neq('status', 'cierre_perdido')
+      .neq('status', 'ganado')
+      .neq('status', 'perdido');
+
+    if (custError) throw custError;
+
+    // Obtener todas las visitas y oportunidades en memoria para consolidación cruzada eficiente
+    const { data: allVisits } = await supabase.from('crm_visitas').select('company_id, contact_id, created_at, timestamp_servidor');
+    const { data: allOpps } = await supabase.from('crm_opportunities').select('company_id, contact_id, created_at, updated_at');
+    const { data: localContacts } = await supabase.from('contacts').select('id, phone, email');
+
+    for (const cust of (customers || [])) {
+      const sellerId = cust.assigned_to;
+      if (!sellerId) continue;
       const seller = userMap[sellerId];
       if (!seller) continue;
 
-      // Determine reference date
-      let refDate = new Date(lead.created_at);
-      if (lead.notes) {
+      // Intentar mapear contacto y empresa locales vinculados
+      let contactId = null;
+      let companyId = cust.company_id;
+      if (cust.notes) {
         try {
-          const parsed = JSON.parse(lead.notes);
-          if (parsed.timeline && parsed.timeline.length > 0) {
-            const dates = parsed.timeline.map(t => new Date(t.date)).filter(d => !isNaN(d.getTime()));
-            if (dates.length > 0) {
-              refDate = new Date(Math.max(...dates));
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
+          const parsed = JSON.parse(cust.notes);
+          if (parsed.contact_id) contactId = parsed.contact_id;
+          if (parsed.company_id && !companyId) companyId = parsed.company_id;
+        } catch (e) {}
       }
 
-      const diffMs = now - refDate;
-      const diffHours = diffMs / (1000 * 60 * 60);
+      const matchingContact = contactId ? null : (localContacts || []).find(c =>
+        (c.phone && cust.phone && c.phone.trim() === cust.phone.trim()) ||
+        (c.email && cust.email && c.email.toLowerCase().trim() === cust.email.toLowerCase().trim())
+      );
+      const resolvedContactId = contactId || (matchingContact ? matchingContact.id : null);
 
-      // Check threshold flags
-      const is24h = diffHours >= 24;
-      const is48h = diffHours >= 48;
-      const is72h = diffHours >= 72;
-      const is7d = diffHours >= 168; // 24 * 7 = 168
+      // Consolidar todas las fechas de interacciones del cliente (visitas y oportunidades vinculadas)
+      const interactionDates = [cust.created_at];
 
-      // Helper to send notification uniquely
-      const triggerSlaNotification = async (targetUserId, type, title, message) => {
-        // Check if this specific notification type already exists for this lead
-        const checkPayload = `[ID: ${lead.id}]`;
-        const { data: existing, error: checkErr } = await supabase
-          .from('crm_notifications')
-          .select('id')
-          .eq('user_id', targetUserId)
-          .eq('type', type)
-          .like('message', `%${checkPayload}%`)
-          .limit(1);
-
-        if (checkErr) {
-          console.error('[SLA JOB] Error checking existing notification:', checkErr);
-          return;
+      // Visitas vinculadas al cliente, su empresa o contacto
+      (allVisits || []).forEach(v => {
+        const isMatch = (v.company_id && companyId && String(v.company_id) === String(companyId)) ||
+                        (v.contact_id && resolvedContactId && String(v.contact_id) === String(resolvedContactId));
+        if (isMatch) {
+          if (v.created_at) interactionDates.push(v.created_at);
+          if (v.timestamp_servidor) interactionDates.push(v.timestamp_servidor);
         }
+      });
 
-        if (existing && existing.length > 0) {
-          // Already sent
-          return;
+      // Oportunidades vinculadas al cliente, su empresa o contacto
+      (allOpps || []).forEach(o => {
+        const isMatch = (o.company_id && companyId && String(o.company_id) === String(companyId)) ||
+                        (o.contact_id && resolvedContactId && String(o.contact_id) === String(resolvedContactId));
+        if (isMatch) {
+          if (o.created_at) interactionDates.push(o.created_at);
+          if (o.updated_at) interactionDates.push(o.updated_at);
         }
+      });
 
-        // Send notification
-        const { error: insertErr } = await supabase
-          .from('crm_notifications')
-          .insert([{
-            user_id: targetUserId,
-            company_id: lead.company_id || null,
-            title,
-            message: `${message} ${checkPayload}`,
-            type,
-            read: false
-          }]);
-
-        if (insertErr) {
-          console.error('[SLA JOB] Error inserting notification:', insertErr);
-        } else {
-          console.log(`[SLA JOB] Notification ${type} sent successfully to user ${targetUserId}`);
-        }
-      };
-
-      const sellerName = seller.name || 'Vendedor';
-
-      // 1. Critical Alert (7 Days)
-      if (is7d) {
-        // Send to Seller
-        await triggerSlaNotification(
-          sellerId,
-          'sla_7d',
-          '🚨 ALERTA CRÍTICA: Negociación en el olvido',
-          `La negociación "${lead.name}" lleva más de 7 días sin contacto. Por favor actualízala de inmediato.`
-        );
-
-        // Send to Supervisor
-        if (seller.supervisor_id) {
-          await triggerSlaNotification(
-            seller.supervisor_id,
-            'sla_7d_super',
-            '⚠️ Alerta Crítica (Asesor bajo tu cargo)',
-            `La negociación "${lead.name}" asignada a ${sellerName} lleva más de 7 días sin contacto.`
-          );
-        }
-
-        // Send to Super Admins / Admins
-        for (const adminId of superAdminIds) {
-          // Avoid duplicate if supervisor is already an admin
-          if (adminId !== seller.supervisor_id && adminId !== sellerId) {
-            await triggerSlaNotification(
-              adminId,
-              'sla_7d_admin',
-              '🚨 Alerta Crítica Global: Negociación sin contacto',
-              `La negociación "${lead.name}" asignada a ${sellerName} lleva 7 días congelada.`
-            );
+      // Timeline en notas
+      if (cust.notes) {
+        try {
+          const parsed = JSON.parse(cust.notes);
+          if (parsed.timeline) {
+            parsed.timeline.forEach(t => { if (t.date) interactionDates.push(t.date); });
           }
-        }
+        } catch (e) {}
       }
-      // 2. Persistent Alert (72 Hours)
-      else if (is72h) {
-        // Send to Seller
+
+      // Obtener fecha de actividad más reciente
+      const parsedDates = interactionDates.map(d => new Date(d)).filter(d => !isNaN(d.getTime()));
+      const lastActivity = parsedDates.length > 0 ? new Date(Math.max(...parsedDates)) : new Date(cust.created_at);
+
+      const diffDays = (now - lastActivity) / (1000 * 60 * 60 * 24);
+
+      // Regla de Inactividad de Clientes (7 días para prospectos/reactivaciones, 30 días para compradores)
+      const sellerName = seller.name || 'Asesor';
+      
+      if (diffDays >= 7) {
+        // Alerta de cliente desatendido
         await triggerSlaNotification(
           sellerId,
-          'sla_72h',
-          '⚠️ Notificación: Negociación sin avance',
-          `La negociación "${lead.name}" lleva más de 72 horas sin registrar interacción.`
+          'customer_inactive_7d',
+          '⚠️ Alerta: Cliente sin atención reciente',
+          `El cliente "${cust.name}" lleva ${Math.floor(diffDays)} días sin ninguna interacción. Te sugerimos realizar una visita comercial.`,
+          cust.id
         );
 
-        // Send to Supervisor
-        if (seller.supervisor_id) {
+        if (diffDays >= 15 && seller.supervisor_id) {
           await triggerSlaNotification(
             seller.supervisor_id,
-            'sla_72h_super',
-            '⚠️ Notificación: Negociación sin avance',
-            `La negociación "${lead.name}" asignada a ${sellerName} lleva más de 72 horas sin interacción.`
+            'customer_inactive_15d_super',
+            '⚠️ Alerta de Supervisor: Cartera desatendida',
+            `El cliente "${cust.name}" asignado a ${sellerName} lleva más de 15 días sin actividades registradas.`,
+            cust.id
           );
         }
       }
-      // 3. Moderate Alert (48 Hours)
-      else if (is48h) {
-        // Send to Seller only
+    }
+
+    // ==========================================
+    // SECCIÓN B: CHEQUEO DE INACTIVIDAD EN NEGOCIACIONES
+    // ==========================================
+    // Una negociación (oportunidad) vive en crm_opportunities.
+    const { data: opportunities, error: oppError } = await supabase
+      .from('crm_opportunities')
+      .select(`
+        id,
+        name,
+        created_at,
+        updated_at,
+        stage,
+        company_id,
+        contact_id,
+        user_id
+      `)
+      .not('stage', 'in', '("ganado","perdido","venta_ganada","venta_perdida","cierre_ganado","cierre_perdido","descartado","descartada")');
+
+    if (oppError) throw oppError;
+
+    for (const opp of (opportunities || [])) {
+      const sellerId = opp.user_id;
+      if (!sellerId) continue;
+      const seller = userMap[sellerId];
+      if (!seller) continue;
+
+      const refDate = new Date(opp.updated_at || opp.created_at);
+      const diffHours = (now - refDate) / (1000 * 60 * 60);
+      const sellerName = seller.name || 'Asesor';
+
+      // SLA de Avance de Negociaciones (24h, 48h, 72h, 7d)
+      if (diffHours >= 168) { // 7 días
         await triggerSlaNotification(
           sellerId,
-          'sla_48h',
-          '⏱️ Recordatorio: 48 horas sin actualizar',
-          `La negociación "${lead.name}" no ha tenido actualizaciones en las últimas 48 horas.`
+          'opp_sla_7d',
+          '🚨 ALERTA CRÍTICA: Negociación congelada',
+          `La negociación "${opp.name}" lleva más de 7 días sin cambios de etapa ni comentarios. Por favor actualízala de inmediato.`,
+          opp.id
         );
-      }
-      // 4. Light Reminder (24 Hours)
-      else if (is24h) {
-        // Send to Seller only
+
+        if (seller.supervisor_id) {
+          await triggerSlaNotification(
+            seller.supervisor_id,
+            'opp_sla_7d_super',
+            '🚨 Alerta Crítica (Supervisor): Negociación congelada',
+            `La negociación "${opp.name}" asignada a ${sellerName} lleva 7 días sin avances en el pipeline.`,
+            opp.id
+          );
+        }
+      } else if (diffHours >= 72) {
         await triggerSlaNotification(
           sellerId,
-          'sla_24h',
-          '⏱️ Recordatorio: 24 horas sin actualizar',
-          `La negociación "${lead.name}" no ha tenido movimientos en 24 horas.`
+          'opp_sla_72h',
+          '⚠️ Notificación: Negociación sin movimientos',
+          `La negociación "${opp.name}" lleva 72 horas sin cambios de etapa o notas de seguimiento.`,
+          opp.id
+        );
+      } else if (diffHours >= 48) {
+        await triggerSlaNotification(
+          sellerId,
+          'opp_sla_48h',
+          '⏱️ Recordatorio: 48 horas de inactividad',
+          `La negociación "${opp.name}" no ha registrado cambios en las últimas 48 horas.`,
+          opp.id
         );
       }
     }
+
   } catch (err) {
-    console.error('[SLA JOB] Unexpected error:', err);
+    console.error('[SLA JOB] Unexpected error during robust SLA check:', err);
   }
 };
 
 export const startLeadNotificationJob = () => {
-  // Run check on boot after a 10s delay to let server initialize
   setTimeout(() => {
     runLeadNotificationCheck();
   }, 10000);
 
-  // Run check every 4 hours (4 * 60 * 60 * 1000 = 14400000 ms)
+  // Ejecución cada 4 horas
   setInterval(() => {
     runLeadNotificationCheck();
   }, 14400000);

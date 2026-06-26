@@ -5,6 +5,7 @@ import useEmpresas from '../../../pages/crm/hooks/useEmpresas'; // Hook legacy d
 import { useEmpresasFeature } from '../hooks/useEmpresasFeature';
 import DirectoryCard from './DirectoryCard';
 import styles from '../styles/Empresas.module.css';
+import { computeDataQuality } from '../utils/dataQuality.js';
 
 // Importamos el código original gigante del formulario temporalmente (refactorizable en futuro)
 // Por ahora mantendremos el formulario dentro de este wrapper o podemos delegar.
@@ -183,62 +184,151 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
         </div>
       </header>
 
-      {/* FILTERS */}
-      <div className={styles.filtersBar}>
-        <div className={styles.searchBox}>
-          <i className="fas fa-search" style={{ color: '#9ca3af' }} />
-          <input 
-            className={styles.searchInput}
-            type="text" 
-            placeholder="Buscar empresa, ciudad, alias..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
+      {/* ── CONSOLIDATED CLASSIFICATION & SEARCH BAND ── */}
+      <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '8px 16px', borderRadius: '100px', marginBottom: '1rem', minHeight: '52px', boxSizing: 'border-box' }}>
+        
+        {/* Left Side: Label and Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', flex: 1, scrollbarWidth: 'none' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '4px', letterSpacing: '0.05em' }}>Clasificador:</span>
+          
+          {[
+            { key: 'all',      label: 'Todos',    color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)' },
+            { key: 'activa',   label: 'Activa',   color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)' },
+            { key: 'buena',    label: 'Buena',    color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)' },
+            { key: 'pendiente',label: 'Pendiente',color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)' },
+            { key: 'mala',     label: 'Mala',     color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)' },
+            { key: 'pesima',   label: 'Pésima',   color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)' },
+          ].map(opt => {
+            const isActive = qualityFilter === opt.key;
+            const count = companies ? companies.filter(c => {
+              if (opt.key === 'all') return true;
+              const score = c.data_quality?.score || computeDataQuality(c, 'company');
+              return score === opt.key;
+            }).length : 0;
+
+            return (
+              <button
+                key={opt.key}
+                type="button"
+                onClick={() => setQualityFilter(opt.key)}
+                style={{
+                  padding: '0 14px',
+                  height: '32px',
+                  borderRadius: '100px',
+                  fontSize: '0.78rem',
+                  fontWeight: '600',
+                  border: isActive ? `1.5px solid ${opt.color}` : '1.5px solid transparent',
+                  background: isActive ? opt.bgActive : '#ffffff',
+                  color: isActive ? opt.color : '#475569',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  transition: 'all 0.2s ease',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  lineHeight: '1.2',
+                  flexShrink: 0
+                }}
+              >
+                {opt.key !== 'all' && <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }}></span>}
+                <span>{opt.label}</span>
+                <span style={{
+                  background: isActive ? opt.color : '#e2e8f0',
+                  color: isActive ? '#fff' : '#64748b',
+                  fontSize: '0.68rem',
+                  height: '18px',
+                  minWidth: '20px',
+                  padding: '0 6px',
+                  borderRadius: '10px',
+                  fontWeight: '850',
+                  transition: 'all 0.2s ease',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
-        <button
-          type="button"
-          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          className={styles.filterToggleBtn}
-          style={{
-            background: showAdvancedFilters ? 'var(--color-brand-primary, #aa8529)' : 'var(--color-bg-light, #f9fafb)',
-            color: showAdvancedFilters ? '#fff' : '#64748b',
-            border: '1px solid var(--color-border, #e5e7eb)',
-            borderRadius: '8px',
-            padding: '0.5rem 1rem',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontWeight: '600',
-            transition: 'all 0.2s ease',
-            outline: 'none'
-          }}
-        >
-          <i className="fas fa-sliders-h" /> Filtros
-          {(typeFilter !== 'all' || statusFilter !== 'all' || startDate || endDate || qualityFilter !== 'all') && (
-            <span style={{
-              background: showAdvancedFilters ? '#fff' : 'var(--color-brand-primary, #aa8529)',
-              color: showAdvancedFilters ? 'var(--color-brand-primary, #aa8529)' : '#fff',
-              fontSize: '0.7rem',
-              borderRadius: '50%',
-              width: '18px',
-              height: '18px',
+
+        {/* Right Side: Compact Search Box and Filter Button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* Search Box */}
+          <div style={{ width: '220px', position: 'relative' }}>
+            <i className="fas fa-search" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+            <input 
+              type="text" 
+              placeholder="Buscar..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              style={{
+                width: '100%',
+                padding: '0.4rem 0.85rem 0.4rem 2.15rem',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                outline: 'none',
+                transition: 'all 0.2s ease',
+                boxSizing: 'border-box',
+                height: '32px'
+              }}
+            />
+          </div>
+
+          {/* Filter Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            style={{
+              background: showAdvancedFilters ? 'var(--color-brand-primary, #05393a)' : '#ffffff',
+              color: showAdvancedFilters ? '#ffffff' : 'var(--color-brand-primary, #05393a)',
+              border: '1px solid #cbd5e1',
+              padding: '0 12px',
+              borderRadius: '8px',
+              cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 'bold',
-              marginLeft: '4px'
-            }}>
-              {[
-                typeFilter !== 'all',
-                statusFilter !== 'all',
-                !!startDate,
-                !!endDate,
-                qualityFilter !== 'all'
-              ].filter(Boolean).length}
-            </span>
-          )}
-        </button>
+              gap: '6px',
+              fontWeight: '700',
+              fontSize: '0.78rem',
+              transition: 'all 0.2s ease',
+              outline: 'none',
+              height: '32px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <i className="fas fa-sliders-h" /> Filtros
+            {(typeFilter !== 'all' || statusFilter !== 'all' || startDate || endDate || qualityFilter !== 'all') && (
+              <span style={{
+                background: showAdvancedFilters ? '#ffffff' : 'var(--color-brand-accent, #e0922b)',
+                color: showAdvancedFilters ? 'var(--color-brand-primary, #05393a)' : '#ffffff',
+                fontSize: '0.65rem',
+                borderRadius: '50%',
+                width: '16px',
+                height: '16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 'bold',
+                marginLeft: '4px'
+              }}>
+                {[
+                  typeFilter !== 'all',
+                  statusFilter !== 'all',
+                  !!startDate,
+                  !!endDate,
+                  qualityFilter !== 'all'
+                ].filter(Boolean).length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {showAdvancedFilters && (
@@ -249,121 +339,84 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
           border: '1px solid rgba(226, 232, 240, 0.8)',
           padding: '1.25rem',
           marginBottom: '1.5rem',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: '1rem',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)',
-          animation: 'fadeIn 0.25s ease-out'
+          animation: 'fadeIn 0.25s ease-out',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1rem'
         }}>
-          {/* Col 1: Tipo */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipo de Registro</label>
-            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }}>
-              <option value="all">Todos los tipos</option>
-              <option value="empresa">Empresa</option>
-              <option value="desarrollo">Desarrollo</option>
-              <option value="contratista">Contratista</option>
-              <option value="cliente">Cliente SAE</option>
-            </select>
-          </div>
-
-          {/* Col 2: Estado */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado</label>
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }}>
-              <option value="all">Todos los estados</option>
-              <option value="activa">Activa</option>
-              <option value="pendiente_revision">Pendiente de Revisión</option>
-              <option value="reactivado_seguimiento">Seguimiento</option>
-              <option value="inactiva">Inactiva</option>
-              <option value="reactivado_venta">Reactivando venta</option>
-            </select>
-          </div>
-
-          {/* Col 3: Fecha Inicio */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Desde (Fecha Alta)</label>
-            <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }} />
-          </div>
-
-          {/* Col 4: Fecha Fin */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hasta</label>
-            <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }} />
-          </div>
-
-          {/* Fila de Calidad de Datos — reemplaza los dos checkboxes anteriores */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', gridColumn: '1 / -1', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-            <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Calidad de Datos</label>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {[
-                { key: 'all',      label: 'Todos',    icon: 'fas fa-list',                 bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
-                { key: 'pesima',   label: 'Pésima',   icon: 'fas fa-skull',                bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' },
-                { key: 'mala',     label: 'Mala',     icon: 'fas fa-exclamation-triangle', bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-                { key: 'pendiente',label: 'Pendiente',icon: 'fas fa-clock',                bg: '#fefce8', color: '#ca8a04', border: '#fde047' },
-                { key: 'buena',    label: 'Buena',    icon: 'fas fa-check-circle',         bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
-                { key: 'activa',   label: 'Activa',   icon: 'fas fa-bolt',                 bg: '#eff6ff', color: '#2563eb', border: '#93c5fd' },
-              ].map(opt => {
-                const isActive = qualityFilter === opt.key;
-                return (
-                  <button
-                    key={opt.key}
-                    type="button"
-                    onClick={() => setQualityFilter(opt.key)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '5px 12px',
-                      borderRadius: '20px',
-                      border: `1.5px solid ${isActive ? opt.color : opt.border}`,
-                      background: isActive ? opt.color : opt.bg,
-                      color: isActive ? '#fff' : opt.color,
-                      fontWeight: '700',
-                      fontSize: '0.78rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      outline: 'none',
-                      boxShadow: isActive ? `0 2px 8px ${opt.color}33` : 'none'
-                    }}
-                  >
-                    <i className={opt.icon} style={{ fontSize: '0.7rem' }} />
-                    {opt.label}
-                  </button>
-                );
-              })}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '1rem'
+          }}>
+            {/* Col 1: Tipo */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tipo de Registro</label>
+              <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }}>
+                <option value="all">Todos los tipos</option>
+                <option value="empresa">Empresa</option>
+                <option value="desarrollo">Desarrollo</option>
+                <option value="contratista">Contratista</option>
+                <option value="cliente">Cliente SAE</option>
+              </select>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-              {(typeFilter !== 'all' || statusFilter !== 'all' || startDate || endDate || qualityFilter !== 'all') && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTypeFilter('all');
-                    setStatusFilter('all');
-                    setStartDate('');
-                    setEndDate('');
-                    setQualityFilter('all');
-                  }}
-                  style={{
-                    background: '#f1f5f9',
-                    color: '#475569',
-                    border: 'none',
-                    padding: '0.4rem 1rem',
-                    borderRadius: '6px',
-                    fontSize: '0.8rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  <i className="fas fa-trash-alt" /> Limpiar filtros
-                </button>
-              )}
+            {/* Col 2: Estado */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Estado</label>
+              <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }}>
+                <option value="all">Todos los estados</option>
+                <option value="activa">Activa</option>
+                <option value="pendiente_revision">Pendiente de Revisión</option>
+                <option value="reactivado_seguimiento">Seguimiento</option>
+                <option value="inactiva">Inactiva</option>
+                <option value="reactivado_venta">Reactivando venta</option>
+              </select>
             </div>
+
+            {/* Col 3: Fecha Inicio */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Desde (Fecha Alta)</label>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }} />
+            </div>
+
+            {/* Col 4: Fecha Fin */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hasta</label>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={{ padding: '0.5rem', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', background: '#fff', fontSize: '0.9rem' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+            {(typeFilter !== 'all' || statusFilter !== 'all' || startDate || endDate || qualityFilter !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setTypeFilter('all');
+                  setStatusFilter('all');
+                  setStartDate('');
+                  setEndDate('');
+                  setQualityFilter('all');
+                }}
+                style={{
+                  background: '#f1f5f9',
+                  color: '#475569',
+                  border: 'none',
+                  padding: '0.4rem 1rem',
+                  borderRadius: '6px',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <i className="fas fa-trash-alt" /> Limpiar filtros
+              </button>
+            )}
           </div>
         </div>
       )}

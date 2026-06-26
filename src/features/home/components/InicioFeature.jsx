@@ -12,7 +12,7 @@ import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaM
 import NotificacionesDrawer from './NotificacionesDrawer';
 import FichaEmpresaModal from '../../directory/components/FichaEmpresaModal';
 import FichaContactoModal from '../../directory/components/FichaContactoModal';
-import DetallesProspectoFeature from '../../leads/components/DetallesProspectoFeature';
+import DetallesNegociacionFeature from '../../leads/components/DetallesNegociacionFeature';
 
 export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpportunitiesList }) {
   // Controles de visibilidad

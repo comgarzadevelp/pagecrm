@@ -218,3 +218,26 @@ export const getVisitasByEntity = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al obtener historial de visitas.' });
   }
 };
+
+// GET /api/crm/visitas/my-activities
+export const getMyActivities = async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Usuario no autorizado.' });
+    }
+
+    const { data, error } = await supabase
+      .from('crm_visitas')
+      .select('*')
+      .eq('user_id', userId)
+      .order('timestamp_servidor', { ascending: false });
+
+    if (error) throw error;
+
+    res.json({ success: true, visitas: data || [] });
+  } catch (err) {
+    console.error('Error fetching my activities:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener tus actividades.' });
+  }
+};

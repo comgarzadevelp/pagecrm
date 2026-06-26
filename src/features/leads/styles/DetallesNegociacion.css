@@ -1,4 +1,4 @@
-/* src/pages/crm/components/DetallesProspecto.css */
+/* src/features/leads/styles/DetallesNegociacion.css */
 
 /* ── iOS Apple Modal Sheet (Overlay & Content) ── */
 .modal-overlay-glass {
@@ -484,4 +484,345 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* ── Rediseño de Ficha de Negociaciones (Seguimiento Unificado) ── */
+
+.client-info-card-premium {
+  background: rgba(248, 250, 252, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 4px;
+}
+
+.client-info-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+  padding-bottom: 8px;
+}
+
+.client-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .client-info-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .client-info-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.client-info-label {
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.client-info-value {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.client-info-input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.8rem;
+  box-sizing: border-box;
+  background: #ffffff;
+}
+
+.client-info-input:focus {
+  outline: none;
+  border-color: var(--color-brand-primary, #05393a);
+  box-shadow: 0 0 0 2px rgba(5, 57, 58, 0.1);
+}
+
+.negotiation-dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .negotiation-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-left-col,
+.dashboard-right-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dashboard-card {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01);
+}
+
+.card-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.card-sec-title {
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: #64748b;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+}
+
+.edit-req-btn-link {
+  background: transparent;
+  border: none;
+  color: var(--color-brand-primary, #05393a);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.15s ease;
+}
+
+.edit-req-btn-link:hover {
+  background: rgba(5, 57, 58, 0.05);
+}
+
+.dashboard-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.dashboard-textarea:focus {
+  outline: none;
+  border-color: var(--color-brand-primary, #05393a);
+}
+
+.dashboard-notes-text {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.status-assigned-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  background: rgba(248, 250, 252, 0.4);
+}
+
+.quotes-list-container {
+  max-height: 150px;
+  overflow-y: auto;
+  margin-top: 8px;
+  padding-right: 4px;
+}
+
+.quotes-list-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.quotes-list-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 499px;
+}
+
+.empty-quotes-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 0;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.quotes-mini-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quote-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.02);
+  border-radius: 8px;
+  transition: transform 0.1s ease, background 0.15s ease;
+}
+
+.quote-item-row:hover {
+  background: #f1f5f9;
+  transform: translateY(-1px);
+}
+
+.quote-item-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.quote-icon {
+  font-size: 1rem;
+  color: var(--color-brand-primary, #05393a);
+}
+
+.quote-number {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1e293b;
+  display: block;
+}
+
+.quote-date {
+  font-size: 0.65rem;
+  color: #64748b;
+  display: block;
+}
+
+.quote-amount {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Bitacora compact features */
+.bitacora-quick-form {
+  background: #f8fafc;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.form-row-compact {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.bitacora-type-select {
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #ffffff;
+}
+
+.visit-photo-upload-compact {
+  display: flex;
+  align-items: center;
+}
+
+.visit-photo-label-btn {
+  width: 26px;
+  height: 26px;
+  background: #e2e8f0;
+  color: #475569;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 0.75rem;
+  transition: background 0.15s ease;
+}
+
+.visit-photo-label-btn:hover {
+  background: #cbd5e1;
+}
+
+.bitacora-input-group {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.bitacora-textarea {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.8rem;
+  font-family: inherit;
+  resize: none;
+  box-sizing: border-box;
+}
+
+.bitacora-textarea:focus {
+  outline: none;
+  border-color: var(--color-brand-primary, #05393a);
+}
+
+.bitacora-submit-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-brand-primary, #05393a);
+  color: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+  padding: 0;
+}
+
+.bitacora-submit-btn:hover {
+  opacity: 0.9;
+}
+
+.empty-timeline-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 30px 0;
+  text-align: center;
 }

@@ -6,8 +6,9 @@ import { getLeadAgeInfo, getChannelBadgeInfo } from '../../../pages/crm/utils/le
 import '../styles/ProspectosKanban.css';
 import { validateQuotePDF } from '../../../pages/crm/utils/pdfValidator';
 import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
-import DetallesProspecto from '../../../pages/crm/components/DetallesProspecto';
+import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
+import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {
@@ -55,6 +56,14 @@ const compressImage = (file) => {
 
 import { useKanbanBoard, mapLeadStatus } from '../hooks/useKanbanBoard';
 
+const STAGE_EXPLANATIONS = {
+  nuevo: 'Negociaciones recién creadas o asignadas que están pendientes de primer contacto formal.',
+  contactado: 'Se ha establecido comunicación con el cliente para entender sus necesidades e iniciar pláticas.',
+  cotizando: 'Se ha estructurado y enviado una propuesta económica formal al cliente para su revisión.',
+  cierre_ganado: 'Venta ganada y exitosa. El cliente aceptó y se procedió a la orden de pedido.',
+  cierre_perdido: 'La oportunidad no prosperó debido a precio, competencia u otros factores comerciales.'
+};
+
 export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const { showToast, showConfirm } = useUX();
 
@@ -64,6 +73,15 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const [filterChannel, setFilterChannel] = useState('all');
   const [filterSeller, setFilterSeller] = useState('all');
   const [zoomColumnKey, setZoomColumnKey] = useState(null);
+  const [showFiltersPopover, setShowFiltersPopover] = useState(false);
+  const [expandedCards, setExpandedCards] = useState({});
+
+  useEffect(() => {
+    if (!showFiltersPopover) return;
+    const handleClose = () => setShowFiltersPopover(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, [showFiltersPopover]);
 
   // ── Kanban Board Hook ──
   const {
@@ -133,23 +151,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [leadToPromote, setLeadToPromote] = useState(null);
-  const [promoteForm, setPromoteForm] = useState({
-    contactName: '',
-    position: 'Contacto Comercial',
-    email: '',
-    phone: '',
-    phone_alt: '',
-    whatsapp: '',
-    notes: '',
-    companyMode: 'none',
-    linkExistingCompanyId: '',
-    newCompanyName: '',
-    newCompanyRfc: '',
-    newCompanyAddress: '',
-    newCompanyCity: '',
-    newCompanyState: '',
-    newCompanyNotes: ''
-  });
+  const [isClosingSubmitting, setIsClosingSubmitting] = useState(false);
 
   const [pendingReunionLead, setPendingReunionLead] = useState(null);
   const [isCancelReunionModalOpen, setIsCancelReunionModalOpen] = useState(false);
@@ -180,17 +182,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const [evidenceFile, setEvidenceFile] = useState(null);
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [evidenceError, setEvidenceError] = useState('');
-  const [existingCompanies, setExistingCompanies] = useState([]);
-  const [companySearchQuery, setCompanySearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-
   // ── Lead Detail Modal State ──
   const [selectedLead, setSelectedLead] = useState(null);
 
   // ── Mobile Specific State ──
   const [mobileActiveTab, setMobileActiveTab] = useState('nuevo');
-
-  // getLoggedInUserId moved to hook
 
   // Safe JSON extraction for notes field
   const parseLeadNotes = useCallback((notesString) => {
@@ -205,27 +201,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       return { general: notesString, timeline: [] };
     }
   }, []);
-
-  // Data fetching logic moved to useKanbanBoard
-
-  // Fetch companies for promote modal
-  const fetchCompanies = useCallback(async () => {
-    const headers = getAuthHeaders(null);
-    if (!headers) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/companies`, { headers });
-      const data = await handleFetchResponse(res);
-      if (data && data.success) {
-        setExistingCompanies(data.companies || []);
-      }
-    } catch (err) {
-      console.error('Error fetching companies:', err);
-    }
-  }, [API_BASE, getAuthHeaders, handleFetchResponse]);
-
-
-
-
 
   // Columns logic moved to useKanbanBoard
 
@@ -553,7 +528,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     return false; // Not intercepted
   };
 
-  const executeStageUpdate = async (leadId, targetStage) => {
+  const executeStageUpdate = async (leadId, targetStage, extraFields = {}) => {
     const leadToMove = leads.find(l => String(l.id) === String(leadId));
     if (!leadToMove) return;
     const prevStatus = leadToMove.status;
@@ -573,7 +548,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
         method: 'PUT',
         headers,
-        body: JSON.stringify({ stage: targetStage })
+        body: JSON.stringify({ stage: targetStage, ...extraFields })
       });
       const data = await handleFetchResponse(res);
       if (!data || !data.success) {
@@ -683,24 +658,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
         case 'cierre_ganado':
           setLeadToPromote(leadToMove);
-          setPromoteForm({
-            contactName: leadToMove.name || '',
-            position: 'Contacto Comercial',
-            email: leadToMove.email || '',
-            phone: leadToMove.phone || '',
-            phone_alt: '',
-            whatsapp: leadToMove.phone || '',
-            notes: leadToMove.notes || '',
-            companyMode: 'none',
-            linkExistingCompanyId: '',
-            newCompanyName: leadToMove.company || '',
-            newCompanyRfc: '',
-            newCompanyAddress: '',
-            newCompanyCity: '',
-            newCompanyState: '',
-            newCompanyNotes: ''
-          });
-          fetchCompanies();
           setPromoteModalOpen(true);
           break;
 
@@ -944,48 +901,24 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     }
   };
 
-  // Promote Lead to Contact
-  const handlePromoteSubmit = async (e) => {
-    e.preventDefault();
+  // Cierre Ganado Submit — recibe { finalValue, invoiceNumber, closingNotes } desde CierreGanadoModal
+  const handlePromoteSubmit = async ({ finalValue, invoiceNumber, closingNotes }) => {
     if (!leadToPromote) return;
-    const headers = getAuthHeaders();
-    if (!headers) return;
+    setIsClosingSubmitting(true);
     try {
-      const payload = {
-        contactName: promoteForm.contactName,
-        position: promoteForm.position,
-        email: promoteForm.email,
-        phone: promoteForm.phone,
-        phone_alt: promoteForm.phone_alt,
-        whatsapp: promoteForm.whatsapp,
-        notes: promoteForm.notes,
-        linkExistingCompanyId: promoteForm.companyMode === 'existing' ? promoteForm.linkExistingCompanyId : null,
-        newCompanyDetails: promoteForm.companyMode === 'new' ? {
-          name: promoteForm.newCompanyName,
-          rfc: promoteForm.newCompanyRfc,
-          address: promoteForm.newCompanyAddress,
-          city: promoteForm.newCompanyCity,
-          state: promoteForm.newCompanyState,
-          notes: promoteForm.newCompanyNotes
-        } : null
-      };
-
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadToPromote.id}/promote`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload)
+      await executeStageUpdate(leadToPromote.id, 'cierre_ganado', {
+        finalValue,
+        invoiceNumber,
+        closingNotes
       });
-      const data = await handleFetchResponse(res);
-      if (data && data.success) {
-        showToast('¡Lead promovido a Contacto exitosamente!', 'success');
-        await executeStageUpdate(leadToPromote.id, 'cierre_ganado');
-        setPromoteModalOpen(false);
-        setLeadToPromote(null);
-        fetchAllData();
-      }
+      setPromoteModalOpen(false);
+      setLeadToPromote(null);
+      fetchAllData();
     } catch (err) {
       console.error(err);
-      showToast('Error de conexión.', 'error');
+      showToast('Error al registrar el cierre ganado.', 'error');
+    } finally {
+      setIsClosingSubmitting(false);
     }
   };
 
@@ -1024,99 +957,262 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   return (
     <div className="prospectos-kanban-root">
 
-      {/* ── HEADER ── */}
-      <div className="kanban-header-section">
-        <div className="kanban-title-group">
-          <h1>Embudo de Ventas</h1>
-          <p>Organiza visualmente tus negociaciones en el embudo comercial</p>
+      {/* ── HEADER & FILTERS BAR (Consolidated & Compacted) ── */}
+      <div className="kanban-filters-bar glass" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.5rem 1.25rem', marginBottom: '0.75rem', borderRadius: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+          
+          {/* Search Box */}
+          <div className="search-box" style={{ flex: 1, maxWidth: '320px', position: 'relative' }}>
+            <i className="fas fa-search" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+            <input
+              type="text"
+              placeholder="Buscar por cliente..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '0.4rem 0.85rem 0.4rem 2.15rem',
+                background: '#ffffff',
+                border: '1px solid #cbd5e1',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                outline: 'none',
+                transition: 'all 0.2s ease',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* Single Filter Button with Popover */}
+          <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setShowFiltersPopover(!showFiltersPopover)}
+              style={{
+                background: showFiltersPopover ? 'var(--color-brand-primary)' : '#ffffff',
+                color: showFiltersPopover ? '#ffffff' : 'var(--color-brand-primary)',
+                border: '1px solid #cbd5e1',
+                padding: '0.4rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.78rem',
+                fontWeight: '700',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                transition: 'all 0.2s ease',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.02)',
+                height: '30px'
+              }}
+            >
+              <i className="fas fa-filter"></i> Filtros
+              {(filterChannel !== 'all' || filterSeller !== 'all') && (
+                <span style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  background: 'var(--color-brand-accent)',
+                  display: 'inline-block'
+                }} />
+              )}
+            </button>
+
+            {showFiltersPopover && (
+              <div 
+                className="glass" 
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 6px)',
+                  left: 0,
+                  width: '280px',
+                  background: 'rgba(255, 255, 255, 0.98)',
+                  backdropFilter: 'blur(16px)',
+                  WebkitBackdropFilter: 'blur(16px)',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                  padding: '1rem',
+                  zIndex: 1010,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '1rem',
+                  textAlign: 'left',
+                  animation: 'popoverScale 0.15s cubic-bezier(0.16, 1, 0.3, 1)'
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                  <strong style={{ fontSize: '0.85rem', color: '#1e293b' }}>Opciones de Filtrado</strong>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setFilterChannel('all');
+                      setFilterSeller('all');
+                    }}
+                    style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer' }}
+                  >
+                    Limpiar
+                  </button>
+                </div>
+
+                {/* Channel Selection */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Canal</label>
+                  <select
+                    value={filterChannel}
+                    onChange={(e) => setFilterChannel(e.target.value)}
+                    style={{
+                      padding: '0.45rem',
+                      borderRadius: '6px',
+                      border: '1px solid #cbd5e1',
+                      fontSize: '0.8rem',
+                      outline: 'none',
+                      background: '#ffffff',
+                      color: '#334155'
+                    }}
+                  >
+                    <option value="all">Todos los canales</option>
+                    <option value="whatsapp">WhatsApp (WA)</option>
+                    <option value="form">Formulario Web (WEB)</option>
+                    <option value="vendedor_manual">Registro Manual (MAN)</option>
+                  </select>
+                </div>
+
+                {/* Seller Selection */}
+                {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Vendedor</label>
+                    <select
+                      value={filterSeller}
+                      onChange={(e) => setFilterSeller(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.8rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                        color: '#334155'
+                      }}
+                    >
+                      <option value="all">Todos los vendedores</option>
+                      <option value="mine">Mis negociaciones</option>
+                      {sellers.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <button className="new-lead-btn" onClick={() => { setCreateLeadInitialNotes(''); setCreateModalOpen(true); }}>
+
+        <button 
+          className="new-lead-btn" 
+          onClick={() => { setCreateLeadInitialNotes(''); setCreateModalOpen(true); }}
+          style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', borderRadius: '8px', boxShadow: 'none' }}
+        >
           <i className="fas fa-plus"></i> Nueva Negociación
         </button>
       </div>
 
-      {/* ── FILTERS BAR ── */}
-      <div className="kanban-filters-bar glass">
-        <div className="filters-left">
-          <div className="search-input-wrapper">
-            <i className="fas fa-search"></i>
-            <input
-              type="text"
-              placeholder="Buscar por nombre, teléfono, empresa..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-          </div>
-
-          <div className="filter-dropdown-wrapper" style={{ position: 'relative' }}>
-            <select
-              value={filterChannel}
-              onChange={(e) => setFilterChannel(e.target.value)}
-              className="organize-btn"
-              style={{ padding: '0.65rem 1rem', cursor: 'pointer', appearance: 'none', paddingRight: '2rem' }}
-            >
-              <option value="all">Todos los canales</option>
-              <option value="whatsapp">WhatsApp (WA)</option>
-              <option value="form">Formulario Web (WEB)</option>
-              <option value="vendedor_manual">Registro Manual (MAN)</option>
-            </select>
-            <i className="fas fa-chevron-down" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.7rem', pointerEvents: 'none' }}></i>
-          </div>
-
-          {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
-            <div className="filter-dropdown-wrapper" style={{ position: 'relative' }}>
-              <select
-                value={filterSeller}
-                onChange={(e) => setFilterSeller(e.target.value)}
-                className="organize-btn"
-                style={{ padding: '0.65rem 1rem', cursor: 'pointer', appearance: 'none', paddingRight: '2rem' }}
-              >
-                <option value="all">Todos los vendedores</option>
-                <option value="mine">Mis negociaciones</option>
-                {sellers.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <i className="fas fa-chevron-down" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.7rem', pointerEvents: 'none' }}></i>
-            </div>
-          )}
-        </div>
-
-        <div className="filters-right">
-          <button
-            className={`organize-btn ${isReorderMode ? 'active' : ''}`}
-            onClick={() => setIsReorderMode(!isReorderMode)}
-            title="Reordenar las columnas del tablero"
-          >
-            <i className={isReorderMode ? "fas fa-check" : "fas fa-cog"}></i>
-            {isReorderMode ? "Listo" : "Organizar"}
-          </button>
-          <button className="new-stage-btn" onClick={() => setNewStageModalOpen(true)}>
-            <i className="fas fa-folder-plus"></i> Nueva Etapa
-          </button>
-        </div>
-      </div>
-
       {/* ── PIPELINE SUMMARY BAND (Zoom) ── */}
-      <div className="pipeline-summary-band glass">
-        <span style={{ fontSize: '0.75rem', fontWeight: '800', color: '#94a3b8', textTransform: 'uppercase', marginRight: '6px' }}>Zoom:</span>
-        <div
-          className={`summary-pill ${zoomColumnKey === null ? 'active' : ''}`}
+      <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', padding: '10px 16px', borderRadius: '100px', marginBottom: '0.5rem', minHeight: '52px', boxSizing: 'border-box' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '8px', letterSpacing: '0.05em' }}>Zoom:</span>
+        
+        {/* 'Todos' Pill */}
+        <button
+          type="button"
           onClick={() => setZoomColumnKey(null)}
+          style={{
+            padding: '0 14px',
+            height: '32px',
+            borderRadius: '100px',
+            fontSize: '0.78rem',
+            fontWeight: '700',
+            border: zoomColumnKey === null ? '1.5px solid #64748b' : '1.5px solid transparent',
+            background: zoomColumnKey === null ? 'rgba(100, 116, 139, 0.12)' : '#ffffff',
+            color: '#64748b',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            transition: 'all 0.2s ease',
+            outline: 'none',
+            boxSizing: 'border-box',
+            lineHeight: '1.2'
+          }}
         >
-          <span>Todos ({leads.length})</span>
-        </div>
+          <span>Todos</span>
+          <span style={{
+            background: zoomColumnKey === null ? '#64748b' : '#e2e8f0',
+            color: zoomColumnKey === null ? '#fff' : '#64748b',
+            fontSize: '0.68rem',
+            height: '18px',
+            minWidth: '20px',
+            padding: '0 6px',
+            borderRadius: '10px',
+            fontWeight: '850',
+            transition: 'all 0.2s ease',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            {leads.length}
+          </span>
+        </button>
+
+        {/* Column Specific Pills */}
         {columns.map(col => {
           const count = columnCounts[col.key] || 0;
+          const isActive = zoomColumnKey === col.key;
+          const softBgColor = `${col.color}12`; // ~7% opacity
+          
           return (
-            <div
+            <button
               key={col.key}
-              className={`summary-pill ${zoomColumnKey === col.key ? 'active' : ''}`}
-              onClick={() => setZoomColumnKey(zoomColumnKey === col.key ? null : col.key)}
+              type="button"
+              onClick={() => setZoomColumnKey(isActive ? null : col.key)}
+              style={{
+                padding: '0 14px',
+                height: '32px',
+                borderRadius: '100px',
+                fontSize: '0.78rem',
+                fontWeight: '700',
+                border: isActive ? `1.5px solid ${col.color}` : '1.5px solid transparent',
+                background: isActive ? softBgColor : '#ffffff',
+                color: isActive ? col.color : '#475569',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                transition: 'all 0.2s ease',
+                outline: 'none',
+                boxSizing: 'border-box',
+                lineHeight: '1.2'
+              }}
             >
-              <span className="summary-dot" style={{ backgroundColor: col.color }}></span>
-              <span>{col.label} ({count})</span>
-            </div>
+              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col.color }}></span>
+              <span>{col.label}</span>
+              <span style={{
+                background: isActive ? col.color : '#e2e8f0',
+                color: isActive ? '#fff' : '#64748b',
+                fontSize: '0.68rem',
+                height: '18px',
+                minWidth: '20px',
+                padding: '0 6px',
+                borderRadius: '10px',
+                fontWeight: '850',
+                transition: 'all 0.2s ease',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {count}
+              </span>
+            </button>
           );
         })}
       </div>
@@ -1206,6 +1302,12 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                         <i className="fas fa-lock col-header-grip" style={{ fontSize: '0.65rem', marginRight: '6px' }}></i>
                       )}
                       <span className="col-title">{col.label}</span>
+                      {STAGE_EXPLANATIONS[col.key] && (
+                        <div className="stage-tooltip-container">
+                          <i className="far fa-question-circle stage-tooltip-trigger"></i>
+                          <span className="stage-tooltip-text">{STAGE_EXPLANATIONS[col.key]}</span>
+                        </div>
+                      )}
                       <span
                         className={`col-badge-count ${countPulseCol === col.key ? 'animate-bounce' : ''}`}
                         style={{ backgroundColor: `${col.color}20`, color: col.color }}
@@ -1253,11 +1355,24 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                   >
                     {paginatedLeads.map((lead, index) => {
                       const channel = getChannelBadgeInfo(lead.type);
-                      const ageInfo = getLeadAgeInfo(lead.created_at, lead.notes);
+                      const ageInfo = getLeadAgeInfo(lead.created_at, lead.notes, lead.stage_updated_at);
 
-                      const slaClass = ageInfo.warning
-                        ? (new Date() - new Date(lead.created_at) > 7 * 24 * 60 * 60 * 1000 ? 'sla-warning-high' : 'sla-warning-medium')
-                        : '';
+                      const isFollowupCritical = ageInfo.followup.critical;
+                      const isFollowupWarning = ageInfo.followup.warning;
+                      const isStageCritical = ageInfo.stage.critical;
+                      const isStageWarning = ageInfo.stage.warning;
+
+                      const slaClass = isFollowupCritical 
+                        ? 'sla-warning-high' 
+                        : isFollowupWarning 
+                          ? 'sla-warning-medium' 
+                          : '';
+
+                      const stageClass = isStageCritical 
+                        ? 'stage-warning-high' 
+                        : isStageWarning 
+                          ? 'stage-warning-medium' 
+                          : '';
 
                       const isPulseActive = droppedCardPulse && String(droppedCardPulse.id) === String(lead.id);
 
@@ -1278,11 +1393,12 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
                       const requirementText = parsedNotes.requirement_title || 'Sin requerimiento';
                       const projectText = parsedNotes.project_name || 'Obra no especificada';
+                      const isExpanded = !!expandedCards[lead.id];
 
                       return (
                         <div
                           key={lead.id}
-                          className={`kanban-card glass ${slaClass} ${isPulseActive ? 'drop-pulse' : ''}`}
+                          className={`kanban-card glass ${slaClass} ${stageClass} ${isPulseActive ? 'drop-pulse' : ''}`}
                           onMouseDown={(e) => handleCardPointerDown(e, lead.id)}
                           style={{
                             cursor: 'grab',
@@ -1294,12 +1410,27 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             <span className="channel-badge" style={{ backgroundColor: channel.color }}>
                               {channel.label}
                             </span>
-                            <button
-                              className="card-menu-btn"
-                              onClick={(e) => openCardMenu(e, lead)}
-                            >
-                              <i className="fas fa-ellipsis-v"></i>
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <button
+                                type="button"
+                                className="card-menu-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedCards(prev => ({ ...prev, [lead.id]: !prev[lead.id] }));
+                                }}
+                                title={isExpanded ? "Colapsar información" : "Expandir información"}
+                                style={{ color: '#94a3b8', transition: 'transform 0.2s' }}
+                              >
+                                <i className={`fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
+                              </button>
+                              <button
+                                type="button"
+                                className="card-menu-btn"
+                                onClick={(e) => openCardMenu(e, lead)}
+                              >
+                                <i className="fas fa-ellipsis-v"></i>
+                              </button>
+                            </div>
                           </div>
 
                           <h3 className="card-lead-name" style={{ fontWeight: 800 }}>
@@ -1307,26 +1438,28 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             {requirementText}
                           </h3>
 
-                          <div className="card-entity-details" style={{ marginTop: '8px' }}>
-                            <p className="card-info-item" style={{ fontWeight: 600, color: '#334155' }}>
-                              <i className="fas fa-hard-hat" style={{ color: '#f59e0b' }}></i>
-                              <span>{projectText}</span>
-                            </p>
-                            <p className="card-company-name">
-                              <i className="fas fa-building" style={{ color: '#64748b' }}></i>
-                              <span>{lead.company || 'Sin empresa'}</span>
-                            </p>
-                            <p className="card-info-item">
-                              <i className="fas fa-user" style={{ color: '#64748b' }}></i>
-                              <span>{lead.name || 'Anónimo'}</span>
-                            </p>
-                            {parsedNotes.general && (
-                              <p className="card-note-preview">
-                                <i className="fas fa-sticky-note" style={{ color: '#94a3b8' }}></i>
-                                <span>{parsedNotes.general}</span>
+                          {isExpanded && (
+                            <div className="card-entity-details" style={{ marginTop: '8px', animation: 'fadeIn 0.2s ease' }}>
+                              <p className="card-info-item" style={{ fontWeight: 600, color: '#334155' }}>
+                                <i className="fas fa-hard-hat" style={{ color: '#f59e0b' }}></i>
+                                <span>{projectText}</span>
                               </p>
-                            )}
-                          </div>
+                              <p className="card-company-name">
+                                <i className="fas fa-building" style={{ color: '#64748b' }}></i>
+                                <span>{lead.company || 'Sin empresa'}</span>
+                              </p>
+                              <p className="card-info-item">
+                                <i className="fas fa-user" style={{ color: '#64748b' }}></i>
+                                <span>{lead.name || 'Anónimo'}</span>
+                              </p>
+                              {parsedNotes.general && (
+                                <p className="card-note-preview">
+                                  <i className="fas fa-sticky-note" style={{ color: '#94a3b8' }}></i>
+                                  <span>{parsedNotes.general}</span>
+                                </p>
+                              )}
+                            </div>
+                          )}
 
                           {lead.active_appointment && (
                             <div className="card-reunion-time" style={{
@@ -1346,19 +1479,27 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
                           <hr className="card-footer-divider" />
 
-                          <div className="card-footer-row">
-                            <div className="card-footer-left">
-                              <span className={`card-age-badge ${ageInfo.warning ? 'warning' : ''}`}>
-                                {ageInfo.warning && <i className="fas fa-exclamation-triangle"></i>}
-                                {ageInfo.text}
+                          <div className="card-footer-row" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '100%' }}>
+                              {/* Badge A: Inactividad de Seguimiento */}
+                              <span className={`card-age-badge ${ageInfo.followup.critical ? 'critical' : ageInfo.followup.warning ? 'warning' : ''}`} style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '650' }}>
+                                <i className={`far ${ageInfo.followup.critical ? 'fa-bell' : 'fa-clock'}`} style={{ marginRight: '3px' }}></i>
+                                Seg: {ageInfo.followup.text}
+                              </span>
+
+                              {/* Badge B: Tiempo en la Etapa */}
+                              <span className={`card-age-badge ${ageInfo.stage.critical ? 'critical-stage' : ageInfo.stage.warning ? 'warning-stage' : ''}`} style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '650' }}>
+                                <i className="fas fa-layer-group" style={{ marginRight: '3px' }}></i>
+                                Etapa: {ageInfo.stage.text}
                               </span>
                             </div>
 
-                            {/* Assignee initials */}
+                            {/* Assignee initials in row */}
                             {lead.assigned_to && (role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
                               <div
                                 className="card-assignee-avatar"
                                 title={`Asignado a: ${lead.assigned_to.name}`}
+                                style={{ marginTop: '4px', alignSelf: 'flex-end' }}
                               >
                                 {lead.assigned_to.name.substring(0, 1)}
                               </div>
@@ -1386,18 +1527,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             >
                               <i className="fas fa-phone-alt" style={{ color: '#0ea5e9' }}></i> Llamar
                             </button>
-                            {lead.status !== 'cierre_ganado' && (
-                              <button 
-                                className="btn-quick-action btn-promote-action" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setPromoteLeadData(lead);
-                                }}
-                                title="Promover"
-                              >
-                                <i className="fas fa-cog"></i> Promover
-                              </button>
-                            )}
                           </div>
                         </div>
                       );
@@ -1567,16 +1696,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                               setDiscardModalOpen(true);
                             } else if (col.key === 'cierre_ganado') {
                               setLeadToPromote(lead);
-                              setPromoteForm(prev => ({
-                                ...prev,
-                                contactName: lead.name || '',
-                                email: lead.email || '',
-                                phone: lead.phone || '',
-                                whatsapp: lead.phone || '',
-                                notes: lead.notes || '',
-                                newCompanyName: lead.company || ''
-                              }));
-                              fetchCompanies();
                               setPromoteModalOpen(true);
                             } else {
                               await executeStageUpdate(lead.id, col.key);
@@ -1596,21 +1715,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
               className="menu-item-btn"
               onClick={() => {
                 setLeadToPromote(cardMenuState.lead);
-                setPromoteForm(prev => ({
-                  ...prev,
-                  contactName: cardMenuState.lead.name || '',
-                  email: cardMenuState.lead.email || '',
-                  phone: cardMenuState.lead.phone || '',
-                  whatsapp: cardMenuState.lead.phone || '',
-                  notes: cardMenuState.lead.notes || '',
-                  newCompanyName: cardMenuState.lead.company || ''
-                }));
-                fetchCompanies();
                 setPromoteModalOpen(true);
                 setCardMenuState(null);
               }}
             >
-              <i className="fas fa-user-check"></i> Promover a Contacto
+              <i className="fas fa-handshake"></i> Registrar Cierre Ganado
             </button>
 
             <button
@@ -1752,211 +1861,14 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
         </div>
       )}
 
-      {/* 4. Promote Lead to Contact Modal */}
-      {promoteModalOpen && leadToPromote && (
-        <div className="modal-overlay-glass" style={{ zIndex: 11000 }}>
-          <div className="modal-content-glass" style={{ maxWidth: '600px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header-row">
-              <h2>Registrar Cierre Ganado</h2>
-              <button className="modal-close-btn" onClick={() => setPromoteModalOpen(false)}>&times;</button>
-            </div>
-
-            <form onSubmit={handlePromoteSubmit} className="modal-body-form" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
-              <h4 style={{ color: 'var(--color-brand-primary)', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '4px', margin: '0 0 4px 0' }}>Datos del Contacto</h4>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="form-group-custom">
-                  <label>Nombre Completo</label>
-                  <input
-                    type="text"
-                    value={promoteForm.contactName}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, contactName: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group-custom">
-                  <label>Puesto</label>
-                  <input
-                    type="text"
-                    value={promoteForm.position}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, position: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group-custom">
-                  <label>Correo Electrónico</label>
-                  <input
-                    type="email"
-                    value={promoteForm.email}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, email: e.target.value })}
-                  />
-                </div>
-                <div className="form-group-custom">
-                  <label>Teléfono Principal</label>
-                  <input
-                    type="text"
-                    value={promoteForm.phone}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, phone: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group-custom">
-                  <label>Teléfono Alterno</label>
-                  <input
-                    type="text"
-                    value={promoteForm.phone_alt}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, phone_alt: e.target.value })}
-                  />
-                </div>
-                <div className="form-group-custom">
-                  <label>WhatsApp Linkable</label>
-                  <input
-                    type="text"
-                    value={promoteForm.whatsapp}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, whatsapp: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group-custom">
-                <label>Observaciones / Notas de Promoción</label>
-                <textarea
-                  rows="2"
-                  value={promoteForm.notes}
-                  onChange={(e) => setPromoteForm({ ...promoteForm, notes: e.target.value })}
-                />
-              </div>
-
-              <h4 style={{ color: 'var(--color-brand-primary)', borderBottom: '1px solid rgba(0,0,0,0.06)', paddingBottom: '4px', margin: '12px 0 4px 0' }}>Vínculo Organizacional</h4>
-
-              <div style={{ display: 'flex', gap: '16px', margin: '4px 0' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input
-                    type="radio"
-                    name="companyMode"
-                    value="none"
-                    checked={promoteForm.companyMode === 'none'}
-                    onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'none' })}
-                  />
-                  Ninguna
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input
-                    type="radio"
-                    name="companyMode"
-                    value="existing"
-                    checked={promoteForm.companyMode === 'existing'}
-                    onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'existing' })}
-                  />
-                  Empresa existente
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                  <input
-                    type="radio"
-                    name="companyMode"
-                    value="new"
-                    checked={promoteForm.companyMode === 'new'}
-                    onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'new' })}
-                  />
-                  Nueva empresa
-                </label>
-              </div>
-
-              {promoteForm.companyMode === 'existing' && (
-                <div className="form-group-custom" style={{ position: 'relative' }}>
-                  <label>Buscar Empresa</label>
-                  <input
-                    type="text"
-                    placeholder="Escribe para buscar..."
-                    value={companySearchQuery}
-                    onChange={(e) => {
-                      setCompanySearchQuery(e.target.value);
-                      setShowSuggestions(true);
-                    }}
-                    onFocus={() => setShowSuggestions(true)}
-                  />
-                  {showSuggestions && companySearchQuery.trim() && (
-                    <div style={{
-                      position: 'absolute', top: '100%', left: 0, right: 0,
-                      background: '#fff', border: '1px solid #cbd5e1', borderRadius: '8px',
-                      zIndex: 12000, maxHeight: '150px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                    }}>
-                      {existingCompanies
-                        .filter(c => c.name && c.name.toLowerCase().includes(companySearchQuery.toLowerCase()))
-                        .map(c => (
-                          <div
-                            key={c.id}
-                            onClick={() => {
-                              setPromoteForm({ ...promoteForm, linkExistingCompanyId: c.id });
-                              setCompanySearchQuery(c.name);
-                              setShowSuggestions(false);
-                            }}
-                            style={{ padding: '8px 12px', cursor: 'pointer', fontSize: '0.85rem', borderBottom: '1px solid #f1f5f9' }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <strong>{c.name}</strong> {c.alias && `(${c.alias})`}
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {promoteForm.companyMode === 'new' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <div className="form-group-custom">
-                    <label>Nombre de la Empresa</label>
-                    <input
-                      type="text"
-                      value={promoteForm.newCompanyName}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="form-group-custom">
-                    <label>RFC (Opcional)</label>
-                    <input
-                      type="text"
-                      value={promoteForm.newCompanyRfc}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyRfc: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group-custom" style={{ gridColumn: 'span 2' }}>
-                    <label>Dirección completa</label>
-                    <input
-                      type="text"
-                      value={promoteForm.newCompanyAddress}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyAddress: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group-custom">
-                    <label>Ciudad</label>
-                    <input
-                      type="text"
-                      value={promoteForm.newCompanyCity}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyCity: e.target.value })}
-                    />
-                  </div>
-                  <div className="form-group-custom">
-                    <label>Estado</label>
-                    <input
-                      type="text"
-                      value={promoteForm.newCompanyState}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyState: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="modal-footer-actions">
-                <button type="button" className="cancel-modal-btn" onClick={() => setPromoteModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="submit-modal-btn" style={{ backgroundColor: '#16a34a' }}>Promover a Contacto</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* 4. Registrar Cierre Ganado Modal */}
+      <CierreGanadoModal
+        isOpen={promoteModalOpen && !!leadToPromote}
+        lead={leadToPromote}
+        onClose={() => { setPromoteModalOpen(false); setLeadToPromote(null); }}
+        onConfirm={handlePromoteSubmit}
+        isSubmitting={isClosingSubmitting}
+      />
 
       {/* 5. Custom Stages Deletion Transfer Modal */}
       {stageToDelete && (
@@ -2003,7 +1915,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       )}
 
       {/* 6. Lead Detail Modal */}
-      <DetallesProspecto
+      <DetallesNegociacion
         isOpen={!!selectedLead}
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
@@ -2025,24 +1937,6 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             setSelectedLead(null);
           } else if (specialStage === 'cierre_ganado') {
             setLeadToPromote(leadObj);
-            setPromoteForm({
-              contactName: leadObj.name || '',
-              position: 'Contacto Comercial',
-              email: leadObj.email || '',
-              phone: leadObj.phone || '',
-              phone_alt: '',
-              whatsapp: leadObj.phone || '',
-              notes: leadObj.notes || '',
-              companyMode: 'none',
-              linkExistingCompanyId: '',
-              newCompanyName: leadObj.company || '',
-              newCompanyRfc: '',
-              newCompanyAddress: '',
-              newCompanyCity: '',
-              newCompanyState: '',
-              newCompanyNotes: ''
-            });
-            fetchCompanies();
             setPromoteModalOpen(true);
             setSelectedLead(null);
           }

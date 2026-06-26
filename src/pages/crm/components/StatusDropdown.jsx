@@ -17,11 +17,11 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
   const cleanStatus = mapLeadStatus(currentStatus);
 
   const options = [
-    { value: 'nuevo', label: 'Bandeja de Entrada', color: '#0086c0' },
-    { value: 'contactado', label: 'En Negociación', color: '#ffcb00', textColor: '#000' },
-    { value: 'cotizando', label: 'Cotización', color: '#7c3aed' },
-    { value: 'cierre_ganado', label: 'Cierre Ganado', color: '#16a34a' },
-    { value: 'cierre_perdido', label: 'Cierre Perdido', color: '#dc2626' },
+    { value: 'nuevo', label: 'Nueva negociación', color: '#0086c0' },
+    { value: 'contactado', label: 'En plática con cliente', color: '#ffcb00', textColor: '#000' },
+    { value: 'cotizando', label: 'Se le hizo cotización', color: '#7c3aed' },
+    { value: 'cierre_ganado', label: 'Venta Exitosa', color: '#16a34a' },
+    { value: 'cierre_perdido', label: 'Venta perdida', color: '#dc2626' },
     ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name, color: s.color })),
     { value: 'descartado', label: 'Descartado', color: '#e2445c' }
   ];
@@ -45,14 +45,14 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
   }, [isOpen, onOpenChange]);
 
   return (
-    <div className="status-dropdown-wrapper" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: '130px' }}>
+    <div className="status-dropdown-wrapper" onClick={(e) => e.stopPropagation()} style={{ position: 'relative', width: '155px' }}>
       <button
         type="button"
         className={`status-dropdown-trigger-btn ${currentStatus}`}
         onClick={handleToggle}
         style={{
           width: '100%',
-          padding: '0.55rem 1rem',
+          padding: '0.55rem 0.85rem',
           borderRadius: '6px',
           fontSize: '0.75rem',
           fontWeight: '800',
@@ -67,7 +67,8 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          gap: '6px'
+          gap: '6px',
+          whiteSpace: 'nowrap'
         }}
       >
         {activeOption.label} <i className={`fas fa-chevron-${isOpen ? 'up' : 'down'}`} style={{ fontSize: '0.65rem' }}></i>

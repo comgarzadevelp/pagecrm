@@ -6,8 +6,9 @@ import '../styles/LeadsBandeja.css';
 import '../styles/ProspectosKanban.css';
 import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../../../pages/crm/utils/leadHelpers';
 import StatusDropdown from '../../../pages/crm/components/StatusDropdown';
-import DetallesProspecto from '../../../pages/crm/components/DetallesProspecto';
+import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
+import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
 
 // Sleek Custom Dropdown for general Filters
 function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth = false }) {
@@ -155,9 +156,18 @@ export default function LeadsBandejaFeature({
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [dateFilter, setDateFilter] = useState('this-month');
+  const [showFiltersPopover, setShowFiltersPopover] = useState(false);
   const [openDropdownLeadId, setOpenDropdownLeadId] = useState(null);
 
   const [selectedLead, setSelectedLead] = useState(null);
+
+  useEffect(() => {
+    if (!showFiltersPopover) return;
+    const handleClose = () => setShowFiltersPopover(false);
+    window.addEventListener('click', handleClose);
+    return () => window.removeEventListener('click', handleClose);
+  }, [showFiltersPopover]);
 
   // States for custom stages
   const [customStages, setCustomStages] = useState([]);
@@ -296,26 +306,10 @@ export default function LeadsBandejaFeature({
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
   // States for Promotion & Discarding Flow
-  const [existingCompanies, setExistingCompanies] = useState([]);
   const [promoteModalOpen, setPromoteModalOpen] = useState(false);
   const [leadToPromote, setLeadToPromote] = useState(null);
-  const [promoteForm, setPromoteForm] = useState({
-    contactName: '',
-    position: 'Contacto Comercial',
-    email: '',
-    phone: '',
-    phone_alt: '',
-    whatsapp: '',
-    notes: '',
-    companyMode: 'none',
-    linkExistingCompanyId: '',
-    newCompanyName: '',
-    newCompanyRfc: '',
-    newCompanyAddress: '',
-    newCompanyCity: '',
-    newCompanyState: '',
-    newCompanyNotes: ''
-  });
+  const [isClosingSubmitting, setIsClosingSubmitting] = useState(false);
+
 
   const [discardModalOpen, setDiscardModalOpen] = useState(false);
   const [leadToDiscard, setLeadToDiscard] = useState(null);
@@ -323,67 +317,38 @@ export default function LeadsBandejaFeature({
     reason: 'Sin presupuesto / Muy caro',
     comment: ''
   });
-  const [companySearchQuery, setCompanySearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const fetchCompanies = async () => {
+
+
+
+  // Cierre Ganado Submit — recibe { finalValue, invoiceNumber, closingNotes } desde CierreGanadoModal
+  const handlePromoteSubmit = async ({ finalValue, invoiceNumber, closingNotes }) => {
+    if (!leadToPromote) return;
     const token = localStorage.getItem('token');
+    setIsClosingSubmitting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/crm/companies`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setExistingCompanies(data.companies || []);
-      }
-    } catch (err) {
-      console.error('Error fetching companies:', err);
-    }
-  };
-
-  const handlePromoteSubmit = async (e) => {
-    e.preventDefault();
-    const token = localStorage.getItem('token');
-    try {
-      const payload = {
-        contactName: promoteForm.contactName,
-        position: promoteForm.position,
-        email: promoteForm.email,
-        phone: promoteForm.phone,
-        phone_alt: promoteForm.phone_alt,
-        whatsapp: promoteForm.whatsapp,
-        notes: promoteForm.notes,
-        linkExistingCompanyId: promoteForm.companyMode === 'existing' ? promoteForm.linkExistingCompanyId : null,
-        newCompanyDetails: promoteForm.companyMode === 'new' ? {
-          name: promoteForm.newCompanyName,
-          rfc: promoteForm.newCompanyRfc,
-          address: promoteForm.newCompanyAddress,
-          city: promoteForm.newCompanyCity,
-          state: promoteForm.newCompanyState,
-          notes: promoteForm.newCompanyNotes
-        } : null
-      };
-
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadToPromote.id}/promote`, {
-        method: 'POST',
+      const res = await fetch(`${API_BASE}/api/crm/leads/${leadToPromote.id}/stage`, {
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ stage: 'cierre_ganado', finalValue, invoiceNumber, closingNotes })
       });
       const data = await res.json();
-      if (res.ok) {
-        showToast('¡Lead promovido a Contacto exitosamente!', 'success');
+      if (res.ok && data.success) {
+        showToast('¡Cierre registrado exitosamente!', 'success');
         setPromoteModalOpen(false);
         setLeadToPromote(null);
         if (fetchLeads) fetchLeads();
       } else {
-        showToast('Error al promover lead: ' + data.message, 'error');
+        showToast(data.message || 'Error al registrar el cierre.', 'error');
       }
     } catch (err) {
-      console.error('Promote lead error:', err);
+      console.error('CierreGanado error:', err);
       showToast('Error de conexión con el servidor.', 'error');
+    } finally {
+      setIsClosingSubmitting(false);
     }
   };
 
@@ -439,36 +404,50 @@ export default function LeadsBandejaFeature({
   useEffect(() => {
     let result = [...leads];
 
-    // 1. Tab selector filter: Todos, Mis leads, or Asignados
-    if (activeTab === 'mis-leads') {
-      result = result.filter(l => l.type === 'vendedor_manual');
-    } else if (activeTab === 'asignados') {
-      result = result.filter(l => l.type !== 'vendedor_manual');
-    }
-
-    // 2. Text Search filter
+    // 1. Text Search filter (Searches exclusively by Client Name)
     if (debouncedSearchTerm.trim()) {
       const term = debouncedSearchTerm.toLowerCase();
       result = result.filter(l =>
-        (l.name && l.name.toLowerCase().includes(term)) ||
-        (l.email && l.email.toLowerCase().includes(term)) ||
-        (l.phone && l.phone.includes(term)) ||
-        (l.company && l.company.toLowerCase().includes(term))
+        l.name && l.name.toLowerCase().includes(term)
       );
     }
 
-    // 3. Channel filter
+    // 2. Channel filter
     if (typeFilter !== 'all') {
       result = result.filter(l => l.type === typeFilter);
     }
 
-    // 4. Status filter
+    // 3. Status filter
     if (statusFilter !== 'all') {
       result = result.filter(l => l.status === statusFilter);
     }
 
+    // 4. Date filter (Default: Creados este mes)
+    const now = new Date();
+    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    const startOfThisYear = new Date(now.getFullYear(), 0, 1);
+
+    if (dateFilter === 'this-month') {
+      result = result.filter(l => {
+        const d = new Date(l.created_at || l.updated_at);
+        return d >= startOfThisMonth;
+      });
+    } else if (dateFilter === 'last-month') {
+      result = result.filter(l => {
+        const d = new Date(l.created_at || l.updated_at);
+        return d >= startOfLastMonth && d <= endOfLastMonth;
+      });
+    } else if (dateFilter === 'this-year') {
+      result = result.filter(l => {
+        const d = new Date(l.created_at || l.updated_at);
+        return d >= startOfThisYear;
+      });
+    } // 'all' displays all past/present leads without restriction
+
     setLocalFiltered(result);
-  }, [leads, debouncedSearchTerm, typeFilter, statusFilter, activeTab]);
+  }, [leads, debouncedSearchTerm, typeFilter, statusFilter, dateFilter]);
 
   let selectedLeadNotesText = '';
   if (selectedLead) {
@@ -482,34 +461,35 @@ export default function LeadsBandejaFeature({
 
   return (
     <>
-      {/* Toggle button to collapse/expand stats */}
-      <div className="crm-stats-toggle-container hide-on-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
-        <button
-          type="button"
-          onClick={() => setShowStats(!showStats)}
-          style={{
-            background: 'rgba(255, 255, 255, 0.8)',
-            backdropFilter: 'blur(8px)',
-            border: '1px solid rgba(15, 23, 42, 0.08)',
-            padding: '0.55rem 1.1rem',
-            borderRadius: '10px',
-            fontSize: '0.8rem',
-            fontWeight: '700',
-            color: 'var(--color-brand-primary)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = '#ffffff'; e.currentTarget.style.borderColor = 'var(--color-brand-primary)'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)'; e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)'; }}
-        >
-          <i className={showStats ? "fas fa-eye-slash" : "fas fa-chart-bar"}></i>
-          {showStats ? 'Ocultar Resumen' : 'Ver Resumen'}
-        </button>
-      </div>
+      {/* Inline styles to reduce dead space and optimize layout density */}
+      <style>{`
+        .crm-table-container.glass {
+          padding: 1.25rem !important;
+          margin-bottom: 1.25rem !important;
+        }
+        .crm-table-header {
+          margin-bottom: 1rem !important;
+        }
+        .segmented-tab-bar {
+          margin-bottom: 1rem !important;
+        }
+        .crm-filters-bar {
+          gap: 1rem !important;
+        }
+        .crm-stats-grid {
+          margin-bottom: 1rem !important;
+          gap: 12px !important;
+        }
+        .crm-stat-card {
+          padding: 0.85rem !important;
+        }
+        .directory-panel-container {
+          gap: 0.85rem !important;
+        }
+        .directory-switch-wrapper {
+          margin: 0.25rem auto 0.75rem !important;
+        }
+      `}</style>
 
       {/* ── PREMIUM LEADS DASHBOARD STATS GRID ── */}
       <section 
@@ -523,7 +503,15 @@ export default function LeadsBandejaFeature({
           pointerEvents: showStats ? 'auto' : 'none'
         }}
       >
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'all' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('all')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'all' ? '2px solid var(--color-brand-accent)' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
           <div className="stat-val-box">
             <h3>{leads.length}</h3>
@@ -531,15 +519,31 @@ export default function LeadsBandejaFeature({
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'nuevo' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('nuevo')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'nuevo' ? '2px solid #0086c0' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box total" style={{ color: '#0086c0', background: 'rgba(0, 134, 192, 0.08)' }}><i className="fas fa-folder-plus"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'nuevo').length}</h3>
-            <p>Bandeja de entrada</p>
+            <p>Nuevas</p>
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'contactado' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('contactado')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'contactado' ? '2px solid #d97706' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box contact" style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.08)' }}><i className="fas fa-comments"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'contactado').length}</h3>
@@ -547,7 +551,15 @@ export default function LeadsBandejaFeature({
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'cotizando' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('cotizando')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'cotizando' ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
@@ -555,7 +567,15 @@ export default function LeadsBandejaFeature({
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'cierre_ganado' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('cierre_ganado')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'cierre_ganado' ? '2px solid #16a34a' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
@@ -563,7 +583,15 @@ export default function LeadsBandejaFeature({
           </div>
         </div>
 
-        <div className="crm-stat-card glass">
+        <div 
+          className={`crm-stat-card glass ${statusFilter === 'cierre_perdido' ? 'active' : ''}`}
+          onClick={() => setStatusFilter('cierre_perdido')}
+          style={{ 
+            cursor: 'pointer',
+            border: statusFilter === 'cierre_perdido' ? '2px solid #dc2626' : '1px solid rgba(255, 255, 255, 0.7)',
+            transition: 'all 0.2s ease'
+          }}
+        >
           <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
@@ -571,16 +599,24 @@ export default function LeadsBandejaFeature({
           </div>
         </div>
 
-
-
         {/* Dynamic cards for each custom stage */}
         {customStages.map(stage => {
           const count = leads.filter(l => l.status === stage.name.toLowerCase()).length;
+          const isCurrent = statusFilter === stage.name.toLowerCase();
           return (
             <div 
               key={stage.id} 
-              className="crm-stat-card glass" 
-              style={{ borderLeft: `4px solid ${stage.color}`, position: 'relative' }}
+              className={`crm-stat-card glass ${isCurrent ? 'active' : ''}`} 
+              onClick={() => setStatusFilter(stage.name.toLowerCase())}
+              style={{ 
+                borderLeft: `4px solid ${stage.color}`, 
+                position: 'relative',
+                cursor: 'pointer',
+                borderTop: isCurrent ? `2px solid ${stage.color}` : '1px solid rgba(255, 255, 255, 0.7)',
+                borderRight: isCurrent ? `2px solid ${stage.color}` : '1px solid rgba(255, 255, 255, 0.7)',
+                borderBottom: isCurrent ? `2px solid ${stage.color}` : '1px solid rgba(255, 255, 255, 0.7)',
+                transition: 'all 0.2s ease'
+              }}
             >
               <button
                 type="button"
@@ -631,29 +667,44 @@ export default function LeadsBandejaFeature({
       <section className="crm-table-container glass">
         <div className="crm-table-header">
           <div className="crm-title-actions-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-            <h2 style={{ margin: 0, borderLeft: '4px solid var(--color-brand-accent)', paddingLeft: '0.8rem' }}>Bandeja de Entrada de Negociaciones</h2>
+            <h2 style={{ margin: 0, borderLeft: '4px solid var(--color-brand-accent)', paddingLeft: '0.8rem' }}>Mis Negociaciones</h2>
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 type="button"
-                className="btn-add-custom-stage"
-                onClick={() => setNewStageModalOpen(true)}
+                onClick={() => setShowStats(!showStats)}
                 style={{
-                  background: 'transparent',
-                  color: 'var(--color-brand-primary)',
-                  border: '1px solid var(--color-brand-primary)',
+                  background: showStats ? 'var(--color-brand-primary)' : 'rgba(255, 255, 255, 0.8)',
+                  backdropFilter: 'blur(8px)',
+                  border: '1px solid rgba(15, 23, 42, 0.08)',
                   padding: '0.65rem 1.2rem',
                   borderRadius: '10px',
-                  fontWeight: '700',
                   fontSize: '0.85rem',
+                  fontWeight: '700',
+                  color: showStats ? '#ffffff' : 'var(--color-brand-primary)',
                   cursor: 'pointer',
-                  transition: 'all 0.2s ease',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.5rem'
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)'
+                }}
+                onMouseEnter={(e) => {
+                  if (!showStats) {
+                    e.currentTarget.style.background = '#ffffff';
+                    e.currentTarget.style.borderColor = 'var(--color-brand-primary)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!showStats) {
+                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.8)';
+                    e.currentTarget.style.borderColor = 'rgba(15, 23, 42, 0.08)';
+                  }
                 }}
               >
-                <i className="fas fa-tags"></i> + Crear Etapa
+                <i className={showStats ? "fas fa-eye-slash" : "fas fa-chart-bar"}></i>
+                {showStats ? 'Ocultar Resumen' : 'Ver Resumen'}
               </button>
+
               <button
                 type="button"
                 className="btn-new-lead-header"
@@ -664,128 +715,176 @@ export default function LeadsBandejaFeature({
             </div>
           </div>
 
-          {/* iOS style segmented controls for active tab */}
-          <div className="segmented-tab-bar" style={{ display: 'flex', background: 'rgba(5, 57, 58, 0.05)', padding: '4px', borderRadius: '12px', marginBottom: '1.5rem', maxWidth: '600px' }}>
-            <button
-              type="button"
-              className={`segmented-tab-btn ${activeTab === 'todos' ? 'active' : ''}`}
-              onClick={() => setActiveTab('todos')}
-              style={{
-                flex: 1,
-                border: 'none',
-                background: activeTab === 'todos' ? '#ffffff' : 'transparent',
-                color: activeTab === 'todos' ? 'var(--color-brand-primary)' : '#64748b',
-                padding: '0.6rem',
-                borderRadius: '8px',
-                fontWeight: '700',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: activeTab === 'todos' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <i className="fas fa-users"></i> Todas las Negociaciones
-              <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'todos' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'todos' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
-                {leads.length}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`segmented-tab-btn ${activeTab === 'mis-leads' ? 'active' : ''}`}
-              onClick={() => setActiveTab('mis-leads')}
-              style={{
-                flex: 1,
-                border: 'none',
-                background: activeTab === 'mis-leads' ? '#ffffff' : 'transparent',
-                color: activeTab === 'mis-leads' ? 'var(--color-brand-primary)' : '#64748b',
-                padding: '0.6rem',
-                borderRadius: '8px',
-                fontWeight: '700',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: activeTab === 'mis-leads' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <i className="fas fa-user-tie"></i> Mis Negociaciones
-              <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'mis-leads' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'mis-leads' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
-                {leads.filter(l => l.type === 'vendedor_manual').length}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`segmented-tab-btn ${activeTab === 'asignados' ? 'active' : ''}`}
-              onClick={() => setActiveTab('asignados')}
-              style={{
-                flex: 1,
-                border: 'none',
-                background: activeTab === 'asignados' ? '#ffffff' : 'transparent',
-                color: activeTab === 'asignados' ? 'var(--color-brand-primary)' : '#64748b',
-                padding: '0.6rem',
-                borderRadius: '8px',
-                fontWeight: '700',
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                boxShadow: activeTab === 'asignados' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
-                transition: 'all 0.2s ease',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px'
-              }}
-            >
-              <i className="fas fa-sign-in-alt"></i> Asignados por Sistema
-              <span className="tab-count-badge" style={{ fontSize: '0.75rem', padding: '1px 6px', borderRadius: '10px', background: activeTab === 'asignados' ? 'var(--color-brand-primary)' : '#cbd5e1', color: activeTab === 'asignados' ? '#ffffff' : '#475569', fontWeight: 'bold' }}>
-                {leads.filter(l => l.type !== 'vendedor_manual').length}
-              </span>
-            </button>
-          </div>
-
-          <div className="crm-filters-bar">
-            <div className="search-box">
-              <i className="fas fa-search"></i>
+          {/* Unified Filters Row (Search + Filter Popover Inline) */}
+          <div className="crm-filters-row" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+            {/* Search Box */}
+            <div className="search-box" style={{ flex: 1, maxWidth: '400px', position: 'relative' }}>
+              <i className="fas fa-search" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.85rem' }}></i>
               <input
                 type="text"
-                placeholder="Buscar por nombre, correo, empresa o tel..."
+                placeholder="Buscar por cliente..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '0.45rem 1rem 0.45rem 2.4rem',
+                  background: '#ffffff',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  transition: 'all 0.2s ease'
+                }}
               />
             </div>
 
-            <div className="filter-select-group" style={{ display: 'flex', gap: '0.85rem' }}>
-              <CustomFilterDropdown
-                value={typeFilter}
-                options={[
-                  { value: 'all', label: 'Todos los canales' },
-                  { value: 'contact_form', label: 'Formulario Web B2B' },
-                  { value: 'popup_whatsapp', label: 'Popup WhatsApp Rápido' },
-                  { value: 'vendedor_manual', label: 'Creado por Vendedor' }
-                ]}
-                onChange={(val) => setTypeFilter(val)}
-                placeholder="Todos los canales"
-              />
+            {/* Single Filter Button with Popover */}
+            <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onClick={() => setShowFiltersPopover(!showFiltersPopover)}
+                style={{
+                  background: showFiltersPopover ? 'var(--color-brand-primary)' : '#ffffff',
+                  color: showFiltersPopover ? '#ffffff' : 'var(--color-brand-primary)',
+                  border: '1px solid #cbd5e1',
+                  padding: '0.45rem 1rem',
+                  borderRadius: '8px',
+                  fontSize: '0.8rem',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
+                  height: '34px'
+                }}
+              >
+                <i className="fas fa-filter"></i> Filtros
+                {(typeFilter !== 'all' || statusFilter !== 'all' || dateFilter !== 'this-month') && (
+                  <span style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: 'var(--color-brand-accent)',
+                    display: 'inline-block'
+                  }} />
+                )}
+              </button>
 
-              <CustomFilterDropdown
-                value={statusFilter}
-                options={[
-                  { value: 'all', label: 'Todos los estados' },
-                  { value: 'nuevo', label: 'Bandeja de entrada' },
-                  { value: 'contactado', label: 'En negociación' },
-                  { value: 'cierre_ganado', label: 'Cierre Ganado' },
-                  { value: 'cierre_perdido', label: 'Cierre Perdido' },
-                  ...customStages.map(s => ({ value: s.name.toLowerCase(), label: s.name }))
-                ]}
-                onChange={(val) => setStatusFilter(val)}
-                placeholder="Todos los estados"
-              />
+              {showFiltersPopover && (
+                <div 
+                  className="glass" 
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    left: 0,
+                    width: '280px',
+                    background: 'rgba(255, 255, 255, 0.98)',
+                    backdropFilter: 'blur(16px)',
+                    WebkitBackdropFilter: 'blur(16px)',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1)',
+                    padding: '1rem',
+                    zIndex: 1010,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '1rem',
+                    textAlign: 'left',
+                    animation: 'popoverScale 0.15s cubic-bezier(0.16, 1, 0.3, 1)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+                    <strong style={{ fontSize: '0.85rem', color: '#1e293b' }}>Opciones de Filtrado</strong>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        setTypeFilter('all');
+                        setStatusFilter('all');
+                        setDateFilter('this-month');
+                      }}
+                      style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer' }}
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+
+                  {/* Date Filter Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Rango de Creación</label>
+                    <select
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.8rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                        color: '#334155'
+                      }}
+                    >
+                      <option value="this-month">Creados este mes (Por defecto)</option>
+                      <option value="last-month">Creados el mes pasado</option>
+                      <option value="this-year">Creados este año</option>
+                      <option value="all">Ver todo (Negociaciones pasadas)</option>
+                    </select>
+                  </div>
+
+                  {/* Channel Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Canal</label>
+                    <select
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.8rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                        color: '#334155'
+                      }}
+                    >
+                      <option value="all">Todos los canales</option>
+                      <option value="contact_form">Formulario Web B2B</option>
+                      <option value="popup_whatsapp">Popup WhatsApp Rápido</option>
+                      <option value="vendedor_manual">Creado por Vendedor</option>
+                    </select>
+                  </div>
+
+                  {/* Status Selection */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Etapa</label>
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      style={{
+                        padding: '0.45rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        fontSize: '0.8rem',
+                        outline: 'none',
+                        background: '#ffffff',
+                        color: '#334155'
+                      }}
+                    >
+                      <option value="all">Todos los estados</option>
+                      <option value="nuevo">Nuevas</option>
+                      <option value="contactado">En negociación</option>
+                      <option value="cotizando">Cotización</option>
+                      <option value="cierre_ganado">Cierre Ganado</option>
+                      <option value="cierre_perdido">Cierre Perdido</option>
+                      {customStages.map(s => (
+                        <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -824,147 +923,180 @@ export default function LeadsBandejaFeature({
 
               const ageInfo = getLeadAgeInfo(lead);
 
+              // Extract initials for contact avatar
+              const getInitials = (name) => {
+                if (!name) return '?';
+                const parts = name.trim().split(/\s+/);
+                if (parts.length >= 2) {
+                  return (parts[0][0] + parts[1][0]).toUpperCase();
+                }
+                return parts[0][0].toUpperCase();
+              };
+              const contactInitials = getInitials(lead.name);
+
+              // Get last interaction from timeline
+              const timeline = parsedNotes.timeline || [];
+              const interactions = timeline.filter(evt => ['note', 'call', 'whatsapp', 'visit'].includes(evt.type));
+              const lastInteraction = interactions.length > 0 ? interactions[interactions.length - 1] : null;
+
               return (
-                <div 
-                  key={lead.id} 
-                  className="crm-lead-card-ios glass animate-fade-in"
-                  style={{
-                    zIndex: openDropdownLeadId === lead.id ? 99 : 1
-                  }}
+                <div
+                  key={lead.id}
+                  className="crm-lead-card-ios"
+                  onClick={() => setSelectedLead(lead)}
+                  style={{ cursor: 'pointer' }}
                 >
-                  {/* Card Top Row: Origin & Date | Status Select */}
-                  <div className="lead-card-top">
-                    <div className="lead-card-meta">
-                      <span className={`channel-badge-ios ${lead.type}`}>
-                        {lead.type === 'popup_whatsapp' ? 'WhatsApp Popup' :
-                          lead.type === 'vendedor_manual' ? 'Manual (Vendedor)' :
-                            lead.type === 'contact_form' ? 'Formulario Web' : 'Web / Chatbot'}
-                      </span>
-                      <span className="lead-card-date">
-                        <i className="far fa-calendar-alt"></i> {formatDate(lead.created_at)}
-                      </span>
-                      {/* Age / SLA tracker indicator */}
-                      <span className={`lead-age-indicator ${ageInfo.warning ? 'warning-sla' : ''}`} style={{ fontSize: '0.725rem', padding: '2px 8px', borderRadius: '20px', background: ageInfo.warning ? 'rgba(239, 68, 68, 0.1)' : 'rgba(5, 57, 58, 0.05)', color: ageInfo.warning ? '#ef4444' : '#64748b', fontWeight: ageInfo.warning ? '700' : '600', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                        <i className="far fa-clock"></i> {ageInfo.text}
-                        {ageInfo.warning && <span className="sla-alert-badge" style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: '#ef4444', color: '#fff', marginLeft: '4px' }}>🚨 Sin contacto (&gt;72h)</span>}
-                      </span>
-                    </div>
+                  <div className="lead-card-body-ios" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
+                    {/* Project/Obra Title */}
+                    <h3 className="lead-opportunity-title" style={{
+                      fontFamily: "'Public Sans', sans-serif",
+                      fontSize: "1.05rem",
+                      fontWeight: "850",
+                      color: "#1e293b",
+                      margin: 0,
+                      lineHeight: "1.35",
+                      letterSpacing: "-0.01em",
+                      textTransform: "uppercase"
+                    }}>
+                      {displayTitle}
+                    </h3>
 
-                    <div className="lead-card-status">
-                      <span className="lead-card-status-label">Etapa actual:</span>
-                      <StatusDropdown
-                        currentStatus={lead.status || 'nuevo'}
-                        customStages={customStages}
-                        onOpenChange={(open) => {
-                          if (open) {
-                            setOpenDropdownLeadId(lead.id);
-                          } else {
-                            if (openDropdownLeadId === lead.id) {
-                              setOpenDropdownLeadId(null);
-                            }
-                          }
-                        }}
-                        onChange={(val) => {
-                          if (val === 'descartado') {
-                            setLeadToDiscard(lead);
-                            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
-                            setDiscardModalOpen(true);
-                          } else if (val === 'calificado') {
-                            setLeadToPromote(lead);
-                            setPromoteForm({
-                              contactName: lead.name || '',
-                              position: 'Contacto Comercial',
-                              email: lead.email || '',
-                              phone: lead.phone || '',
-                              phone_alt: '',
-                              whatsapp: lead.phone || '',
-                              notes: notesText,
-                              companyMode: 'none',
-                              linkExistingCompanyId: '',
-                              newCompanyName: lead.company || '',
-                              newCompanyRfc: '',
-                              newCompanyAddress: '',
-                              newCompanyCity: '',
-                              newCompanyState: '',
-                              newCompanyNotes: ''
-                            });
-                            fetchCompanies();
-                            setPromoteModalOpen(true);
-                          } else {
-                            handleStatusChange(lead.id, val);
-                          }
-                        }}
-                      />
-                    </div>
-                  </div>
+                    {/* Muted description snippet */}
+                    <p className="desc-text-compact" style={{
+                      margin: 0,
+                      fontSize: "0.85rem",
+                      color: "#64748b",
+                      lineHeight: "1.4",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "6px"
+                    }}>
+                      <i className="fas fa-info-circle" style={{ color: "#38bdf8", marginTop: "3px" }}></i>
+                      <span>{notesText || "Sin descripción de requerimiento."}</span>
+                    </p>
 
-                  {/* Card Content Row */}
-                  <div className="lead-card-body-ios">
-                    {/* Column 1: Opportunity / Requirement (Now the main focus) */}
-                    <div className="lead-card-profile" style={{ flex: '1.5' }}>
-                      <h4 className="lead-profile-name" style={{ fontSize: '1.05rem', color: 'var(--color-brand-primary)' }}>
-                        {displayTitle}
-                      </h4>
-                      {lead.company && (
-                        <span className="req-company-ios" style={{ marginTop: '6px', display: 'inline-flex', background: '#f1f5f9', padding: '4px 10px', borderRadius: '12px' }}>
-                          <i className="fas fa-building" style={{ color: 'var(--color-brand-accent)', marginRight: '6px' }}></i> {lead.company}
+                    {/* Light separator line */}
+                    <hr className="lead-card-divider" style={{
+                      border: "none",
+                      borderTop: "1px solid rgba(15, 23, 42, 0.06)",
+                      margin: "0.25rem 0"
+                    }} />
+
+                    {/* "Última actualización" section */}
+                    <div className="lead-card-update-section" style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="update-label" style={{
+                        fontSize: "0.7rem",
+                        color: "#94a3b8",
+                        fontStyle: "italic",
+                        fontWeight: "600"
+                      }}>
+                        Ultima actualización
+                      </span>
+                      <div className="update-badge-row" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span className="date-badge" style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          background: "#f1f5f9",
+                          color: "#475569",
+                          padding: "4px 8px",
+                          borderRadius: "20px",
+                          fontSize: "0.75rem",
+                          fontWeight: "700"
+                        }}>
+                          <i className="far fa-calendar-alt" style={{ color: "#64748b" }}></i>
+                          {formatDate(lead.created_at || lead.updated_at)}
                         </span>
-                      )}
-                      
-                      <div style={{ marginTop: '10px' }}>
-                        <span className="req-label-ios" style={{ fontSize: '0.7rem' }}>Detalles del Requerimiento</span>
-                        <p className="req-text-ios" title={notesText} style={{ marginTop: '4px' }}>
-                          {notesText || 'Sin requerimiento específico.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Column 2: Contact Info */}
-                    <div className="lead-card-requirement" style={{ flex: '1', borderLeft: '1px solid #e2e8f0', paddingLeft: '1.25rem' }}>
-                      <span className="req-label-ios">Contacto</span>
-                      <strong style={{ display: 'block', color: 'var(--color-text-dark)', marginBottom: '6px', fontSize: '0.95rem' }}>
-                        <i className="fas fa-user-circle" style={{ color: '#cbd5e1', marginRight: '6px' }}></i>
-                        {lead.name || 'Prospecto WhatsApp'}
-                      </strong>
-                      
-                      <span className="lead-profile-email" style={{ display: 'block', marginBottom: '6px' }}>
-                        <i className="far fa-envelope"></i> {lead.email || 'Sin correo registrado'}
-                      </span>
-
-                      <div className="lead-profile-phone-row" style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
-                        <span className="lead-phone-badge">
-                          <i className="fas fa-phone-alt"></i> {lead.phone}
+                        
+                        {/* Clock icon badge */}
+                        <span className="clock-badge" style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "#f1f5f9",
+                          color: "#475569",
+                          width: "24px",
+                          height: "24px",
+                          borderRadius: "50%",
+                          fontSize: "0.75rem"
+                        }}>
+                          <i className="far fa-clock" style={{ color: "#64748b" }}></i>
                         </span>
-                        {lead.phone && (
-                          <a
-                            href={`https://wa.me/52${lead.phone.replace(/\s+/g, '')}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="btn-wa-pill-ios"
-                            title="Chat directo en WhatsApp"
-                          >
-                            <i className="fab fa-whatsapp"></i> Chat
-                          </a>
+
+                        {ageInfo.warning && (
+                          <span className="pulsing-dot" style={{
+                            width: "8px",
+                            height: "8px",
+                            backgroundColor: "#ef4444",
+                            borderRadius: "50%",
+                            display: "inline-block",
+                            boxShadow: "0 0 0 0 rgba(239, 68, 68, 0.7)"
+                          }} title="Requiere atención inmediata" />
                         )}
                       </div>
                     </div>
+                  </div>
 
-                    {/* Column 3: Assignment & Action Controls */}
-                    <div className="lead-card-actions-row">
-                      {(role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
-                        <div className="lead-assigned-box" style={{ marginBottom: '8px' }}>
-                          <span className="assign-label" style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: 'var(--color-text-muted)', fontWeight: '700', display: 'block', marginBottom: '2px' }}>Asignado a:</span>
-                          <span className="seller-name-badge">
-                            <i className="fas fa-user-circle"></i> {lead.assigned_to ? lead.assigned_to.name : 'Sin asignar'}
-                          </span>
-                        </div>
-                      )}
+                  {/* Bottom row */}
+                  <div className="lead-card-footer-row" style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-end",
+                    marginTop: "0.85rem",
+                    paddingTop: "0.85rem",
+                    borderTop: "1px solid rgba(15, 23, 42, 0.06)",
+                    flexWrap: "wrap",
+                    gap: "10px"
+                  }}>
+                    {/* Left: Badge Cliente */}
+                    <span className="client-badge" style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      background: "#f0fdf4",
+                      color: "#166534",
+                      padding: "6px 12px",
+                      borderRadius: "8px",
+                      fontSize: "0.825rem",
+                      fontWeight: "700",
+                      border: "1px solid rgba(22, 101, 52, 0.08)"
+                    }}>
+                      <i className="fas fa-user" style={{ color: "#15803d" }}></i>
+                      Cliente: {lead.name || "Sin especificar"}
+                    </span>
 
-                      <div className="lead-action-buttons-group">
-                        <button className="btn-ios-view" onClick={() => setSelectedLead(lead)}>
-                          <i className="fas fa-eye"></i> Detalles
-                        </button>
-                      </div>
+                    {/* Right: Etapa selector */}
+                    <div className="lead-card-status" style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                      gap: "4px"
+                    }}>
+                      <span className="lead-card-status-label" style={{
+                        fontSize: "0.6rem",
+                        color: "#94a3b8",
+                        fontWeight: "800",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.8px"
+                      }}>
+                        ETAPA ACTUAL:
+                      </span>
+                      <StatusDropdown
+                        currentStatus={lead.status}
+                        onChange={(newStage) => {
+                          if (newStage === 'descartado') {
+                            setLeadToDiscard(lead);
+                            setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
+                            setDiscardModalOpen(true);
+                          } else if (newStage === 'cierre_ganado') {
+                            setLeadToPromote(lead);
+                            setPromoteModalOpen(true);
+                          } else {
+                            handleStatusChange(lead.id, newStage);
+                          }
+                        }}
+                        customStages={customStages}
+                      />
                     </div>
                   </div>
                 </div>
@@ -978,7 +1110,7 @@ export default function LeadsBandejaFeature({
       </section>
 
       {/* Modal Detail View */}
-      <DetallesProspecto
+      <DetallesNegociacion
         isOpen={!!selectedLead}
         lead={selectedLead}
         onClose={() => setSelectedLead(null)}
@@ -996,26 +1128,8 @@ export default function LeadsBandejaFeature({
             setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
             setDiscardModalOpen(true);
             setSelectedLead(null);
-          } else if (specialStage === 'calificado') {
+          } else if (specialStage === 'cierre_ganado') {
             setLeadToPromote(leadObj);
-            setPromoteForm({
-              contactName: leadObj.name || '',
-              position: 'Contacto Comercial',
-              email: leadObj.email || '',
-              phone: leadObj.phone || '',
-              phone_alt: '',
-              whatsapp: leadObj.phone || '',
-              notes: leadObj.notes || '',
-              companyMode: 'none',
-              linkExistingCompanyId: '',
-              newCompanyName: leadObj.company || '',
-              newCompanyRfc: '',
-              newCompanyAddress: '',
-              newCompanyCity: '',
-              newCompanyState: '',
-              newCompanyNotes: ''
-            });
-            fetchCompanies();
             setPromoteModalOpen(true);
             setSelectedLead(null);
           }
@@ -1071,220 +1185,16 @@ export default function LeadsBandejaFeature({
         </div>
       )}
 
-      {/* MODAL DE PROMOCIÓN A CONTACTO */}
-      {promoteModalOpen && leadToPromote && (
-        <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
-          <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '650px', width: '96%' }}>
-            <button className="close-modal-btn" onClick={() => setPromoteModalOpen(false)}>&times;</button>
-            <div className="modal-header">
-              <h2>Promover Prospecto a Contacto</h2>
-              <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', margin: '4px 0 0 0' }}>
-                Registra a <strong>{leadToPromote.name}</strong> en tu agenda comercial y vincula su empresa.
-              </p>
-            </div>
-            <form onSubmit={handlePromoteSubmit}>
-              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
+      {/* MODAL CIERRE GANADO */}
+      <CierreGanadoModal
+        isOpen={promoteModalOpen && !!leadToPromote}
+        lead={leadToPromote}
+        onClose={() => { setPromoteModalOpen(false); setLeadToPromote(null); }}
+        onConfirm={handlePromoteSubmit}
+        isSubmitting={isClosingSubmitting}
+      />
 
-                <h4 style={{ color: 'var(--color-brand-primary)', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', margin: '0 0 0.5rem 0' }}>
-                  Datos del Contacto
-                </h4>
 
-                <div className="modal-form-grid">
-                  <div className="modal-input-group">
-                    <label>Nombre Completo</label>
-                    <input
-                      type="text"
-                      value={promoteForm.contactName}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, contactName: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Cargo / Puesto</label>
-                    <input
-                      type="text"
-                      value={promoteForm.position}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, position: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Correo Electrónico</label>
-                    <input
-                      type="email"
-                      value={promoteForm.email}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Teléfono Principal</label>
-                    <input
-                      type="text"
-                      value={promoteForm.phone}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, phone: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>Teléfono Alternativo (Opcional)</label>
-                    <input
-                      type="text"
-                      value={promoteForm.phone_alt}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, phone_alt: e.target.value })}
-                    />
-                  </div>
-                  <div className="modal-input-group">
-                    <label>WhatsApp Linkable</label>
-                    <input
-                      type="text"
-                      value={promoteForm.whatsapp}
-                      onChange={(e) => setPromoteForm({ ...promoteForm, whatsapp: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-input-group" style={{ marginBottom: '1rem' }}>
-                  <label>Observaciones / Requerimientos</label>
-                  <textarea
-                    rows="2"
-                    value={promoteForm.notes}
-                    onChange={(e) => setPromoteForm({ ...promoteForm, notes: e.target.value })}
-                  />
-                </div>
-
-                <h4 style={{ color: 'var(--color-brand-primary)', borderBottom: '1px solid #e2e8f0', paddingBottom: '4px', margin: '0 0 0.5rem 0' }}>
-                  Vinculación de Empresa / Organización
-                </h4>
-
-                <div className="radio-group-container">
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="companyMode"
-                      value="none"
-                      checked={promoteForm.companyMode === 'none'}
-                      onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'none' })}
-                    />
-                    Nuevo contacto (Sin empresa)
-                  </label>
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="companyMode"
-                      value="existing"
-                      checked={promoteForm.companyMode === 'existing'}
-                      onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'existing' })}
-                    />
-                    Vincular a empresa existente
-                  </label>
-                  <label className="radio-option">
-                    <input
-                      type="radio"
-                      name="companyMode"
-                      value="new"
-                      checked={promoteForm.companyMode === 'new'}
-                      onChange={() => setPromoteForm({ ...promoteForm, companyMode: 'new' })}
-                    />
-                    Nuevo contacto y empresa
-                  </label>
-                </div>
-
-                {promoteForm.companyMode === 'existing' && (
-                  <div className="modal-input-group company-autocomplete-container">
-                    <label>Buscar Empresa en la Base de Datos</label>
-                    <input
-                      type="text"
-                      placeholder="Escribe el nombre de la empresa..."
-                      value={companySearchQuery}
-                      onChange={(e) => {
-                        setCompanySearchQuery(e.target.value);
-                        setShowSuggestions(true);
-                      }}
-                      onFocus={() => setShowSuggestions(true)}
-                    />
-                    {showSuggestions && companySearchQuery.trim() && (
-                      <div className="company-suggestions-dropdown">
-                        {existingCompanies
-                          .filter(co => co.name && co.name.toLowerCase().includes(companySearchQuery.toLowerCase()))
-                          .map(co => (
-                            <div
-                              key={co.id}
-                              className="company-suggestion-item"
-                              onClick={() => {
-                                setPromoteForm({ ...promoteForm, linkExistingCompanyId: co.id });
-                                setCompanySearchQuery(co.name);
-                                setShowSuggestions(false);
-                              }}
-                            >
-                              <span className="co-name">{co.name}</span>
-                              <span className="co-desc">{co.alias || co.rfc || 'Sin alias'}</span>
-                            </div>
-                          ))}
-                        {existingCompanies.filter(co => co.name && co.name.toLowerCase().includes(companySearchQuery.toLowerCase())).length === 0 && (
-                          <div style={{ padding: '0.6rem 0.8rem', fontSize: '0.85rem', color: '#64748b' }}>
-                            No se encontraron coincidencias.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {promoteForm.companyMode === 'new' && (
-                  <div className="modal-form-grid">
-                    <div className="modal-input-group">
-                      <label>Nombre de la Empresa</label>
-                      <input
-                        type="text"
-                        value={promoteForm.newCompanyName}
-                        onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyName: e.target.value })}
-                        required={promoteForm.companyMode === 'new'}
-                      />
-                    </div>
-                    <div className="modal-input-group">
-                      <label>RFC (Opcional)</label>
-                      <input
-                        type="text"
-                        value={promoteForm.newCompanyRfc}
-                        onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyRfc: e.target.value })}
-                      />
-                    </div>
-                    <div className="modal-input-group" style={{ gridColumn: 'span 2' }}>
-                      <label>Dirección</label>
-                      <input
-                        type="text"
-                        value={promoteForm.newCompanyAddress}
-                        onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyAddress: e.target.value })}
-                      />
-                    </div>
-                    <div className="modal-input-group">
-                      <label>Municipio / Ciudad</label>
-                      <input
-                        type="text"
-                        value={promoteForm.newCompanyCity}
-                        onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyCity: e.target.value })}
-                      />
-                    </div>
-                    <div className="modal-input-group">
-                      <label>Estado</label>
-                      <input
-                        type="text"
-                        value={promoteForm.newCompanyState}
-                        onChange={(e) => setPromoteForm({ ...promoteForm, newCompanyState: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                )}
-
-              </div>
-              <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-                <button type="button" className="btn-secondary" onClick={() => setPromoteModalOpen(false)}>Cancelar</button>
-                <button type="submit" className="btn-primary" style={{ background: '#16a34a', borderColor: '#16a34a', borderRadius: '8px' }}>Promover a contacto</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* REUSABLE CREATE LEAD MODAL */}
       <CrearProspectoModal

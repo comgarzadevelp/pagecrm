@@ -4,17 +4,35 @@
    and clean desktop SaaS layout.
    ========================================================================== */
 
-/* 1. Modal Overlay & Container */
+/* 1. Modal Overlay & Container with Backdrop Filter */
 .fieldflow-wizard-overlay {
   position: fixed !important;
-  inset: 0 !important;
   z-index: 99999 !important;
+  background: #ffffff !important;
   display: flex !important;
   flex-direction: column !important;
-  background: #ffffff !important;
   overflow: hidden !important;
-  font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
   box-sizing: border-box !important;
+  font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+  
+  /* Mobile default: Full screen */
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+}
+
+@media (min-width: 768px) {
+  .fieldflow-wizard-overlay {
+    /* Desktop: Centered Premium Modal Card */
+    inset: 50% auto auto 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: 680px !important;
+    height: 85vh !important;
+    max-height: 760px !important;
+    border-radius: 20px !important;
+    border: 1px solid rgba(15, 23, 42, 0.08) !important;
+    box-shadow: 0 30px 60px -15px rgba(5, 57, 58, 0.25), 0 0 0 9999px rgba(15, 23, 42, 0.4) !important;
+  }
 }
 
 /* 2. Header fixed (Compact scale: 52px height) */
@@ -22,10 +40,10 @@
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  height: 52px !important;
+  height: 54px !important;
   padding: 0 1.25rem !important;
   background: #ffffff !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01) !important;
   flex-shrink: 0 !important;
   box-sizing: border-box !important;
@@ -40,9 +58,9 @@
 
 .fieldflow-header h2 {
   font-family: 'Public Sans', sans-serif !important;
-  font-size: 0.95rem !important;
-  font-weight: 700 !important;
-  color: #111827 !important;
+  font-size: 0.925rem !important;
+  font-weight: 750 !important;
+  color: #0f172a !important;
   text-transform: none !important;
   letter-spacing: -0.015em !important;
   margin: 0 !important;
@@ -57,7 +75,7 @@
   align-items: center !important;
   justify-content: center !important;
   color: #4b5563 !important;
-  background: transparent !important;
+  background: rgba(0, 0, 0, 0.02) !important;
   border: none !important;
   cursor: pointer !important;
   transition: all 0.15s ease !important;
@@ -65,8 +83,8 @@
 }
 
 .fieldflow-btn-circle:hover {
-  background: rgba(0, 0, 0, 0.05) !important;
-  color: #111827 !important;
+  background: rgba(5, 57, 58, 0.06) !important;
+  color: #05393A !important;
 }
 
 .fieldflow-btn-circle i {
@@ -76,7 +94,7 @@
 /* 3. Progress Bar */
 .fieldflow-progress-container {
   height: 3px !important;
-  background: #f3f4f6 !important;
+  background: #f1f5f9 !important;
   width: 100% !important;
   flex-shrink: 0 !important;
 }
@@ -84,7 +102,7 @@
 .fieldflow-progress-bar {
   height: 100% !important;
   background: #05393A !important;
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 /* 4. Main Step Wrapper & Scroll */
@@ -92,7 +110,7 @@
   position: relative !important;
   flex: 1 !important;
   overflow: hidden !important;
-  background: #ffffff !important;
+  background: #f8fafc !important; /* Soft grey background for better contrast */
 }
 
 .fieldflow-step-container {
@@ -100,7 +118,7 @@
   inset: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  background: #ffffff !important;
+  background: transparent !important;
   overflow: hidden !important;
   box-sizing: border-box !important;
 }
@@ -109,15 +127,34 @@
 .fieldflow-step-content {
   flex: 1 !important;
   overflow-y: auto !important;
-  padding: 1.5rem 1.25rem !important;
+  padding: 1.25rem 1.15rem !important;
   box-sizing: border-box !important;
+  /* Premium thin custom scrollbar */
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(5, 57, 58, 0.15) transparent !important;
+}
+
+.fieldflow-step-content::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+.fieldflow-step-content::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.fieldflow-step-content::-webkit-scrollbar-thumb {
+  background: rgba(5, 57, 58, 0.15) !important;
+  border-radius: 10px !important;
+}
+
+.fieldflow-step-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(5, 57, 58, 0.3) !important;
 }
 
 @media (min-width: 768px) {
   .fieldflow-step-content {
-    padding: 1.75rem 2.5rem !important;
-    max-width: 680px !important;
-    margin: 0 auto !important;
+    padding: 1.5rem 2rem !important;
     width: 100% !important;
   }
 }
@@ -260,12 +297,11 @@
   width: 36px !important;
   height: 36px !important;
   border-radius: 10px !important;
-  background: #f3f4f6 !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
   flex-shrink: 0 !important;
-  border: 1px solid rgba(0, 0, 0, 0.02) !important;
+  transition: all 0.2s ease !important;
 }
 
 .result-icon-box svg {
@@ -273,10 +309,17 @@
   height: 16px !important;
 }
 
-.result-icon-box.prospecto svg { color: #0d9488 !important; background: transparent !important; }
-.result-icon-box.empresa svg { color: #4f46e5 !important; background: transparent !important; }
-.result-icon-box.contacto svg { color: #2563eb !important; background: transparent !important; }
-.result-icon-box.obra svg { color: #d97706 !important; background: transparent !important; }
+.result-icon-box.prospecto { background: rgba(13, 148, 136, 0.08) !important; border: 1px solid rgba(13, 148, 136, 0.15) !important; }
+.result-icon-box.prospecto svg { color: #0d9488 !important; }
+
+.result-icon-box.empresa { background: rgba(79, 70, 229, 0.08) !important; border: 1px solid rgba(79, 70, 229, 0.15) !important; }
+.result-icon-box.empresa svg { color: #4f46e5 !important; }
+
+.result-icon-box.contacto { background: rgba(37, 99, 235, 0.08) !important; border: 1px solid rgba(37, 99, 235, 0.15) !important; }
+.result-icon-box.contacto svg { color: #2563eb !important; }
+
+.result-icon-box.obra { background: rgba(217, 119, 6, 0.08) !important; border: 1px solid rgba(217, 119, 6, 0.15) !important; }
+.result-icon-box.obra svg { color: #d97706 !important; }
 
 /* Result Card Texts */
 .result-info {
@@ -424,9 +467,21 @@
   border-top: 1px solid rgba(0, 0, 0, 0.05) !important;
   box-shadow: 0 -3px 10px rgba(0, 0, 0, 0.02) !important;
   display: flex !important;
+  gap: 0.75rem !important;
   justify-content: center !important;
   z-index: 100 !important;
   box-sizing: border-box !important;
+}
+
+.fieldflow-footer-fixed .fieldflow-btn-secondary {
+  width: auto !important;
+  flex: 0 0 85px !important;
+  padding: 0 !important;
+}
+
+.fieldflow-footer-fixed .fieldflow-btn-primary {
+  width: auto !important;
+  flex: 1 !important;
 }
 
 /* 10. Buttons in Wizard (Compact scale: 40px height) */
@@ -1209,3 +1264,107 @@ input:checked + .switch-slider:before {
   width: 14px !important;
   height: 14px !important;
 }
+
+/* ==========================================================================
+   14. Premium Stepper Styles
+   ========================================================================== */
+.fieldflow-stepper-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  background: #ffffff !important;
+  padding: 0.65rem 1.25rem !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+.fieldflow-stepper {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  gap: 0.5rem !important;
+}
+
+.stepper-step {
+  flex: 1 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  position: relative !important;
+}
+
+.stepper-step-dot {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  background: #f1f5f9 !important;
+  color: #64748b !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 0.65rem !important;
+  font-weight: 800 !important;
+  border: 1.5px solid #e2e8f0 !important;
+  transition: all 0.25s ease !important;
+  flex-shrink: 0 !important;
+}
+
+.stepper-step.active .stepper-step-dot {
+  background: #05393A !important;
+  color: #ffffff !important;
+  border-color: #05393A !important;
+  box-shadow: 0 0 0 3px rgba(5, 57, 58, 0.15) !important;
+}
+
+.stepper-step.completed .stepper-step-dot {
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.stepper-step-label {
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  white-space: nowrap !important;
+  transition: all 0.25s ease !important;
+}
+
+.stepper-step.active .stepper-step-label {
+  color: #05393A !important;
+  font-weight: 850 !important;
+}
+
+.stepper-step.completed .stepper-step-label {
+  color: #0f172a !important;
+}
+
+.stepper-line {
+  flex: 1 !important;
+  height: 2px !important;
+  background: #e2e8f0 !important;
+  transition: all 0.25s ease !important;
+}
+
+.stepper-step.completed + .stepper-line,
+.stepper-line.completed {
+  background: #10b981 !important;
+}
+
+/* Ocultar etiquetas del stepper en dispositivos móviles pequeños para evitar encimamientos */
+@media (max-width: 480px) {
+  .stepper-step-label {
+    display: none !important;
+  }
+  .stepper-step {
+    flex: 0 !important;
+  }
+  .fieldflow-stepper {
+    justify-content: space-between !important;
+  }
+  .stepper-line {
+    display: block !important;
+  }
+}
+

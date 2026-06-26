@@ -13,6 +13,7 @@ export function useAgendaData() {
   const [activeNoteText, setActiveNoteText] = useState('');
   const [readingNoteName, setReadingNoteName] = useState('');
   const [showNoteModal, setShowNoteModal] = useState(false);
+  const [googleConnected, setGoogleConnected] = useState(true);
 
   useEffect(() => {
     const savedVisits = localStorage.getItem('crm_cold_visits');
@@ -38,13 +39,64 @@ export function useAgendaData() {
   const fetchGoogleMeetings = async () => {
     setLoadingMeetings(true);
     try {
-      const res = await fetch(`${API_BASE}/api/calendar/events`, {
-        headers: { Authorization: `Bearer ${token()}` }
-      });
-      const data = await res.json();
-      if (res.ok && !data.notConnected) {
-        setMeetings(data.events || []);
+      // 1. Cargar Google Calendar (si está conectado)
+      let googleEvents = [];
+      try {
+        const res = await fetch(`${API_BASE}/api/calendar/events`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          if (data.notConnected) {
+            setGoogleConnected(false);
+          } else {
+            setGoogleConnected(true);
+            if (Array.isArray(data.events)) {
+              googleEvents = data.events;
+            }
+          }
+        }
+      } catch (gErr) {
+        console.warn('Google Calendar is disconnected or failed to fetch:', gErr.message);
+        setGoogleConnected(false);
       }
+
+      // 2. Cargar actividades y recordatorios locales desde la base de datos
+      let dbEvents = [];
+      try {
+        const resDb = await fetch(`${API_BASE}/api/crm/visitas/my-activities`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const dataDb = await resDb.json();
+        if (resDb.ok && dataDb.success && Array.isArray(dataDb.visitas)) {
+          dbEvents = dataDb.visitas.map(v => {
+            const dateStr = v.timestamp_servidor || v.created_at;
+            const isFuture = new Date(dateStr) > new Date();
+            
+            // Traducir el tipo al formato visual de categorías
+            let catKey = 'seguimiento';
+            if (v.tipo === 'llamada') catKey = 'llamada';
+            else if (v.tipo === 'reunion_virtual') catKey = 'demo';
+            
+            return {
+              id: `db-activity-${v.id}`,
+              summary: `${v.tipo === 'llamada' ? '📞 Llamada' : v.tipo === 'reunion_virtual' ? '💻 Reunión' : '📍 Visita'}: ${v.resultado || 'Actividad registrada'}`,
+              description: `[CAT:${catKey}] ${v.notas || ''}`,
+              start: { dateTime: dateStr },
+              end: { dateTime: new Date(new Date(dateStr).getTime() + 45 * 60000).toISOString() }, // Asumimos 45 minutos
+              location: v.tipo === 'visita_presencial' ? 'Trabajo de Campo' : v.tipo === 'reunion_virtual' ? 'Reunión Virtual' : 'Llamada telefónica',
+              client_name: v.resultado,
+              isDbActivity: true,
+              isFutureActivity: isFuture
+            };
+          });
+        }
+      } catch (dbErr) {
+        console.error('Error fetching database activities:', dbErr);
+      }
+
+      // 3. Fusionar ambos conjuntos de datos de manera limpia
+      setMeetings([...googleEvents, ...dbEvents]);
     } catch (err) {
       console.error('Error fetching calendar events for main grid:', err);
     } finally {
@@ -112,5 +164,6 @@ export function useAgendaData() {
     showNoteModal,
     setShowNoteModal,
     handleReadNote,
+    googleConnected,
   };
 }

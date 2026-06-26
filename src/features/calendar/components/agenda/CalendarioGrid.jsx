@@ -8,6 +8,57 @@ const monthNames = [
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
 ];
 
+const parseStructuredTitle = (title) => {
+  if (!title) return { tipo: 'Reunión', texto: '', registro: null, recordatorio: null };
+
+  let mainPart = title;
+  let metadataPart = '';
+  
+  const metaSplit = title.split('--- METADATOS DEL REGISTRO ---');
+  if (metaSplit.length > 1) {
+    mainPart = metaSplit[0].trim();
+    metadataPart = metaSplit[1].trim();
+  }
+
+  let tipo = 'Reunión';
+  let texto = mainPart;
+
+  // Quitar iconos del inicio si existen
+  mainPart = mainPart.replace(/^[📍📞⏰🗓️]\s*/g, '');
+
+  if (mainPart.startsWith('VISITA:')) {
+    tipo = 'Visita';
+    texto = mainPart.replace(/^VISITA:\s*/, '').trim();
+  } else if (mainPart.startsWith('LLAMADA:')) {
+    tipo = 'Llamada';
+    texto = mainPart.replace(/^LLAMADA:\s*/, '').trim();
+  } else if (mainPart.startsWith('REUNIÓN:') || mainPart.startsWith('REUNION:')) {
+    tipo = 'Reunión';
+    texto = mainPart.replace(/^REUNIÓ?N:\s*/, '').trim();
+  }
+
+  let registro = null;
+  let recordatorio = null;
+
+  if (metadataPart) {
+    const matches = metadataPart.match(/\[([^\]]+)\]/g);
+    if (matches) {
+      matches.forEach(match => {
+        const content = match.slice(1, -1).trim();
+        const cleanContent = content.replace(/^[📍📞⏰🗓️]\s*/g, '').trim();
+        
+        if (cleanContent.startsWith('REGISTRO:')) {
+          registro = cleanContent.replace(/^REGISTRO:\s*/, '').trim();
+        } else if (cleanContent.startsWith('RECORDATORIO:')) {
+          recordatorio = cleanContent.replace(/^RECORDATORIO:\s*/, '').trim();
+        }
+      });
+    }
+  }
+
+  return { tipo, texto, registro, recordatorio };
+};
+
 export default function CalendarioGrid({ meetings, coldVisits, reminders, onToggleReminder }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState(new Date());
@@ -55,13 +106,47 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
           <button className="nav-month-btn" onClick={handleNextMonth}><i className="fas fa-chevron-right" /></button>
         </div>
 
-        <div className="calendar-grid-days-header">
-          <span>Dom</span><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span>
+        <div 
+          className="calendar-grid-days-header"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            textAlign: 'center',
+            fontWeight: '700',
+            fontSize: '0.78rem',
+            color: 'var(--color-text-muted, #64748b)',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
+            borderBottom: '1px solid rgba(226, 232, 240, 0.6)',
+            paddingBottom: '6px',
+            width: '100%'
+          }}
+        >
+          <span style={{ display: 'block' }}>Dom</span>
+          <span style={{ display: 'block' }}>Lun</span>
+          <span style={{ display: 'block' }}>Mar</span>
+          <span style={{ display: 'block' }}>Mié</span>
+          <span style={{ display: 'block' }}>Jue</span>
+          <span style={{ display: 'block' }}>Vie</span>
+          <span style={{ display: 'block' }}>Sáb</span>
         </div>
 
-        <div className="calendar-grid-days">
+        <div 
+          className="calendar-grid-days"
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gridAutoRows: 'minmax(40px, auto)',
+            gap: '1px',
+            background: 'rgba(226, 232, 240, 0.8)',
+            border: '1px solid rgba(226, 232, 240, 0.8)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            width: '100%'
+          }}
+        >
           {getDaysInMonth().map((day, idx) => {
-            if (!day) return <div key={`empty-${idx}`} className="calendar-day-cell empty" />;
+            if (!day) return <div key={`empty-${idx}`} className="calendar-day-cell empty" style={{ minHeight: '50px' }} />;
             const dayStr = day.toDateString();
             const isToday = dayStr === new Date().toDateString();
             const isSelected = selectedDay && dayStr === selectedDay.toDateString();
@@ -71,9 +156,17 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
               <div
                 key={dayStr}
                 className={`calendar-day-cell ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''}`}
+                style={{
+                  minHeight: '50px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  padding: '6px',
+                  cursor: 'pointer'
+                }}
                 onClick={() => setSelectedDay(day)}
               >
-                <span className="day-number">{day.getDate()}</span>
+                <span className="day-number" style={{ fontSize: '0.8rem', fontWeight: '700' }}>{day.getDate()}</span>
 
                 <div className="day-events-container desktop-only">
                   {mtgs.map(m => {
@@ -96,10 +189,10 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                   ))}
                 </div>
 
-                <div className="day-dots-container mobile-only">
-                  {mtgs.length > 0 && <span className="mobile-dot mtg-dot" />}
-                  {visits.length > 0 && <span className="mobile-dot visit-dot" />}
-                  {rmds.length > 0 && <span className="mobile-dot reminder-dot" />}
+                <div className="day-dots-container" style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '4px' }}>
+                  {mtgs.length > 0 && <span className="mobile-dot mtg-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--color-brand-primary, #05393A)', display: 'inline-block' }} />}
+                  {visits.length > 0 && <span className="mobile-dot visit-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#E0922B', display: 'inline-block' }} />}
+                  {rmds.length > 0 && <span className="mobile-dot reminder-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#2563eb', display: 'inline-block' }} />}
                 </div>
               </div>
             );
@@ -124,15 +217,110 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                   ? new Date(m.start.dateTime).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
                   : 'Todo el día';
                 const cat = getEventCategory(m.description, m.summary);
+                
+                const parsed = parseStructuredTitle(m.summary);
+                
+                const badgeStyle = {
+                  Visita: { bg: 'rgba(224, 146, 43, 0.08)', color: '#E0922B', icon: 'fa-map-marker-alt' },
+                  Llamada: { bg: 'rgba(16, 185, 129, 0.08)', color: '#10b981', icon: 'fa-phone-alt' },
+                  Reunión: { bg: 'rgba(5, 57, 58, 0.08)', color: '#05393A', icon: 'fa-handshake' }
+                }[parsed.tipo] || { bg: 'rgba(100, 116, 139, 0.08)', color: '#64748b', icon: 'fa-calendar' };
+
                 return (
-                  <div key={m.id} className={`agenda-day-card meeting category-${cat}`}>
-                    <div className="agenda-card-time"><i className="far fa-clock" /> {startTime}</div>
-                    <div className="agenda-card-body">
-                      <h5>{m.summary}</h5>
-                      {m.location && <p className="agenda-card-loc"><i className="fas fa-map-marker-alt" /> {m.location}</p>}
-                      {m.description && <p className="agenda-card-desc">{m.description.replace(/\[CAT:[a-z]+\]\s*/g, '')}</p>}
+                  <div key={m.id} className={`agenda-day-card meeting category-${cat}`} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', paddingBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ 
+                          fontSize: '0.65rem', 
+                          fontWeight: '800', 
+                          padding: '1px 6px', 
+                          borderRadius: '4px', 
+                          backgroundColor: badgeStyle.bg, 
+                          color: badgeStyle.color,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          textTransform: 'uppercase'
+                        }}>
+                          <i className={`fas ${badgeStyle.icon}`} style={{ fontSize: '0.6rem' }} />
+                          {parsed.tipo}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>
+                          <i className="far fa-clock" /> {startTime}
+                        </span>
+                      </div>
                     </div>
-                    <span className="agenda-card-type-tag">Reunión</span>
+
+                    <div className="agenda-card-body" style={{ padding: '1px 0' }}>
+                      <p style={{ 
+                        fontSize: '0.78rem', 
+                        fontWeight: '600', 
+                        color: '#0f172a', 
+                        margin: 0, 
+                        lineHeight: '1.35',
+                        whiteSpace: 'normal',
+                        wordBreak: 'break-word'
+                      }}>
+                        {parsed.texto}
+                      </p>
+
+                      {m.location && (
+                        <p style={{ fontSize: '0.7rem', color: '#64748b', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                          <i className="fas fa-map-marker-alt" style={{ color: '#E0922B', fontSize: '0.65rem' }} /> {m.location}
+                        </p>
+                      )}
+
+                      {m.description && (
+                        <p style={{ 
+                          fontSize: '0.7rem', 
+                          color: '#64748b', 
+                          margin: '4px 0 0 0', 
+                          fontStyle: 'italic',
+                          background: 'rgba(248, 250, 252, 0.8)',
+                          padding: '3px 6px',
+                          borderRadius: '4px',
+                          borderLeft: '2px solid #cbd5e1'
+                        }}>
+                          {m.description.replace(/\[CAT:[a-z]+\]\s*/g, '')}
+                        </p>
+                      )}
+                    </div>
+
+                    {(parsed.registro || parsed.recordatorio) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '3px', paddingTop: '4px', borderTop: '1px solid rgba(226, 232, 240, 0.4)' }}>
+                        {parsed.registro && (
+                          <span style={{ 
+                            fontSize: '0.62rem', 
+                            color: '#475569', 
+                            backgroundColor: '#f1f5f9', 
+                            padding: '1px 4px', 
+                            borderRadius: '3px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px'
+                          }}>
+                            <i className="far fa-calendar-alt" style={{ color: '#64748b', fontSize: '0.6rem' }} />
+                            Reg: {parsed.registro}
+                          </span>
+                        )}
+                        {parsed.recordatorio && (
+                          <span style={{ 
+                            fontSize: '0.62rem', 
+                            color: '#b45309', 
+                            backgroundColor: '#fef3c7', 
+                            padding: '1px 4px', 
+                            borderRadius: '3px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            border: '1px solid rgba(245, 158, 11, 0.15)'
+                          }}>
+                            <i className="far fa-bell" style={{ color: '#d97706', fontSize: '0.6rem' }} />
+                            Alarma: {parsed.recordatorio}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

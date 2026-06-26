@@ -119,7 +119,7 @@ export default function GenerarVentaModal({
             gap: '8px'
           }}>
             <i className="fas fa-handshake" style={{ color: 'var(--color-brand-accent, #d4a359)' }}></i>
-            Gasda
+            Nueva Oportunidad de Venta
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0' }}>
             Registrando oportunidad para <strong style={{ color: '#334155' }}>{customer.name}</strong> {customer.company ? `(${customer.company})` : ''}

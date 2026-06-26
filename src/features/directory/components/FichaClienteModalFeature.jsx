@@ -117,7 +117,7 @@ export default function FichaClienteModal({
 
       fetchLinkedObras(normalized.id, isComp);
       fetchCustomerOpportunities(normalized.id, isComp);
-      fetchCustomerVisitas(normalized.id, isComp);
+      fetchCustomerVisitas(normalized);
       fetchCustomerAppointments(normalized.name);
       fetchCustomerQuotes(normalized.id);
       setActiveCustomerTab('profile');
@@ -223,12 +223,22 @@ export default function FichaClienteModal({
     }
   };
 
-  const fetchCustomerVisitas = async (id, isComp) => {
+  const fetchCustomerVisitas = async (customer) => {
     setLoadingVisitas(true);
-    const entityType = isComp ? 'company' : 'contact';
+    let entityType = 'contact';
+    let entityId = customer.id;
+
+    if (customer.isCompany) {
+      entityType = 'company';
+      entityId = customer.id;
+    } else if (customer.company_id) {
+      entityType = 'company';
+      entityId = customer.company_id;
+    }
+
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`${API_BASE}/api/crm/visitas/${entityType}/${id}`, {
+      const res = await fetch(`${API_BASE}/api/crm/visitas/${entityType}/${entityId}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const data = await res.json();
@@ -700,7 +710,19 @@ export default function FichaClienteModal({
                                       {contact.email && (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', wordBreak: 'break-all' }}>
                                           <i className="fas fa-envelope" style={{ color: 'var(--color-brand-accent)', width: '12px' }}></i>
-                                          <a href={`mailto:${contact.email}`} style={{ color: 'inherit', textDecoration: 'none' }}>{contact.email}</a>
+                                          <a
+                                            href={`mailto:${(() => {
+                                              const emailStr = contact.email.trim();
+                                              const match = emailStr.match(/<([^>]+)>/);
+                                              if (match && match[1]) return match[1].trim();
+                                              const tokens = emailStr.replace(/[,;]/g, ' ').split(/\s+/);
+                                              const firstEmail = tokens.find(t => t.includes('@'));
+                                              return firstEmail ? firstEmail.trim() : emailStr;
+                                            })()}`}
+                                            style={{ color: 'inherit', textDecoration: 'none' }}
+                                          >
+                                            {contact.email}
+                                          </a>
                                         </div>
                                       )}
                                     </div>
@@ -981,6 +1003,25 @@ export default function FichaClienteModal({
               loadingOpportunities={loadingOpportunities}
               loadingAppointments={loadingAppointments}
               API_BASE={API_BASE}
+              onCommentAdded={async () => {
+                const token = localStorage.getItem('token');
+                const isComp = !!currentCustomer.isCompany;
+                const endpoint = isComp 
+                  ? `${API_BASE}/api/crm/companies/${currentCustomer.id}`
+                  : `${API_BASE}/api/crm/customers/${currentCustomer.id}`;
+                try {
+                  const res = await fetch(endpoint, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                  });
+                  const data = await res.json();
+                  if (res.ok && data.success) {
+                    const updatedCustomer = isComp ? data.company : data.customer;
+                    setCurrentCustomer(normalizeCustomerStatus(updatedCustomer));
+                  }
+                } catch (e) {
+                  console.error('Error reloading customer after comment:', e);
+                }
+              }}
             />
           )}
         </div>

@@ -22,7 +22,7 @@ export default function VentasFeature(props) {
             onClick={() => setActiveSubTab('bandeja')}
           >
             <i className="fas fa-inbox" />
-            <span>Nuevas Negociaciones</span>
+            <span>Negociaciones</span>
           </button>
           
           <button 
@@ -31,7 +31,7 @@ export default function VentasFeature(props) {
             onClick={() => setActiveSubTab('kanban')}
           >
             <i className="fas fa-columns" />
-            <span>Embudo de Ventas</span>
+            <span>Flujo de venta</span>
           </button>
 
           <button 

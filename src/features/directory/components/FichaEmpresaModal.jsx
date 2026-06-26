@@ -31,17 +31,7 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
   });
 
   // Bitacora state
-  const [activeTab, setActiveTab] = useState('nota'); // 'nota' | 'visita' | 'timeline'
-  const [noteText, setNoteText] = useState('');
-  const [sendingNote, setSendingNote] = useState(false);
-
-  // Visita & GPS state
-  const [visitaTipo, setVisitaTipo] = useState('visita_presencial');
-  const [visitaResultado, setVisitaResultado] = useState('');
-  const [visitaNotas, setVisitaNotas] = useState('');
-  const [sendingVisita, setSendingVisita] = useState(false);
-  const [gps, setGps] = useState(null);
-  const [gpsState, setGpsState] = useState('idle'); // idle | loading | ok | error
+  const [activeTab, setActiveTab] = useState('completo'); // 'notas' | 'visitas' | 'bitacora' | 'cambios' | 'completo'
 
   // Archiving state
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
@@ -90,20 +80,6 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
     fetchObras();
   }, [refreshData, fetchVisitas, fetchObras]);
 
-  useEffect(() => {
-    if (activeTab === 'visita' && visitaTipo === 'visita_presencial') {
-      setGpsState('loading');
-      navigator.geolocation?.getCurrentPosition(
-        (pos) => { setGps({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setGpsState('ok'); },
-        () => { setGpsState('error'); },
-        { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
-      );
-    } else {
-      setGps(null);
-      setGpsState('idle');
-    }
-  }, [activeTab, visitaTipo]);
-
   const startEdit = () => {
     setForm({
       alias: company.alias || '',
@@ -123,16 +99,57 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
   const handleSaveEdit = async () => {
     setSaving(true);
     try {
-      // -- New code to track history timeline on Edit --
+      // -- Comparar campos para el historial de cambios --
+      const changes = [];
+      const fields = [
+        { key: 'alias', label: 'Nombre Comercial' },
+        { key: 'name', label: 'Razón Social' },
+        { key: 'rfc', label: 'RFC' },
+        { key: 'phone_main', label: 'Teléfono' },
+        { key: 'email_main', label: 'Correo' },
+        { key: 'calle', label: 'Calle' },
+        { key: 'colonia', label: 'Colonia' },
+        { key: 'city', label: 'Ciudad' },
+        { key: 'state', label: 'Estado' },
+        { key: 'codigo', label: 'Código Postal' }
+      ];
+
+      fields.forEach(f => {
+        const oldVal = (company[f.key] || '').toString().trim();
+        const newVal = (form[f.key] || '').toString().trim();
+        if (oldVal !== newVal) {
+          changes.push(`${f.label} de "${oldVal || 'N/A'}" a "${newVal || 'N/A'}"`);
+        }
+      });
+
       let updatedNotesStr = company.notes || '';
       try {
         const parsed = JSON.parse(company.notes || '{}');
         const timeline = parsed.timeline || [];
-        timeline.push({ type: 'nota', text: 'Perfil actualizado desde vista inline.', date: new Date().toISOString(), author: localStorage.getItem('name') || 'Usuario' });
+        
+        if (changes.length > 0) {
+          timeline.push({
+            type: 'change',
+            text: `Se actualizaron los datos: ${changes.join(', ')}`,
+            date: new Date().toISOString(),
+            author: localStorage.getItem('name') || 'Usuario'
+          });
+        }
+        
         parsed.timeline = timeline;
         updatedNotesStr = JSON.stringify(parsed);
       } catch (e) {
-        updatedNotesStr = JSON.stringify({ general: company.notes || '', timeline: [{ type: 'nota', text: 'Perfil actualizado desde vista inline.', date: new Date().toISOString(), author: localStorage.getItem('name') || 'Usuario' }] });
+        if (changes.length > 0) {
+          updatedNotesStr = JSON.stringify({
+            general: company.notes || '',
+            timeline: [{
+              type: 'change',
+              text: `Se actualizaron los datos: ${changes.join(', ')}`,
+              date: new Date().toISOString(),
+              author: localStorage.getItem('name') || 'Usuario'
+            }]
+          });
+        }
       }
 
       const payload = { ...form, notes: updatedNotesStr };
@@ -208,97 +225,6 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
     finally { setArchiving(false); }
   };
 
-  const handleSaveNote = async () => {
-    if (!noteText.trim()) return;
-    setSendingNote(true);
-    try {
-      let currentNotes = { general: '', timeline: [] };
-      if (company.notes) {
-        try { currentNotes = JSON.parse(company.notes); }
-        catch { currentNotes.general = company.notes; }
-      }
-      if (!currentNotes.timeline) currentNotes.timeline = [];
-
-      const newEntry = {
-        type: 'nota',
-        text: noteText.trim(),
-        date: new Date().toISOString(),
-        author: localStorage.getItem('name') || 'Usuario'
-      };
-
-      currentNotes.timeline.push(newEntry);
-
-      const payload = {
-        name: company.name,
-        alias: company.alias,
-        rfc: company.rfc,
-        phone_main: company.phone_main,
-        email_main: company.email_main,
-        status: company.status,
-        notes: JSON.stringify(currentNotes)
-      };
-
-      const res = await fetch(`${API_BASE}/api/crm/companies/${company.id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        setNoteText('');
-        showToast('Nota agregada correctamente', 'success');
-        refreshData();
-        if (refetch) refetch();
-      }
-    } catch (err) {
-      showToast('Error al guardar nota', 'error');
-    } finally {
-      setSendingNote(false);
-    }
-  };
-
-  const handleSaveVisita = async () => {
-    if (!visitaResultado.trim()) {
-      showToast('Ingresa el resultado de la actividad', 'warning');
-      return;
-    }
-    setSendingVisita(true);
-    try {
-      const payload = {
-        company_id: company.id,
-        fecha: new Date().toISOString().split('T')[0],
-        tipo: visitaTipo,
-        resultado: visitaResultado.trim(),
-        notas: visitaNotas.trim(),
-        gps_lat: gps?.lat || null,
-        gps_lng: gps?.lng || null
-      };
-      const res = await fetch(`${API_BASE}/api/crm/visitas`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) {
-        showToast('Actividad registrada correctamente', 'success');
-        setVisitaResultado('');
-        setVisitaNotas('');
-        fetchVisitas();
-      } else {
-        throw new Error('Error al registrar');
-      }
-    } catch (e) {
-      showToast('Error al guardar actividad', 'error');
-    } finally {
-      setSendingVisita(false);
-    }
-  };
-
   // Compile timeline from notas and visitas
   const compileTimeline = () => {
     const list = [];
@@ -307,7 +233,15 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
       try { currentNotes = JSON.parse(company.notes); } catch { }
     }
     (currentNotes.timeline || []).forEach(item => {
-      list.push({ ...item, isNote: true, isVisita: false, ts: new Date(item.date).getTime() });
+      const isChange = item.type === 'change' || item.type === 'status_change' || item.type === 'archive';
+      const isNote = item.type === 'nota' || !item.type; // Default to note if type is not specified or is 'nota'
+      list.push({ 
+        ...item, 
+        isNote, 
+        isChange, 
+        isVisita: false, 
+        ts: new Date(item.date).getTime() 
+      });
     });
     visitas.forEach(v => {
       list.push({
@@ -317,7 +251,10 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
         date: v.created_at || v.fecha,
         author: v.created_by_name || 'Usuario',
         isNote: false,
+        isChange: false,
         isVisita: true,
+        gps_lat: v.gps_lat || v.lat || null,
+        gps_lng: v.gps_lng || v.lng || null,
         ts: new Date(v.created_at || v.fecha).getTime()
       });
     });
@@ -382,9 +319,6 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
             <button className="fc-btn-close" onClick={onClose} title="Cerrar">×</button>
           </div>
           <div className="fc-header-actions">
-            <button className="fc-action-btn fc-action-visita" onClick={() => setActiveTab('visita')}>
-              <i className="fas fa-map-marker-alt" /> Registrar Visita / Actividad
-            </button>
             {!editing ? (
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="fc-action-btn fc-action-archive" onClick={() => setShowArchiveConfirm(true)}>
@@ -570,112 +504,116 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
             </div>
           </div>
 
-          {/* RIGHT: Bitácora y Actividad */}
+          {/* RIGHT: Bitácora y Actividad con Filtros Avanzados */}
           <div className="fc-right">
             <div className="fc-right-header">
-              <div className="fc-tabs">
-                <button className={`fc-tab ${activeTab === 'nota' ? 'active' : ''}`} onClick={() => setActiveTab('nota')}>
-                  <i className="fas fa-sticky-note" /> Nota rápida
+              <div className="fc-tabs" style={{ display: 'flex', gap: '4px', overflowX: 'auto', paddingBottom: '4px' }}>
+                <button className={`fc-tab ${activeTab === 'notas' ? 'active' : ''}`} onClick={() => setActiveTab('notas')}>
+                  <i className="fas fa-sticky-note" /> Notas / Comentarios
                 </button>
-                <button className={`fc-tab ${activeTab === 'visita' ? 'active' : ''}`} onClick={() => setActiveTab('visita')}>
-                  <i className="fas fa-map-marker-alt" /> Actividad / Visita
+                <button className={`fc-tab ${activeTab === 'visitas' ? 'active' : ''}`} onClick={() => setActiveTab('visitas')}>
+                  <i className="fas fa-map-marker-alt" /> Visitas
                 </button>
-                <button className={`fc-tab ${activeTab === 'timeline' ? 'active' : ''}`} onClick={() => setActiveTab('timeline')}>
-                  <i className="fas fa-history" /> Historial Completo
+                <button className={`fc-tab ${activeTab === 'bitacora' ? 'active' : ''}`} onClick={() => setActiveTab('bitacora')}>
+                  <i className="fas fa-clipboard-list" /> Bitácora
+                </button>
+                <button className={`fc-tab ${activeTab === 'cambios' ? 'active' : ''}`} onClick={() => setActiveTab('cambios')}>
+                  <i className="fas fa-history" /> Cambios
+                </button>
+                <button className={`fc-tab ${activeTab === 'completo' ? 'active' : ''}`} onClick={() => setActiveTab('completo')}>
+                  <i className="fas fa-stream" /> Historial Completo
                 </button>
               </div>
             </div>
-
-            {activeTab === 'nota' && (
-              <div className="fc-input-area">
-                <textarea
-                  className="fc-textarea"
-                  rows="3"
-                  placeholder="Escribe una nota rápida, acuerdo o información relevante..."
-                  value={noteText}
-                  onChange={e => setNoteText(e.target.value)}
-                />
-                <div className="fc-input-row">
-                  <button className="fc-btn-send" onClick={handleSaveNote} disabled={sendingNote || !noteText.trim()}>
-                    {sendingNote ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-paper-plane" />}
-                    Guardar Nota
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {activeTab === 'visita' && (
-              <div className="fc-input-area">
-                <div style={{ display: 'flex', gap: '10px', marginBottom: '8px', alignItems: 'center' }}>
-                  <select className="fc-input-select" style={{ flex: 1 }} value={visitaTipo} onChange={e => setVisitaTipo(e.target.value)}>
-                    <option value="visita_presencial">Visita Presencial</option>
-                    <option value="llamada">Llamada Telefónica</option>
-                    <option value="videollamada">Videollamada</option>
-                    <option value="correo">Correo Electrónico</option>
-                    <option value="whatsapp">Mensaje de WhatsApp</option>
-                  </select>
-                  {visitaTipo === 'visita_presencial' && (
-                    <div className={`fc-gps-chip ${gpsState}`}>
-                      {gpsState === 'loading' && <><i className="fas fa-spinner fa-spin" /> Buscando GPS</>}
-                      {gpsState === 'ok' && <><i className="fas fa-map-marker-alt" /> GPS Ok</>}
-                      {gpsState === 'error' && <><i className="fas fa-exclamation-triangle" /> Sin GPS</>}
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  className="fc-edit-input"
-                  placeholder="Resultado / Resumen corto (Ej: Se presentó cotización)"
-                  value={visitaResultado}
-                  onChange={e => setVisitaResultado(e.target.value)}
-                  style={{ marginBottom: '8px' }}
-                />
-                <textarea
-                  className="fc-textarea"
-                  rows="2"
-                  placeholder="Detalles adicionales o acuerdos..."
-                  value={visitaNotas}
-                  onChange={e => setVisitaNotas(e.target.value)}
-                />
-                <div className="fc-input-row">
-                  <button className="fc-btn-send" onClick={handleSaveVisita} disabled={sendingVisita || !visitaResultado.trim()}>
-                    {sendingVisita ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-check" />}
-                    Registrar
-                  </button>
-                </div>
-              </div>
-            )}
 
             {/* Timeline View */}
             <div className="fc-timeline">
-              <div className="fc-timeline-section-label">Bitácora Reciente</div>
-              {timelineItems.length === 0 ? (
-                <div className="fc-timeline-empty">
-                  <i className="fas fa-history" />
-                  <span>No hay actividad reciente.</span>
-                </div>
-              ) : (
-                timelineItems.map((tl, i) => (
-                  <div key={i} className="fc-timeline-item">
-                    <div className={`fc-tl-icon ${tl.type || 'nota'}`}>
-                      <i className={`fas ${tl.type === 'visita' ? 'fa-map-marker-alt' : tl.type === 'llamada' ? 'fa-phone' : 'fa-sticky-note'}`} />
+              <div className="fc-timeline-section-label">
+                {activeTab === 'notas' && 'Notas Comerciales'}
+                {activeTab === 'visitas' && 'Visitas y Actividades'}
+                {activeTab === 'bitacora' && 'Bitácora (Notas y Visitas)'}
+                {activeTab === 'cambios' && 'Historial de Cambios'}
+                {activeTab === 'completo' && 'Historial Completo de Actividad'}
+              </div>
+              {(() => {
+                const filteredItems = timelineItems.filter(item => {
+                  if (activeTab === 'notas') return item.isNote;
+                  if (activeTab === 'visitas') return item.isVisita;
+                  if (activeTab === 'bitacora') return item.isNote || item.isVisita;
+                  if (activeTab === 'cambios') return item.isChange;
+                  return true; // completo
+                });
+
+                if (filteredItems.length === 0) {
+                  return (
+                    <div className="fc-timeline-empty">
+                      <i className="fas fa-history" />
+                      <span>No hay registros en esta categoría.</span>
                     </div>
-                    <div className="fc-tl-content">
-                      <div className="fc-tl-meta">
-                        <span className="fc-tl-type">{tl.type || 'Nota'}</span>
-                        <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {tl.author}</span>
-                        <span className="fc-tl-date">{formatDate(tl.date)}</span>
+                  );
+                }
+
+                return filteredItems.map((tl, i) => {
+                  let iconClass = 'nota';
+                  let faIcon = 'fa-sticky-note';
+                  if (tl.isVisita) {
+                    iconClass = 'visita';
+                    faIcon = tl.type === 'llamada' ? 'fa-phone' : 'fa-map-marker-alt';
+                  } else if (tl.isChange) {
+                    iconClass = tl.type === 'archive' ? 'archive' : 'change';
+                    faIcon = tl.type === 'archive' ? 'fa-archive' : 'fa-history';
+                  }
+
+                  return (
+                    <div key={i} className="fc-timeline-item">
+                      <div className={`fc-tl-icon ${iconClass}`}>
+                        <i className={`fas ${faIcon}`} />
                       </div>
-                      <div className="fc-tl-text">{tl.text}</div>
-                      {tl.sub && <div className="fc-tl-sub">{tl.sub}</div>}
+                      <div className="fc-tl-content">
+                        <div className="fc-tl-meta">
+                          <span className="fc-tl-type">
+                            {tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial')}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {tl.author || 'Usuario'}</span>
+                          <span className="fc-tl-date">{formatDate(tl.date)}</span>
+                        </div>
+                        <div className="fc-tl-text" style={{ whiteSpace: 'pre-wrap' }}>{tl.text}</div>
+                        {tl.sub && <div className="fc-tl-sub">{tl.sub}</div>}
+                        
+                        {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
+                        {tl.gps_lat && tl.gps_lng && (
+                          <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '360px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
+                            <iframe
+                              width="100%"
+                              height="140"
+                              frameBorder="0"
+                              style={{ border: 0, display: 'block' }}
+                              src={`https://maps.google.com/maps?q=${tl.gps_lat},${tl.gps_lng}&z=16&output=embed`}
+                              allowFullScreen
+                            ></iframe>
+                            <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                📍 Ubicación en Campo Verificada
+                              </span>
+                              <a 
+                                href={`https://www.google.com/maps/search/?api=1&query=${tl.gps_lat},${tl.gps_lng}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
+                              >
+                                Abrir Maps ↗
+                              </a>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))
-              )}
+                  );
+                });
+              })()}
             </div>
           </div>
         </div>
-
       </div>
 
       {showArchiveConfirm && (

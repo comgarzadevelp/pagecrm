@@ -10,11 +10,10 @@ export default function Step0_SmartSearch() {
   const [isSearching, setIsSearching] = useState(false);
   const [results, setResults] = useState(null); // null significa sin búsqueda, [] sin resultados
 
-  // Preparar datos consolidados para Fuse.js (Empresas y Contactos únicamente, excluyendo negociaciones)
+  // Preparar datos consolidados para Fuse.js (Clientes propios únicamente)
   const searchIndex = useMemo(() => {
     return [
-      ...cache.empresas.map(e => ({ ...e, entityType: 'empresa', searchKey: e.nombre })),
-      ...cache.contactos.map(c => ({ ...c, entityType: 'contacto', searchKey: c.nombre }))
+      ...cache.prospectos.map(p => ({ ...p, entityType: 'prospecto', searchKey: `${p.nombre} ${p.company || ''}` }))
     ];
   }, [cache]);
 
@@ -28,7 +27,7 @@ export default function Step0_SmartSearch() {
 
     // Capa B: Búsqueda Síncrona Local (0ms latencia)
     const fuse = new Fuse(searchIndex, {
-      keys: ['searchKey'],
+      keys: ['nombre', 'company'],
       threshold: 0.35,
       minMatchCharLength: 2
     });
@@ -37,10 +36,10 @@ export default function Step0_SmartSearch() {
     // Actualizamos la UI inmediatamente con lo que encontremos localmente
     setResults(localResults);
 
-    // Capa C: Fallback a API si hay pocos resultados y query largo
+    // Capa C: Fallback a API si hay pocos resultados y query largo (Búsqueda en endpoint aislado de clientes)
     if (localResults.length < 3 && query.trim().length >= 3) {
       setIsSearching(true);
-      
+
       const timer = setTimeout(async () => {
         const API_BASE = import.meta.env.VITE_API_URL || '';
         const token = localStorage.getItem('token');
@@ -52,54 +51,46 @@ export default function Step0_SmartSearch() {
         try {
           const headers = { Authorization: `Bearer ${token}` };
           const encodedQuery = encodeURIComponent(query.trim());
-          
-          // Búsqueda en paralelo en el backend
-          const [companiesRes, contactsRes] = await Promise.all([
-            fetch(`${API_BASE}/api/crm/companies/search?q=${encodedQuery}`, { headers }).then(r => r.json()).catch(() => ({ success: false })),
-            fetch(`${API_BASE}/api/crm/contacts/search?q=${encodedQuery}`, { headers }).then(r => r.json()).catch(() => ({ success: false }))
-          ]);
 
-          const apiResults = [];
+          // Consultamos el endpoint de clientes que ya aplica aislamiento de vendedor y junta SAE
+          const res = await fetch(`${API_BASE}/api/crm/customers`, { headers }).then(r => r.json()).catch(() => ({ success: false }));
 
-          if (companiesRes.success && Array.isArray(companiesRes.companies)) {
-            companiesRes.companies.forEach(c => {
-              apiResults.push({
+          if (res.success && Array.isArray(res.customers)) {
+            // Filtrado del lado del cliente por si acaso o refinamiento con Fuse local del set retornado
+            const queryLower = query.toLowerCase();
+            const apiResults = res.customers
+              .filter(c => 
+                (c.name && c.name.toLowerCase().includes(queryLower)) || 
+                (c.company && c.company.toLowerCase().includes(queryLower))
+              )
+              .map(c => ({
                 id: String(c.id),
                 nombre: c.name || '',
-                entityType: 'empresa',
-                searchKey: c.name || '',
-                rfc: c.rfc || 'Verificado'
+                tipo: 'prospecto',
+                estatus: c.status || 'Activo',
+                company: c.company || '',
+                phone: c.phone || '',
+                email: c.email || '',
+                entityType: 'prospecto',
+                searchKey: `${c.name || ''} ${c.company || ''}`
+              }));
+
+            // Combinamos resultados evitando duplicados
+            setResults(prev => {
+              const combined = [...(prev || []), ...apiResults];
+              const uniqueMap = new Map();
+              combined.forEach(item => {
+                const key = `prospecto-${item.id}`;
+                if (!uniqueMap.has(key)) {
+                  uniqueMap.set(key, item);
+                }
               });
+              return Array.from(uniqueMap.values());
             });
           }
-
-          if (contactsRes.success && Array.isArray(contactsRes.contacts)) {
-            contactsRes.contacts.forEach(co => {
-              apiResults.push({
-                id: String(co.id),
-                nombre: co.name || '',
-                entityType: 'contacto',
-                searchKey: co.name || '',
-                cargo: co.position || 'Contacto'
-              });
-            });
-          }
-
-          // Combinamos resultados evitando duplicados
-          setResults(prev => {
-            const combined = [...(prev || []), ...apiResults];
-            const uniqueMap = new Map();
-            combined.forEach(item => {
-              const key = `${item.entityType}-${item.id}`;
-              if (!uniqueMap.has(key)) {
-                uniqueMap.set(key, item);
-              }
-            });
-            return Array.from(uniqueMap.values());
-          });
 
         } catch (err) {
-          console.error('Error during deep search fallback:', err);
+          console.error('Error during customer search fallback:', err);
         } finally {
           setIsSearching(false);
         }
@@ -112,75 +103,46 @@ export default function Step0_SmartSearch() {
   }, [query, searchIndex]);
 
   const handleSelectEntity = (entity) => {
-    const isEmpresa = entity.entityType === 'empresa';
-    
-    let resolvedEmpresa = isEmpresa ? entity : null;
-    let resolvedContacto = !isEmpresa ? entity : null;
+    // Cuando seleccionamos un cliente existente, mapeamos su empresa y contacto correspondientes
+    const resolvedEmpresa = entity.company ? {
+      id: entity.id.startsWith('sae-') ? entity.id : `company-ref-${entity.id}`,
+      nombre: entity.company,
+      tipo: 'empresa',
+      rfc: entity.rfc || ''
+    } : null;
 
-    if (isEmpresa) {
-      // Intentar buscar un contacto asociado a esta empresa en el caché local
-      const associatedContact = cache.contactos.find(c => {
-        if (Array.isArray(c.contact_companies)) {
-          return c.contact_companies.some(cc => String(cc.company?.id) === String(entity.id));
-        }
-        return false;
-      });
-      if (associatedContact) {
-        resolvedContacto = {
-          id: String(associatedContact.id),
-          nombre: associatedContact.nombre || associatedContact.name,
-          tipo: 'contacto',
-          cargo: associatedContact.cargo || associatedContact.position || 'Contacto'
-        };
-      }
-    } else {
-      // Intentar buscar la empresa asociada a este contacto
-      const contactData = cache.contactos.find(c => String(c.id) === String(entity.id));
-      if (contactData && Array.isArray(contactData.contact_companies) && contactData.contact_companies.length > 0) {
-        const primaryCompany = contactData.contact_companies[0].company;
-        if (primaryCompany) {
-          resolvedEmpresa = {
-            id: String(primaryCompany.id),
-            nombre: primaryCompany.name || primaryCompany.nombre,
-            tipo: 'empresa',
-            rfc: primaryCompany.rfc || ''
-          };
-        }
-      }
-    }
+    const resolvedContacto = {
+      id: entity.id,
+      nombre: entity.nombre,
+      tipo: 'contacto',
+      cargo: entity.cargo || 'Cliente',
+      telefono: entity.phone || '',
+      email: entity.email || ''
+    };
 
     // Actualizamos el estado consolidado en el wizard
     updateEntity('cliente', entity);
     updateEntity('empresa', resolvedEmpresa);
     updateEntity('contacto', resolvedContacto);
 
-    // Auditoría de completitud para ver si saltamos directamente a la obra
-    const isEmpresaComplete = resolvedEmpresa && resolvedEmpresa.nombre && resolvedEmpresa.id && !String(resolvedEmpresa.id).startsWith('mock');
-    const isContactoComplete = resolvedContacto && resolvedContacto.nombre && resolvedContacto.id && !String(resolvedContacto.id).startsWith('mock');
-
-    if (isEmpresaComplete && isContactoComplete) {
-      // Ambos resueltos y reales -> Saltamos directo a la Obra (avanzamos 2 pasos)
-      paginate(2);
-    } else {
-      // Falta vincular o completar -> Avanzamos al Paso 1 (Resolver)
-      paginate(1);
-    }
-  };
-
-  const handleCreateNew = () => {
-    updateEntity('cliente', { isNew: true, nombre: query });
-    updateEntity('empresa', null);
-    updateEntity('contacto', null);
+    // Forzamos el paso por el Paso 1 (Resolver) para que el vendedor valide visualmente
+    // la información cargada, permitiendo corregirla o desvincularla si el cliente
+    // cambió de empresa o puesto.
     paginate(1);
   };
 
+  const handleCreateNew = () => {
+    // Al crear un nuevo prospecto de campo, no asumimos nada.
+    // Inicializamos tanto empresa como contacto en null para que el usuario pueda
+    // buscar o registrar de forma manual e independiente cada entidad (evitando falsas suposiciones).
+    updateEntity('cliente', { isNew: true, nombre: query });
+    updateEntity('empresa', null);
+    updateEntity('contacto', null);
+    paginate(1); // Redirige al Paso 1 para que resuelva ambos libremente
+  };
+
   const renderIcon = (type) => {
-    switch (type) {
-      case 'prospecto': return <Briefcase className="w-5 h-5" />;
-      case 'empresa': return <Building2 className="w-5 h-5" />;
-      case 'contacto': return <User className="w-5 h-5" />;
-      default: return <Search className="w-5 h-5" />;
-    }
+    return <User className="w-5 h-5" />;
   };
 
   return (
@@ -189,7 +151,7 @@ export default function Step0_SmartSearch() {
       <div className="fieldflow-step-content">
         <div className="step-title-block">
           <h3>¿Con quién interactuaste?</h3>
-          <p>Busca por nombre de cliente, empresa o contacto para evitar duplicidades en la base de datos.</p>
+          <p>Busca por nombre de cliente o empresa propia para registrar tu visita.</p>
         </div>
 
         {/* Search Input Group */}
@@ -199,7 +161,7 @@ export default function Step0_SmartSearch() {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ej: Constructora Ríos..."
+            placeholder="Buscar por nombre de cliente o empresa..."
             className="fieldflow-search-input"
             autoComplete="off"
           />
@@ -230,13 +192,13 @@ export default function Step0_SmartSearch() {
                   onClick={() => handleSelectEntity(entity)}
                   className="fieldflow-result-card"
                 >
-                  <div className={`result-icon-box ${entity.entityType}`}>
+                  <div className="result-icon-box contacto">
                     {renderIcon(entity.entityType)}
                   </div>
                   <div className="result-info">
-                    <h4>{entity.searchKey}</h4>
-                    <p>
-                      {entity.entityType} • {entity.estatus || entity.rfc || entity.cargo || 'Verificado'}
+                    <h4>{entity.nombre}</h4>
+                    <p style={{ fontSize: '0.775rem', color: '#6b7280' }}>
+                      {entity.company ? `${entity.company} • ` : ''}{entity.estatus || 'Cliente'}
                     </p>
                   </div>
                   <div className="result-arrow">
@@ -248,46 +210,83 @@ export default function Step0_SmartSearch() {
           )}
 
           {!isSearching && results !== null && results.length === 0 && (
-            <div className="fieldflow-fallback-screen">
-              <div className="fieldflow-fallback-icon">
-                <i className="fas fa-search"></i>
+            <div className="fieldflow-fallback-screen" style={{ padding: '2.5rem 1rem' }}>
+              <div className="fieldflow-fallback-icon" style={{ background: 'rgba(239, 68, 68, 0.05)', color: '#ef4444' }}>
+                <i className="fas fa-search-minus"></i>
               </div>
-              <h4>No se encontraron coincidencias</h4>
-              <p>No detectamos registros existentes con ese nombre en la base de datos.</p>
-              
+              <h4 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#111827' }}>Sin coincidencias encontradas</h4>
+              <p style={{ maxWidth: '280px', margin: '0.5rem auto 1.5rem', color: '#6b7280' }}>
+                No detectamos clientes propios con "{query}" en tu cartera. Crea uno nuevo.
+              </p>
+
               <button
                 type="button"
                 onClick={handleCreateNew}
                 className="fieldflow-btn-primary"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem 1.5rem',
+                  borderRadius: '12px',
+                  background: '#05393A',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  boxShadow: '0 4px 14px rgba(5, 57, 58, 0.25)',
+                  border: 'none',
+                  cursor: 'pointer',
+                  width: '100%',
+                  maxWidth: '280px',
+                  margin: '0 auto'
+                }}
               >
-                <PlusCircle className="w-4 h-4" />
-                Crear Nuevo Registro
+                <PlusCircle className="w-5 h-5" />
+                Crear Nuevo Prospecto
               </button>
             </div>
           )}
 
           {!isSearching && results === null && (
-            <div className="fieldflow-fallback-screen">
+            <div className="fieldflow-fallback-screen" style={{ padding: '3rem 1.5rem' }}>
               <div className="fieldflow-fallback-icon" style={{ background: 'rgba(5, 57, 58, 0.04)', color: '#05393A' }}>
                 <i className="fas fa-search"></i>
               </div>
-              <h4>Búsqueda Rápida</h4>
-              <p>Escribe un nombre para buscar en tiempo real en la base de datos de prospectos, constructoras e ingenieros del CRM.</p>
+              <h4 style={{ fontWeight: '800', color: '#111827' }}>Búsqueda de Prospectos</h4>
+              <p style={{ maxWidth: '320px', color: '#6b7280' }}>
+                Escribe un nombre o empresa para buscar en tiempo real dentro de tu cartera de prospectos y clientes asignados.
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Botón flotante inferior fijo */}
+      {/* Botón flotante inferior optimizado */}
       {!isSearching && results !== null && results.length > 0 && (
-        <div className="fieldflow-footer-fixed">
+        <div className="fieldflow-footer-fixed" style={{ background: 'linear-gradient(180deg, rgba(255,255,255,0) 0%, #ffffff 20%)', paddingTop: '1.5rem' }}>
           <button
             type="button"
             onClick={handleCreateNew}
             className="fieldflow-btn-secondary"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              width: '100%',
+              padding: '0.85rem',
+              borderRadius: '14px',
+              border: '2px dashed rgba(5, 57, 58, 0.25)',
+              background: 'rgba(5, 57, 58, 0.02)',
+              color: '#05393A',
+              fontWeight: '750',
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
           >
             <PlusCircle className="w-4.5 h-4.5" />
-            Ninguno coincide, crear nuevo
+            Ninguno coincide, crear nuevo prospecto
           </button>
         </div>
       )}

@@ -1,9 +1,47 @@
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
+import { motion, AnimatePresence } from 'framer-motion';
 import useDebounce from '../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
+import { 
+  User, 
+  Building2, 
+  MapPin, 
+  FileText, 
+  CheckCircle2, 
+  ArrowRight, 
+  ArrowLeft, 
+  Loader2, 
+  Search, 
+  Sparkles, 
+  Info,
+  Calendar,
+  Layers
+} from 'lucide-react';
 import './CrearProspectoModal.css';
+
+// Framer Motion transition variants
+const slideVariants = {
+  enter: (direction) => ({
+    x: direction > 0 ? '100%' : '-100%',
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+  },
+  exit: (direction) => ({
+    x: direction < 0 ? '100%' : '-100%',
+    opacity: 0,
+  }),
+};
+
+const springTransition = {
+  type: "spring",
+  stiffness: 300,
+  damping: 30,
+};
 
 export default function CrearProspectoModal({
   isOpen,
@@ -15,121 +53,151 @@ export default function CrearProspectoModal({
 }) {
   const { showToast } = useUX();
 
-  // Unified Form State
-  const [createForm, setCreateForm] = useState({
-    companyText: '',
-    companyId: null,
+  // Wizard state
+  const [step, setStep] = useState(1);
+  const [direction, setDirection] = useState(0); // -1 for back, 1 for forward
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-    obraId: 'new', // 'new' or UUID
-    obraText: '',
+  // 1. Customer Selection State (Unified Entity)
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [customersList, setCustomersList] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const customerDropdownRef = useRef(null);
 
-    contactId: 'new', // 'new' or UUID
-    contactName: '',
-    contactPhone: '',
-    contactEmail: '',
-
-    requirementTitle: '',
-    notes: initialNotes || ''
-  });
-
-  const [phoneWarning, setPhoneWarning] = useState('');
-  const [isSubmittingLead, setIsSubmittingLead] = useState(false);
-
-  // Native Evidence State (Attached to Obra)
-  const [acquiredCoords, setAcquiredCoords] = useState(null);
-  const [acquiringGps, setAcquiringGps] = useState(false);
-  const [gpsOmitted, setGpsOmitted] = useState(false);
-  const [gpsOmitReason, setGpsOmitReason] = useState('');
-  const [photos, setPhotos] = useState([]);
-  const [isOmitSelectOpen, setIsOmitSelectOpen] = useState(false);
-  const omitSelectRef = useRef(null);
-
-  // Company Autocomplete state
-  const [companiesLoading, setCompaniesLoading] = useState(false);
-  const [companyOptions, setCompanyOptions] = useState([]);
-  const [showCompanyOptions, setShowCompanyOptions] = useState(false);
-  const companyDropdownRef = useRef(null);
-
-  // Obra Autocomplete state
+  // 2. Obra/Project State
+  const [obraId, setObraId] = useState('new'); // 'new' or UUID
+  const [obraText, setObraText] = useState('');
+  const [linkedObras, setLinkedObras] = useState([]);
+  const [linkedLoading, setLinkedLoading] = useState(false);
   const [obrasLoading, setObrasLoading] = useState(false);
   const [obraOptions, setObraOptions] = useState([]);
   const [showObraOptions, setShowObraOptions] = useState(false);
   const obraDropdownRef = useRef(null);
 
-  // Linked Obras & Contacts state
-  const [linkedObras, setLinkedObras] = useState([]);
-  const [linkedContacts, setLinkedContacts] = useState([]);
-  const [linkedLoading, setLinkedLoading] = useState(false);
+  // 3. Geolocation & Evidence State
+  const [creationCoords, setCreationCoords] = useState(null);
+  const [acquiringGps, setAcquiringGps] = useState(false);
+  const [photos, setPhotos] = useState([]);
 
-  // Debounce inputs
-  const debouncedPhone = useDebounce(createForm.contactPhone, 500);
-  const debouncedCompanySearch = useDebounce(createForm.companyText, 300);
-  const debouncedObraSearch = useDebounce(createForm.obraText, 300);
+  // 4. Requirement/Negotiation Details
+  const [requirementTitle, setRequirementTitle] = useState('');
+  const [notes, setNotes] = useState(initialNotes || '');
 
-  // Check for duplicate phone numbers
+  // Debounced searches
+  const debouncedCustomerSearch = useDebounce(customerSearchQuery, 300);
+  const debouncedObraSearch = useDebounce(obraText, 300);
+
+  // Reset/Initialize Wizard when Modal Opens
   useEffect(() => {
-    const checkPhoneDuplicate = async () => {
-      if (createForm.contactId !== 'new') {
-        setPhoneWarning('');
-        return; // Don't check if selecting existing contact
+    if (isOpen) {
+      setStep(1);
+      setDirection(0);
+      setIsSubmitting(false);
+      setPhotos([]);
+      setCreationCoords(null);
+      setObraId('new');
+      setObraText('');
+      setRequirementTitle('');
+      setNotes(initialNotes || '');
+
+      if (customer) {
+        // If customer is passed from prop (Ficha view)
+        setSelectedCustomer(customer);
+        setCustomerSearchQuery(customer.name || '');
+      } else {
+        setSelectedCustomer(null);
+        setCustomerSearchQuery('');
+        // Prefetch all customers for fast local selection if possible
+        fetchCustomers();
       }
-      if (!debouncedPhone || debouncedPhone.trim().length < 10) {
-        setPhoneWarning('');
+
+      // Silent background Geolocation acquisition for creation metadata
+      acquireSilentGps();
+    }
+  }, [isOpen, customer, initialNotes]);
+
+  // Background GPS Acquisition
+  const acquireSilentGps = () => {
+    if (!navigator.geolocation) return;
+    setAcquiringGps(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCreationCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setAcquiringGps(false);
+      },
+      (err) => {
+        console.warn('Auditoría GPS en segundo plano no disponible:', err);
+        setAcquiringGps(false);
+      },
+      { enableHighAccuracy: true, timeout: 6000 }
+    );
+  };
+
+  // Fetch Customers for Search Autocomplete
+  const fetchCustomers = async (query = '') => {
+    try {
+      setCustomersLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/crm/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.customers) {
+        setCustomersList(data.customers);
+      }
+    } catch (err) {
+      console.error('Error al cargar clientes:', err);
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  // Fetch Linked Obras for Selected Customer
+  useEffect(() => {
+    const fetchObrasForCustomer = async () => {
+      const companyId = selectedCustomer?.company_id || selectedCustomer?.companyId;
+      if (!companyId) {
+        setLinkedObras([]);
+        setObraId('new');
+        setObraText('');
         return;
       }
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(
-          `${API_BASE}/api/crm/leads/check-duplicate?phone=${encodeURIComponent(debouncedPhone.trim())}`,
-          { headers: { 'Authorization': `Bearer ${token}` } }
-        );
-        const data = await res.json();
-        if (data.success && data.duplicate) {
-          setPhoneWarning(data.message || 'Este número ya está asignado a otro ejecutivo.');
-        } else {
-          setPhoneWarning('');
-        }
-      } catch (err) {
-        console.error('Error checking duplicate phone:', err);
-      }
-    };
 
-    if (isOpen) checkPhoneDuplicate();
-  }, [debouncedPhone, API_BASE, isOpen, createForm.contactId]);
-
-  // Fetch company options
-  useEffect(() => {
-    const fetchCompanies = async () => {
-      if (createForm.companyId) return; // Don't fetch if already selected
-      if (!debouncedCompanySearch || debouncedCompanySearch.trim().length < 2) {
-        setCompanyOptions([]);
-        return;
-      }
       try {
-        setCompaniesLoading(true);
+        setLinkedLoading(true);
         const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/crm/companies/search?q=${encodeURIComponent(debouncedCompanySearch.trim())}`, {
+        const res = await fetch(`${API_BASE}/api/crm/obras/company/${companyId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.success) {
-          setCompanyOptions(data.companies || []);
+        if (data.success && data.obras) {
+          setLinkedObras(data.obras);
+          if (data.obras.length > 0) {
+            setObraId(data.obras[0].id);
+            setObraText(data.obras[0].name);
+          } else {
+            setObraId('new');
+            setObraText('');
+          }
         }
       } catch (err) {
-        console.error('Error fetching companies:', err);
+        console.error('Error al obtener obras vinculadas:', err);
       } finally {
-        setCompaniesLoading(false);
+        setLinkedLoading(false);
       }
     };
-    if (showCompanyOptions) {
-      fetchCompanies();
-    }
-  }, [debouncedCompanySearch, API_BASE, showCompanyOptions, createForm.companyId]);
 
-  // Fetch Obra search results
+    if (selectedCustomer) {
+      fetchObrasForCustomer();
+    }
+  }, [selectedCustomer, API_BASE]);
+
+  // Fetch Obra search options (FieldFlow search mode)
   useEffect(() => {
-    const fetchObras = async () => {
-      if (createForm.obraId !== 'new') return;
+    const searchAllObras = async () => {
+      if (obraId !== 'new') return;
       if (!debouncedObraSearch || debouncedObraSearch.trim().length < 2) {
         setObraOptions([]);
         return;
@@ -141,207 +209,52 @@ export default function CrearProspectoModal({
           headers: { 'Authorization': `Bearer ${token}` }
         });
         const data = await res.json();
-        if (data.success) {
-          setObraOptions(data.obras || []);
+        if (data.success && data.obras) {
+          setObraOptions(data.obras);
         }
       } catch (err) {
-        console.error('Error fetching obras:', err);
+        console.error('Error al buscar obras:', err);
       } finally {
         setObrasLoading(false);
       }
     };
+
     if (showObraOptions) {
-      fetchObras();
+      searchAllObras();
     }
-  }, [debouncedObraSearch, API_BASE, showObraOptions, createForm.obraId]);
+  }, [debouncedObraSearch, showObraOptions, obraId, API_BASE]);
 
-  // Fetch Linked Obras & Contacts when Company is Selected
+  // Contextual title suggestion when customer is confirmed
   useEffect(() => {
-    const fetchLinkedData = async () => {
-      if (!createForm.companyId) {
-        setLinkedObras([]);
-        setLinkedContacts([]);
-        return;
-      }
-      try {
-        setLinkedLoading(true);
-        const token = localStorage.getItem('token');
-
-        // Fetch Obras
-        const resObras = await fetch(`${API_BASE}/api/crm/obras/company/${createForm.companyId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const dataObras = await resObras.json();
-
-        // Fetch Contacts using Company endpoint
-        const resComp = await fetch(`${API_BASE}/api/crm/companies/${createForm.companyId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const dataComp = await resComp.json();
-
-        let obrasList = [];
-        if (dataObras.success) {
-          obrasList = dataObras.obras || [];
-          setLinkedObras(obrasList);
-        }
-
-        let contactsList = [];
-        if (dataComp.success && dataComp.linkedContacts) {
-          contactsList = dataComp.linkedContacts.map(lc => lc.contact || lc) || [];
-          setLinkedContacts(contactsList);
-        } else {
-          setLinkedContacts([]);
-        }
-
-        setCreateForm(prev => {
-          const nextObraId = obrasList.length > 0 ? obrasList[0].id : 'new';
-          const nextObraText = obrasList.length > 0 ? obrasList[0].name : '';
-
-          const currentContactInList = contactsList.find(c => String(c.id) === String(prev.contactId));
-
-          let nextContactId = prev.contactId;
-          let nextContactName = prev.contactName;
-          let nextContactPhone = prev.contactPhone;
-          let nextContactEmail = prev.contactEmail;
-
-          if (!currentContactInList && contactsList.length > 0) {
-            if (prev.contactId === 'new') {
-              nextContactId = contactsList[0].id;
-              nextContactName = contactsList[0].name;
-              nextContactPhone = contactsList[0].phone || '';
-              nextContactEmail = contactsList[0].email || '';
-            }
-          } else if (currentContactInList) {
-            nextContactId = currentContactInList.id;
-            nextContactName = currentContactInList.name;
-            nextContactPhone = currentContactInList.phone || '';
-            nextContactEmail = currentContactInList.email || '';
-          }
-
-          return {
-            ...prev,
-            obraId: nextObraId,
-            obraText: nextObraText,
-            contactId: nextContactId,
-            contactName: nextContactName,
-            contactPhone: nextContactPhone,
-            contactEmail: nextContactEmail
-          };
-        });
-
-      } catch (err) {
-        console.error('Error fetching linked data:', err);
-      } finally {
-        setLinkedLoading(false);
-      }
-    };
-
-    if (createForm.companyId) {
-      fetchLinkedData();
-    } else {
-      setLinkedObras([]);
-      setLinkedContacts([]);
+    if (selectedCustomer && !requirementTitle) {
+      const company = selectedCustomer.company || '';
+      const name = selectedCustomer.name || '';
+      const cleanName = (company || name).trim();
+      setRequirementTitle(`Suministro - ${cleanName}`);
     }
-  }, [createForm.companyId, API_BASE]);
+  }, [selectedCustomer, requirementTitle]);
 
-  // Close dropdowns when clicking outside
+  // Click outside dropdowns listener
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (companyDropdownRef.current && !companyDropdownRef.current.contains(event.target)) {
-        setShowCompanyOptions(false);
+    const handleClickOutside = (e) => {
+      if (customerDropdownRef.current && !customerDropdownRef.current.contains(e.target)) {
+        setShowCustomerDropdown(false);
       }
-      if (obraDropdownRef.current && !obraDropdownRef.current.contains(event.target)) {
+      if (obraDropdownRef.current && !obraDropdownRef.current.contains(e.target)) {
         setShowObraOptions(false);
-      }
-      if (omitSelectRef.current && !omitSelectRef.current.contains(event.target)) {
-        setIsOmitSelectOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Reset form when modal opens or closes
-  useEffect(() => {
-    if (isOpen) {
-      const initialCompanyText = customer?.company || '';
-      const initialCompanyId = customer?.company_id || null;
-
-      const initialContactId = customer?.id || 'new';
-      const initialContactName = customer?.name || '';
-      const initialContactPhone = customer?.phone || '';
-      const initialContactEmail = customer?.email || '';
-
-      setCreateForm({
-        companyText: initialCompanyText,
-        companyId: initialCompanyId,
-        obraId: 'new',
-        obraText: '',
-        contactId: initialContactId,
-        contactName: initialContactName,
-        contactPhone: initialContactPhone,
-        contactEmail: initialContactEmail,
-        requirementTitle: '',
-        notes: initialNotes || ''
-      });
-      setPhoneWarning('');
-      setIsSubmittingLead(false);
-      setShowCompanyOptions(false);
-      setAcquiredCoords(null);
-      setAcquiringGps(false);
-      setGpsOmitted(false);
-      setGpsOmitReason('');
-      setPhotos([]);
-
-      if (initialContactId !== 'new' && initialContactName) {
-        setLinkedContacts([{
-          id: initialContactId,
-          name: initialContactName,
-          phone: initialContactPhone,
-          email: initialContactEmail
-        }]);
-      } else {
-        setLinkedContacts([]);
-      }
-
-      setLinkedObras([]);
-    }
-  }, [isOpen, initialNotes, customer]);
-
-  // GPS Handling
-  const handleAcquireGps = () => {
-    setAcquiringGps(true);
-    setAcquiredCoords(null);
-    setGpsOmitted(false);
-
-    if (!navigator.geolocation) {
-      showToast('Tu navegador no soporta geolocalización.', 'error');
-      setAcquiringGps(false);
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setAcquiredCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setAcquiringGps(false);
-        showToast('Ubicación GPS bloqueada con éxito.', 'success');
-      },
-      (err) => {
-        console.warn('GPS failed:', err);
-        showToast('No se pudo obtener la ubicación. Intenta de nuevo o marca omitir.', 'error');
-        setAcquiringGps(false);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
-    );
-  };
-
-  // Photo Handling
+  // Photo handlers
   const handleFilesSelected = (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (!selectedFiles.length) return;
 
     if (photos.length + selectedFiles.length > 3) {
-      showToast('Solo puedes adjuntar un máximo de 3 fotografías.', 'warning');
+      showToast('Puedes adjuntar un máximo de 3 fotografías.', 'warning');
       return;
     }
 
@@ -359,58 +272,43 @@ export default function CrearProspectoModal({
     setPhotos(prev => prev.filter(p => p.id !== id));
   };
 
-  if (!isOpen) return null;
+  // Stepper navigation pagination
+  const paginate = (newDirection) => {
+    setDirection(newDirection);
+    setStep(prev => prev + newDirection);
+  };
 
+  // Step Validation Logic
+  const canProgress = () => {
+    if (step === 1) {
+      return !!selectedCustomer;
+    }
+    if (step === 2) {
+      // Obra is optional, but if "Agregar nueva..." is selected, the title cannot be empty
+      if (obraId === 'new') {
+        return obraText.trim().length > 0;
+      }
+      return true;
+    }
+    if (step === 3) {
+      return requirementTitle.trim().length > 0;
+    }
+    return true;
+  };
+
+  // Submission handler
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+    if (!canProgress()) return;
 
-    const isNewContact = createForm.contactId === 'new';
-    const isNewObra = createForm.obraId === 'new';
-
-    // Validations
-    if (isNewContact) {
-      if (!createForm.contactName.trim() || !createForm.contactPhone.trim()) {
-        showToast('Por favor completa Nombre y Teléfono del contacto nuevo.', 'error');
-        return;
-      }
-    }
-
-    if (isNewObra) {
-      if (!createForm.obraText.trim()) {
-        showToast('Por favor ingresa el nombre de la obra.', 'error');
-        return;
-      }
-    }
-
-    if (!createForm.requirementTitle.trim()) {
-      showToast('Por favor ingresa el título del requerimiento.', 'error');
-      return;
-    }
-
-    if (phoneWarning) {
-      showToast(phoneWarning, 'error');
-      return;
-    }
-
-    if (!gpsOmitted && !acquiredCoords) {
-      showToast('Debes capturar la ubicación GPS o marcar la casilla de omitir en la Obra.', 'warning');
-      return;
-    }
-
-    if (gpsOmitted && !gpsOmitReason.trim()) {
-      showToast('Debes escribir la razón por la que omites el GPS.', 'warning');
-      return;
-    }
-
-    setIsSubmittingLead(true);
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
-
       let uploadedPhotoUrls = [];
 
-      // Upload photos
+      // 1. Upload photos if any
       if (photos.length > 0) {
-        showToast('Subiendo fotos...', 'info');
+        showToast('Subiendo fotografías de evidencia...', 'info');
         const uploadPromises = photos.map(async (p) => {
           const formData = new FormData();
           formData.append('file', p.file);
@@ -431,32 +329,33 @@ export default function CrearProspectoModal({
         uploadedPhotoUrls = results.filter(url => url !== null);
       }
 
-      // Payload building
+      // 2. Build payload
       const payload = {
         // Company
-        company_id: createForm.companyId,
-        company_name: createForm.companyId ? undefined : createForm.companyText.trim(),
+        company_id: selectedCustomer.company_id || selectedCustomer.companyId || null,
+        company_name: selectedCustomer.company || null,
 
         // Obra
-        obra_id: createForm.obraId === 'new' ? null : createForm.obraId,
-        obra_name: createForm.obraId === 'new' ? createForm.obraText.trim() : undefined,
+        obra_id: obraId === 'new' ? null : obraId,
+        obra_name: obraId === 'new' ? obraText.trim() : undefined,
 
         // Contact
-        contact_id: createForm.contactId === 'new' ? null : createForm.contactId,
-        contact_name: (createForm.contactId === 'new' || String(createForm.contactId).startsWith('sae-')) ? createForm.contactName.trim() : undefined,
-        contact_phone: (createForm.contactId === 'new' || String(createForm.contactId).startsWith('sae-')) ? createForm.contactPhone.trim() : undefined,
-        contact_email: (createForm.contactId === 'new' || String(createForm.contactId).startsWith('sae-')) ? (createForm.contactEmail ? createForm.contactEmail.trim() : undefined) : undefined,
+        contact_id: selectedCustomer.id,
+        contact_name: selectedCustomer.name,
+        contact_phone: selectedCustomer.phone,
+        contact_email: selectedCustomer.email,
 
-        // Requirement
-        requirement_title: createForm.requirementTitle.trim(),
-        notes: createForm.notes.trim(),
+        // Requirement details
+        requirement_title: requirementTitle.trim(),
+        notes: notes.trim(),
 
-        // Evidence (to be attached to Obra and copied to notes)
+        // Metadata / GPS (Informative creation GPS)
         evidence_photos: uploadedPhotoUrls.length > 0 ? uploadedPhotoUrls : null,
-        gps_coords: acquiredCoords || null,
-        gps_omit_reason: gpsOmitted ? gpsOmitReason.trim() : null
+        gps_coords: creationCoords || null,
+        gps_omit_reason: creationCoords ? null : 'Auditoría GPS no disponible en navegador'
       };
 
+      // 3. Post to lead endpoint (deposits into negotiations Inbox)
       const res = await fetch(`${API_BASE}/api/crm/leads`, {
         method: 'POST',
         headers: {
@@ -465,496 +364,499 @@ export default function CrearProspectoModal({
         },
         body: JSON.stringify(payload)
       });
+
       const data = await res.json();
+
       if (res.ok && data.success) {
-        showToast('¡Prospecto registrado exitosamente!', 'success');
-        onSuccess(data.lead);
+        showToast('¡Negociación creada y registrada con éxito!', 'success');
+        if (onSuccess) onSuccess(data.lead);
         onClose();
       } else {
-        showToast(data.message || 'Error al registrar prospecto.', 'error');
+        showToast(data.message || 'Error al guardar la negociación.', 'error');
       }
     } catch (err) {
-      console.error('Create manual lead error:', err);
-      showToast('Error de conexión con el servidor.', 'error');
+      console.error('Error al registrar la negociación:', err);
+      showToast('Error de conexión con el servidor comercial.', 'error');
     } finally {
-      setIsSubmittingLead(false);
+      setIsSubmitting(false);
     }
   };
 
-  const handleCompanySelect = (co) => {
-    setCreateForm({
-      ...createForm,
-      companyText: co.name,
-      companyId: co.id,
-      obraId: 'new',
-      obraText: '',
-      contactId: 'new',
-      contactName: '',
-      contactPhone: '',
-      contactEmail: ''
-    });
-    setShowCompanyOptions(false);
-  };
+  if (!isOpen) return null;
 
-  const handleClearCompany = () => {
-    setCreateForm({
-      ...createForm,
-      companyText: '',
-      companyId: null,
-      obraId: 'new',
-      obraText: '',
-      contactId: 'new',
-      contactName: '',
-      contactPhone: '',
-      contactEmail: ''
-    });
-  };
-
-  const handleContactChange = (e) => {
-    const val = e.target.value;
-    if (val === 'new') {
-      setCreateForm({ ...createForm, contactId: 'new', contactName: '', contactPhone: '', contactEmail: '' });
-    } else {
-      const selectedContact = linkedContacts.find(c => c.id === val);
-      if (selectedContact) {
-        setCreateForm({
-          ...createForm,
-          contactId: val,
-          contactName: selectedContact.name,
-          contactPhone: selectedContact.phone || '',
-          contactEmail: selectedContact.email || ''
-        });
-      }
-    }
-  };
-
-  const handleObraSelect = (obra) => {
-    if (!linkedObras.find(o => o.id === obra.id)) {
-      setLinkedObras(prev => [...prev, { id: obra.id, name: obra.name, latitude: obra.latitude, longitude: obra.longitude }]);
-    }
-    setCreateForm({
-      ...createForm,
-      obraId: obra.id,
-      obraText: obra.name
-    });
-    if (obra.latitude && obra.longitude) {
-      setAcquiredCoords({ lat: parseFloat(obra.latitude), lng: parseFloat(obra.longitude) });
-      setGpsOmitted(false);
-    }
-    setShowObraOptions(false);
-  };
-
-  const handleObraChange = (e) => {
-    const val = e.target.value;
-    if (val === 'new') {
-      setCreateForm({ ...createForm, obraId: 'new', obraText: '' });
-      setAcquiredCoords(null);
-    } else {
-      const selectedObra = linkedObras.find(o => o.id === val);
-      if (selectedObra) {
-        setCreateForm({
-          ...createForm,
-          obraId: val,
-          obraText: selectedObra.name
-        });
-        if (selectedObra.latitude && selectedObra.longitude) {
-          setAcquiredCoords({ lat: parseFloat(selectedObra.latitude), lng: parseFloat(selectedObra.longitude) });
-          setGpsOmitted(false);
-        } else {
-          setAcquiredCoords(null);
-        }
-      }
-    }
-  };
+  // Filter customers locally based on query
+  const filteredCustomers = customersList.filter(c => {
+    const nameMatch = c.name?.toLowerCase().includes(customerSearchQuery.toLowerCase());
+    const companyMatch = c.company?.toLowerCase().includes(customerSearchQuery.toLowerCase());
+    return nameMatch || companyMatch;
+  });
 
   return ReactDOM.createPortal(
-    <div className="crm-modal-overlay" style={{ zIndex: 11000 }}>
-      <div className="crm-modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '700px', width: '96%' }}>
-        <button type="button" className="close-modal-btn" onClick={onClose}>&times;</button>
-        <div className="modal-header">
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--color-brand-primary, #05393a)', margin: 0 }}>Registrar Nueva Negociación</h2>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0' }}>
-            Vincula este trato comercial a una empresa o contacto existente, o créalos sobre la marcha.
-          </p>
+    <div className="crm-modal-overlay">
+      <div className="crm-modal-content wizard-modal-content">
+        {/* Close Button */}
+        <button 
+          type="button" 
+          className="close-modal-btn" 
+          onClick={onClose}
+          disabled={isSubmitting}
+          aria-label="Cerrar modal"
+        >
+          &times;
+        </button>
+
+        {/* Header Block */}
+        <div className="modal-header wizard-header">
+          <div className="wizard-title-area">
+            <h2>
+              <Sparkles className="title-icon" style={{ color: 'var(--color-brand-accent, #d4a359)' }} />
+              Registrar Nueva Negociación
+            </h2>
+            <p>
+              {step === 1 && "Confirma o selecciona el cliente para este trato comercial."}
+              {step === 2 && "Vincule una obra (opcional) y registre la ubicación de la cotización."}
+              {step === 3 && "Detalle los requerimientos y el título de la negociación."}
+              {step === 4 && "Verifique el impacto comercial y guarde el negocio."}
+            </p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
+        {/* Stepper Progress Bar */}
+        <div className="wizard-stepper-container">
+          <div className="wizard-stepper">
+            <div className={`wizard-step ${step === 1 ? 'active' : step > 1 ? 'completed' : ''}`}>
+              <span className="step-dot">{step > 1 ? '✓' : '1'}</span>
+              <span className="step-label">Cliente</span>
+            </div>
+            <div className={`wizard-line ${step > 1 ? 'completed' : ''}`} />
+            <div className={`wizard-step ${step === 2 ? 'active' : step > 2 ? 'completed' : ''}`}>
+              <span className="step-dot">{step > 2 ? '✓' : '2'}</span>
+              <span className="step-label">Obra</span>
+            </div>
+            <div className={`wizard-line ${step > 2 ? 'completed' : ''}`} />
+            <div className={`wizard-step ${step === 3 ? 'active' : step > 3 ? 'completed' : ''}`}>
+              <span className="step-dot">{step > 3 ? '✓' : '3'}</span>
+              <span className="step-label">Venta</span>
+            </div>
+            <div className={`wizard-line ${step > 3 ? 'completed' : ''}`} />
+            <div className={`wizard-step ${step === 4 ? 'active' : ''}`}>
+              <span className="step-dot">4</span>
+              <span className="step-label">Resumen</span>
+            </div>
+          </div>
+        </div>
 
-            {/* Paso 1: Empresa */}
-            <div className="form-section">
-              <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>🏢 Paso 1: Empresa / Cliente</h3>
-              <div className="modal-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                <div className="modal-input-group" style={{ position: 'relative' }} ref={companyDropdownRef}>
-                  <label>Empresa, Desarrolladora o Cliente *</label>
-                  {!createForm.companyId ? (
-                    <>
+        {/* Active Step Content with Animation */}
+        <form onSubmit={(e) => e.preventDefault()} className="wizard-form">
+          <div className="modal-body wizard-body">
+            <AnimatePresence initial={false} custom={direction} mode="popLayout">
+              <motion.div
+                key={step}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={springTransition}
+                className="wizard-step-slide"
+              >
+                {/* ── STEP 1: CLIENT SELECTION ── */}
+                {step === 1 && (
+                  <div className="wizard-step-wrapper">
+                    <h3 className="step-section-title">👤 Datos del Cliente</h3>
+                    {selectedCustomer ? (
+                      <div className="client-confirmed-card">
+                        <div className="card-badge">Cliente Confirmado</div>
+                        <div className="client-avatar">
+                          <User size={36} />
+                        </div>
+                        <div className="client-info-fields">
+                          <h4>{selectedCustomer.name}</h4>
+                          {selectedCustomer.company && (
+                            <p className="client-company-subtext">
+                              <Building2 size={14} /> {selectedCustomer.company}
+                            </p>
+                          )}
+                          <div className="client-meta-grid">
+                            <div>
+                              <span className="meta-label">Teléfono:</span>
+                              <span className="meta-value">{selectedCustomer.phone || 'No registrado'}</span>
+                            </div>
+                            <div>
+                              <span className="meta-label">Correo:</span>
+                              <span className="meta-value">{selectedCustomer.email || 'No registrado'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {!customer && (
+                          <button 
+                            type="button" 
+                            className="change-client-btn"
+                            onClick={() => {
+                              setSelectedCustomer(null);
+                              setCustomerSearchQuery('');
+                            }}
+                          >
+                            Cambiar Cliente
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="client-search-wrapper" ref={customerDropdownRef}>
+                        <label className="wizard-input-label">Buscar Cliente / Prospecto en el CRM</label>
+                        <div className="search-input-container">
+                          <Search className="search-icon" />
+                          <input
+                            type="text"
+                            placeholder="Escriba nombre del cliente o empresa..."
+                            value={customerSearchQuery}
+                            onChange={(e) => {
+                              setCustomerSearchQuery(e.target.value);
+                              setShowCustomerDropdown(true);
+                            }}
+                            onFocus={() => setShowCustomerDropdown(true)}
+                            autoComplete="off"
+                          />
+                          {showCustomerDropdown && (
+                            <div className="autocomplete-dropdown wizard-autocomplete">
+                              {customersLoading ? (
+                                <div className="autocomplete-loading">
+                                  <Loader2 className="animate-spin" size={16} /> Cargando catálogo...
+                                </div>
+                              ) : filteredCustomers.length > 0 ? (
+                                filteredCustomers.map((c) => (
+                                  <div
+                                    key={c.id}
+                                    className="autocomplete-option client-option"
+                                    onClick={() => {
+                                      setSelectedCustomer(c);
+                                      setCustomerSearchQuery(c.name || '');
+                                      setShowCustomerDropdown(false);
+                                    }}
+                                  >
+                                    <div className="option-name">{c.name}</div>
+                                    <div className="option-sub">
+                                      {c.company ? `🏢 ${c.company}` : '👤 Particular'} • 📞 {c.phone || 'Sin tel'}
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="autocomplete-empty">
+                                  No se encontraron clientes registrados con ese nombre.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="search-hint-card">
+                          <Info size={14} />
+                          <span>Si el cliente es completamente nuevo, regístrelo primero desde la pestaña "Clientes" para asegurar su ciclo de vida comercial.</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* ── STEP 2: OBRA & UBICACION (OPTIONAL) ── */}
+                {step === 2 && (
+                  <div className="wizard-step-wrapper">
+                    <h3 className="step-section-title">🏗️ Ubicación de Obra (Opcional)</h3>
+                    
+                    <div className="modal-input-group" ref={obraDropdownRef}>
+                      <label className="wizard-input-label">Asociar Proyecto / Obra Destino</label>
+                      {linkedLoading ? (
+                        <div className="loading-sub-indicator">
+                          <Loader2 className="animate-spin" size={14} /> Cargando obras vinculadas al cliente...
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {linkedObras.length > 0 && (
+                            <select 
+                              value={obraId} 
+                              onChange={(e) => {
+                                setObraId(e.target.value);
+                                if (e.target.value !== 'new') {
+                                  const match = linkedObras.find(o => o.id === e.target.value);
+                                  if (match) setObraText(match.name);
+                                } else {
+                                  setObraText('');
+                                }
+                              }}
+                            >
+                              <optgroup label="Obras Vinculadas a la Empresa">
+                                {linkedObras.map(o => (
+                                  <option key={o.id} value={o.id}>{o.name}</option>
+                                ))}
+                              </optgroup>
+                              <option value="new">➕ Agregar Nueva Obra...</option>
+                            </select>
+                          )}
+
+                          {obraId === 'new' && (
+                            <div style={{ position: 'relative', marginTop: '4px' }}>
+                              <input
+                                type="text"
+                                placeholder="Escribe el nombre de la obra (Ej. Torre Santa Fe)..."
+                                value={obraText}
+                                onChange={(e) => {
+                                  setObraText(e.target.value);
+                                  setShowObraOptions(true);
+                                }}
+                                onFocus={() => setShowObraOptions(true)}
+                                autoComplete="off"
+                              />
+                              {showObraOptions && obraText.trim().length >= 2 && (
+                                <div className="autocomplete-dropdown wizard-autocomplete">
+                                  {obrasLoading ? (
+                                    <div className="autocomplete-loading">Buscando en catálogo...</div>
+                                  ) : obraOptions.length > 0 ? (
+                                    obraOptions.map((o) => (
+                                      <div
+                                        key={o.id}
+                                        className="autocomplete-option"
+                                        onClick={() => {
+                                          setObraId(o.id);
+                                          setObraText(o.name);
+                                          setShowObraOptions(false);
+                                        }}
+                                      >
+                                        {o.name} {o.direccion ? `(${o.direccion})` : ''}
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div className="autocomplete-empty">
+                                      Se creará como nueva obra: "{obraText}"
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Background Creation GPS (Auditoría de Origen) */}
+                    <div className="metadata-gps-audit-box">
+                      <div className="audit-label-row">
+                        <MapPin size={16} className={creationCoords ? "gps-icon-active" : "gps-icon-loading"} />
+                        <span>Auditoría GPS de Creación (Geolocalización Comercial)</span>
+                      </div>
+                      <div className="audit-body-row">
+                        {creationCoords ? (
+                          <span className="gps-status-success">
+                            ✓ Ubicación capturada con éxito desde el navegador ({creationCoords.lat.toFixed(5)}, {creationCoords.lng.toFixed(5)}).
+                          </span>
+                        ) : acquiringGps ? (
+                          <span className="gps-status-pending">
+                            Detectando coordenadas de origen comercial en segundo plano...
+                          </span>
+                        ) : (
+                          <span className="gps-status-failed">
+                            Ubicación de registro manual (se asumirá oficina corporativa Garza).
+                          </span>
+                        )}
+                      </div>
+                      <p className="gps-audit-subtext">
+                        Este parámetro se registra automáticamente para auditoría de campo (saber si la negociación se levantó en oficina o en el sitio de obra).
+                      </p>
+                    </div>
+
+                    {/* Photo upload (Optional evidence) */}
+                    <div className="modal-input-group" style={{ marginTop: '1rem' }}>
+                      <label className="wizard-input-label">📷 Evidencia Fotográfica de Obra (Opcional)</label>
+                      <div className="photo-upload-grid">
+                        {photos.map(p => (
+                          <div key={p.id} className="photo-preview-item">
+                            <img src={p.url} alt="preview" />
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(p.id)}
+                              className="remove-photo-badge"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+                        {photos.length < 3 && (
+                          <label className="photo-upload-placeholder">
+                            <span className="plus-symbol">+</span>
+                            <span className="label-text">Foto</span>
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              multiple 
+                              onChange={handleFilesSelected} 
+                              style={{ display: 'none' }} 
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── STEP 3: SALES DETAILS ── */}
+                {step === 3 && (
+                  <div className="wizard-step-wrapper">
+                    <h3 className="step-section-title">💰 Detalles del Requerimiento</h3>
+                    
+                    <div className="modal-input-group">
+                      <label className="wizard-input-label">Título del Trato / Negociación *</label>
                       <input
                         type="text"
-                        placeholder="Escribe para buscar o registrar una nueva..."
-                        value={createForm.companyText}
-                        onChange={(e) => {
-                          setCreateForm({ ...createForm, companyText: e.target.value });
-                          setShowCompanyOptions(true);
-                        }}
-                        onFocus={() => setShowCompanyOptions(true)}
+                        placeholder="Ej. Suministro de tuberías de alta densidad..."
+                        value={requirementTitle}
+                        onChange={(e) => setRequirementTitle(e.target.value)}
                         required
                         autoComplete="off"
                       />
-                      {showCompanyOptions && createForm.companyText.trim().length >= 2 && (
-                        <div className="autocomplete-dropdown">
-                          {companiesLoading ? (
-                            <div className="autocomplete-loading">Buscando empresas...</div>
-                          ) : companyOptions.length > 0 ? (
-                            companyOptions.map((co) => (
-                              <div
-                                key={co.id}
-                                className="autocomplete-option"
-                                onClick={() => handleCompanySelect(co)}
-                              >
-                                {co.name} {co.id.startsWith('sae-') && <span style={{ fontSize: '0.7rem', color: '#64748b', marginLeft: '4px' }}>(SAE)</span>}
-                              </div>
-                            ))
+                      <small className="input-helper-text">
+                        Un título claro y descriptivo ayuda a la priorización visual en el Kanban.
+                      </small>
+                    </div>
+
+                    <div className="modal-input-group">
+                      <label className="wizard-input-label">Notas del Requerimiento (Opcional)</label>
+                      <textarea
+                        rows={4}
+                        placeholder="Detalle los materiales, diámetros, cantidades o acuerdos clave conversados con el cliente..."
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        style={{ resize: 'vertical', minHeight: '90px' }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* ── STEP 4: SUMMARY & STATUS IMPACT ── */}
+                {step === 4 && (
+                  <div className="wizard-step-wrapper">
+                    <h3 className="step-section-title">📋 Consolidación de Negociación</h3>
+                    
+                    <div className="summary-cards-container">
+                      {/* Customer summary */}
+                      <div className="summary-mini-card">
+                        <div className="summary-card-header">
+                          <User size={14} /> Cliente Vinculado
+                        </div>
+                        <div className="summary-card-body">
+                          <strong>{selectedCustomer?.name}</strong>
+                          {selectedCustomer?.company && <span className="sub-line">🏢 {selectedCustomer.company}</span>}
+                        </div>
+                      </div>
+
+                      {/* Obra summary */}
+                      <div className="summary-mini-card">
+                        <div className="summary-card-header">
+                          <Building2 size={14} /> Obra Destino
+                        </div>
+                        <div className="summary-card-body">
+                          {obraId === 'new' ? (
+                            <span>{obraText ? `🏗️ ${obraText} (Nueva)` : '⚠️ Sin obra asociada'}</span>
                           ) : (
-                            <div className="autocomplete-empty">
-                              No se encontraron empresas. Se creará "{createForm.companyText}" como nueva.
-                            </div>
+                            <span>🏗️ {obraText || 'Obra Existente'}</span>
                           )}
                         </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#f1f5f9', border: '1px solid #cbd5e1', borderRadius: '6px' }}>
-                      <span style={{ fontWeight: '600', color: '#0f172a' }}>{createForm.companyText}</span>
-                      <button type="button" onClick={handleClearCompany} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '0.85rem' }}>
-                        <i className="fas fa-times-circle"></i> Cambiar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Paso 2: Obra y Evidencia */}
-            <div className="form-section">
-              <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>🏗️ Paso 2: Obra y Evidencia</h3>
-              <div className="modal-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-
-                {createForm.companyId && linkedObras.length > 0 ? (
-                  <div className="modal-input-group">
-                    <label>Seleccionar Obra *</label>
-                    {linkedLoading ? (
-                      <div style={{ padding: '8px', color: '#64748b' }}>Cargando obras vinculadas...</div>
-                    ) : (
-                      <select value={createForm.obraId} onChange={handleObraChange} required>
-                        <optgroup label="Obras Vinculadas">
-                          {linkedObras.map(o => (
-                            <option key={o.id} value={o.id}>{o.name}</option>
-                          ))}
-                        </optgroup>
-                        <option value="new">➕ Agregar Nueva Obra...</option>
-                      </select>
-                    )}
-                  </div>
-                ) : null}
-
-                {createForm.obraId === 'new' && (
-                  <div className="modal-input-group" style={{ position: 'relative', marginTop: (createForm.companyId && linkedObras.length > 0) ? '10px' : '0' }} ref={obraDropdownRef}>
-                    <label>{(createForm.companyId && linkedObras.length > 0) ? 'Nombre de la Nueva Obra *' : 'Nombre de la Obra *'}</label>
-                    <input
-                      type="text"
-                      placeholder="Escribe para buscar o registrar una nueva..."
-                      value={createForm.obraText}
-                      onChange={(e) => {
-                        setCreateForm({ ...createForm, obraText: e.target.value });
-                        setShowObraOptions(true);
-                      }}
-                      onFocus={() => setShowObraOptions(true)}
-                      required
-                      autoComplete="off"
-                    />
-                    {showObraOptions && createForm.obraText.trim().length >= 2 && (
-                      <div className="autocomplete-dropdown">
-                        {obrasLoading ? (
-                          <div className="autocomplete-loading">Buscando obras...</div>
-                        ) : obraOptions.length > 0 ? (
-                          obraOptions.map((o) => (
-                            <div
-                              key={o.id}
-                              className="autocomplete-option"
-                              onClick={() => handleObraSelect(o)}
-                            >
-                              {o.name}
-                            </div>
-                          ))
-                        ) : (
-                          <div className="autocomplete-empty">
-                            No se encontraron obras. Se creará "{createForm.obraText}" como nueva.
-                          </div>
-                        )}
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Evidencia (GPS y Fotos) */}
-                <div className="modal-input-group" style={{ marginTop: '1.5rem', borderTop: '2px solid #f1f5f9', paddingTop: '1.5rem' }}>
-                  <label style={{ color: '#0f172a', fontWeight: '700', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    📍 Ubicación de la Obra (Requerido)
-                  </label>
-
-                  <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '16px', marginTop: '8px' }}>
-                    {!acquiredCoords && !gpsOmitted ? (
-                      <button
-                        type="button"
-                        onClick={handleAcquireGps}
-                        disabled={acquiringGps}
-                        style={{
-                          width: '100%', padding: '12px', background: '#05393a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginBottom: '12px'
-                        }}
-                      >
-                        {acquiringGps ? (
-                          <><div className="spinner-mini" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div> Obteniendo GPS...</>
-                        ) : (
-                          <><i className="fas fa-map-marker-alt"></i> Capturar GPS Actual</>
-                        )}
-                      </button>
-                    ) : acquiredCoords && !gpsOmitted ? (
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#dcfce7', color: '#166534', padding: '12px', borderRadius: '6px', border: '1px solid #bbf7d0', marginBottom: '12px' }}>
-                        <span style={{ fontWeight: '500' }}><i className="fas fa-check-circle"></i> Ubicación GPS capturada</span>
-                        <button type="button" onClick={() => setAcquiredCoords(null)} style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer', textDecoration: 'underline', fontSize: '0.85rem' }}>Reintentar</button>
-                      </div>
-                    ) : null}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem', color: '#475569' }}>
-                        <input
-                          type="checkbox"
-                          checked={gpsOmitted}
-                          onChange={(e) => {
-                            setGpsOmitted(e.target.checked);
-                            if (e.target.checked) setAcquiredCoords(null);
-                          }}
-                          style={{ accentColor: '#05393a', width: '16px', height: '16px' }}
-                        />
-                        Omitir ubicación GPS
-                      </label>
-
-                      {gpsOmitted && (
-                        <div ref={omitSelectRef} style={{ position: 'relative', width: '100%' }}>
-                          <div
-                            onClick={() => setIsOmitSelectOpen(!isOmitSelectOpen)}
-                            style={{
-                              padding: '12px 16px',
-                              borderRadius: '8px',
-                              border: isOmitSelectOpen ? '2px solid #05393a' : '1px solid #cbd5e1',
-                              width: '100%',
-                              fontSize: '0.9rem',
-                              color: gpsOmitReason ? '#0f172a' : '#64748b',
-                              backgroundColor: '#fff',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                              transition: 'all 0.2s ease',
-                              fontWeight: gpsOmitReason ? '500' : 'normal'
-                            }}
-                          >
-                            {gpsOmitReason || "-- Selecciona el motivo --"}
-                            <i className={`fas fa-chevron-${isOmitSelectOpen ? 'up' : 'down'}`} style={{ color: '#64748b', fontSize: '0.8rem' }}></i>
-                          </div>
-
-                          {isOmitSelectOpen && (
-                            <div style={{
-                              position: 'absolute',
-                              top: '100%',
-                              left: 0,
-                              right: 0,
-                              marginTop: '4px',
-                              backgroundColor: '#fff',
-                              borderRadius: '8px',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              border: '1px solid #e2e8f0',
-                              zIndex: 50,
-                              overflow: 'hidden'
-                            }}>
-                              {[
-                                "Agregado desde la oficina (Llamada/WhatsApp)",
-                                "Contacto recomendado por terceros",
-                                "Prospecto contactado en evento / exposición",
-                                "Registro post-visita (olvidé capturarlo en sitio)"
-                              ].map((option, idx) => (
-                                <div
-                                  key={idx}
-                                  onClick={() => {
-                                    setGpsOmitReason(option);
-                                    setIsOmitSelectOpen(false);
-                                  }}
-                                  style={{
-                                    padding: '12px 16px',
-                                    fontSize: '0.9rem',
-                                    color: '#334155',
-                                    cursor: 'pointer',
-                                    borderBottom: idx < 3 ? '1px solid #f1f5f9' : 'none',
-                                    backgroundColor: gpsOmitReason === option ? '#f8fafc' : '#fff',
-                                    transition: 'background-color 0.15s'
-                                  }}
-                                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f1f5f9'}
-                                  onMouseLeave={(e) => e.target.style.backgroundColor = gpsOmitReason === option ? '#f8fafc' : '#fff'}
-                                >
-                                  {option}
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                      {/* GPS & Title */}
+                      <div className="summary-mini-card" style={{ gridColumn: '1 / -1' }}>
+                        <div className="summary-card-header">
+                          <FileText size={14} /> Requerimiento Comercial
                         </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="modal-input-group" style={{ marginTop: '1rem' }}>
-                  <label style={{ color: '#334155', fontWeight: '600', fontSize: '0.95rem' }}>📷 Fotos de la Obra (Opcional)</label>
-                  <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0 10px 0' }}>Sube hasta 3 imágenes del acceso o avance de obra.</p>
-
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }}>
-                    {photos.map(p => (
-                      <div key={p.id} style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '6px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                        <img src={p.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        <button
-                          type="button"
-                          onClick={() => handleRemovePhoto(p.id)}
-                          style={{ position: 'absolute', top: '2px', right: '2px', background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '10px' }}
-                        >
-                          <i className="fas fa-times"></i>
-                        </button>
+                        <div className="summary-card-body">
+                          <div className="requirement-summary-title">{requirementTitle}</div>
+                          {notes && <p className="requirement-summary-notes">"{notes}"</p>}
+                        </div>
                       </div>
-                    ))}
-                    {photos.length < 3 && (
-                      <label style={{ width: '80px', height: '80px', borderRadius: '6px', border: '2px dashed #cbd5e1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', cursor: 'pointer', background: '#f8fafc', transition: 'all 0.2s' }}>
-                        <i className="fas fa-plus" style={{ fontSize: '1.2rem', marginBottom: '4px' }}></i>
-                        <span style={{ fontSize: '0.7rem' }}>Agregar</span>
-                        <input type="file" accept="image/*" multiple onChange={handleFilesSelected} style={{ display: 'none' }} />
-                      </label>
-                    )}
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Paso 3: Contacto */}
-            <div className="form-section">
-              <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>👤 Paso 3: Datos del Contacto</h3>
-              <div className="modal-form-grid">
-
-                {createForm.companyId && linkedContacts.length > 0 ? (
-                  <div className="modal-input-group" style={{ gridColumn: '1 / -1' }}>
-                    <label>Seleccionar Contacto *</label>
-                    {linkedLoading ? (
-                      <div style={{ padding: '8px', color: '#64748b' }}>Cargando contactos vinculados...</div>
-                    ) : (
-                      <select value={createForm.contactId} onChange={handleContactChange} required>
-                        <optgroup label="Contactos de la Empresa">
-                          {linkedContacts.map(c => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                        </optgroup>
-                        <option value="new">➕ Agregar Nuevo Contacto...</option>
-                      </select>
-                    )}
-                  </div>
-                ) : null}
-
-                {createForm.contactId === 'new' ? (
-                  <>
-                    <div className="modal-input-group">
-                      <label>Nombre del Contacto *</label>
-                      <input
-                        type="text"
-                        placeholder="Ej. Juan Pérez"
-                        value={createForm.contactName}
-                        onChange={(e) => setCreateForm({ ...createForm, contactName: e.target.value })}
-                        required={createForm.contactId === 'new'}
-                      />
                     </div>
-                    <div className="modal-input-group">
-                      <label>Teléfono / WhatsApp *</label>
-                      <input
-                        type="tel"
-                        placeholder="Ej. 8112345678"
-                        value={createForm.contactPhone}
-                        onChange={(e) => setCreateForm({ ...createForm, contactPhone: e.target.value })}
-                        required={createForm.contactId === 'new'}
-                      />
-                      {phoneWarning && (
-                        <span className="phone-warning-message">
-                          <i className="fas fa-exclamation-circle"></i> {phoneWarning}
-                        </span>
-                      )}
-                    </div>
-                    <div className="modal-input-group">
-                      <label>Correo Electrónico (Opcional)</label>
-                      <input
-                        type="email"
-                        placeholder="juan.perez@example.com"
-                        value={createForm.contactEmail}
-                        onChange={(e) => setCreateForm({ ...createForm, contactEmail: e.target.value })}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="modal-input-group" style={{ gridColumn: '1 / -1', background: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', gap: '20px' }}>
-                      <div><strong>Teléfono:</strong> {createForm.contactPhone || 'N/A'}</div>
-                      <div><strong>Correo:</strong> {createForm.contactEmail || 'N/A'}</div>
+
+                    {/* Dynamic Status Impact Explanation (Sanguijuela) */}
+                    <div className="lifecycle-impact-box">
+                      <div className="impact-header-row">
+                        <Layers size={18} style={{ color: 'var(--color-brand-accent, #d4a359)' }} />
+                        <h4>Impacto en Ficha del Cliente (Ciclo de Vida)</h4>
+                      </div>
+                      <div className="impact-body-row">
+                        <div className="impact-flow-visual">
+                          <div className="stage-node current">
+                            <span className="stage-tag">Estatus Actual</span>
+                            <span className="stage-name">
+                              {selectedCustomer?.status === 'pendiente_revision' ? 'Pendiente' : 
+                               selectedCustomer?.status === 'recontactar' ? 'Recontactar' : 
+                               selectedCustomer?.status === 'en_reactivacion' ? 'Reactivación' : 'Prospecto'}
+                            </span>
+                          </div>
+                          <div className="flow-arrow"><ArrowRight size={16} /></div>
+                          <div className="stage-node target">
+                            <span className="stage-tag">Siguiente Nivel</span>
+                            <span className="stage-name">
+                              {selectedCustomer?.status === 'recontactar' ? 'Prospecto Activo' :
+                               selectedCustomer?.status === 'en_reactivacion' ? 'Cliente Activo' : 'Trato en Negociación'}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="impact-explanation-text">
+                          Al registrar este trato, la negociación se anclará como dependencia directa a la ficha comercial del cliente, forzando de forma automática el avance de su nivel de conversión y actualizando las condicionantes en el panel general.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* Paso 4: Requerimiento */}
-            <div className="form-section">
-              <h3 style={{ fontSize: '1rem', color: '#334155', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>💰 Paso 4: Datos de la Venta</h3>
-              <div className="modal-form-grid" style={{ gridTemplateColumns: '1fr' }}>
-                <div className="modal-input-group">
-                  <label>Título del Requerimiento / Venta *</label>
-                  <input
-                    type="text"
-                    placeholder="Ej. 20k Tubos PAD, Acero para Losas"
-                    value={createForm.requirementTitle}
-                    onChange={(e) => setCreateForm({ ...createForm, requirementTitle: e.target.value })}
-                    required
-                  />
-                  <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '2px' }}>
-                    Este será el título principal de la tarjeta en el panel (Ej. {createForm.obraText ? createForm.obraText : 'Torre San José'} - {createForm.requirementTitle ? createForm.requirementTitle : '20k Tubos'})
-                  </small>
-                </div>
-                <div className="modal-input-group">
-                  <label>Notas Iniciales (Opcional)</label>
-                  <textarea
-                    rows="3"
-                    placeholder="Detalla qué material o suministro está buscando el prospecto..."
-                    value={createForm.notes}
-                    onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
+              </motion.div>
+            </AnimatePresence>
           </div>
 
-          <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '1rem' }}>
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancelar</button>
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={isSubmittingLead || !!phoneWarning}
-              style={{ background: 'linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #c2781b 100%)', borderColor: 'var(--color-brand-accent, #d4a359)' }}
-            >
-              {isSubmittingLead ? 'Guardando...' : 'Registrar'}
-            </button>
+          {/* Wizard Footer Navigation */}
+          <div className="modal-footer wizard-footer">
+            {step === 1 ? (
+              <button 
+                type="button" 
+                className="btn-secondary" 
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancelar
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                className="btn-secondary back-wizard-btn" 
+                onClick={() => paginate(-1)}
+                disabled={isSubmitting}
+              >
+                <ArrowLeft size={14} /> Atrás
+              </button>
+            )}
+
+            {step < 4 ? (
+              <button 
+                type="button" 
+                className="btn-primary next-wizard-btn"
+                onClick={() => paginate(1)}
+                disabled={!canProgress()}
+              >
+                Siguiente <ArrowRight size={14} />
+              </button>
+            ) : (
+              <button 
+                type="button" 
+                className="btn-primary submit-wizard-btn"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !canProgress()}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin" size={14} /> Guardando...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={14} /> Guardar Negociación
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </form>
       </div>

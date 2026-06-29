@@ -52,10 +52,11 @@ export function useCrmData(role, enabledModules = []) {
 
   // Calculate stats from leads
   const calculateStats = (leadsList) => {
-    const total = leadsList.length;
-    const popup = leadsList.filter(l => l.type === 'popup_whatsapp').length;
-    const contact = leadsList.filter(l => l.type === 'contact_form').length;
-    const qualified = leadsList.filter(l => l.status === 'calificado' || l.status === 'contactado').length;
+    const activeLeads = leadsList.filter(l => l.status?.toLowerCase() !== 'descartado' && l.status?.toLowerCase() !== 'descartada');
+    const total = activeLeads.length;
+    const popup = activeLeads.filter(l => l.type === 'popup_whatsapp').length;
+    const contact = activeLeads.filter(l => l.type === 'contact_form').length;
+    const qualified = activeLeads.filter(l => l.status === 'calificado' || l.status === 'contactado').length;
     setStats({ total, popup, contact, qualified });
   };
 

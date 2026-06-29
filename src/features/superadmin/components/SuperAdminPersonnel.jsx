@@ -291,7 +291,7 @@ export default function SuperAdminPersonnel() {
       {/* HEADER SECTION */}
       <div className="sa-pers-header-box">
         <h2 className="sa-pers-title">
-          <i className="fas fa-users-cog" style={{ color: 'var(--color-brand-accent)', marginRight: '12px' }} />
+          <i className="fas fa-users-cog" />
           Gestión de Personal Registrado
         </h2>
         <p className="sa-pers-subtitle">
@@ -341,14 +341,13 @@ export default function SuperAdminPersonnel() {
         
         {/* LEFT COLUMN: INTERACTIVE PERSONNEL LIST */}
         <div className="sa-pers-list-card glass">
-          <div className="sa-pers-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="sa-pers-list-header">
             <div>
               <h3>Lista de Colaboradores</h3>
               <span className="sa-pers-counter">{filteredUsers.length} registros</span>
             </div>
             <button 
               className="crm-btn-primary" 
-              style={{ padding: '8px 14px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
               onClick={handleAddNewClick}
             >
               <i className="fas fa-user-plus" /> Agregar Nuevo
@@ -388,7 +387,7 @@ export default function SuperAdminPersonnel() {
                         <span className="meta-tag">
                           <i className="fas fa-building" /> {userCompany ? userCompany.name : 'N/A — Sin Empresa'}
                           {userCompany && (
-                            <span style={{ marginLeft: '6px', fontSize: '0.8em', color: userCompany.company_code === 'GARZA' ? '#4ade80' : '#f87171' }}>
+                            <span style={{ marginLeft: '6px', fontSize: '0.8em', color: userCompany.company_code === 'GARZA' ? '#059669' : '#e11d48' }}>
                               ({userCompany.company_code === 'GARZA' ? 'DB SAE: Conectada' : 'Sin DB Externa'})
                             </span>
                           )}
@@ -514,11 +513,10 @@ export default function SuperAdminPersonnel() {
                 <div className="sa-pers-field-group">
                   <label>Permiso y Rol en la App</label>
                   <div className="field-input-wrapper">
-                    <i className="fas fa-shield-alt field-icon" style={{ color: 'var(--color-brand-accent)' }} />
+                    <i className="fas fa-shield-alt field-icon" />
                     <select 
                       value={editRole} 
                       onChange={e => setEditRole(e.target.value)}
-                      style={{ color: '#00f2fe', fontWeight: 'bold' }}
                       disabled={saving}
                     >
                       <option value="sales">Vendedor (Nivel 2)</option>
@@ -591,7 +589,7 @@ export default function SuperAdminPersonnel() {
 
               {/* ACTION BUTTONS */}
               <div className="sa-pers-form-actions">
-                <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+                <div style={{ display: 'flex', gap: '16px', width: '100%' }}>
                   <button 
                     type="submit" 
                     className="btn-save-pers crm-btn-primary" 
@@ -617,7 +615,7 @@ export default function SuperAdminPersonnel() {
                     <button 
                       type="button" 
                       className="btn-pers-secondary"
-                      style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)' }}
+                      style={{ flex: 1 }}
                       onClick={() => setIsCreateMode(false)}
                       disabled={saving}
                     >

@@ -37,6 +37,8 @@ export function FieldFlowProvider({ children }) {
     prospecto: null,
     empresa: null,
     contacto: null,
+    contactosAdicionales: [],
+    client_profile: 'b2b', // 'b2b' o 'b2c'
     obra: null,
     visita: null
   });

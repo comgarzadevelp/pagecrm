@@ -25,10 +25,10 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
   const token = () => localStorage.getItem('token');
 
   // Capa de Datos (Data Fetching)
-  const { 
-    companies, setCompanies, 
-    contacts, setContacts, 
-    priceLists, loading, error, refetch 
+  const {
+    companies, setCompanies,
+    contacts, setContacts,
+    priceLists, loading, error, refetch
   } = useEmpresas(API_BASE, token());
 
   // Registrar setCompanies con el padre para actualizaciones en tiempo real desde el modal
@@ -78,14 +78,14 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
   const [archivingInProgress, setArchivingInProgress] = useState(false);
 
   // Funciones de apertura de modales
-  const openCreate = () => { 
-    setEditMode(false); 
-    setSelectedCompany(null); 
-    setShowModal(true); 
+  const openCreate = () => {
+    setEditMode(false);
+    setSelectedCompany(null);
+    setShowModal(true);
   };
 
   const openEdit = (c) => {
-    setEditMode(true); 
+    setEditMode(true);
     setSelectedCompany(c);
     setShowModal(true);
   };
@@ -177,27 +177,27 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
       {/* HEADER */}
       <header className={styles.header}>
         <div>
-          <h2 className={styles.title}><i className="fas fa-city" style={{ color: '#64748b' }} />Empresas y Desarrollos</h2>
+          <h2 className={styles.title}><i className="fas fa-city" style={{ color: '#64748b' }} />Empresas o Desarradoras</h2>
           <p className={styles.subtitle}>
-            Directorio completo de clientes, desarrolladores y constructoras.
+            Directorio completo de empresas (S.A de C.V o similares) desarrolladoras y constructoras que contengan empleados.
           </p>
         </div>
       </header>
 
       {/* ── CONSOLIDATED CLASSIFICATION & SEARCH BAND ── */}
       <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '8px 16px', borderRadius: '100px', marginBottom: '1rem', minHeight: '52px', boxSizing: 'border-box' }}>
-        
+
         {/* Left Side: Label and Pills */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', flex: 1, scrollbarWidth: 'none' }}>
           <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '4px', letterSpacing: '0.05em' }}>Clasificador:</span>
-          
+
           {[
-            { key: 'all',      label: 'Todos',    color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)' },
-            { key: 'activa',   label: 'Activa',   color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)' },
-            { key: 'buena',    label: 'Buena',    color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)' },
-            { key: 'pendiente',label: 'Pendiente',color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)' },
-            { key: 'mala',     label: 'Mala',     color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)' },
-            { key: 'pesima',   label: 'Pésima',   color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)' },
+            { key: 'all', label: 'Todos', color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)' },
+            { key: 'activa', label: 'Activa', color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)' },
+            { key: 'buena', label: 'Buena', color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)' },
+            { key: 'pendiente', label: 'Pendiente', color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)' },
+            { key: 'mala', label: 'Mala', color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)' },
+            { key: 'pesima', label: 'Pésima', color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)' },
           ].map(opt => {
             const isActive = qualityFilter === opt.key;
             const count = companies ? companies.filter(c => {
@@ -260,11 +260,11 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
           {/* Search Box */}
           <div style={{ width: '220px', position: 'relative' }}>
             <i className="fas fa-search" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
-            <input 
-              type="text" 
-              placeholder="Buscar..." 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
+            <input
+              type="text"
+              placeholder="Buscar..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
               style={{
                 width: '100%',
                 padding: '0.4rem 0.85rem 0.4rem 2.15rem',

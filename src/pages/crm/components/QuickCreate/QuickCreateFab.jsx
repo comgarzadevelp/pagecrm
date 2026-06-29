@@ -20,6 +20,14 @@ export default function QuickCreateFab({
   // Controlar visibilidad de opciones por enabledModules del rol activo
   const hasQuotes = enabledModules.includes('quotes');
 
+  React.useEffect(() => {
+    const handleOpenFieldFlow = () => {
+      setActiveModal('fieldflow');
+    };
+    window.addEventListener('open-fieldflow-wizard', handleOpenFieldFlow);
+    return () => window.removeEventListener('open-fieldflow-wizard', handleOpenFieldFlow);
+  }, []);
+
   // Filtrar roles no permitidos (super_admin y sistemas no ven el FAB)
   if (role === 'super_admin' || role === 'sistemas') {
     return null;
@@ -100,7 +108,14 @@ export default function QuickCreateFab({
 
       {/* Modales Fullscreen Condicionales */}
       {activeModal === 'fieldflow' && (
-        <FieldFlowWizard onClose={() => setActiveModal(null)} />
+        <FieldFlowWizard 
+          onClose={() => setActiveModal(null)} 
+          onSuccess={() => {
+            if (typeof fetchCustomers === 'function') fetchCustomers();
+            if (typeof fetchOpportunitiesList === 'function') fetchOpportunitiesList();
+          }}
+        />
+
       )}
     </>
   );

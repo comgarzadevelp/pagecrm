@@ -170,20 +170,20 @@ export const runLeadNotificationCheck = async () => {
       .from('crm_opportunities')
       .select(`
         id,
-        name,
+        title,
         created_at,
         updated_at,
         stage,
         company_id,
         contact_id,
-        user_id
+        assigned_to
       `)
       .not('stage', 'in', '("ganado","perdido","venta_ganada","venta_perdida","cierre_ganado","cierre_perdido","descartado","descartada")');
 
     if (oppError) throw oppError;
 
     for (const opp of (opportunities || [])) {
-      const sellerId = opp.user_id;
+      const sellerId = opp.assigned_to;
       if (!sellerId) continue;
       const seller = userMap[sellerId];
       if (!seller) continue;
@@ -198,7 +198,7 @@ export const runLeadNotificationCheck = async () => {
           sellerId,
           'opp_sla_7d',
           '🚨 ALERTA CRÍTICA: Negociación congelada',
-          `La negociación "${opp.name}" lleva más de 7 días sin cambios de etapa ni comentarios. Por favor actualízala de inmediato.`,
+          `La negociación "${opp.title}" lleva más de 7 días sin cambios de etapa ni comentarios. Por favor actualízala de inmediato.`,
           opp.id
         );
 
@@ -207,7 +207,7 @@ export const runLeadNotificationCheck = async () => {
             seller.supervisor_id,
             'opp_sla_7d_super',
             '🚨 Alerta Crítica (Supervisor): Negociación congelada',
-            `La negociación "${opp.name}" asignada a ${sellerName} lleva 7 días sin avances en el pipeline.`,
+            `La negociación "${opp.title}" asignada a ${sellerName} lleva 7 días sin avances en el pipeline.`,
             opp.id
           );
         }
@@ -216,7 +216,7 @@ export const runLeadNotificationCheck = async () => {
           sellerId,
           'opp_sla_72h',
           '⚠️ Notificación: Negociación sin movimientos',
-          `La negociación "${opp.name}" lleva 72 horas sin cambios de etapa o notas de seguimiento.`,
+          `La negociación "${opp.title}" lleva 72 horas sin cambios de etapa o notas de seguimiento.`,
           opp.id
         );
       } else if (diffHours >= 48) {
@@ -224,7 +224,7 @@ export const runLeadNotificationCheck = async () => {
           sellerId,
           'opp_sla_48h',
           '⏱️ Recordatorio: 48 horas de inactividad',
-          `La negociación "${opp.name}" no ha registrado cambios en las últimas 48 horas.`,
+          `La negociación "${opp.title}" no ha registrado cambios en las últimas 48 horas.`,
           opp.id
         );
       }

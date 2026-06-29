@@ -18,7 +18,7 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
 
   const options = [
     { value: 'nuevo', label: 'Nueva negociación', color: '#0086c0' },
-    { value: 'contactado', label: 'En plática con cliente', color: '#ffcb00', textColor: '#000' },
+    { value: 'contactado', label: 'En pláticas', color: '#ffcb00', textColor: '#000' },
     { value: 'cotizando', label: 'Se le hizo cotización', color: '#7c3aed' },
     { value: 'cierre_ganado', label: 'Venta Exitosa', color: '#16a34a' },
     { value: 'cierre_perdido', label: 'Venta perdida', color: '#dc2626' },
@@ -79,7 +79,7 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
           className="status-dropdown-popover glass"
           style={{
             position: 'absolute',
-            top: 'calc(100% + 6px)',
+            bottom: 'calc(100% + 6px)',
             right: 0,
             width: '180px',
             background: 'rgba(255, 255, 255, 0.96)',

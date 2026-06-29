@@ -1,4 +1,4 @@
-import { supabase, saeSupabase, cleanCompanyId } from '../supabaseClient.js';
+import { supabase, getSaeConnection, cleanCompanyId } from '../supabaseClient.js';
 
 const isValidEmail = (email) => {
   if (!email) return false;
@@ -49,8 +49,9 @@ export const getPriceLists = async (req, res) => {
       return res.json({ success: true, priceLists: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
-    const { data: priceLists, error } = await saeSupabase
-      .from('precios03')
+    const { saeClient, suffix } = getSaeConnection(req.user);
+    const { data: priceLists, error } = await saeClient
+      .from(`precios${suffix}`)
       .select('cve_precio, descripcion')
       .eq('status', 'A')
       .order('cve_precio', { ascending: true });
@@ -131,14 +132,15 @@ export const getProducts = async (req, res) => {
     const { q, category, material, measure } = req.query;
 
     // 1. Fetch dynamic agreements and price overrides from ASPEL SAE mirror tables
-    const { data: priceLists } = await saeSupabase
-      .from('precios03')
+    const { saeClient, suffix } = getSaeConnection(req.user);
+    const { data: priceLists } = await saeClient
+      .from(`precios${suffix}`)
       .select('cve_precio, descripcion')
       .eq('status', 'A')
       .order('cve_precio', { ascending: true });
 
-    const { data: rawPrices } = await saeSupabase
-      .from('precio_x_prod03')
+    const { data: rawPrices } = await saeClient
+      .from(`precio_x_prod${suffix}`)
       .select('cve_art, cve_precio, precio')
       .gt('precio', 0);
 
@@ -152,8 +154,8 @@ export const getProducts = async (req, res) => {
     }
 
     // 2. Query mirror database table inve03
-    let dbQuery = saeSupabase
-      .from('inve03')
+    let dbQuery = saeClient
+      .from(`inve${suffix}`)
       .select('cve_art, descr, exist, ult_costo, status, cve_prodserv, cve_unidad')
       .eq('status', 'A'); // Active products only
 
@@ -1243,7 +1245,59 @@ export const createManualLead = async (req, res) => {
           }
         }
       } else {
-        localContactId = finalContactId;
+        // Verify if finalContactId is a valid contact in the contacts table
+        const { data: isContact } = await supabase
+          .from('contacts')
+          .select('id')
+          .eq('id', finalContactId)
+          .maybeSingle();
+
+        if (isContact) {
+          localContactId = finalContactId;
+        } else {
+          // If it's not in the contacts table, it is a lead ID from /customers!
+          // Let's resolve it to its linked contact_id or find/create a contact.
+          const { data: leadData } = await supabase
+            .from('leads')
+            .select('notes, name, phone, email')
+            .eq('id', finalContactId)
+            .maybeSingle();
+
+          let contactIdFromNotes = null;
+          if (leadData?.notes) {
+            try {
+              const parsed = JSON.parse(leadData.notes);
+              if (parsed && parsed.contact_id) {
+                contactIdFromNotes = parsed.contact_id;
+              }
+            } catch (e) {}
+          }
+
+          if (contactIdFromNotes) {
+            localContactId = contactIdFromNotes;
+          } else if (leadData) {
+            const cleanPhone = leadData.phone ? leadData.phone.trim() : '';
+            const { data: existingContact } = await supabase
+              .from('contacts')
+              .select('id')
+              .or(`phone.eq.${cleanPhone},name.ilike.${leadData.name.trim()}`)
+              .maybeSingle();
+
+            if (existingContact) {
+              localContactId = existingContact.id;
+            } else {
+              const { data: newContact } = await supabase.from('contacts').insert([{
+                name: leadData.name.trim(),
+                phone: cleanPhone,
+                email: leadData.email ? leadData.email.trim() : null,
+                created_by: userId,
+                company_id: localCompanyId
+              }]).select('id').single();
+
+              if (newContact) localContactId = newContact.id;
+            }
+          }
+        }
       }
     }
 
@@ -1260,67 +1314,95 @@ export const createManualLead = async (req, res) => {
       }
     }
 
-    // 4. Create Lead
-    // Fetch names to store in the lead record (for backward compatibility and easy display)
-    let leadCompanyName = company_name || '';
-    let leadContactName = contact_name || '';
-    let leadContactPhone = contact_phone || '';
-    let leadContactEmail = contact_email || '';
-    let leadObraName = obra_name || '';
+    // 4. Determinar flujo: Negociación vinculada vs. Prospecto huérfano
+    // Si se resolvió una empresa o contacto local → es una NEGOCIACIÓN → solo crm_opportunities
+    // Si no hay entidades resueltas → es un PROSPECTO HUÉRFANO → solo leads (bandeja de ventas)
 
-    if (finalCompanyId && !company_name) {
-       const { data: cData } = await supabase.from('companies').select('name').eq('id', finalCompanyId).single();
-       if (cData) leadCompanyName = cData.name;
+    if (localContactId || localCompanyId) {
+      // ── FLUJO: NEGOCIACIÓN CON CLIENTE CONOCIDO ──────────────────────────
+      const opportunityPayload = {
+        title: requirement_title.trim(),
+        description: notes || 'Negociación registrada desde el flujo rápido.',
+        type: 'proyecto',
+        stage: 'nuevo',
+        value: 0,
+        contact_id: localContactId || null,
+        company_id: localCompanyId || null,
+        assigned_to: userId,
+        created_by: userId,
+        stage_updated_at: new Date().toISOString()
+      };
+
+      const { data: oppData, error: oppError } = await supabase
+        .from('crm_opportunities')
+        .insert([opportunityPayload])
+        .select()
+        .single();
+
+      if (oppError) throw oppError;
+
+      // Marcar la empresa/contacto como "en reactivación" (negociación activa abierta)
+      if (localCompanyId) {
+        await supabase.from('companies').update({ status: 'reactivado_venta' }).eq('id', localCompanyId);
+      }
+
+      return res.status(201).json({ success: true, opportunity: oppData, isNegotiation: true });
+
+    } else {
+      // ── FLUJO: PROSPECTO HUÉRFANO (sin empresa/contacto resuelto) ─────────
+      let leadContactName = contact_name || '';
+      let leadContactPhone = contact_phone || '';
+      let leadContactEmail = contact_email || '';
+      let leadCompanyName = company_name || '';
+      let leadObraName = obra_name || '';
+
+      if (finalObraId && !obra_name) {
+        const { data: oData } = await supabase.from('obras').select('name').eq('id', finalObraId).single();
+        if (oData) leadObraName = oData.name;
+      }
+
+      const notesPayload = {
+        general: notes || 'Prospecto registrado manualmente.',
+        project_name: leadObraName,
+        requirement_title: requirement_title?.trim() || '',
+        obra_id: finalObraId || null,
+        company_id: null,
+        contact_id: null,
+        timeline: [{
+          date: new Date().toISOString(),
+          text: 'Prospecto registrado manualmente en el CRM.',
+          author: req.user?.name || 'Vendedor',
+          type: 'status_change'
+        }]
+      };
+
+      if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
+
+      const insertPayload = {
+        name: leadContactName.trim(),
+        email: leadContactEmail ? leadContactEmail.trim() : null,
+        phone: leadContactPhone.trim(),
+        company: leadCompanyName.trim(),
+        notes: JSON.stringify(notesPayload),
+        assigned_to: userId,
+        status: 'nuevo',
+        type: 'vendedor_manual'
+      };
+
+      if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
+        insertPayload.company_id = reqCompanyId;
+      }
+
+      const { data: leadData, error: leadError } = await supabase
+        .from('leads')
+        .insert([insertPayload])
+        .select()
+        .single();
+
+      if (leadError) throw leadError;
+
+      return res.status(201).json({ success: true, lead: leadData, isNegotiation: false });
     }
-    if (finalContactId && !contact_name) {
-       const { data: cData } = await supabase.from('contacts').select('name, phone, email').eq('id', finalContactId).single();
-       if (cData) { leadContactName = cData.name; leadContactPhone = cData.phone; leadContactEmail = cData.email; }
-    }
-    if (finalObraId && !obra_name) {
-       const { data: oData } = await supabase.from('obras').select('name').eq('id', finalObraId).single();
-       if (oData) leadObraName = oData.name;
-    }
-
-    const notesPayload = {
-      general: notes || 'Lead creado manualmente por el vendedor.',
-      project_name: leadObraName,
-      requirement_title: requirement_title?.trim() || '',
-      obra_id: finalObraId,
-      company_id: finalCompanyId,
-      contact_id: finalContactId,
-      timeline: [{
-        date: new Date().toISOString(),
-        text: 'Prospecto registrado manualmente en el CRM.',
-        author: req.user?.name || 'Vendedor',
-        type: 'status_change'
-      }]
-    };
-
-    if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
-
-    const insertPayload = {
-      name: leadContactName.trim(),
-      email: leadContactEmail ? leadContactEmail.trim() : null,
-      phone: leadContactPhone.trim(),
-      company: leadCompanyName.trim(),
-      notes: JSON.stringify(notesPayload),
-      assigned_to: userId,
-      status: 'nuevo',
-      type: 'vendedor_manual'
-    };
-
-    if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
-      insertPayload.company_id = reqCompanyId; // To link to the User's tenant
-    }
-
-    const { data, error } = await supabase
-      .from('leads')
-      .insert([insertPayload])
-      .select()
-      .single();
-
-    if (error) throw error;
-    res.status(201).json({ success: true, lead: data });
   } catch (err) {
     console.error('createManualLead error:', err);
     res.status(500).json({ success: false, message: 'Error interno al registrar el prospecto.' });
@@ -1784,7 +1866,7 @@ export const getEnterpriseCompanies = async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('enterprise_companies')
-      .select('id, name, company_code, color_primary, color_accent, active, description, google_calendar_id');
+      .select('id, name, company_code, color_primary, color_accent, active, description, google_calendar_id, sae_connection');
     
     if (error) throw error;
     res.json({ success: true, companies: data });
@@ -1811,8 +1893,8 @@ export const getSellers = async (req, res) => {
         return res.status(401).json({ success: false, message: 'Company ID required' });
       }
       query = query.eq('company_id', companyId);
-      // For local admins/supervisors, they see salespeople
-      query = query.eq('role', 'sales');
+      // For local admins/supervisors, they see salespeople and managers
+      query = query.in('role', ['sales', 'admin', 'supervisor']);
     }
 
     const { data, error } = await query;
@@ -2072,9 +2154,162 @@ export const getCustomers = async (req, res) => {
     const userId = req.user?.userId;
     const role = req.user?.role;
     const companyId = req.user?.companyId;
+    const { q } = req.query;
 
     if (!companyId) {
       return res.status(401).json({ success: false, message: 'Company ID required' });
+    }
+
+    if (q && q.trim().length >= 2) {
+      const searchTerm = `%${q.trim()}%`;
+      
+      // 1. Buscar en clientes CRM locales
+      let globalQuery = supabase
+        .from('leads')
+        .select(`
+          id,
+          name,
+          email,
+          phone,
+          status,
+          type,
+          company,
+          company_id,
+          contact_id,
+          notes,
+          created_at,
+          assigned_to (id, name)
+        `)
+        .eq('type', 'crm_customer')
+        .or(`name.ilike.${searchTerm},company.ilike.${searchTerm}`)
+        .order('name', { ascending: true })
+        .limit(15);
+
+      if (companyId && !String(companyId).startsWith('company-')) {
+        globalQuery = globalQuery.or(`company_id.eq.${companyId},company_id.is.null`);
+      }
+
+      const { data: results, error } = await globalQuery;
+      if (error) throw error;
+
+      // 2. Buscar en Aspel SAE (si la empresa es GARZA)
+      const saeCustomers = [];
+      const isGarza = req.user?.companyCode === 'GARZA';
+
+      let userSaeKey = null;
+      if (role === 'sales' && userId) {
+        const { data: userRec } = await supabase
+          .from('crm_users')
+          .select('sae_vendor_key')
+          .eq('id', userId)
+          .maybeSingle();
+        if (userRec?.sae_vendor_key) {
+          userSaeKey = userRec.sae_vendor_key.trim();
+        }
+      }
+
+      if (isGarza) {
+        const { data: saeData, error: saeError } = await saeSupabase
+          .from('clie03')
+          .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
+          .eq('status', 'A')
+          .or(`nombre.ilike.${searchTerm},nombrecomercial.ilike.${searchTerm}`)
+          .limit(15);
+
+        if (!saeError && saeData && saeData.length > 0) {
+          // Obtener nombres de vendedores para las claves de SAE asociadas
+          const uniqueVendorKeys = [...new Set(saeData.map(c => c.cve_vend ? c.cve_vend.trim() : '').filter(Boolean))];
+          const vendorMap = {};
+          if (uniqueVendorKeys.length > 0) {
+            const { data: vendors } = await supabase
+              .from('crm_users')
+              .select('name, sae_vendor_key')
+              .in('sae_vendor_key', uniqueVendorKeys);
+            
+            if (vendors) {
+              vendors.forEach(v => {
+                if (v.sae_vendor_key) {
+                  vendorMap[v.sae_vendor_key.trim()] = v.name;
+                }
+              });
+            }
+          }
+
+          // Identificar claves SAE ya vinculadas a clientes locales para evitar duplicados
+          const saeLinkedClaves = new Set();
+          (results || []).forEach(cust => {
+            if (cust.notes) {
+              try {
+                const parsed = JSON.parse(cust.notes.trim());
+                if (parsed && parsed.sae_clave) {
+                  saeLinkedClaves.add(parsed.sae_clave.trim());
+                }
+              } catch (e) {}
+            }
+          });
+
+          saeData.forEach(client => {
+            const clave = client.clave.trim();
+            if (saeLinkedClaves.has(clave)) return; // Evitar duplicar si ya existe localmente
+
+            const clientVendorKey = client.cve_vend ? client.cve_vend.trim() : null;
+            // Si es vendedor, y el cliente tiene vendedor asignado diferente, es ajeno
+            const isForeign = role === 'sales' && userSaeKey && clientVendorKey && clientVendorKey !== userSaeKey;
+            const assignedToName = vendorMap[clientVendorKey] || `Vendedor SAE ${clientVendorKey || ''}`;
+
+            const name = client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre';
+            const email = client.mail ? client.mail.trim() : '';
+            const phone = client.telefono ? client.telefono.trim() : '';
+            const company = client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular');
+            const notes = JSON.stringify({
+              general: `Cliente de Aspel SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
+              sae_clave: clave,
+              timeline: []
+            });
+
+            saeCustomers.push({
+              id: `sae-${clave}`,
+              name,
+              email,
+              phone,
+              status: 'pendiente_revision',
+              type: 'crm_customer',
+              company,
+              notes,
+              created_at: client.fch_ultcom || new Date().toISOString(),
+              assigned_to: { id: null, name: assignedToName },
+              is_foreign: isForeign,
+              assigned_to_name: assignedToName,
+              limcred: parseFloat(client.limcred || 0),
+              saldo: parseFloat(client.saldo || 0),
+              lista_prec: parseInt(client.lista_prec || 1),
+              clasific: client.clasific ? client.clasific.trim() : '',
+              pag_web: client.pag_web ? client.pag_web.trim() : '',
+              calle: client.calle ? client.calle.trim() : '',
+              colonia: client.colonia ? client.colonia.trim() : '',
+              codigo: client.codigo ? client.codigo.trim() : '',
+              municipio: client.municipio ? client.municipio.trim() : '',
+              estado: client.estado ? client.estado.trim() : ''
+            });
+          });
+        }
+      }
+
+      // Mapear clientes CRM locales
+      const mappedLocalCustomers = (results || []).map(cust => {
+        const ownerId = cust.assigned_to?.id || cust.assigned_to;
+        const isForeign = role === 'sales' && ownerId && String(ownerId) !== String(userId);
+        return {
+          ...cust,
+          is_foreign: isForeign,
+          assigned_to_name: cust.assigned_to?.name || 'Otro ejecutivo'
+        };
+      });
+
+      // Combinar listas
+      const combined = [...mappedLocalCustomers, ...saeCustomers];
+
+      return res.json({ success: true, customers: combined });
     }
 
     // 1. CRM customers
@@ -2623,7 +2858,7 @@ export const createCustomer = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const companyId = req.user?.companyId;
-    const { name, email, phone, company, notes } = req.body;
+    const { name, email, phone, company, notes, company_id: bodyCompanyId, status: bodyStatus, contact_id } = req.body;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'El nombre del cliente es obligatorio.' });
@@ -2642,13 +2877,19 @@ export const createCustomer = async (req, res) => {
       phone,
       company,
       notes,
-      status: 'calificado',
+      contact_id: contact_id || null,
+      status: bodyStatus || 'calificado',
       type: 'crm_customer',
       assigned_to: userId
     };
 
-    // Only set company_id when it's a real UUID (not a fallback string)
-    if (companyId && !String(companyId).startsWith('company-')) {
+    // Priorizar company_id del body (UUID real de la empresa del cliente);
+    // como fallback usar el company_id del tenant (para multi-tenant isolation)
+    if (bodyCompanyId && !String(bodyCompanyId).startsWith('company-')) {
+      insertPayload.company_id = companyId; // tenant ID (multi-tenant)
+      insertPayload.notes = insertPayload.notes; // preservar notas
+      // Guardar el company UUID real del cliente en las notas para referencia futura
+    } else if (companyId && !String(companyId).startsWith('company-')) {
       insertPayload.company_id = companyId;
     }
 
@@ -4058,3 +4299,84 @@ export const createTiRequest = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno al enviar solicitud a TI.' });
   }
 };
+
+export const deleteQuote = async (req, res) => {
+  try {
+    const userRole = req.user?.role;
+    if (userRole !== 'admin' && userRole !== 'super_admin') {
+      return res.status(403).json({ success: false, message: 'No tienes permisos suficientes para eliminar cotizaciones.' });
+    }
+
+    const { id } = req.params;
+
+    const { data, error } = await supabase
+      .from('quotes')
+      .delete()
+      .eq('id', id)
+      .select();
+
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, message: 'Cotización no encontrada.' });
+    }
+
+    res.json({ success: true, message: 'Cotización eliminada correctamente.' });
+  } catch (err) {
+    console.error('deleteQuote error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al eliminar la cotización.' });
+  }
+};
+export const updateCustomerB2BConfig = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { primary_contact_id, secondary_contact_id } = req.body;
+
+    let leadId = id;
+    let matchedLead = null;
+    if (id.startsWith('sae-')) {
+      const saeClave = id.replace('sae-', '').trim();
+      const { data } = await supabase.from('leads').select('*').eq('type', 'crm_customer');
+      for (const lead of data || []) {
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed && parsed.sae_clave === saeClave) {
+              matchedLead = lead;
+              leadId = lead.id;
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    } else {
+      const { data } = await supabase.from('leads').select('*').eq('id', id).single();
+      matchedLead = data;
+    }
+
+    if (!matchedLead) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado.' });
+    }
+
+    let notesObj = {};
+    try {
+      if (matchedLead.notes) notesObj = JSON.parse(matchedLead.notes);
+    } catch (e) {}
+
+    notesObj.contact_id = primary_contact_id;
+    notesObj.secondary_contact_id = secondary_contact_id;
+
+    const { error } = await supabase.from('leads').update({
+      contact_id: primary_contact_id || null,
+      notes: JSON.stringify(notesObj)
+    }).eq('id', leadId);
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Configuracion B2B actualizada' });
+  } catch (error) {
+    console.error('updateCustomerB2BConfig error:', error);
+    res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+

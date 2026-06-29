@@ -141,7 +141,8 @@ export default function LeadsBandejaFeature({
     const s = status.toLowerCase();
     if (s === 'nuevo' || s === 'asignado') return 'nuevo';
     if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
-    if (s === 'perdido' || s === 'cierre_perdido' || s === 'descartado' || s === 'frio') return 'cierre_perdido';
+    if (s === 'perdido' || s === 'cierre_perdido') return 'cierre_perdido';
+    if (s === 'descartado' || s === 'frio') return 'descartado';
     if (s === 'cotizando') return 'cotizando';
     return 'contactado';
   };
@@ -420,6 +421,8 @@ export default function LeadsBandejaFeature({
     // 3. Status filter
     if (statusFilter !== 'all') {
       result = result.filter(l => l.status === statusFilter);
+    } else {
+      result = result.filter(l => l.status !== 'descartado');
     }
 
     // 4. Date filter (Default: Creados este mes)
@@ -492,9 +495,9 @@ export default function LeadsBandejaFeature({
       `}</style>
 
       {/* ── PREMIUM LEADS DASHBOARD STATS GRID ── */}
-      <section 
-        className="crm-stats-grid hide-on-print" 
-        style={{ 
+      <section
+        className="crm-stats-grid hide-on-print"
+        style={{
           marginBottom: showStats ? '1.5rem' : '0px',
           maxHeight: showStats ? '800px' : '0px',
           opacity: showStats ? 1 : 0,
@@ -503,10 +506,10 @@ export default function LeadsBandejaFeature({
           pointerEvents: showStats ? 'auto' : 'none'
         }}
       >
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'all' ? 'active' : ''}`}
           onClick={() => setStatusFilter('all')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'all' ? '2px solid var(--color-brand-accent)' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -514,15 +517,15 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.length}</h3>
-            <p>Peticiones del lead</p>
+            <h3>{leads.filter(l => l.status !== 'descartado').length}</h3>
+            <p>Total de Negociaciones</p>
           </div>
         </div>
 
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'nuevo' ? 'active' : ''}`}
           onClick={() => setStatusFilter('nuevo')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'nuevo' ? '2px solid #0086c0' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -531,14 +534,14 @@ export default function LeadsBandejaFeature({
           <div className="stat-icon-box total" style={{ color: '#0086c0', background: 'rgba(0, 134, 192, 0.08)' }}><i className="fas fa-folder-plus"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'nuevo').length}</h3>
-            <p>Nuevas</p>
+            <p>Nueva negociación</p>
           </div>
         </div>
 
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'contactado' ? 'active' : ''}`}
           onClick={() => setStatusFilter('contactado')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'contactado' ? '2px solid #d97706' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -547,14 +550,14 @@ export default function LeadsBandejaFeature({
           <div className="stat-icon-box contact" style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.08)' }}><i className="fas fa-comments"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'contactado').length}</h3>
-            <p>En negociación</p>
+            <p>En pláticas</p>
           </div>
         </div>
 
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'cotizando' ? 'active' : ''}`}
           onClick={() => setStatusFilter('cotizando')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'cotizando' ? '2px solid #7c3aed' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -563,14 +566,14 @@ export default function LeadsBandejaFeature({
           <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
-            <p>Cotización</p>
+            <p>Se le hizo cotización</p>
           </div>
         </div>
 
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'cierre_ganado' ? 'active' : ''}`}
           onClick={() => setStatusFilter('cierre_ganado')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'cierre_ganado' ? '2px solid #16a34a' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -579,14 +582,14 @@ export default function LeadsBandejaFeature({
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
-            <p>Cierre Ganado</p>
+            <p>Venta Exitosa</p>
           </div>
         </div>
 
-        <div 
+        <div
           className={`crm-stat-card glass ${statusFilter === 'cierre_perdido' ? 'active' : ''}`}
           onClick={() => setStatusFilter('cierre_perdido')}
-          style={{ 
+          style={{
             cursor: 'pointer',
             border: statusFilter === 'cierre_perdido' ? '2px solid #dc2626' : '1px solid rgba(255, 255, 255, 0.7)',
             transition: 'all 0.2s ease'
@@ -595,7 +598,7 @@ export default function LeadsBandejaFeature({
           <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
           <div className="stat-val-box">
             <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
-            <p>Cierre Perdido</p>
+            <p>Venta perdida</p>
           </div>
         </div>
 
@@ -604,12 +607,12 @@ export default function LeadsBandejaFeature({
           const count = leads.filter(l => l.status === stage.name.toLowerCase()).length;
           const isCurrent = statusFilter === stage.name.toLowerCase();
           return (
-            <div 
-              key={stage.id} 
-              className={`crm-stat-card glass ${isCurrent ? 'active' : ''}`} 
+            <div
+              key={stage.id}
+              className={`crm-stat-card glass ${isCurrent ? 'active' : ''}`}
               onClick={() => setStatusFilter(stage.name.toLowerCase())}
-              style={{ 
-                borderLeft: `4px solid ${stage.color}`, 
+              style={{
+                borderLeft: `4px solid ${stage.color}`,
                 position: 'relative',
                 cursor: 'pointer',
                 borderTop: isCurrent ? `2px solid ${stage.color}` : '1px solid rgba(255, 255, 255, 0.7)',
@@ -773,8 +776,8 @@ export default function LeadsBandejaFeature({
               </button>
 
               {showFiltersPopover && (
-                <div 
-                  className="glass" 
+                <div
+                  className="glass"
                   style={{
                     position: 'absolute',
                     top: 'calc(100% + 6px)',
@@ -797,7 +800,7 @@ export default function LeadsBandejaFeature({
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
                     <strong style={{ fontSize: '0.85rem', color: '#1e293b' }}>Opciones de Filtrado</strong>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => {
                         setTypeFilter('all');
@@ -1007,7 +1010,7 @@ export default function LeadsBandejaFeature({
                           <i className="far fa-calendar-alt" style={{ color: "#64748b" }}></i>
                           {formatDate(lead.created_at || lead.updated_at)}
                         </span>
-                        
+
                         {/* Clock icon badge */}
                         <span className="clock-badge" style={{
                           display: "inline-flex",
@@ -1105,7 +1108,7 @@ export default function LeadsBandejaFeature({
           </div>
         )}
         <div className="crm-table-footer">
-          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.length}</strong> prospectos asignados.</p>
+          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.filter(l => l.status !== 'descartado').length}</strong> negociaciones.</p>
         </div>
       </section>
 

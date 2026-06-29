@@ -1,4 +1,4 @@
-import { supabase, saeSupabase } from '../supabaseClient.js';
+import { supabase, getSaeConnection } from '../supabaseClient.js';
 
 // POST /api/crm/visitas
 export const createVisita = async (req, res) => {
@@ -30,8 +30,9 @@ export const createVisita = async (req, res) => {
       const indexVal = parseInt(indexStr) - 1;
 
       if (saeClave) {
-        const { data: saeConts } = await saeSupabase
-          .from('contac03')
+        const { saeClient, suffix } = getSaeConnection(req.user);
+        const { data: saeConts } = await saeClient
+          .from(`contac${suffix}`)
           .select('nombre, telefono, email')
           .eq('cve_clie', saeClave)
           .eq('status', 'A');
@@ -102,8 +103,9 @@ export const createVisita = async (req, res) => {
       } else {
         const isGarza = userCompanyCode === 'GARZA';
         if (isGarza) {
-          const { data: client } = await saeSupabase
-            .from('clie03')
+          const { saeClient, suffix } = getSaeConnection(req.user);
+          const { data: client } = await saeClient
+            .from(`clie${suffix}`)
             .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
             .eq('clave', saeClave)
             .maybeSingle();
@@ -202,7 +204,19 @@ export const getVisitasByEntity = async (req, res) => {
     if (entityType === 'contact') {
       query = query.eq('contact_id', entityId);
     } else if (entityType === 'company') {
-      query = query.eq('company_id', entityId);
+      let targetCompanyId = entityId;
+      if (String(entityId).startsWith('sae-')) {
+        const saeClave = String(entityId).replace('sae-', '').trim();
+        const { data: existingCos } = await supabase
+          .from('companies')
+          .select('id')
+          .like('notes', `%"sae_clave":"${saeClave}"%`)
+          .limit(1);
+        if (existingCos && existingCos.length > 0) {
+          targetCompanyId = existingCos[0].id;
+        }
+      }
+      query = query.eq('company_id', targetCompanyId);
     } else if (entityType === 'obra') {
       query = query.eq('obra_id', entityId);
     } else {

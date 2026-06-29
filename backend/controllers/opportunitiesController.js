@@ -1,4 +1,4 @@
-import { supabase, saeSupabase } from '../supabaseClient.js';
+import { supabase, getSaeConnection } from '../supabaseClient.js';
 
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
@@ -154,8 +154,8 @@ export const getOpportunities = async (req, res) => {
   try {
     const userId = req.user?.userId;
     const role = req.user?.role;
+    const { contact_id, company_id } = req.query;
 
-    // Obtener todas las oportunidades con información de contactos, empresas y cotizaciones vinculadas
     let query = supabase
       .from('crm_opportunities')
       .select(`
@@ -171,6 +171,15 @@ export const getOpportunities = async (req, res) => {
       query = query.eq('assigned_to', userId);
     }
 
+    // Filtros opcionales para la Ficha de Cliente — devuelve solo lo de ese contacto o empresa
+    if (contact_id && company_id) {
+      query = query.or(`contact_id.eq.${contact_id},company_id.eq.${company_id}`);
+    } else if (contact_id) {
+      query = query.eq('contact_id', contact_id);
+    } else if (company_id) {
+      query = query.eq('company_id', company_id);
+    }
+
     const { data, error } = await query;
     if (error) throw error;
 
@@ -180,6 +189,7 @@ export const getOpportunities = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al obtener oportunidades.' });
   }
 };
+
 
 export const createOpportunity = async (req, res) => {
   try {
@@ -212,8 +222,9 @@ export const createOpportunity = async (req, res) => {
           // Fetch from SAE and insert local company
           const isGarza = req.user?.companyCode === 'GARZA';
           if (isGarza) {
-            const { data: client } = await saeSupabase
-              .from('clie03')
+            const { saeClient, suffix } = getSaeConnection(req.user);
+            const { data: client } = await saeClient
+              .from(`clie${suffix}`)
               .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
               .eq('clave', saeClave)
               .maybeSingle();

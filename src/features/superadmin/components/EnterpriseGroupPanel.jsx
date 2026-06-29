@@ -16,6 +16,7 @@ export default function EnterpriseGroupPanel() {
   const [primaryCol, setPrimaryCol] = useState('#05393A');
   const [accentCol, setAccentCol] = useState('#E0922B');
   const [googleCalendarId, setGoogleCalendarId] = useState('');
+  const [saeConnection, setSaeConnection] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [formMsg, setFormMsg] = useState({ type: '', text: '' });
@@ -45,6 +46,7 @@ export default function EnterpriseGroupPanel() {
   };
 
   const handleEditClick = (company) => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     setEditingId(company.id);
     setName(company.name || '');
     setCode(company.company_code || '');
@@ -52,6 +54,7 @@ export default function EnterpriseGroupPanel() {
     setPrimaryCol(company.color_primary || '#05393A');
     setAccentCol(company.color_accent || '#E0922B');
     setGoogleCalendarId(company.google_calendar_id || '');
+    setSaeConnection(company.sae_connection || '');
     setFormMsg({ type: '', text: '' });
   };
 
@@ -63,6 +66,7 @@ export default function EnterpriseGroupPanel() {
     setPrimaryCol('#05393A');
     setAccentCol('#E0922B');
     setGoogleCalendarId('');
+    setSaeConnection('');
     setFormMsg({ type: '', text: '' });
   };
 
@@ -94,7 +98,8 @@ export default function EnterpriseGroupPanel() {
           description: desc.trim(),
           color_primary: primaryCol,
           color_accent: accentCol,
-          google_calendar_id: googleCalendarId.trim()
+          google_calendar_id: googleCalendarId.trim(),
+          sae_connection: saeConnection.trim() || null
         })
       });
 
@@ -206,9 +211,23 @@ export default function EnterpriseGroupPanel() {
                 placeholder="Ej. c_xxxxxxx@group.calendar.google.com"
                 disabled={submitting}
               />
-              <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px', display: 'block' }}>
+              <span style={{ fontSize: '0.75rem', color: 'rgba(0,0,0,0.6)', marginTop: '4px', display: 'block' }}>
                 Utilizado para almacenar una copia espejo consolidada de todas las agendas de sus vendedores.
               </span>
+            </div>
+
+            <div className="form-group">
+              <label>Conexión Base de Datos ASPEL SAE</label>
+              <select
+                value={saeConnection}
+                onChange={e => setSaeConnection(e.target.value)}
+                disabled={submitting}
+                style={{ width: '100%', padding: '10px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.1)', backgroundColor: 'rgba(255,255,255,0.8)' }}
+              >
+                <option value="">Ninguna / Sin Conexión</option>
+                <option value="03">SAE Monterrey (03)</option>
+                <option value="05">SAE Guadalajara (05)</option>
+              </select>
             </div>
 
             <div className="form-row">
@@ -339,12 +358,16 @@ export default function EnterpriseGroupPanel() {
                         </div>
                       </td>
                       <td>
-                        {company.company_code === 'GARZA' ? (
+                        {company.sae_connection === '03' ? (
                           <span style={{ color: '#98ca3f', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                            <i className="fas fa-check-circle" /> ASPEL SAE (Conectada)
+                            <i className="fas fa-check-circle" /> SAE Monterrey (03)
+                          </span>
+                        ) : company.sae_connection === '05' ? (
+                          <span style={{ color: '#98ca3f', fontSize: '0.85rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <i className="fas fa-check-circle" /> SAE Guadalajara (05)
                           </span>
                         ) : (
-                          <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ color: '#666', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
                             <i className="fas fa-times-circle" style={{ color: '#ef4444' }} /> Sin Conectar (N/A)
                           </span>
                         )}

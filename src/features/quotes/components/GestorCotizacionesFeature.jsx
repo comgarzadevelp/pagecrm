@@ -1,5 +1,6 @@
 // src/pages/crm/panels/GestorCotizaciones.jsx
 import React, { useEffect, useState } from 'react';
+import { useUX } from '../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -14,6 +15,7 @@ const formatDate = (ds) => {
 };
 
 export default function GestorCotizaciones() {
+  const { showToast, showConfirm } = useUX();
   const [quotes, setQuotes] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,36 @@ export default function GestorCotizaciones() {
   const [viewMode, setViewMode] = useState('cards'); // 'cards' | 'list'
   const [selected, setSelected] = useState(null);
 
+  const role = localStorage.getItem('role');
+
   useEffect(() => { fetchQuotes(); }, []);
+
+  const handleDeleteQuote = async (quoteId) => {
+    const confirmed = await showConfirm(
+      '¿Eliminar Cotización?',
+      'Esta acción es irreversible y eliminará permanentemente la cotización del sistema, afectando los reportes y estadísticas.',
+      { type: 'danger', confirmText: 'Eliminar' }
+    );
+    if (!confirmed) return;
+
+    const token = localStorage.getItem('token');
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/quotes/${quoteId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
+      
+      showToast('Cotización eliminada con éxito.', 'success');
+      setSelected(null);
+      fetchQuotes();
+    } catch (err) {
+      showToast('Error al eliminar: ' + err.message, 'error');
+    }
+  };
 
   useEffect(() => {
     if (!search.trim()) { setFiltered(quotes); return; }
@@ -227,6 +258,31 @@ export default function GestorCotizaciones() {
 
               {selected.notes && (
                 <div className="detail-notes"><h4>Condiciones</h4><p style={{ whiteSpace: 'pre-line', fontSize: '0.85rem' }}>{selected.notes}</p></div>
+              )}
+
+              {(role === 'admin' || role === 'super_admin') && (
+                <div style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                  <button
+                    className="btn-delete-contact"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 14px',
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      backgroundColor: '#ef4444',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onClick={() => handleDeleteQuote(selected.id)}
+                  >
+                    <i className="fas fa-trash-alt"></i> Eliminar Cotización
+                  </button>
+                </div>
               )}
             </div>
           </div>

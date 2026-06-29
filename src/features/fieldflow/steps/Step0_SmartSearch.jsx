@@ -52,17 +52,12 @@ export default function Step0_SmartSearch() {
           const headers = { Authorization: `Bearer ${token}` };
           const encodedQuery = encodeURIComponent(query.trim());
 
-          // Consultamos el endpoint de clientes que ya aplica aislamiento de vendedor y junta SAE
-          const res = await fetch(`${API_BASE}/api/crm/customers`, { headers }).then(r => r.json()).catch(() => ({ success: false }));
+          // Consultamos el endpoint de clientes con soporte para búsqueda global q
+          const res = await fetch(`${API_BASE}/api/crm/customers?q=${encodedQuery}`, { headers }).then(r => r.json()).catch(() => ({ success: false }));
 
           if (res.success && Array.isArray(res.customers)) {
-            // Filtrado del lado del cliente por si acaso o refinamiento con Fuse local del set retornado
             const queryLower = query.toLowerCase();
             const apiResults = res.customers
-              .filter(c => 
-                (c.name && c.name.toLowerCase().includes(queryLower)) || 
-                (c.company && c.company.toLowerCase().includes(queryLower))
-              )
               .map(c => ({
                 id: String(c.id),
                 nombre: c.name || '',
@@ -72,7 +67,9 @@ export default function Step0_SmartSearch() {
                 phone: c.phone || '',
                 email: c.email || '',
                 entityType: 'prospecto',
-                searchKey: `${c.name || ''} ${c.company || ''}`
+                searchKey: `${c.name || ''} ${c.company || ''}`,
+                is_foreign: c.is_foreign,
+                assigned_to_name: c.assigned_to_name
               }));
 
             // Combinamos resultados evitando duplicados
@@ -150,7 +147,7 @@ export default function Step0_SmartSearch() {
       {/* Contenido Deslizable */}
       <div className="fieldflow-step-content">
         <div className="step-title-block">
-          <h3>¿Con quién interactuaste?</h3>
+          <h3>¿Con quién interactuaste? ¿Quien te va a comprar?</h3>
           <p>Busca por nombre de cliente o empresa propia para registrar tu visita.</p>
         </div>
 
@@ -185,27 +182,65 @@ export default function Step0_SmartSearch() {
 
           {!isSearching && results !== null && results.length > 0 && (
             <div className="fieldflow-cards-list">
-              {results.map((entity) => (
-                <button
-                  key={entity.id}
-                  type="button"
-                  onClick={() => handleSelectEntity(entity)}
-                  className="fieldflow-result-card"
-                >
-                  <div className="result-icon-box contacto">
-                    {renderIcon(entity.entityType)}
-                  </div>
-                  <div className="result-info">
-                    <h4>{entity.nombre}</h4>
-                    <p style={{ fontSize: '0.775rem', color: '#6b7280' }}>
-                      {entity.company ? `${entity.company} • ` : ''}{entity.estatus || 'Cliente'}
-                    </p>
-                  </div>
-                  <div className="result-arrow">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                </button>
-              ))}
+              {results.map((entity) => {
+                if (entity.is_foreign) {
+                  return (
+                    <div
+                      key={entity.id}
+                      className="fieldflow-result-card foreign-blocked-card"
+                      style={{
+                        cursor: 'not-allowed',
+                        background: 'rgba(239, 68, 68, 0.02)',
+                        borderLeft: '4px solid #ef4444',
+                        opacity: 0.9,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px',
+                        borderRadius: '12px',
+                        textAlign: 'left'
+                      }}
+                    >
+                      <div className="result-icon-box" style={{ background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', shrink: 0 }}>
+                        <i className="fas fa-ban"></i>
+                      </div>
+                      <div className="result-info" style={{ flex: 1 }}>
+                        <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: '#64748b', margin: 0 }}>
+                          {entity.nombre} <span style={{ fontSize: '0.65rem', fontWeight: '850', background: '#fef2f2', color: '#ef4444', padding: '1px 5px', borderRadius: '4px', marginLeft: '4px', textTransform: 'uppercase' }}>Duplicado</span>
+                        </h4>
+                        <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: '700', margin: '2px 0 0 0' }}>
+                          {entity.company ? `${entity.company} • ` : ''}Asignado a: {entity.assigned_to_name}
+                        </p>
+                        <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '4px 0 0 0', lineHeight: '1.25' }}>
+                          Este cliente pertenece a otro vendedor. Para evitar duplicidades, no puedes usarlo. Comunícate con administración.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <button
+                    key={entity.id}
+                    type="button"
+                    onClick={() => handleSelectEntity(entity)}
+                    className="fieldflow-result-card"
+                  >
+                    <div className="result-icon-box contacto">
+                      {renderIcon(entity.entityType)}
+                    </div>
+                    <div className="result-info">
+                      <h4>{entity.nombre}</h4>
+                      <p style={{ fontSize: '0.775rem', color: '#6b7280' }}>
+                        {entity.company ? `${entity.company} • ` : ''}{entity.estatus || 'Cliente'}
+                      </p>
+                    </div>
+                    <div className="result-arrow">
+                      <ChevronRight className="w-5 h-5" />
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -216,7 +251,7 @@ export default function Step0_SmartSearch() {
               </div>
               <h4 style={{ fontWeight: '800', fontSize: '1.1rem', color: '#111827' }}>Sin coincidencias encontradas</h4>
               <p style={{ maxWidth: '280px', margin: '0.5rem auto 1.5rem', color: '#6b7280' }}>
-                No detectamos clientes propios con "{query}" en tu cartera. Crea uno nuevo.
+                No detectamos clientes con "{query}" en todo el CRM. Registra uno completamente nuevo para iniciar su ciclo comercial.
               </p>
 
               <button

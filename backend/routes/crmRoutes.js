@@ -10,7 +10,8 @@ import {
   deleteSeller, getOrphanLeads,
   getCustomers, createCustomer, updateCustomer, deleteCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
-  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest,
+  updateCustomerB2BConfig,
+  getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest, deleteQuote,
   promoteLeadToContact, discardLead, createManualLead, checkDuplicatePhone,
   getCustomStages, createCustomStage, deleteCustomStage, addLeadTimelineEntry,
   getKanbanColumnOrder, saveKanbanColumnOrder
@@ -79,6 +80,7 @@ router.delete('/customers/:id', deleteCustomer);
 router.post('/customers/:id/evidence', upload.single('photo'), uploadCustomerEvidence);
 router.post('/customers/:id/invoices', upload.single('invoice'), uploadCustomerInvoice);
 router.get('/customers/:id/quotes', getCustomerQuotes);
+router.put('/customers/:id/b2b-config', updateCustomerB2BConfig);
 
 // ── CONTACTOS (Personas físicas) ──────────────────────────────
 router.get('/contacts', getContacts);
@@ -118,6 +120,7 @@ router.get('/obras/:id/leads', getObraLeads);
 // ── GESTOR DE COTIZACIONES (vista global) ─────────────────────
 router.get('/quotes/all', getAllQuotes);
 router.post('/quotes', saveQuote);
+router.delete('/quotes/:id', deleteQuote);
 
 // ── CONTENEDOR DE ARCHIVOS ────────────────────────────────────
 router.get('/files', getFiles);

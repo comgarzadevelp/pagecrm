@@ -1,5 +1,5 @@
 // backend/controllers/companyController.js
-import { supabase, saeSupabase } from '../supabaseClient.js';
+import { supabase, getSaeConnection } from '../supabaseClient.js';
 import { computeDataQuality } from '../utils/dataQuality.js';
 
 const CRM_STATUSES = ['activa', 'inactiva', 'reactivado_seguimiento', 'reactivado_venta', 'pendiente_revision'];
@@ -14,14 +14,27 @@ const isValidEmail = (email) => {
 // GET /api/crm/companies/search
 export const searchCompanies = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, sae_clave } = req.query;
+
+    // Búsqueda por sae_clave exacto (para resolver clientes SAE a empresas locales)
+    if (sae_clave && sae_clave.trim().length > 0) {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id, name, rfc, address, city, state, notes')
+        .like('notes', `%"sae_clave":"${sae_clave.trim()}"%`)
+        .limit(1);
+
+      if (error) throw error;
+      return res.json({ success: true, companies: data || [] });
+    }
+
     if (!q || q.length < 2) {
       return res.json({ success: true, companies: [] });
     }
 
     const { data, error } = await supabase
       .from('companies')
-      .select('id, name, rfc, address, city, state')
+      .select('id, name, rfc, address, city, state, notes')
       .ilike('name', `%${q}%`)
       .limit(10);
 
@@ -32,6 +45,7 @@ export const searchCompanies = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al buscar empresas.' });
   }
 };
+
 
 // GET /api/crm/companies
 export const getCompanies = async (req, res) => {
@@ -163,8 +177,9 @@ export const getCompanies = async (req, res) => {
     let saeCompanies = [];
     const isGarza = req.user?.companyCode === 'GARZA';
     if (saeKey && isGarza) {
-      const { data: saeData, error: saeError } = await saeSupabase
-        .from('clie03')
+      const { saeClient, suffix } = getSaeConnection(req.user);
+      const { data: saeData, error: saeError } = await saeClient
+        .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
         .eq('cve_vend', saeKey)
         .eq('status', 'A');
@@ -173,8 +188,8 @@ export const getCompanies = async (req, res) => {
         const saeClaves = saeData.map(client => client.clave.trim());
         let saeContacts = [];
         if (saeClaves.length > 0) {
-          const { data: contactsData } = await saeSupabase
-            .from('contac03')
+          const { data: contactsData } = await saeClient
+            .from(`contac${suffix}`)
             .select('cve_clie, nombre, telefono, email, status')
             .in('cve_clie', saeClaves)
             .eq('status', 'A');
@@ -420,9 +435,10 @@ export const getCompanyById = async (req, res) => {
       }
       const saeKey = id.replace('sae-', '').trim();
 
-      // Query mirror database clie03
-      const { data: client, error: clientError } = await saeSupabase
-        .from('clie03')
+      // Query mirror database clieXX
+      const { saeClient, suffix } = getSaeConnection(req.user);
+      const { data: client, error: clientError } = await saeClient
+        .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
         .eq('clave', saeKey)
         .single();
@@ -512,9 +528,9 @@ export const getCompanyById = async (req, res) => {
         ventas: parseFloat(client.ventas || 0)
       };
 
-      // Query mirror database contac03
-      const { data: contactsData, error: contactsError } = await saeSupabase
-        .from('contac03')
+      // Query mirror database contacXX
+      const { data: contactsData, error: contactsError } = await saeClient
+        .from(`contac${suffix}`)
         .select('cve_clie, nombre, telefono, email, status')
         .eq('cve_clie', saeKey)
         .eq('status', 'A');
@@ -631,8 +647,9 @@ export const getCompanyById = async (req, res) => {
     if (saeClave) {
       const isGarza = req.user?.companyCode === 'GARZA';
       if (isGarza) {
-        const { data: contactsData, error: contactsError } = await saeSupabase
-          .from('contac03')
+        const { saeClient, suffix } = getSaeConnection(req.user);
+        const { data: contactsData, error: contactsError } = await saeClient
+          .from(`contac${suffix}`)
           .select('cve_clie, nombre, telefono, email, status')
           .eq('cve_clie', saeClave)
           .eq('status', 'A');

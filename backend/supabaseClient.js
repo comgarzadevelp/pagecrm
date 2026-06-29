@@ -34,6 +34,19 @@ export const saeSupabase = createClient(saeSupabaseUrl, saeSupabaseKey, {
   }
 });
 
+// Conexión C: Copia Espejo del SAE Guadalajara
+const saeGdlSupabaseUrl = process.env.SAE_GDL_SUPABASE_URL || supabaseUrl;
+const saeGdlSupabaseKey = process.env.SAE_GDL_SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
+
+export const saeGdlSupabase = createClient(saeGdlSupabaseUrl, saeGdlSupabaseKey, {
+  auth: {
+    persistSession: false
+  },
+  realtime: {
+    transport: ws
+  }
+});
+
 // Helper to filter out fake company IDs (e.g. 'company-1') and validate UUID format
 export const cleanCompanyId = (id) => {
   if (!id) return null;
@@ -42,4 +55,14 @@ export const cleanCompanyId = (id) => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   if (!uuidRegex.test(str)) return null;
   return str;
+};
+
+// Función dinámica para obtener la conexión y sufijo correctos basados en el usuario
+export const getSaeConnection = (user) => {
+  // Si el usuario tiene asignada la empresa '05' (Guadalajara), retornamos ese cliente y sufijo
+  if (user && user.sae_empresa === '05') {
+    return { saeClient: saeGdlSupabase, suffix: '05' };
+  }
+  // Por defecto (Empresa 03 / Monterrey)
+  return { saeClient: saeSupabase, suffix: '03' };
 };

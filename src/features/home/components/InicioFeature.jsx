@@ -161,7 +161,7 @@ export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpp
 
       {/* MODALES A PANTALLA COMPLETA / FLUX */}
       {showFieldFlow && (
-        <FieldFlowWizard onClose={() => setShowFieldFlow(false)} />
+        <FieldFlowWizard onClose={() => setShowFieldFlow(false)} onSuccess={handleSuccess} />
       )}
 
       {showNegociacionModal && (

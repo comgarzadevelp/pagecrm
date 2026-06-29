@@ -13,7 +13,7 @@ function formatDate(d) {
   return dt.toLocaleString('es-MX', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
-export default function FichaEmpresaModal({ company: initialCompany, onClose, refetch, onCompanyStatusUpdated, priceLists = [], onViewCustomerDetails }) {
+export default function FichaEmpresaModal({ company: initialCompany, onClose, refetch, onCompanyStatusUpdated, priceLists = [], onViewCustomerDetails, onViewContactDetails }) {
   const { showToast, showConfirm } = useUX();
 
   // Core state
@@ -296,6 +296,15 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
         {/* HEADER */}
         <div className="fc-header">
           <div className="fc-header-toprow">
+            <button 
+              onClick={onClose} 
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '16px', padding: '6px 14px', borderRadius: '20px', transition: 'all 0.2s', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+              title="Volver"
+            >
+              <i className="fas fa-arrow-left" /> Volver
+            </button>
             <div className="fc-header-identity">
               <div className="fc-big-avatar">
                 <span>{(company.alias || company.name || '?').charAt(0).toUpperCase()}</span>
@@ -463,7 +472,12 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
                 {linkedContacts.map(lc => {
                   const isArchived = archivedContactIds.includes(lc.contact?.id || lc.contact_id || lc.id);
                   return (
-                    <div key={lc.contact_id || lc.id} className="fc-company-row" style={{ cursor: 'default' }}>
+                    <div 
+                      key={lc.contact_id || lc.id} 
+                      className={`fc-company-row ${isArchived ? 'inactive' : ''}`} 
+                      style={{ cursor: isArchived ? 'default' : 'pointer' }}
+                      onClick={() => !isArchived && onViewContactDetails?.(lc.contact || lc)}
+                    >
                       <div className="fc-company-main-row">
                         <i className="fas fa-user-circle" style={{ color: isArchived ? '#ef4444' : '#05393A' }} />
                         <span className="fc-company-name-text" style={{ textDecoration: isArchived ? 'line-through' : 'none', color: isArchived ? '#94a3b8' : 'inherit' }}>

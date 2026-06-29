@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
+import B2BContactManager from './B2BContactManager';
+import FichaContactoModal from './FichaContactoModal';
+import FichaEmpresaModal from './FichaEmpresaModal';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import '../styles/FichaClienteIndividualModal.css';
@@ -43,13 +46,17 @@ export default function FichaClienteIndividualModal({
   const [showVisitaModal, setShowVisitaModal] = useState(false);
   const [showVentaModal, setShowVentaModal] = useState(false);
   const [showEditContactModal, setShowEditContactModal] = useState(false);
+  const [showB2BContactManager, setShowB2BContactManager] = useState(false);
   const [showEditCompanyModal, setShowEditCompanyModal] = useState(false);
+  const [editingCompanyContact, setEditingCompanyContact] = useState(null);
+  const [viewingCompany, setViewingCompany] = useState(null);
 
   // Estado de las pestañas en la columna derecha
   const [activeRightTab, setActiveRightTab] = useState('completo'); // 'notas' | 'visitas' | 'bitacora' | 'cambios' | 'completo'
   const [showCommentInput, setShowCommentInput] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [clientProfile, setClientProfile] = useState('b2c');
 
   // Formularios de Edición
   const [contactNameInput, setContactNameInput] = useState(currentCustomer?.name || '');
@@ -71,6 +78,7 @@ export default function FichaClienteIndividualModal({
   const [showCompanySuggestions, setShowCompanySuggestions] = useState(false);
   const [selectedCompanyId, setSelectedCompanyId] = useState(currentCustomer?.company_id || null);
   const [isLoadingCompanySuggestions, setIsLoadingCompanySuggestions] = useState(false);
+  const [companyContacts, setCompanyContacts] = useState([]);
 
   // Autocomplete y modal de Obra
   const [showEditObraModal, setShowEditObraModal] = useState(false);
@@ -496,10 +504,6 @@ export default function FichaClienteIndividualModal({
   useEffect(() => {
     if (customerId) {
       setCurrentCustomer(selectedCustomer);
-      fetchObras(customerId);
-      fetchOpportunities(customerId);
-      fetchVisitas(selectedCustomer.contact_id || customerId);
-      fetchAppointments(selectedCustomer.name);
 
       const targetContactId = selectedCustomer.contact_id || (selectedCustomer.notes ? (() => {
         try {
@@ -507,6 +511,28 @@ export default function FichaClienteIndividualModal({
           return parsed.contact_id;
         } catch (e) { return null; }
       })() : null);
+
+      const isSaeClient = String(customerId).startsWith('sae-');
+      
+      const profileValue = isSaeClient ? 'b2b' : (selectedCustomer.notes ? (() => {
+        try {
+          const parsed = JSON.parse(selectedCustomer.notes);
+          return parsed.client_profile || 'b2c';
+        } catch (e) { return 'b2c'; }
+      })() : 'b2c');
+      
+      setClientProfile(profileValue);
+
+      fetchObras(customerId);
+      fetchOpportunities(customerId);
+      fetchVisitas(customerId, targetContactId, profileValue);
+      fetchAppointments(selectedCustomer.name);
+      
+      const targetCompanyId = isSaeClient ? customerId : selectedCustomer.company_id;
+      
+      if (profileValue === 'b2b' && targetCompanyId) {
+        fetchCompanyContacts(targetCompanyId);
+      }
 
       if (targetContactId) {
         fetchContactNotes(targetContactId);
@@ -536,100 +562,128 @@ export default function FichaClienteIndividualModal({
     }
   };
 
+  const fetchCompanyContacts = async (companyId) => {
+    try {
+      const cleanId = String(companyId).startsWith('company-') ? companyId.replace('company-', '') : companyId;
+      const res = await fetch(`${API_BASE}/api/crm/companies/${cleanId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCompanyContacts(data.linkedContacts || []);
+      }
+    } catch (err) {
+      console.error('Error fetching company details:', err);
+    }
+  };
+
   const fetchOpportunities = async (id) => {
     setLoadingOpps(true);
     try {
-      // 1. Consultar oportunidades tradicionales
-      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities`, {
+      // Resolver IDs locales reales (UUID de CRM) del cliente actual
+      // Un cliente SAE tiene id='sae-xxx', un cliente local tiene un UUID
+      let localContactId = null;
+      let localCompanyId = null;
+
+      // 1. Intentar obtener contact_id y company_id directamente del objeto del cliente
+      if (currentCustomer?.contact_id && !String(currentCustomer.contact_id).startsWith('sae-')) {
+        localContactId = currentCustomer.contact_id;
+      }
+      if (currentCustomer?.company_id && !String(currentCustomer.company_id).startsWith('sae-') && !String(currentCustomer.company_id).startsWith('company-')) {
+        localCompanyId = currentCustomer.company_id;
+      }
+
+      // 2. Intentar extraer IDs del JSON de notas del cliente (para clientes SAE que ya fueron importados)
+      if ((!localContactId || !localCompanyId) && currentCustomer?.notes) {
+        try {
+          const parsed = JSON.parse(currentCustomer.notes);
+          if (!localContactId && parsed?.contact_id && !String(parsed.contact_id).startsWith('sae-')) {
+            localContactId = parsed.contact_id;
+          }
+          if (!localCompanyId && parsed?.company_id && !String(parsed.company_id).startsWith('sae-')) {
+            localCompanyId = parsed.company_id;
+          }
+          // Para clientes SAE, buscar la empresa local por sae_clave exacto
+          if (!localCompanyId && parsed?.sae_clave) {
+            const resCo = await fetch(`${API_BASE}/api/crm/companies/search?sae_clave=${encodeURIComponent(parsed.sae_clave.trim())}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const dataCo = await resCo.json();
+            if (resCo.ok && dataCo.success && dataCo.companies?.length > 0) {
+              localCompanyId = dataCo.companies[0].id;
+            }
+          }
+
+          // Fallback: buscar empresa local por nombre del cliente si el clave no produjo resultado
+          if (!localCompanyId && currentCustomer?.name && currentCustomer.name.trim().length > 2) {
+            const resCo = await fetch(`${API_BASE}/api/crm/companies/search?q=${encodeURIComponent(currentCustomer.name.trim())}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const dataCo = await resCo.json();
+            if (resCo.ok && dataCo.success && dataCo.companies?.length > 0) {
+              // Verificar que si tiene sae_clave en notas coincide con el cliente actual
+              const saeClave = parsed?.sae_clave;
+              const matched = dataCo.companies.find(co => {
+                try {
+                  const coNotes = JSON.parse(co.notes || '{}');
+                  if (saeClave) return coNotes.sae_clave && String(coNotes.sae_clave).trim() === String(saeClave).trim();
+                  return true; // Sin clave para verificar, tomar el primero
+                } catch { return false; }
+              });
+              if (matched) localCompanyId = matched.id;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 3. Si no se resolvió ningún ID local, este cliente aún no tiene negociaciones en el CRM
+      if (!localContactId && !localCompanyId) {
+        setOpportunities([]);
+        return;
+      }
+
+      // 4. Consultar crm_opportunities con filtros de ID directos (sin matching por email/phone)
+      const params = new URLSearchParams();
+      if (localContactId) params.append('contact_id', localContactId);
+      if (localCompanyId) params.append('company_id', localCompanyId);
+
+      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities?${params.toString()}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const dataOpp = await resOpp.json();
-      
-      // 2. Consultar prospectos/negociaciones de la bandeja de entrada
-      const resLeads = await fetch(`${API_BASE}/api/crm/leads`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const dataLeads = await resLeads.json();
-
-      let mergedOpps = [];
 
       if (resOpp.ok && dataOpp.success) {
-        const filteredOpps = (dataOpp.opportunities || []).filter(opp =>
-          String(opp.contact_id) === String(id) ||
-          (opp.company_id && currentCustomer.company_id && String(opp.company_id) === String(currentCustomer.company_id))
-        );
-        mergedOpps = [...filteredOpps];
+        setOpportunities(dataOpp.opportunities || []);
+      } else {
+        setOpportunities([]);
       }
-
-      if (resLeads.ok && dataLeads.success && dataLeads.leads) {
-        const filteredLeads = dataLeads.leads.filter(lead => {
-          // Evitar auto-referencia si el cliente abierto ya es un lead
-          if (String(lead.id) === String(id)) return false;
-
-          // Coincidencia por teléfono o correo
-          const phoneMatch = lead.phone && currentCustomer.phone && String(lead.phone).trim() === String(currentCustomer.phone).trim();
-          const emailMatch = lead.email && currentCustomer.email && String(lead.email).trim().toLowerCase() === String(currentCustomer.email).trim().toLowerCase();
-          
-          // Coincidencia por ID de contacto/empresa dentro del JSON de notas
-          let notesMatch = false;
-          if (lead.notes) {
-            try {
-              const parsedNotes = JSON.parse(lead.notes);
-              if (parsedNotes.contact_id && String(parsedNotes.contact_id) === String(id)) notesMatch = true;
-              if (parsedNotes.company_id && currentCustomer.company_id && String(parsedNotes.company_id) === String(currentCustomer.company_id)) notesMatch = true;
-            } catch (e) {}
-          }
-
-          return phoneMatch || emailMatch || notesMatch;
-        });
-
-        const mappedLeads = filteredLeads.map(lead => {
-          let requirementTitle = lead.company || lead.name || 'Negociación';
-          let leadNotes = '';
-          if (lead.notes) {
-            try {
-              const parsed = JSON.parse(lead.notes);
-              if (parsed.requirement_title) requirementTitle = parsed.requirement_title;
-              if (parsed.general) leadNotes = parsed.general;
-            } catch (e) {}
-          }
-
-          return {
-            id: lead.id,
-            title: requirementTitle,
-            description: leadNotes,
-            stage: lead.status || 'nuevo',
-            value: 0,
-            created_at: lead.created_at,
-            updated_at: lead.updated_at || lead.created_at,
-            isLead: true
-          };
-        });
-
-        mergedOpps = [...mergedOpps, ...mappedLeads];
-      }
-
-      setOpportunities(mergedOpps);
     } catch (err) {
-      console.error('Error al obtener oportunidades y negociaciones:', err);
+      console.error('Error al obtener oportunidades:', err);
+      setOpportunities([]);
     } finally {
       setLoadingOpps(false);
     }
   };
 
-  const fetchVisitas = async (id) => {
+  const fetchVisitas = async (leadId, targetContactId, clientProfile = 'b2c') => {
     setLoadingVisitas(true);
     try {
-      const urls = [`${API_BASE}/api/crm/visitas/contact/${id}`];
+      const urls = [];
+      const isSae = String(leadId).startsWith('sae-');
+      const targetCompanyId = isSae ? leadId : currentCustomer?.company_id;
       
-      // Si el cliente tiene un contact_id real (de la tabla contacts) consultarlo también
-      if (currentCustomer?.contact_id && String(currentCustomer.contact_id) !== String(id)) {
-        urls.push(`${API_BASE}/api/crm/visitas/contact/${currentCustomer.contact_id}`);
-      }
-      
-      // Si tiene una empresa vinculada, consultar sus visitas
-      if (currentCustomer?.company_id) {
-        urls.push(`${API_BASE}/api/crm/visitas/company/${currentCustomer.company_id}`);
+      // Si es B2B, traemos TODO el historial de la empresa. 
+      // Si es B2C, traemos SOLO el historial del contacto (persona aislada).
+      if (clientProfile === 'b2b' && targetCompanyId) {
+        urls.push(`${API_BASE}/api/crm/visitas/company/${targetCompanyId}`);
+      } else if (targetContactId) {
+        urls.push(`${API_BASE}/api/crm/visitas/contact/${targetContactId}`);
+      } else {
+        // Fallback genérico
+        urls.push(`${API_BASE}/api/crm/visitas/contact/${leadId}`);
+        if (targetCompanyId) {
+          urls.push(`${API_BASE}/api/crm/visitas/company/${targetCompanyId}`);
+        }
       }
 
       const requests = urls.map(url =>
@@ -685,6 +739,23 @@ export default function FichaClienteIndividualModal({
       console.error('Error fetching appointments:', err);
     } finally {
       setLoadingAppts(false);
+    }
+  };
+
+  const reloadCustomerDetails = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.customers) {
+        const updated = data.customers.find(c => String(c.id) === String(customerId));
+        if (updated) {
+          setCurrentCustomer(updated);
+        }
+      }
+    } catch (err) {
+      console.warn('Error reloading customer details in modal:', err);
     }
   };
 
@@ -1226,7 +1297,15 @@ export default function FichaClienteIndividualModal({
             )}
           </div>
 
-          <h2 className="client-modal-title">{currentCustomer.name}</h2>
+          <h2 className="client-modal-title">
+            {clientProfile === 'b2b' ? (currentCustomer.company || currentCustomer.name) : currentCustomer.name}
+          </h2>
+          
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.5rem', background: clientProfile === 'b2b' ? '#05393A' : '#4f46e5', color: '#fff', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 'bold' }}>
+            <i className={clientProfile === 'b2b' ? "fas fa-building" : "fas fa-user"} />
+            {clientProfile === 'b2b' ? 'Perfil: B2B Corporativo' : 'Perfil: B2C Individual'}
+          </div>
+
           <p className="client-modal-subtitle">
             {currentCustomer.company ? (
               <>
@@ -1366,7 +1445,13 @@ export default function FichaClienteIndividualModal({
                 <button
                   type="button"
                   className="card-edit-btn"
-                  onClick={() => setShowEditContactModal(true)}
+                  onClick={() => {
+                    if (clientProfile === 'b2b') {
+                      setShowB2BContactManager(true);
+                    } else {
+                      setShowEditContactModal(true);
+                    }
+                  }}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -1382,58 +1467,142 @@ export default function FichaClienteIndividualModal({
                   <i className="fas fa-edit" /> Editar
                 </button>
               </div>
-              <div className="info-grid" style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                <div className="info-item info-item-full">
-                  <span className="info-label">Nombre del Contacto</span>
-                  <span className="info-value">{currentCustomer.name}</span>
+              {clientProfile === 'b2b' ? (
+                <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
+                  {(() => {
+                    const secondaryId = currentCustomer.notes ? (() => {
+                      try { return JSON.parse(currentCustomer.notes).secondary_contact_id; } catch { return null; }
+                    })() : null;
+                    
+                    // Tratamos de buscar explícitamente el titular y secundario
+                    let primary = companyContacts.find(c => (c.id || c.contact?.id) === currentCustomer.contact_id);
+                    let secondary = companyContacts.find(c => (c.id || c.contact?.id) === secondaryId);
+
+                    // Si no están definidos, caemos a los 2 primeros que existan
+                    if (!primary && companyContacts.length > 0) primary = companyContacts[0];
+                    if (!secondary && companyContacts.length > 1) {
+                      secondary = companyContacts.find(c => c !== primary) || companyContacts[1];
+                    }
+
+                    const renderContactSummary = (c, title, badgeColor) => {
+                      if (!c) return null;
+                      const cName = c.name || c.contact?.name || 'Desconocido';
+                      const cPos = c.position || c.contact?.position || c.role || 'Contacto';
+                      const cPhone = c.phone || c.contact?.phone || 'No registrado';
+                      const cEmail = c.email || c.contact?.email || '';
+                      
+                      return (
+                        <div 
+                          className="clickable-b2b-contact-card"
+                          onClick={() => setEditingCompanyContact(c)}
+                          style={{ 
+                            background: '#f8fafc', padding: '12px', borderRadius: '8px', 
+                            border: `1px solid ${badgeColor}30`, marginBottom: '12px',
+                            cursor: 'pointer', transition: 'all 0.2s ease',
+                            position: 'relative'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = badgeColor;
+                            e.currentTarget.style.boxShadow = `0 2px 8px ${badgeColor}20`;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = `${badgeColor}30`;
+                            e.currentTarget.style.boxShadow = 'none';
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '0.72rem', fontWeight: '800', color: badgeColor, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {title}
+                            </span>
+                            <i className="fas fa-edit" style={{ color: badgeColor, opacity: 0.7, fontSize: '0.85rem' }}></i>
+                          </div>
+                          <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.9rem', marginBottom: '2px' }}>{cName}</div>
+                          <div style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '8px' }}>{cPos}</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.75rem', color: '#475569' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <i className="fas fa-phone" style={{ color: badgeColor, opacity: 0.7 }}/> {cPhone}
+                            </div>
+                            {cEmail && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <i className="fas fa-envelope" style={{ color: badgeColor, opacity: 0.7 }}/> {cEmail}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    };
+
+                    if (!primary && !secondary && companyContacts.length === 0) {
+                      return (
+                        <div style={{ textAlign: 'center', padding: '1.5rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                          <i className="fas fa-users" style={{ fontSize: '1.5rem', color: '#94a3b8', marginBottom: '8px' }} />
+                          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Aún no hay contactos registrados en el directorio.</div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div className="b2b-contacts-summary" style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                        {renderContactSummary(primary, 'Contacto Titular (A)', '#05393A')}
+                        {renderContactSummary(secondary, 'Contacto Secundario (B)', '#aa8529')}
+                      </div>
+                    );
+                  })()}
                 </div>
-                <div className="info-item">
-                  <span className="info-label">Cargo / Posición</span>
-                  <span className="info-value">{currentCustomer.position || 'No registrado'}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Correo Electrónico</span>
-                  <span className="info-value">{currentCustomer.email || 'No registrado'}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Celular / Teléfono</span>
-                  <span className="info-value">{currentCustomer.phone || 'No registrado'}</span>
-                </div>
-                <div className="info-item">
-                  <span className="info-label">Teléfono Alternativo</span>
-                  <span className="info-value">{currentCustomer.phone_alt || 'No registrado'}</span>
-                </div>
-                <div className="info-item info-item-full">
-                  <span className="info-label">WhatsApp Dedicado</span>
-                  <span className="info-value" style={{ color: currentCustomer.whatsapp ? '#10b981' : '#64748b', fontWeight: 'bold' }}>
-                    {currentCustomer.whatsapp || 'No registrado'}
-                  </span>
-                </div>
-                {(currentCustomer.contact_notes || currentCustomer.notes) && (
+              ) : (
+                <div className="info-grid" style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
                   <div className="info-item info-item-full">
-                    <span className="info-label">Notas de Contacto</span>
-                    <span className="info-value" style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#475569', whiteSpace: 'pre-wrap' }}>
-                      {(() => {
-                        const rawNotes = currentCustomer.contact_notes || currentCustomer.notes || '';
-                        try {
-                          if (rawNotes.trim().startsWith('{') && rawNotes.trim().endsWith('}')) {
-                            const parsed = JSON.parse(rawNotes.trim());
-                            return parsed.general || '';
-                          }
-                        } catch (e) {}
-                        // Si falla o no es JSON, mostrar la cadena limpia
-                        try {
-                          const parsedCustomerNotes = JSON.parse((currentCustomer.notes || '').trim());
-                          if (parsedCustomerNotes && parsedCustomerNotes.general) {
-                            return parsedCustomerNotes.general;
-                          }
-                        } catch (e) {}
-                        return rawNotes;
-                      })() || <em style={{ opacity: 0.5 }}>Sin notas comerciales definidas</em>}
+                    <span className="info-label">Nombre del Contacto</span>
+                    <span className="info-value">{currentCustomer.name}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Cargo / Posición</span>
+                    <span className="info-value">{currentCustomer.position || 'No registrado'}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Correo Electrónico</span>
+                    <span className="info-value">{currentCustomer.email || 'No registrado'}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Celular / Teléfono</span>
+                    <span className="info-value">{currentCustomer.phone || 'No registrado'}</span>
+                  </div>
+                  <div className="info-item">
+                    <span className="info-label">Teléfono Alternativo</span>
+                    <span className="info-value">{currentCustomer.phone_alt || 'No registrado'}</span>
+                  </div>
+                  <div className="info-item info-item-full">
+                    <span className="info-label">WhatsApp Dedicado</span>
+                    <span className="info-value" style={{ color: currentCustomer.whatsapp ? '#10b981' : '#64748b', fontWeight: 'bold' }}>
+                      {currentCustomer.whatsapp || 'No registrado'}
                     </span>
                   </div>
-                )}
-              </div>
+                  {(currentCustomer.contact_notes || currentCustomer.notes) && (
+                    <div className="info-item info-item-full">
+                      <span className="info-label">Notas de Contacto</span>
+                      <span className="info-value" style={{ fontStyle: 'italic', fontSize: '0.8rem', color: '#475569', whiteSpace: 'pre-wrap' }}>
+                        {(() => {
+                          const rawNotes = currentCustomer.contact_notes || currentCustomer.notes || '';
+                          try {
+                            if (rawNotes.trim().startsWith('{') && rawNotes.trim().endsWith('}')) {
+                              const parsed = JSON.parse(rawNotes.trim());
+                              return parsed.general || '';
+                            }
+                          } catch (e) {}
+                          // Si falla o no es JSON, mostrar la cadena limpia
+                          try {
+                            const parsedCustomerNotes = JSON.parse((currentCustomer.notes || '').trim());
+                            if (parsedCustomerNotes && parsedCustomerNotes.general) {
+                              return parsedCustomerNotes.general;
+                            }
+                          } catch (e) {}
+                          return rawNotes;
+                        })() || <em style={{ opacity: 0.5 }}>Sin notas comerciales definidas</em>}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </section>
 
             {/* CARD: EMPRESA O CONSTRUCTORA */}
@@ -1471,22 +1640,48 @@ export default function FichaClienteIndividualModal({
               </div>
 
               {currentCustomer.company && currentCustomer.company !== 'Particular' ? (
-                <div className="info-grid" style={{ borderTop: '1px solid #f1f5f9', paddingTop: '12px' }}>
-                  <div className="info-item info-item-full">
-                    <span className="info-label">Razón Social o Nombre</span>
-                    <span className="info-value">{currentCustomer.company}</span>
+                <div 
+                  className="clickable-b2b-contact-card"
+                  onClick={() => {
+                    setViewingCompany({ 
+                      id: currentCustomer.company_id || currentCustomer.id,
+                      name: currentCustomer.company,
+                      alias: currentCustomer.alias,
+                      rfc: currentCustomer.rfc,
+                      lista_prec: currentCustomer.lista_prec
+                    });
+                  }}
+                  style={{ 
+                    background: '#f8fafc', padding: '12px', borderRadius: '8px', 
+                    border: '1px solid #cbd5e1', marginTop: '12px',
+                    cursor: 'pointer', transition: 'all 0.2s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'var(--color-brand-accent, #aa8529)';
+                    e.currentTarget.style.boxShadow = '0 2px 8px rgba(170, 133, 41, 0.2)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = '#cbd5e1';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: '800', color: 'var(--color-brand-accent, #aa8529)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                      <i className="fas fa-building" style={{ marginRight: '4px' }} /> EMPRESA VINCULADA
+                    </span>
+                    <i className="fas fa-external-link-alt" title="Abrir panel de empresa" style={{ fontSize: '0.8rem', color: 'var(--color-brand-accent, #aa8529)' }} />
                   </div>
-                  <div className="info-item info-item-full">
-                    <span className="info-label">RFC</span>
-                    <span className="info-value">{currentCustomer.rfc || 'No registrado'}</span>
+                  <div style={{ color: '#0f172a', fontWeight: '800', fontSize: '0.95rem', marginBottom: '4px' }}>
+                    {currentCustomer.company}
                   </div>
-                  <div className="info-item info-item-full">
-                    <span className="info-label">Dirección Fiscal / Oficina</span>
-                    <span className="info-value">
-                      {currentCustomer.calle
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', gap: '12px' }}>
+                    <span><strong>RFC:</strong> {currentCustomer.rfc || 'No registrado'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
+                    <strong>Dirección Fiscal:</strong> {currentCustomer.calle
                         ? `${currentCustomer.calle}${currentCustomer.colonia ? `, Col. ${currentCustomer.colonia}` : ''}${currentCustomer.codigo ? `, C.P. ${currentCustomer.codigo}` : ''}${currentCustomer.municipio ? `, ${currentCustomer.municipio}` : ''}${currentCustomer.estado ? `, ${currentCustomer.estado}` : ''}`
                         : 'No registrada'}
-                    </span>
                   </div>
                 </div>
               ) : (
@@ -1693,6 +1888,31 @@ export default function FichaClienteIndividualModal({
               >
                 <i className="fas fa-sticky-note" /> Notas / Comentarios
               </button>
+              {clientProfile === 'b2b' && (
+                <button
+                  type="button"
+                  className={`client-tab-btn ${activeRightTab === 'directorio' ? 'active' : ''}`}
+                  onClick={() => setActiveRightTab('directorio')}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: '10px 12px',
+                    fontSize: '0.82rem',
+                    fontWeight: '700',
+                    color: activeRightTab === 'directorio' ? 'var(--color-brand-primary, #05393a)' : '#94a3b8',
+                    borderBottom: activeRightTab === 'directorio' ? '3px solid var(--color-brand-accent, #aa8529)' : '3px solid transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    outline: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  <i className="fas fa-users" /> Directorio
+                </button>
+              )}
               <button
                 type="button"
                 className={`client-tab-btn ${activeRightTab === 'visitas' ? 'active' : ''}`}
@@ -1793,6 +2013,7 @@ export default function FichaClienteIndividualModal({
                 <h3 className="timeline-feed-title" style={{ margin: 0, padding: 0, borderBottom: 'none' }}>
                   <i className="fas fa-history" style={{ color: 'var(--color-brand-accent)' }} /> {' '}
                   {activeRightTab === 'notas' && 'Notas y Comentarios'}
+                  {activeRightTab === 'directorio' && 'Directorio de Contactos'}
                   {activeRightTab === 'visitas' && 'Visitas y Actividades'}
                   {activeRightTab === 'bitacora' && 'Bitácora (Notas y Visitas)'}
                   {activeRightTab === 'cambios' && 'Historial de Cambios'}
@@ -1865,6 +2086,69 @@ export default function FichaClienteIndividualModal({
                   <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '12px' }}>Consolidando historial comercial...</p>
                 </div>
               ) : (() => {
+                if (activeRightTab === 'directorio' && clientProfile === 'b2b') {
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', paddingRight: '4px' }}>
+                      <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.5rem' }}>
+                        Todos los contactos registrados para <strong>{currentCustomer.company || currentCustomer.name}</strong>.
+                      </p>
+                      
+                      {companyContacts.length === 0 ? (
+                        <div className="empty-timeline" style={{ textAlign: 'center', padding: '2rem', border: '1px dashed #cbd5e1', borderRadius: '12px' }}>
+                          No hay contactos adicionales registrados en esta cuenta.
+                        </div>
+                      ) : (
+                        companyContacts.map((c, i) => {
+                          const contactId = c.id || c.contact?.id;
+                          const isPrimary = currentCustomer.contact_id === contactId;
+                          const secondaryId = currentCustomer.notes ? (() => {
+                            try { return JSON.parse(currentCustomer.notes).secondary_contact_id; } catch { return null; }
+                          })() : null;
+                          const isSecondary = secondaryId === contactId;
+
+                          return (
+                            <div key={i} style={{ 
+                              padding: '12px', 
+                              border: isPrimary ? '1px solid #05393A' : (isSecondary ? '1px solid #4f46e5' : '1px solid #e2e8f0'), 
+                              borderRadius: '8px', 
+                              background: isPrimary ? 'rgba(5, 57, 58, 0.02)' : (isSecondary ? 'rgba(79, 70, 229, 0.02)' : '#f8fafc'), 
+                              display: 'flex', flexDirection: 'column', gap: '4px' 
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <h4 style={{ margin: 0, color: '#0f172a', fontSize: '0.95rem' }}>{c.name || c.contact?.name}</h4>
+                                <div style={{ display: 'flex', gap: '4px' }}>
+                                  {isPrimary && (
+                                    <span style={{ fontSize: '0.65rem', background: '#05393A', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Contacto Titular (A)</span>
+                                  )}
+                                  {isSecondary && !isPrimary && (
+                                    <span style={{ fontSize: '0.65rem', background: '#4f46e5', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Contacto Secundario (B)</span>
+                                  )}
+                                  {!isPrimary && !isSecondary && (
+                                    <span style={{ fontSize: '0.65rem', background: '#94a3b8', color: 'white', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>Informativo</span>
+                                  )}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '4px' }}>
+                                <i className="fas fa-briefcase" style={{ width: '16px' }}></i> {c.position || c.contact?.position || (c.role ? `Rol: ${c.role}` : 'Sin cargo')}
+                              </div>
+                              {(c.phone || c.contact?.phone) && (
+                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                  <i className="fas fa-phone" style={{ width: '16px' }}></i> {c.phone || c.contact?.phone}
+                                </div>
+                              )}
+                              {(c.email || c.contact?.email) && (
+                                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                  <i className="fas fa-envelope" style={{ width: '16px' }}></i> {c.email || c.contact?.email}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  );
+                }
+
                 const filteredItems = unifiedTimeline.filter(item => {
                   if (activeRightTab === 'notas') return item.isNote;
                   if (activeRightTab === 'visitas') return item.isVisita;
@@ -2023,6 +2307,7 @@ export default function FichaClienteIndividualModal({
           onSuccess={() => {
             setShowVentaModal(false);
             fetchOpportunities(customerId);
+            reloadCustomerDetails();
             if (fetchCustomers) fetchCustomers();
           }}
           API_BASE={API_BASE}
@@ -2030,7 +2315,60 @@ export default function FichaClienteIndividualModal({
         />
       )}
 
-      {/* MODAL DE EDICIÓN DE CONTACTO */}
+      {showB2BContactManager && (
+        <B2BContactManager
+          onClose={() => setShowB2BContactManager(false)}
+          companyContacts={companyContacts}
+          currentCustomer={currentCustomer}
+          token={token}
+          API_BASE={API_BASE}
+          onSaved={() => {
+            setShowB2BContactManager(false);
+            if (fetchCustomers) fetchCustomers();
+            if (currentCustomer?.company_id) fetchCompanyContacts(currentCustomer.company_id);
+            if (isSae) fetchCompanyContacts(customerId);
+          }}
+        />
+      )}
+
+      {editingCompanyContact && (
+        <FichaContactoModal
+          contact={editingCompanyContact.contact || editingCompanyContact}
+          onViewCompanyDetails={(company) => {
+            // Si la empresa que quieren ver es la misma que la ficha base que ya tenemos abierta,
+            // simplemente cerramos este modal de contacto para revelar la empresa detrás.
+            if (company.id === currentCustomer.company_id || company.name === currentCustomer.company) {
+              setEditingCompanyContact(null);
+            } else {
+              // Si es otra empresa, cerramos el contacto y abrimos la nueva empresa
+              setEditingCompanyContact(null);
+              setViewingCompany(company);
+            }
+          }}
+          onClose={() => setEditingCompanyContact(null)}
+          refetch={() => {
+            if (currentCustomer?.company_id) fetchCompanyContacts(currentCustomer.company_id);
+            if (isSae) fetchCompanyContacts(customerId);
+            // No seteamos a null para que si edita algo, al cerrar el refetch ya esté actualizado
+          }}
+          // Se asume que FichaContactoModal internamente maneja el update con el context de UX/Auth y usa API_BASE
+        />
+      )}
+
+      {viewingCompany && (
+        <FichaEmpresaModal
+          company={viewingCompany}
+          onClose={() => setViewingCompany(null)}
+          onViewCustomerDetails={(contact) => {
+            // Prevenir loop infinito de modales: cerramos la empresa y mostramos el contacto
+            setViewingCompany(null);
+            setEditingCompanyContact(contact);
+          }}
+          API_BASE={API_BASE}
+        />
+      )}
+
+      {/* MODAL DE EDICIÓN DE CONTACTO (Genérico) */}
       {showEditContactModal && (
         <div className="client-submodal-overlay" onClick={() => setShowEditContactModal(false)}>
           <div className="client-submodal-container" onClick={(e) => e.stopPropagation()}>

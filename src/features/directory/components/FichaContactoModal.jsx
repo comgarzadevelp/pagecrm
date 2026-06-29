@@ -97,8 +97,9 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
   }, [contact?.id]);
 
   useEffect(() => {
+    refreshContact();
     fetchVisitas();
-  }, [fetchVisitas]);
+  }, [fetchVisitas, refreshContact]);
 
   // Company search debounce
   useEffect(() => {
@@ -417,6 +418,15 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
         {/* ── HEADER ──────────────────────────────────── */}
         <div className="fc-header">
           <div className="fc-header-toprow">
+            <button 
+              onClick={onClose} 
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '16px', padding: '6px 14px', borderRadius: '20px', transition: 'all 0.2s', flexShrink: 0 }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+              title="Volver"
+            >
+              <i className="fas fa-arrow-left" /> Volver
+            </button>
             <div className="fc-header-identity">
               <div className="fc-big-avatar">
                 {contact.avatar_url

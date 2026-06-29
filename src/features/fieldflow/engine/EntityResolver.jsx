@@ -6,7 +6,7 @@ import { auditEntity, COMPLETENESS_SCHEMA } from './MissingFieldsAudit';
 
 // Mapeo humano de nombres técnicos de base de datos a etiquetas legibles
 const FIELD_LABELS = {
-  nombre: 'Nombre o Razón Social',
+  nombre: 'Nombre',
   empresa_id: 'Empresa / Constructora Asociada',
   telefono: 'Teléfono de Contacto',
   email: 'Correo Electrónico',
@@ -17,7 +17,12 @@ const FIELD_LABELS = {
   cargo: 'Cargo o Puesto'
 };
 
-const getFieldLabel = (field) => FIELD_LABELS[field] || field;
+const getFieldLabel = (field, entityType) => {
+  if (entityType === 'obra' && field === 'direccion') {
+    return 'Ubicación de la obra';
+  }
+  return FIELD_LABELS[field] || field;
+};
 
 /**
  * EntityResolver actúa como router inteligente.
@@ -127,12 +132,12 @@ function CardMatch({ entityType, entity, onSelect }) {
               </span>
               {localData.estatus && (
                 <span className={`resolver-badge ${localData.estatus.toLowerCase().includes('activo') ||
-                    localData.estatus.toLowerCase().includes('cliente') ||
-                    localData.estatus.toLowerCase().includes('ganado')
-                    ? 'activo-status'
-                    : localData.estatus.toLowerCase().includes('inactivo')
-                      ? 'inactivo-status'
-                      : 'prospecto-status'
+                  localData.estatus.toLowerCase().includes('cliente') ||
+                  localData.estatus.toLowerCase().includes('ganado')
+                  ? 'activo-status'
+                  : localData.estatus.toLowerCase().includes('inactivo')
+                    ? 'inactivo-status'
+                    : 'prospecto-status'
                   }`}>
                   {localData.estatus}
                 </span>
@@ -369,7 +374,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
               className="resolver-field-group"
             >
               <label className="resolver-field-label">
-                {getFieldLabel(field)} <span style={{ color: '#dc2626' }}>*</span>
+                {getFieldLabel(field, entityType)} <span style={{ color: '#dc2626' }}>*</span>
               </label>
 
               <div className="resolver-field-input-wrapper">
@@ -403,7 +408,13 @@ function CreateInline({ entityType, onCancel, onCreate }) {
                     <input
                       type={field === 'telefono' ? 'tel' : field === 'email' ? 'email' : 'text'}
                       value={formData[field] || ''}
-                      placeholder={`Ej: ${field === 'telefono' ? '8112345678' : field === 'rfc' ? 'XAXX010101000' : 'Escribe aquí...'}`}
+                      placeholder={
+                        entityType === 'obra' && field === 'nombre'
+                          ? 'Ej: Residencial los parajes'
+                          : entityType === 'obra' && field === 'direccion'
+                          ? 'Escribe para buscar en Google Maps...'
+                          : `Ej: ${field === 'telefono' ? '8112345678' : field === 'rfc' ? 'XAXX010101000' : 'Escribe aquí...'}`
+                      }
                       onChange={(e) => setFormData(prev => ({ ...prev, [field]: e.target.value }))}
                       className="resolver-inline-input"
                       style={isError ? { borderColor: '#dc2626', background: '#fef2f2', paddingRight: field === 'direccion' ? '2.5rem' : '1rem' } : { paddingRight: field === 'direccion' ? '2.5rem' : '1rem' }}
@@ -492,16 +503,14 @@ function CreateInline({ entityType, onCancel, onCreate }) {
         })}
       </div>
 
-      {entityType !== 'obra' && (
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="resolver-confirm-btn valid"
-        >
-          Listo, continuemos
-          <ChevronRight style={{ width: '16px', height: '16px' }} />
-        </button>
-      )}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        className="resolver-confirm-btn valid"
+      >
+        Listo, continuemos
+        <ChevronRight style={{ width: '16px', height: '16px' }} />
+      </button>
     </div>
   );
 }

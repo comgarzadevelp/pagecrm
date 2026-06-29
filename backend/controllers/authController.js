@@ -77,7 +77,7 @@ export const login = async (req, res) => {
       try {
         const { data } = await supabase
           .from('enterprise_companies')
-          .select('id, name, company_code, color_primary, color_accent')
+          .select('id, name, company_code, color_primary, color_accent, sae_connection')
           .eq('id', users.company_id)
           .single();
         company = data;
@@ -102,7 +102,8 @@ export const login = async (req, res) => {
           name: 'Garza',
           company_code: 'GARZA',
           color_primary: '#05393A',
-          color_accent: '#E0922B'
+          color_accent: '#E0922B',
+          sae_connection: '03'
         };
       }
     }
@@ -114,6 +115,7 @@ export const login = async (req, res) => {
         name: users.name,
         companyId: company.id,
         companyCode: company.company_code,
+        sae_empresa: company.sae_connection || users.sae_empresa || null, // Fallback to user if not in company
         supervisorId: users.supervisor_id || null
       }, 
       JWT_SECRET, 
@@ -180,7 +182,7 @@ export const loginSuperAdmin = async (req, res) => {
       try {
         const { data } = await supabase
           .from('enterprise_companies')
-          .select('id, name, company_code, color_primary, color_accent')
+          .select('id, name, company_code, color_primary, color_accent, sae_connection')
           .eq('id', users.company_id)
           .single();
         company = data;
@@ -196,7 +198,8 @@ export const loginSuperAdmin = async (req, res) => {
         name: 'Garza',
         company_code: 'GARZA',
         color_primary: '#05393A',
-        color_accent: '#E0922B'
+        color_accent: '#E0922B',
+        sae_connection: '03'
       };
     }
     
@@ -207,6 +210,7 @@ export const loginSuperAdmin = async (req, res) => {
         name: users.name,
         companyId: company.id,
         companyCode: company.company_code,
+        sae_empresa: company.sae_connection || users.sae_empresa || null,
         supervisorId: users.supervisor_id || null
       }, 
       JWT_SECRET, 

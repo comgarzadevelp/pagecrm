@@ -21,6 +21,7 @@ import ProspectosHuerfanosFeature from '../../../features/leads/components/Prosp
 import EquipoVentasFeature from '../../../features/system/components/EquipoVentasFeature';
 import DirectorioClientesFeature from '../../../features/directory/components/DirectorioClientesFeature';
 import FichaEmpresaModal from '../../../features/directory/components/FichaEmpresaModal';
+import FichaContactoModal from '../../../features/directory/components/FichaContactoModal';
 import FichaClienteIndividualModal from '../../../features/directory/components/FichaClienteIndividualModal';
 import DirectorioObrasFeature from '../../../features/directory/components/DirectorioObrasFeature';
 import ModuleConfigPanel from '../../../features/superadmin/components/ModuleConfigPanel';
@@ -81,6 +82,7 @@ export default function DashboardLayout({ role, enabledModules }) {
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState('');
+  const [selectedContact, setSelectedContact] = useState(null);
   const [leadSearch, setLeadSearch] = useState('');
 
   // Ref para actualizar en tiempo real el estado de empresas desde el modal
@@ -134,6 +136,7 @@ export default function DashboardLayout({ role, enabledModules }) {
           allOpportunities={allOpportunities}
           currentUserProfile={currentUserProfile}
           fetchOpportunitiesList={fetchOpportunitiesList}
+          fetchLeads={fetchLeads}
           customers={customers}
           quoteItems={quoteItems}
           setQuoteItems={setQuoteItems}
@@ -293,6 +296,7 @@ export default function DashboardLayout({ role, enabledModules }) {
             }
           }}
           onViewCustomerDetails={setSelectedCustomer}
+          onViewContactDetails={setSelectedContact}
         />
       ) : selectedCustomer && (
         <FichaClienteIndividualModal
@@ -302,6 +306,14 @@ export default function DashboardLayout({ role, enabledModules }) {
           API_BASE={API_BASE}
           fetchCustomers={fetchCustomers}
           handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
+        />
+      )}
+
+      {selectedContact && (
+        <FichaContactoModal
+          contact={selectedContact}
+          onClose={() => setSelectedContact(null)}
+          API_BASE={API_BASE}
         />
       )}
     </DashboardShell>

@@ -25,11 +25,12 @@
   flex-direction: column !important;
   width: 100% !important;
   max-width: 680px !important;
+  height: 560px !important; /* Force a generous, premium, spacious height */
   max-height: 90vh !important;
   margin: 0 !important;
   background: #ffffff !important;
   border-radius: 16px !important;
-  padding: 2.25rem !important;
+  padding: 1.5rem !important;
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.15) !important;
   position: relative !important;
   overflow: hidden !important;
@@ -37,11 +38,11 @@
 
 /* Header Area */
 .wizard-header {
-  margin-bottom: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
 }
 
 .wizard-title-area h2 {
-  font-size: 1.4rem !important;
+  font-size: 1.15rem !important;
   fontWeight: 850 !important;
   color: var(--color-brand-primary, #05393a) !important;
   margin: 0 0 0.25rem 0 !important;
@@ -51,16 +52,16 @@
 }
 
 .wizard-title-area p {
-  font-size: 0.85rem !important;
+  font-size: 0.78rem !important;
   color: #64748b !important;
   margin: 0 !important;
 }
 
 /* Stepper Component */
 .wizard-stepper-container {
-  padding: 0.25rem 0 1.25rem 0 !important;
+  padding: 0.25rem 0 0.75rem 0 !important;
   border-bottom: 1px solid rgba(226, 232, 240, 0.7) !important;
-  margin-bottom: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
 }
 
 .wizard-stepper {
@@ -74,14 +75,14 @@
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  gap: 6px !important;
+  gap: 4px !important;
   z-index: 10 !important;
   position: relative !important;
 }
 
 .wizard-step .step-dot {
-  width: 28px !important;
-  height: 28px !important;
+  width: 22px !important;
+  height: 22px !important;
   border-radius: 50% !important;
   background: #f1f5f9 !important;
   border: 2px solid #e2e8f0 !important;
@@ -89,13 +90,13 @@
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
-  font-size: 0.8rem !important;
+  font-size: 0.7rem !important;
   font-weight: 800 !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .wizard-step .step-label {
-  font-size: 0.725rem !important;
+  font-size: 0.65rem !important;
   font-weight: 700 !important;
   color: #94a3b8 !important;
   text-transform: uppercase !important;
@@ -131,7 +132,7 @@
   height: 2px !important;
   background: #e2e8f0 !important;
   margin: 0 10px !important;
-  margin-top: -16px !important;
+  margin-top: -20px !important;
   transition: all 0.4s ease !important;
 }
 
@@ -150,7 +151,7 @@
 .wizard-body {
   position: relative !important;
   flex: 1 !important;
-  min-height: 340px !important;
+  min-height: 380px !important;
   overflow-y: auto !important;
   overflow-x: hidden !important;
   padding-right: 6px !important;
@@ -163,12 +164,12 @@
 .wizard-step-wrapper {
   display: flex !important;
   flex-direction: column !important;
-  gap: 1.25rem !important;
+  gap: 0.85rem !important;
   padding: 2px !important;
 }
 
 .step-section-title {
-  font-size: 0.95rem !important;
+  font-size: 0.85rem !important;
   font-weight: 800 !important;
   color: var(--color-brand-primary, #05393a) !important;
   text-transform: uppercase !important;
@@ -348,7 +349,7 @@
   border-radius: 10px !important;
   box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1) !important;
   border: 1px solid #e2e8f0 !important;
-  max-height: 200px !important;
+  max-height: 240px !important;
   overflow-y: auto !important;
   z-index: 9999 !important;
   background: #ffffff !important;
@@ -673,34 +674,65 @@
 
 /* Wizard Footer Navigation Custom Button Layout */
 .wizard-footer {
-  margin-top: 1rem !important;
-  padding-top: 1rem !important;
+  margin-top: 0.5rem !important;
+  padding-top: 0.5rem !important;
   border-top: 1px solid rgba(226, 232, 240, 0.7) !important;
   display: flex !important;
   justify-content: space-between !important;
   align-items: center !important;
 }
 
-.back-wizard-btn {
-  display: flex !important;
+.wizard-footer button {
+  padding: 6px 14px !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  height: 32px !important;
+  border-radius: 6px !important;
+  letter-spacing: 0.03em !important;
+  text-transform: uppercase !important;
+  display: inline-flex !important;
   align-items: center !important;
+  justify-content: center !important;
   gap: 6px !important;
+  transition: all 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.back-wizard-btn,
+.wizard-footer .btn-secondary {
+  background: #f1f5f9 !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #475569 !important;
+  min-width: 90px !important;
+}
+
+.back-wizard-btn:hover,
+.wizard-footer .btn-secondary:hover {
+  background: #e2e8f0 !important;
+  color: #1e293b !important;
 }
 
 .next-wizard-btn,
 .submit-wizard-btn {
   margin-left: auto !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-  min-width: 110px !important;
-  justify-content: center !important;
+  min-width: 100px !important;
+  background: linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #b8863b 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  box-shadow: 0 2px 4px rgba(212, 163, 89, 0.12) !important;
+}
+
+.next-wizard-btn:hover,
+.submit-wizard-btn:hover {
+  background: #b8863b !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(212, 163, 89, 0.2) !important;
 }
 
 .submit-wizard-btn {
-  min-width: 150px !important;
-  background: linear-gradient(135deg, var(--color-brand-accent, #d4a359) 0%, #b8863b 100%) !important;
+  min-width: 130px !important;
 }
+
 
 /* Animations */
 @keyframes pulse-green {
@@ -733,4 +765,202 @@
   .wizard-body {
     min-height: 300px !important;
   }
+}
+
+/* ==========================================================================
+   ENRICHED OBRA AUTOCOMPLETE & WARNING STYLES
+   ========================================================================== */
+
+/* Warning Banner for Cross-Customer Work Association */
+.warning-association-banner {
+  margin-top: 12px !important;
+  padding: 1rem 1.25rem !important;
+  background: rgba(251, 191, 36, 0.08) !important;
+  border: 1px dashed rgba(245, 158, 11, 0.4) !important;
+  border-radius: 10px !important;
+  backdrop-filter: blur(4px) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+  animation: slideDownFade 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.warning-banner-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  color: #d97706 !important;
+  font-size: 0.85rem !important;
+  font-weight: 800 !important;
+}
+
+.warning-banner-icon {
+  color: #d97706 !important;
+  flex-shrink: 0 !important;
+}
+
+.warning-banner-desc {
+  font-size: 0.8rem !important;
+  color: #451a03 !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+}
+
+.warning-banner-sub {
+  font-size: 0.725rem !important;
+  color: #78350f !important;
+  line-height: 1.35 !important;
+  margin: 0 !important;
+  opacity: 0.9 !important;
+}
+
+/* Enriched Autocomplete Options */
+.obra-search-option {
+  padding: 10px 12px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.8) !important;
+}
+
+.obra-search-option:last-child {
+  border-bottom: none !important;
+}
+
+.obra-option-header {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  width: 100% !important;
+}
+
+.obra-option-name {
+  font-size: 0.85rem !important;
+  font-weight: 750 !important;
+  color: var(--color-brand-primary, #05393a) !important;
+}
+
+.obra-linked-badge {
+  font-size: 0.65rem !important;
+  font-weight: 850 !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+  color: #059669 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+}
+
+.obra-option-address {
+  font-size: 0.725rem !important;
+  color: #64748b !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+.obra-option-owner {
+  font-size: 0.7rem !important;
+  font-weight: 650 !important;
+  color: #b8863b !important;
+  background: rgba(212, 163, 89, 0.08) !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  width: fit-content !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.obra-search-option.already-linked {
+  background: rgba(16, 185, 129, 0.02) !important;
+}
+
+.obra-search-option.already-linked:hover {
+  background: rgba(16, 185, 129, 0.05) !important;
+}
+
+@keyframes slideDownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Autocomplete Empty CTA (FieldFlow Call-to-Action) */
+.autocomplete-empty-cta {
+  padding: 1.25rem !important;
+  text-align: center !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 8px !important;
+  background: rgba(212, 163, 89, 0.03) !important;
+  border-radius: 12px !important;
+  margin: 4px !important;
+}
+
+.autocomplete-empty-cta .cta-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 0.85rem !important;
+  font-weight: 850 !important;
+  color: var(--color-brand-primary, #05393a) !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+}
+
+.autocomplete-empty-cta .cta-desc {
+  font-size: 0.75rem !important;
+  color: #64748b !important;
+  line-height: 1.4 !important;
+  margin: 0 !important;
+  max-width: 320px !important;
+}
+
+.autocomplete-empty-cta .cta-fieldflow-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 8px 16px !important;
+  background: var(--color-brand-primary, #05393a) !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 10px rgba(5, 57, 58, 0.15) !important;
+  transition: all 0.2s ease !important;
+  margin-top: 4px !important;
+}
+
+.autocomplete-empty-cta .cta-fieldflow-btn:hover {
+  background: #084e4f !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 12px rgba(5, 57, 58, 0.2) !important;
+}
+
+.autocomplete-option.foreign-customer-blocked {
+  transition: all 0.2s ease !important;
+  border-bottom: 1px solid rgba(241, 245, 249, 0.8) !important;
+  padding: 12px !important;
+}
+
+.autocomplete-option.foreign-customer-blocked .blocked-badge {
+  font-size: 0.625rem !important;
+  font-weight: 850 !important;
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
 }

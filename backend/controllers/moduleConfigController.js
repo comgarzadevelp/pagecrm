@@ -129,7 +129,7 @@ export const createEnterpriseCompany = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Solo super_admin puede crear empresas.' });
     }
 
-    const { name, company_code, description, color_primary, color_accent, logo_url, google_calendar_id, modules } = req.body;
+    const { name, company_code, description, color_primary, color_accent, logo_url, google_calendar_id, sae_connection, modules } = req.body;
 
     if (!name || !company_code) {
       return res.status(400).json({ success: false, message: 'Nombre y código de empresa son requeridos.' });
@@ -146,6 +146,7 @@ export const createEnterpriseCompany = async (req, res) => {
         color_accent: color_accent || '#E0922B',
         logo_url: logo_url || null,
         google_calendar_id: google_calendar_id || null,
+        sae_connection: sae_connection || null,
         active: true,
       }])
       .select()
@@ -196,7 +197,7 @@ export const updateEnterpriseCompany = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, company_code, description, color_primary, color_accent, google_calendar_id, active } = req.body;
+    const { name, company_code, description, color_primary, color_accent, google_calendar_id, sae_connection, active } = req.body;
 
     const updatePayload = {};
     if (name !== undefined) updatePayload.name = name;
@@ -205,6 +206,7 @@ export const updateEnterpriseCompany = async (req, res) => {
     if (color_primary !== undefined) updatePayload.color_primary = color_primary;
     if (color_accent !== undefined) updatePayload.color_accent = color_accent;
     if (google_calendar_id !== undefined) updatePayload.google_calendar_id = google_calendar_id || null;
+    if (sae_connection !== undefined) updatePayload.sae_connection = sae_connection || null;
     if (active !== undefined) updatePayload.active = Boolean(active);
 
     const { data, error } = await supabase

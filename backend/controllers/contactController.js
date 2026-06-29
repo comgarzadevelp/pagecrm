@@ -1,4 +1,4 @@
-import { supabase, saeSupabase } from '../supabaseClient.js';
+import { supabase, getSaeConnection } from '../supabaseClient.js';
 import { computeDataQuality } from '../utils/dataQuality.js';
 
 const isValidEmail = (email) => {
@@ -111,8 +111,9 @@ export const getContacts = async (req, res) => {
     const isGarza = req.user?.companyCode === 'GARZA';
     if (saeKey && isGarza) {
       // Get keys of clients assigned to this seller
-      const { data: saeClients, error: saeError } = await saeSupabase
-        .from('clie03')
+      const { saeClient, suffix } = getSaeConnection(req.user);
+      const { data: saeClients, error: saeError } = await saeClient
+        .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, lista_prec')
         .eq('cve_vend', saeKey)
         .eq('status', 'A');
@@ -127,9 +128,9 @@ export const getContacts = async (req, res) => {
           };
         });
 
-        // Query real individual contact persons from contac03 associated with these clients
-        const { data: contactsData, error: contactsError } = await saeSupabase
-          .from('contac03')
+        // Query real individual contact persons from contacXX associated with these clients
+        const { data: contactsData, error: contactsError } = await saeClient
+          .from(`contac${suffix}`)
           .select('cve_clie, nombre, telefono, email, status')
           .in('cve_clie', clientKeys)
           .eq('status', 'A');
@@ -474,8 +475,9 @@ export const linkContactToCompany = async (req, res) => {
       const indexVal = parseInt(indexStr) - 1;
 
       if (saeClave) {
-        const { data: saeConts } = await saeSupabase
-          .from('contac03')
+        const { saeClient, suffix } = getSaeConnection(req.user);
+        const { data: saeConts } = await saeClient
+          .from(`contac${suffix}`)
           .select('nombre, telefono, email')
           .eq('cve_clie', saeClave)
           .eq('status', 'A');
@@ -545,8 +547,9 @@ export const linkContactToCompany = async (req, res) => {
       } else {
         const isGarza = req.user?.companyCode === 'GARZA';
         if (isGarza) {
-          const { data: client } = await saeSupabase
-            .from('clie03')
+          const { saeClient, suffix } = getSaeConnection(req.user);
+          const { data: client } = await saeClient
+            .from(`clie${suffix}`)
             .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
             .eq('clave', saeClave)
             .maybeSingle();

@@ -5,7 +5,8 @@ export const mapLeadStatus = (status) => {
   const s = status.toLowerCase();
   if (s === 'nuevo' || s === 'asignado') return 'nuevo';
   if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
-  if (s === 'perdido' || s === 'cierre_perdido' || s === 'descartado' || s === 'frio') return 'cierre_perdido';
+  if (s === 'perdido' || s === 'cierre_perdido') return 'cierre_perdido';
+  if (s === 'descartado' || s === 'frio') return 'descartado';
   if (s === 'cotizando') return 'cotizando';
   return 'contactado';
 };
@@ -157,11 +158,11 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
   // Columns logic
   const columns = useMemo(() => {
     const baseStagesMap = {
-      nuevo:            { key: 'nuevo',            label: 'Nueva negociación',     color: '#0086c0', isDeletable: false },
-      contactado:       { key: 'contactado',        label: 'En plática con cliente', color: '#ffcb00', isDeletable: false },
-      cotizando:        { key: 'cotizando',         label: 'Se le hizo cotización',  color: '#7c3aed', isDeletable: false },
-      cierre_ganado:    { key: 'cierre_ganado',     label: 'Venta Exitosa',          color: '#16a34a', isDeletable: false },
-      cierre_perdido:   { key: 'cierre_perdido',    label: 'Venta perdida',          color: '#dc2626', isDeletable: false }
+      nuevo: { key: 'nuevo', label: 'Nueva negociación', color: '#0086c0', isDeletable: false },
+      contactado: { key: 'contactado', label: 'En pláticas', color: '#ffcb00', isDeletable: false },
+      cotizando: { key: 'cotizando', label: 'Se le hizo cotización', color: '#7c3aed', isDeletable: false },
+      cierre_ganado: { key: 'cierre_ganado', label: 'Venta Exitosa', color: '#16a34a', isDeletable: false },
+      cierre_perdido: { key: 'cierre_perdido', label: 'Venta perdida', color: '#dc2626', isDeletable: false }
     };
 
     const allColMap = { ...baseStagesMap };
@@ -215,7 +216,8 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
   }, [customStages, columnOrder]);
 
   const filteredLeads = useMemo(() => {
-    let result = [...leads];
+    // Excluir leads descartados (archivados) del tablero activo
+    let result = leads.filter(l => l.status !== 'descartado');
     if (debouncedSearch.trim()) {
       const term = debouncedSearch.toLowerCase();
       result = result.filter(l =>

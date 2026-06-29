@@ -42,7 +42,7 @@ const transitionContext = {
   damping: 30,
 };
 
-function WizardContent({ onClose }) {
+function WizardContent({ onClose, onSuccess }) {
   const { step, direction, paginate, wizardState } = useFieldFlow();
   const [status, setStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
@@ -88,59 +88,9 @@ function WizardContent({ onClose }) {
           throw new Error(compData.message || 'Error al crear la empresa en el CRM.');
         }
         resolvedCompanyId = compData.company.id;
-
-        // Registrar también en el directorio de Clientes/Prospectos del vendedor
-        setCurrentActionText('Registrando prospecto en el directorio...');
-        try {
-          const custRes = await fetch(`${API_BASE}/api/crm/customers`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              name: wizardState.contacto?.nombre || 'Representante',
-              email: wizardState.contacto?.email || '',
-              phone: wizardState.contacto?.telefono || '',
-              company: wizardState.empresa.nombre,
-              notes: JSON.stringify({
-                general: 'Creado automáticamente desde el flujo de campo FieldFlow.',
-                timeline: [],
-                invoices: []
-              })
-            })
-          });
-          const custData = await custRes.json();
-          if (custRes.ok && custData.success && custData.customer?.id) {
-            const createdCustomerId = custData.customer.id;
-            // Actualizar su estado a 'pendiente_revision' (prospecto) y asociar el company_id real
-            await fetch(`${API_BASE}/api/crm/customers/${createdCustomerId}`, {
-              method: 'PUT',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                name: wizardState.contacto?.nombre || 'Representante',
-                email: wizardState.contacto?.email || '',
-                phone: wizardState.contacto?.telefono || '',
-                company: wizardState.empresa.nombre,
-                company_id: resolvedCompanyId,
-                notes: JSON.stringify({
-                  general: 'Creado automáticamente desde el flujo de campo FieldFlow.',
-                  timeline: [],
-                  invoices: []
-                }),
-                status: 'pendiente_revision'
-              })
-            });
-          }
-        } catch (custErr) {
-          console.warn('Advertencia al registrar prospecto en directorio:', custErr);
-        }
       }
 
-      // 2. Crear Contacto si es nuevo
+      // 2. Crear Contacto si es nuevo (Hacer esto ANTES de crear el crm_customer para tener su ID real)
       if (wizardState.contacto?.isNew) {
         setCurrentActionText('Registrando nuevo contacto...');
         const contRes = await fetch(`${API_BASE}/api/crm/contacts`, {
@@ -166,9 +116,53 @@ function WizardContent({ onClose }) {
         resolvedContactId = contData.contact.id;
       }
 
-      // 3. Vincular contacto a la empresa si ambos están resueltos (garantiza vinculación en todos los casos: nuevos y existentes)
+      // 3. Crear Cliente en el CRM (crm_customer) dependiendo del perfil seleccionado
+      let shouldCreateCustomer = false;
+      if (wizardState.client_profile === 'b2b') {
+        // En B2B, el cliente principal es la EMPRESA. Solo creamos un nuevo lead/customer si la EMPRESA es nueva.
+        if (wizardState.empresa?.isNew) shouldCreateCustomer = true;
+      } else {
+        // En B2C, el cliente principal es la PERSONA. Solo creamos un nuevo lead/customer si el CONTACTO es nuevo.
+        if (wizardState.contacto?.isNew) shouldCreateCustomer = true;
+      }
+
+      if (shouldCreateCustomer) {
+        setCurrentActionText('Registrando prospecto en el directorio...');
+        try {
+          await fetch(`${API_BASE}/api/crm/customers`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name: wizardState.client_profile === 'b2b' 
+                ? (wizardState.empresa?.nombre || wizardState.contacto?.nombre || 'Prospecto')
+                : (wizardState.contacto?.nombre || wizardState.empresa?.nombre || 'Prospecto'), 
+              email: wizardState.contacto?.email || '',
+              phone: wizardState.contacto?.telefono || '',
+              company: wizardState.empresa?.nombre || '',
+              company_id: resolvedCompanyId,
+              contact_id: resolvedContactId,
+              status: 'pendiente_revision',
+              notes: JSON.stringify({
+                general: 'Creado automáticamente desde el flujo de campo FieldFlow.',
+                contact_id: resolvedContactId || null, 
+                company_id: resolvedCompanyId || null,
+                client_profile: wizardState.client_profile || 'b2b',
+                timeline: [],
+                invoices: []
+              })
+            })
+          });
+        } catch (custErr) {
+          console.warn('Advertencia al registrar prospecto en directorio:', custErr);
+        }
+      }
+
+      // 4. Vincular contacto principal a la empresa si ambos están resueltos (garantiza vinculación en todos los casos: nuevos y existentes)
       if (resolvedContactId && resolvedCompanyId) {
-        setCurrentActionText('Estableciendo relación empresa-contacto...');
+        setCurrentActionText('Estableciendo relación empresa-contacto principal...');
         const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedContactId}/link-company`, {
           method: 'POST',
           headers: {
@@ -183,6 +177,72 @@ function WizardContent({ onClose }) {
         const linkData = await linkRes.json();
         if (!linkRes.ok || !linkData.success) {
           console.warn('Advertencia al asociar contacto a empresa:', linkData.message);
+        }
+      }
+
+      // 3.2 Guardar y vincular Contactos Adicionales si existen
+      if (wizardState.contactosAdicionales && wizardState.contactosAdicionales.length > 0) {
+        for (let i = 0; i < wizardState.contactosAdicionales.length; i++) {
+          const addContact = wizardState.contactosAdicionales[i];
+          let resolvedAddContactId = addContact.id;
+
+          if (addContact.isNew) {
+            setCurrentActionText(`Registrando contacto adicional: ${addContact.nombre}...`);
+            const noteText = `Contacto adicional registrado desde FieldFlow, asociado a la empresa/cliente: ${wizardState.empresa?.nombre || 'N/A'}.`;
+            
+            try {
+              const contRes = await fetch(`${API_BASE}/api/crm/contacts`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  name: addContact.nombre,
+                  position: addContact.cargo || '',
+                  contact_type: addContact.tipo || 'oficina',
+                  email: addContact.email || '',
+                  phone: addContact.telefono || '',
+                  phone_alt: addContact.telefono_alt || '',
+                  notes: noteText
+                })
+              });
+              const contData = await contRes.json();
+              if (contRes.ok && contData.success) {
+                resolvedAddContactId = contData.contact.id;
+              } else {
+                console.warn(`Advertencia al crear contacto adicional ${addContact.nombre}:`, contData.message);
+                continue;
+              }
+            } catch (createErr) {
+              console.warn(`Error al crear contacto adicional ${addContact.nombre}:`, createErr);
+              continue;
+            }
+          }
+
+          // Vincular a la empresa
+          if (resolvedCompanyId && resolvedAddContactId) {
+            setCurrentActionText(`Asociando contacto adicional: ${addContact.nombre}...`);
+            try {
+              const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedAddContactId}/link-company`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  company_id: resolvedCompanyId,
+                  role: addContact.cargo || 'Contacto Adicional'
+                })
+              });
+              const linkData = await linkRes.json();
+              if (!linkRes.ok || !linkData.success) {
+                console.warn(`Advertencia al asociar contacto adicional ${addContact.nombre} a empresa:`, linkData.message);
+              }
+            } catch (linkErr) {
+              console.warn(`Error al asociar contacto adicional ${addContact.nombre} a empresa:`, linkErr);
+            }
+          }
         }
       }
 
@@ -285,6 +345,7 @@ function WizardContent({ onClose }) {
       }
 
       setStatus('success');
+      if (typeof onSuccess === 'function') onSuccess();
     } catch (err) {
       console.error('Error in FieldFlow dispatch:', err);
       setStatus('error');
@@ -528,6 +589,62 @@ function WizardContent({ onClose }) {
                           </div>
                         </div>
 
+                        {/* Tarjeta Contactos Adicionales */}
+                        {wizardState.contactosAdicionales && wizardState.contactosAdicionales.length > 0 && (
+                          <div className="fieldflow-panel" style={{ borderLeft: '4px solid #4f46e5' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                              <User style={{ width: '16px', height: '16px', color: '#4f46e5' }} />
+                              <h4 style={{ margin: 0, fontSize: '0.7rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contactos Adicionales ({wizardState.contactosAdicionales.length})</h4>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                              {wizardState.contactosAdicionales.map((cont, index) => (
+                                <div 
+                                  key={cont.id || index} 
+                                  style={{ 
+                                    display: 'flex', 
+                                    flexDirection: 'column', 
+                                    gap: '0.2rem', 
+                                    paddingBottom: index < wizardState.contactosAdicionales.length - 1 ? '0.65rem' : 0, 
+                                    borderBottom: index < wizardState.contactosAdicionales.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none' 
+                                  }}
+                                >
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '750', color: '#111827' }}>{cont.nombre}</span>
+                                    <span style={{ 
+                                      fontSize: '0.55rem', 
+                                      fontWeight: '800', 
+                                      padding: '1px 5px', 
+                                      borderRadius: '4px', 
+                                      background: cont.isNew ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                      color: cont.isNew ? '#d97706' : '#059669',
+                                      textTransform: 'uppercase'
+                                    }}>
+                                      {cont.isNew ? 'Nuevo' : 'Existente'}
+                                    </span>
+                                  </div>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center', marginTop: '0.1rem' }}>
+                                    {cont.cargo && (
+                                      <span style={{ fontSize: '0.65rem', background: '#f3f4f6', color: '#4b5563', padding: '1px 4px', borderRadius: '3px', fontWeight: '700' }}>
+                                        💼 {cont.cargo}
+                                      </span>
+                                    )}
+                                    {cont.telefono && (
+                                      <span style={{ fontSize: '0.65rem', color: '#6b7280' }}>
+                                        📞 <strong>{cont.telefono}</strong>
+                                      </span>
+                                    )}
+                                    {cont.email && (
+                                      <span style={{ fontSize: '0.65rem', color: '#6b7280' }}>
+                                        ✉️ {cont.email}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Tarjeta Obra */}
                         <div className="fieldflow-panel" style={{ borderLeft: '4px solid #cbd5e1' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
@@ -642,10 +759,10 @@ function WizardContent({ onClose }) {
   );
 }
 
-export default function FieldFlowWizard({ onClose }) {
+export default function FieldFlowWizard({ onClose, onSuccess }) {
   return createPortal(
     <FieldFlowProvider>
-      <WizardContent onClose={onClose} />
+      <WizardContent onClose={onClose} onSuccess={onSuccess} />
     </FieldFlowProvider>,
     document.body
   );

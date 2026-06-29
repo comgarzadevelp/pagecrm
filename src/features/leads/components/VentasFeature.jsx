@@ -48,7 +48,7 @@ export default function VentasFeature(props) {
       {/* Active Component Render with animation wrapper */}
       <div className="directory-tab-content animate-fade-in">
         {activeSubTab === 'bandeja' && (
-          <LeadsBandejaFeature {...props} />
+          <LeadsBandejaFeature {...props} leads={props.allLeads || []} />
         )}
         {activeSubTab === 'kanban' && (
           <ProspectosKanbanFeature {...props} />

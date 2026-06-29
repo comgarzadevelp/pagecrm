@@ -81,6 +81,7 @@ export default function Step3_ObraResolver() {
   const handleResolveObra = (entity) => {
     setSinObraChecked(false);
     updateEntity('obra', entity);
+    paginate(1);
   };
 
   const toggleSinObra = () => {

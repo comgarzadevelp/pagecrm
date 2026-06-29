@@ -327,6 +327,7 @@ const DashboardShell = ({
     activeTab !== 'profile' &&
     activeTab !== 'personal-agenda' &&
     activeTab !== 'module-config' &&
+    activeTab !== 'archive-contacts' &&
     stats;
 
   const sidebarRef = useRef(null);
@@ -460,7 +461,7 @@ const DashboardShell = ({
               <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
               <div className="stat-val-box">
                 <h3>{stats.total || 0}</h3>
-                <p>Peticiones del lead</p>
+                <p>Total de Negociaciones</p>
               </div>
             </div>
             <div className="crm-stat-card glass">

@@ -551,7 +551,10 @@ export default function EquipoVentas({
                   <select
                     className="crm-login-input"
                     value={newSellerCompanyId}
-                    onChange={(e) => setNewSellerCompanyId(e.target.value)}
+                    onChange={(e) => {
+                      setNewSellerCompanyId(e.target.value);
+                      setNewSellerSupervisorId('');
+                    }}
                     style={{ cursor: 'pointer' }}
                     required
                   >
@@ -718,7 +721,10 @@ export default function EquipoVentas({
                   <select
                     className="crm-login-input"
                     value={editSellerCompanyId}
-                    onChange={(e) => setEditSellerCompanyId(e.target.value)}
+                    onChange={(e) => {
+                      setEditSellerCompanyId(e.target.value);
+                      setEditSellerSupervisorId('');
+                    }}
                     style={{ cursor: 'pointer' }}
                     required
                   >

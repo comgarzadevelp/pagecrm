@@ -4,17 +4,17 @@ import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
 import useDebounce from '../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
-import { 
-  User, 
-  Building2, 
-  MapPin, 
-  FileText, 
-  CheckCircle2, 
-  ArrowRight, 
-  ArrowLeft, 
-  Loader2, 
-  Search, 
-  Sparkles, 
+import {
+  User,
+  Building2,
+  MapPin,
+  FileText,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  Loader2,
+  Search,
+  Sparkles,
   Info,
   Calendar,
   Layers
@@ -66,7 +66,6 @@ export default function CrearProspectoModal({
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const customerDropdownRef = useRef(null);
 
-  // 2. Obra/Project State
   const [obraId, setObraId] = useState('new'); // 'new' or UUID
   const [obraText, setObraText] = useState('');
   const [linkedObras, setLinkedObras] = useState([]);
@@ -74,6 +73,7 @@ export default function CrearProspectoModal({
   const [obrasLoading, setObrasLoading] = useState(false);
   const [obraOptions, setObraOptions] = useState([]);
   const [showObraOptions, setShowObraOptions] = useState(false);
+  const [selectedObraObj, setSelectedObraObj] = useState(null);
   const obraDropdownRef = useRef(null);
 
   // 3. Geolocation & Evidence State
@@ -89,6 +89,33 @@ export default function CrearProspectoModal({
   const debouncedCustomerSearch = useDebounce(customerSearchQuery, 300);
   const debouncedObraSearch = useDebounce(obraText, 300);
 
+  // Fetch searched customers (with global search support)
+  useEffect(() => {
+    const searchCustomers = async () => {
+      if (!debouncedCustomerSearch || debouncedCustomerSearch.trim().length < 2) {
+        fetchCustomers();
+        return;
+      }
+      try {
+        setCustomersLoading(true);
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/crm/customers?q=${encodeURIComponent(debouncedCustomerSearch.trim())}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.customers) {
+          setCustomersList(data.customers);
+        }
+      } catch (err) {
+        console.error('Error searching customers:', err);
+      } finally {
+        setCustomersLoading(false);
+      }
+    };
+
+    searchCustomers();
+  }, [debouncedCustomerSearch, API_BASE]);
+
   // Reset/Initialize Wizard when Modal Opens
   useEffect(() => {
     if (isOpen) {
@@ -99,6 +126,7 @@ export default function CrearProspectoModal({
       setCreationCoords(null);
       setObraId('new');
       setObraText('');
+      setSelectedObraObj(null);
       setRequirementTitle('');
       setNotes(initialNotes || '');
 
@@ -162,6 +190,7 @@ export default function CrearProspectoModal({
         setLinkedObras([]);
         setObraId('new');
         setObraText('');
+        setSelectedObraObj(null);
         return;
       }
 
@@ -177,9 +206,11 @@ export default function CrearProspectoModal({
           if (data.obras.length > 0) {
             setObraId(data.obras[0].id);
             setObraText(data.obras[0].name);
+            setSelectedObraObj(data.obras[0]);
           } else {
             setObraId('new');
             setObraText('');
+            setSelectedObraObj(null);
           }
         }
       } catch (err) {
@@ -332,7 +363,7 @@ export default function CrearProspectoModal({
       // 2. Build payload
       const payload = {
         // Company
-        company_id: selectedCustomer.company_id || selectedCustomer.companyId || null,
+        company_id: selectedCustomer.company_id || selectedCustomer.companyId || (selectedCustomer.id && String(selectedCustomer.id).startsWith('sae-') ? selectedCustomer.id : null),
         company_name: selectedCustomer.company || null,
 
         // Obra
@@ -369,7 +400,8 @@ export default function CrearProspectoModal({
 
       if (res.ok && data.success) {
         showToast('¡Negociación creada y registrada con éxito!', 'success');
-        if (onSuccess) onSuccess(data.lead);
+        // El backend retorna data.opportunity (negociación con cliente conocido) o data.lead (prospecto huérfano)
+        if (onSuccess) onSuccess(data.opportunity || data.lead);
         onClose();
       } else {
         showToast(data.message || 'Error al guardar la negociación.', 'error');
@@ -381,6 +413,35 @@ export default function CrearProspectoModal({
       setIsSubmitting(false);
     }
   };
+
+  // Helper to get linked companies for the selected/searched obra
+  const getObraCompaniesText = (obra) => {
+    if (!obra || !obra.obra_companies || obra.obra_companies.length === 0) return '';
+    return obra.obra_companies
+      .map(oc => oc.company?.name)
+      .filter(Boolean)
+      .join(', ');
+  };
+
+  const isObraLinkedToCurrentCustomer = (obra) => {
+    if (!obra || !selectedCustomer) return false;
+    const customerCompanyId = selectedCustomer.company_id || selectedCustomer.companyId;
+    if (!customerCompanyId) return false;
+
+    if (obra.obra_companies && obra.obra_companies.length > 0) {
+      return obra.obra_companies.some(oc => String(oc.company?.id) === String(customerCompanyId));
+    }
+    return false;
+  };
+
+  const selectedCompanyId = selectedCustomer?.company_id || selectedCustomer?.companyId;
+  const showWarningBanner =
+    obraId !== 'new' &&
+    selectedObraObj &&
+    selectedCompanyId &&
+    selectedObraObj.obra_companies &&
+    selectedObraObj.obra_companies.length > 0 &&
+    !selectedObraObj.obra_companies.some(oc => String(oc.company?.id) === String(selectedCompanyId));
 
   if (!isOpen) return null;
 
@@ -395,9 +456,9 @@ export default function CrearProspectoModal({
     <div className="crm-modal-overlay">
       <div className="crm-modal-content wizard-modal-content">
         {/* Close Button */}
-        <button 
-          type="button" 
-          className="close-modal-btn" 
+        <button
+          type="button"
+          className="close-modal-btn"
           onClick={onClose}
           disabled={isSubmitting}
           aria-label="Cerrar modal"
@@ -489,8 +550,8 @@ export default function CrearProspectoModal({
                           </div>
                         </div>
                         {!customer && (
-                          <button 
-                            type="button" 
+                          <button
+                            type="button"
                             className="change-client-btn"
                             onClick={() => {
                               setSelectedCustomer(null);
@@ -524,25 +585,64 @@ export default function CrearProspectoModal({
                                   <Loader2 className="animate-spin" size={16} /> Cargando catálogo...
                                 </div>
                               ) : filteredCustomers.length > 0 ? (
-                                filteredCustomers.map((c) => (
-                                  <div
-                                    key={c.id}
-                                    className="autocomplete-option client-option"
+                                filteredCustomers.map((c) => {
+                                  if (c.is_foreign) {
+                                    return (
+                                      <div
+                                        key={c.id}
+                                        className="autocomplete-option client-option foreign-customer-blocked"
+                                        style={{ cursor: 'not-allowed', background: 'rgba(239, 68, 68, 0.03)', borderLeft: '3px solid #ef4444' }}
+                                      >
+                                        <div className="option-name" style={{ color: '#64748b', fontWeight: 'bold', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                          <span>{c.name}</span>
+                                          <span className="blocked-badge">⚠️ Registro Duplicado</span>
+                                        </div>
+                                        <div className="option-sub" style={{ color: '#ef4444', fontWeight: '700', fontSize: '0.75rem', marginTop: '2px' }}>
+                                          {c.company ? `🏢 ${c.company}` : '👤 Particular'} • Asignado a: <strong style={{ textDecoration: 'underline' }}>{c.assigned_to_name}</strong>
+                                        </div>
+                                        <div style={{ fontSize: '0.7rem', color: '#475569', marginTop: '4px', lineHeight: '1.3' }}>
+                                          Este cliente ya está registrado en el CRM por otro ejecutivo. Para evitar duplicidades, no puedes usarlo. Resuelve este detalle con tu supervisor o administrador.
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div
+                                      key={c.id}
+                                      className="autocomplete-option client-option"
+                                      onClick={() => {
+                                        setSelectedCustomer(c);
+                                        setCustomerSearchQuery(c.name || '');
+                                        setShowCustomerDropdown(false);
+                                      }}
+                                    >
+                                      <div className="option-name">{c.name}</div>
+                                      <div className="option-sub">
+                                        {c.company ? `🏢 ${c.company}` : '👤 Particular'} • 📞 {c.phone || 'Sin tel'}
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <div className="autocomplete-empty-cta">
+                                  <div className="cta-header">
+                                    <User size={16} style={{ color: 'var(--color-brand-accent, #d4a359)' }} />
+                                    <span>Cliente completamente nuevo</span>
+                                  </div>
+                                  <p className="cta-desc">
+                                    Este cliente no existe en el sistema. Para asegurar su ciclo de vida comercial y geolocalización, debes registrarlo usando el flujo guiado.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    className="cta-fieldflow-btn"
                                     onClick={() => {
-                                      setSelectedCustomer(c);
-                                      setCustomerSearchQuery(c.name || '');
-                                      setShowCustomerDropdown(false);
+                                      onClose();
+                                      window.dispatchEvent(new CustomEvent('open-fieldflow-wizard'));
                                     }}
                                   >
-                                    <div className="option-name">{c.name}</div>
-                                    <div className="option-sub">
-                                      {c.company ? `🏢 ${c.company}` : '👤 Particular'} • 📞 {c.phone || 'Sin tel'}
-                                    </div>
-                                  </div>
-                                ))
-                              ) : (
-                                <div className="autocomplete-empty">
-                                  No se encontraron clientes registrados con ese nombre.
+                                    <i className="fas fa-bolt"></i> Iniciar Registro en FieldFlow
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -550,7 +650,7 @@ export default function CrearProspectoModal({
                         </div>
                         <div className="search-hint-card">
                           <Info size={14} />
-                          <span>Si el cliente es completamente nuevo, regístrelo primero desde la pestaña "Clientes" para asegurar su ciclo de vida comercial.</span>
+                          <span>Si el cliente es completamente nuevo o no esta registrado en este CRM, regístrelo primero a través del flujo inical (Filedflow - inicio - Registrar Actividad) para asegurar su ciclo de vida comercial.</span>
                         </div>
                       </div>
                     )}
@@ -561,7 +661,7 @@ export default function CrearProspectoModal({
                 {step === 2 && (
                   <div className="wizard-step-wrapper">
                     <h3 className="step-section-title">🏗️ Ubicación de Obra (Opcional)</h3>
-                    
+
                     <div className="modal-input-group" ref={obraDropdownRef}>
                       <label className="wizard-input-label">Asociar Proyecto / Obra Destino</label>
                       {linkedLoading ? (
@@ -571,15 +671,19 @@ export default function CrearProspectoModal({
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           {linkedObras.length > 0 && (
-                            <select 
-                              value={obraId} 
+                            <select
+                              value={obraId}
                               onChange={(e) => {
                                 setObraId(e.target.value);
                                 if (e.target.value !== 'new') {
                                   const match = linkedObras.find(o => o.id === e.target.value);
-                                  if (match) setObraText(match.name);
+                                  if (match) {
+                                    setObraText(match.name);
+                                    setSelectedObraObj(match);
+                                  }
                                 } else {
                                   setObraText('');
+                                  setSelectedObraObj(null);
                                 }
                               }}
                             >
@@ -610,19 +714,37 @@ export default function CrearProspectoModal({
                                   {obrasLoading ? (
                                     <div className="autocomplete-loading">Buscando en catálogo...</div>
                                   ) : obraOptions.length > 0 ? (
-                                    obraOptions.map((o) => (
-                                      <div
-                                        key={o.id}
-                                        className="autocomplete-option"
-                                        onClick={() => {
-                                          setObraId(o.id);
-                                          setObraText(o.name);
-                                          setShowObraOptions(false);
-                                        }}
-                                      >
-                                        {o.name} {o.direccion ? `(${o.direccion})` : ''}
-                                      </div>
-                                    ))
+                                    obraOptions.map((o) => {
+                                      const isLinked = isObraLinkedToCurrentCustomer(o);
+                                      const companiesText = getObraCompaniesText(o);
+                                      return (
+                                        <div
+                                          key={o.id}
+                                          className={`autocomplete-option obra-search-option ${isLinked ? 'already-linked' : ''}`}
+                                          onClick={() => {
+                                            setObraId(o.id);
+                                            setObraText(o.name);
+                                            setSelectedObraObj(o);
+                                            setShowObraOptions(false);
+                                          }}
+                                        >
+                                          <div className="obra-option-header">
+                                            <span className="obra-option-name">{o.name}</span>
+                                            {isLinked && (
+                                              <span className="obra-linked-badge">✓ Vinculada a este cliente</span>
+                                            )}
+                                          </div>
+                                          {o.address && (
+                                            <span className="obra-option-address">{o.address}</span>
+                                          )}
+                                          {companiesText && (
+                                            <span className="obra-option-owner">
+                                              🏢 {companiesText}
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })
                                   ) : (
                                     <div className="autocomplete-empty">
                                       Se creará como nueva obra: "{obraText}"
@@ -630,6 +752,23 @@ export default function CrearProspectoModal({
                                   )}
                                 </div>
                               )}
+                            </div>
+                          )}
+
+                          {showWarningBanner && (
+                            <div className="warning-association-banner">
+                              <div className="warning-banner-header">
+                                <Info size={16} className="warning-banner-icon" />
+                                <span>Aviso de Co-participación en Obra</span>
+                              </div>
+                              <p className="warning-banner-desc">
+                                Esta obra está registrada originalmente bajo la(s) empresa(s):{' '}
+                                <strong>{getObraCompaniesText(selectedObraObj)}</strong>.
+                              </p>
+                              <p className="warning-banner-sub">
+                                Al continuar, se creará un vínculo secundario para que{' '}
+                                <strong>{selectedCustomer.company || selectedCustomer.name}</strong> también esté asociado a este mismo proyecto en el CRM.
+                              </p>
                             </div>
                           )}
                         </div>
@@ -682,12 +821,12 @@ export default function CrearProspectoModal({
                           <label className="photo-upload-placeholder">
                             <span className="plus-symbol">+</span>
                             <span className="label-text">Foto</span>
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              multiple 
-                              onChange={handleFilesSelected} 
-                              style={{ display: 'none' }} 
+                            <input
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleFilesSelected}
+                              style={{ display: 'none' }}
                             />
                           </label>
                         )}
@@ -700,7 +839,7 @@ export default function CrearProspectoModal({
                 {step === 3 && (
                   <div className="wizard-step-wrapper">
                     <h3 className="step-section-title">💰 Detalles del Requerimiento</h3>
-                    
+
                     <div className="modal-input-group">
                       <label className="wizard-input-label">Título del Trato / Negociación *</label>
                       <input
@@ -733,7 +872,7 @@ export default function CrearProspectoModal({
                 {step === 4 && (
                   <div className="wizard-step-wrapper">
                     <h3 className="step-section-title">📋 Consolidación de Negociación</h3>
-                    
+
                     <div className="summary-cards-container">
                       {/* Customer summary */}
                       <div className="summary-mini-card">
@@ -781,24 +920,28 @@ export default function CrearProspectoModal({
                       <div className="impact-body-row">
                         <div className="impact-flow-visual">
                           <div className="stage-node current">
-                            <span className="stage-tag">Estatus Actual</span>
+                            <span className="stage-tag">Nivel Actual</span>
                             <span className="stage-name">
-                              {selectedCustomer?.status === 'pendiente_revision' ? 'Pendiente' : 
-                               selectedCustomer?.status === 'recontactar' ? 'Recontactar' : 
-                               selectedCustomer?.status === 'en_reactivacion' ? 'Reactivación' : 'Prospecto'}
+                              {selectedCustomer ? (
+                                selectedCustomer.nivel === 4 ? 'Recontactar Ahora' :
+                                selectedCustomer.nivel === 3 ? 'Comprador Activo' :
+                                selectedCustomer.nivel === 2 ? 'En Reactivación' :
+                                selectedCustomer.nivel === 5 ? 'Descartado' : 'Prospecto'
+                              ) : 'Nuevo'}
                             </span>
                           </div>
                           <div className="flow-arrow"><ArrowRight size={16} /></div>
                           <div className="stage-node target">
                             <span className="stage-tag">Siguiente Nivel</span>
                             <span className="stage-name">
-                              {selectedCustomer?.status === 'recontactar' ? 'Prospecto Activo' :
-                               selectedCustomer?.status === 'en_reactivacion' ? 'Cliente Activo' : 'Trato en Negociación'}
+                              {selectedCustomer ? (
+                                Number(selectedCustomer.won_count || 0) >= 3 ? 'Comprador Activo' : 'En Reactivación'
+                              ) : 'En Reactivación'}
                             </span>
                           </div>
                         </div>
                         <p className="impact-explanation-text">
-                          Al registrar este trato, la negociación se anclará como dependencia directa a la ficha comercial del cliente, forzando de forma automática el avance de su nivel de conversión y actualizando las condicionantes en el panel general.
+                          Al registrar este trato activo, el cliente se reactivará y avanzará automáticamente al nivel correspondiente de conversión, saliendo de cualquier estado de inactividad comercial crítica y actualizando su estatus en el panel general de clientes.
                         </p>
                       </div>
                     </div>
@@ -811,18 +954,18 @@ export default function CrearProspectoModal({
           {/* Wizard Footer Navigation */}
           <div className="modal-footer wizard-footer">
             {step === 1 ? (
-              <button 
-                type="button" 
-                className="btn-secondary" 
+              <button
+                type="button"
+                className="btn-secondary"
                 onClick={onClose}
                 disabled={isSubmitting}
               >
                 Cancelar
               </button>
             ) : (
-              <button 
-                type="button" 
-                className="btn-secondary back-wizard-btn" 
+              <button
+                type="button"
+                className="btn-secondary back-wizard-btn"
                 onClick={() => paginate(-1)}
                 disabled={isSubmitting}
               >
@@ -831,8 +974,8 @@ export default function CrearProspectoModal({
             )}
 
             {step < 4 ? (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-primary next-wizard-btn"
                 onClick={() => paginate(1)}
                 disabled={!canProgress()}
@@ -840,8 +983,8 @@ export default function CrearProspectoModal({
                 Siguiente <ArrowRight size={14} />
               </button>
             ) : (
-              <button 
-                type="button" 
+              <button
+                type="button"
                 className="btn-primary submit-wizard-btn"
                 onClick={handleSubmit}
                 disabled={isSubmitting || !canProgress()}

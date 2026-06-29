@@ -1,11 +1,12 @@
 // src/pages/crm/panels/ArchivoContactos.jsx
 import React, { useEffect, useState } from 'react';
 import FichaArchivadoModal from './FichaArchivadoModal';
+import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function ArchivoContactos() {
-  const [activeSubTab, setActiveSubTab] = useState('contacts'); // 'contacts' | 'companies'
+  const [activeSubTab, setActiveSubTab] = useState('contacts'); // 'contacts' | 'companies' | 'opportunities'
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -13,6 +14,9 @@ export default function ArchivoContactos() {
   const [search, setSearch] = useState('');
   
   const [selectedArchive, setSelectedArchive] = useState(null);
+  const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+
+  const role = localStorage.getItem('role');
 
   useEffect(() => {
     fetchArchivedItems();
@@ -41,13 +45,25 @@ export default function ArchivoContactos() {
     setLoading(true);
     setError('');
     try {
-      const endpoint = activeSubTab === 'contacts' ? 'contacts/archived' : 'companies/archived';
-      const res = await fetch(`${API_BASE}/api/crm/${endpoint}`, {
-        headers: { Authorization: `Bearer ${token()}` }
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
-      setItems(activeSubTab === 'contacts' ? (data.contacts || []) : (data.companies || []));
+      if (activeSubTab === 'contacts' || activeSubTab === 'companies') {
+        const endpoint = activeSubTab === 'contacts' ? 'contacts/archived' : 'companies/archived';
+        const res = await fetch(`${API_BASE}/api/crm/${endpoint}`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        setItems(activeSubTab === 'contacts' ? (data.contacts || []) : (data.companies || []));
+      } else if (activeSubTab === 'opportunities') {
+        const res = await fetch(`${API_BASE}/api/crm/leads`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        const discarded = (data.leads || []).filter(
+          l => l.status?.toLowerCase() === 'descartado' || l.status?.toLowerCase() === 'descartada'
+        );
+        setItems(discarded);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -77,6 +93,41 @@ export default function ArchivoContactos() {
         return notesStr.split('[Razón de Archivado]:')[1].trim();
       }
       return notesStr;
+    }
+  };
+
+  const getLeadDiscardReason = (lead) => {
+    if (!lead.notes) return 'Sin justificación.';
+    try {
+      const parsed = JSON.parse(lead.notes);
+      if (parsed.discard_reason) {
+        return `Motivo: ${parsed.discard_reason}${parsed.discard_comment ? ` - ${parsed.discard_comment}` : ''}`;
+      }
+      return parsed.general || 'Sin justificación.';
+    } catch {
+      return lead.notes;
+    }
+  };
+
+  const handleReactivateOpportunity = async (leadId) => {
+    if (!window.confirm('¿Deseas reactivar esta negociación y devolverla al flujo activo?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ stage: 'nuevo' })
+      });
+      const resJson = await res.json();
+      if (res.ok && resJson.success) {
+        fetchArchivedItems();
+      } else {
+        alert('Error al reactivar: ' + resJson.message);
+      }
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -114,6 +165,13 @@ export default function ArchivoContactos() {
         >
           🏢 Empresas Archivadas
         </button>
+        <button 
+          className={`modal-tab-btn ${activeSubTab === 'opportunities' ? 'active' : ''}`} 
+          onClick={() => { setActiveSubTab('opportunities'); setSearch(''); }}
+          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
+        >
+          🤝 Negociaciones Archivadas
+        </button>
       </div>
 
       {/* SEARCH */}
@@ -122,7 +180,13 @@ export default function ArchivoContactos() {
           <i className="fas fa-search" />
           <input 
             type="text" 
-            placeholder={activeSubTab === 'contacts' ? "Buscar en contactos archivados..." : "Buscar en empresas archivadas..."} 
+            placeholder={
+              activeSubTab === 'contacts' 
+                ? "Buscar en contactos archivados..." 
+                : activeSubTab === 'companies' 
+                ? "Buscar en empresas archivadas..." 
+                : "Buscar en negociaciones archivadas..."
+            } 
             value={search} 
             onChange={e => setSearch(e.target.value)} 
           />
@@ -140,7 +204,7 @@ export default function ArchivoContactos() {
       ) : filtered.length === 0 ? (
         <div className="crm-empty-placeholder">
           <i className="fas fa-archive" style={{ fontSize: '3rem', opacity: 0.3, marginBottom: '1rem' }} />
-          <p>El archivo histórico de {activeSubTab === 'contacts' ? 'contactos' : 'empresas'} está vacío.</p>
+          <p>El archivo histórico de {activeSubTab === 'contacts' ? 'contactos' : activeSubTab === 'companies' ? 'empresas' : 'negociaciones'} está vacío.</p>
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
             Los registros del SAE que decidas depurar aparecerán aquí.
           </span>
@@ -169,7 +233,7 @@ export default function ArchivoContactos() {
             </div>
           ))}
         </div>
-      ) : (
+      ) : activeSubTab === 'companies' ? (
         <div className="companies-cards-grid">
           {filtered.map(co => (
             <div className="company-card glass archived-card" key={co.id} style={{ opacity: 0.9, borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setSelectedArchive(co)}>
@@ -195,6 +259,66 @@ export default function ArchivoContactos() {
             </div>
           ))}
         </div>
+      ) : (
+        <div className="contacts-cards-grid">
+          {filtered.map(l => (
+            <div 
+              className="contact-card glass archived-card" 
+              key={l.id} 
+              style={{ opacity: 0.9, borderLeft: '4px solid #ef4444', cursor: 'pointer' }}
+              onClick={() => setSelectedOpportunity(l)}
+            >
+              <div className="contact-card-avatar" style={{ background: '#fee2e2', color: '#ef4444' }}>
+                <i className="fas fa-handshake" />
+              </div>
+              <div className="contact-card-body" style={{ width: '100%' }}>
+                <h4 className="contact-card-name" style={{ color: '#475569', marginBottom: '4px' }}>
+                  {l.company ? `${l.company} - ${l.name || 'Obra'}` : (l.name || 'Negociación')}
+                </h4>
+                {l.email && <span className="contact-card-position">{l.email}</span>}
+                {l.phone && <span className="contact-card-position" style={{ display: 'block', marginTop: '2px' }}><i className="fas fa-phone-alt" style={{ marginRight: '4px' }} /> {l.phone}</span>}
+                
+                <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.8rem' }}>
+                  <div style={{ marginBottom: '6px', color: '#991b1b', display: 'flex', justifyContent: 'space-between' }}>
+                    <span><i className="fas fa-calendar-alt" style={{ marginRight: '6px' }} />Creado: <strong>{new Date(l.created_at).toLocaleDateString('es-MX')}</strong></span>
+                    {l.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{l.assigned_to.name}</span>}
+                  </div>
+                  <div style={{ borderTop: '1px dashed #fca5a5', paddingTop: '8px', color: '#7f1d1d', fontStyle: 'italic', wordBreak: 'break-word' }}>
+                    <strong>Justificación:</strong> {getLeadDiscardReason(l)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary-golden"
+                  style={{
+                    marginTop: '12px',
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '0.8rem',
+                    borderRadius: '8px',
+                    background: 'var(--color-brand-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleReactivateOpportunity(l.id);
+                  }}
+                >
+                  <i className="fas fa-undo"></i> Reactivar Negociación
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <div className="crm-table-footer">
@@ -210,6 +334,21 @@ export default function ArchivoContactos() {
             setSelectedArchive(null);
             fetchArchivedItems();
           }}
+        />
+      )}
+
+      {selectedOpportunity && (
+        <DetallesNegociacion
+          isOpen={!!selectedOpportunity}
+          lead={selectedOpportunity}
+          onClose={() => setSelectedOpportunity(null)}
+          onUpdateLead={(updated) => {
+            setItems(prev => prev.map(l => l.id === updated.id ? updated : l));
+            setSelectedOpportunity(updated);
+          }}
+          role={role || 'admin'}
+          sellers={[]}
+          API_BASE={API_BASE}
         />
       )}
     </section>

@@ -7,6 +7,8 @@ import DirectoryCard from './DirectoryCard';
 import ContactoFormModal from './ContactoFormModal';
 import FichaContactoModal from './FichaContactoModal';
 import styles from '../styles/MisContactos.module.css';
+import { useDateFilter } from '../../../hooks/useDateFilter';
+import DateFilter from '../../../components/common/DateFilter/DateFilter';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -34,6 +36,10 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
     fetchCompanies,
     token
   } = useMisContactos(API_BASE);
+
+  const { dateFilter, setDateFilter, filteredItems: dateFilteredContacts } = useDateFilter(filteredContacts, 'created_at');
+
+  const finalFilteredContacts = dateFilteredContacts;
 
   // Computar conteos para los filtros
   const counts = useMemo(() => {
@@ -129,15 +135,19 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
           })}
         </div>
 
-        <div className={styles.searchBox}>
-          <i className="fas fa-search" style={{ color: '#9ca3af' }} />
-          <input 
-            className={styles.searchInput}
-            type="text" 
-            placeholder="Buscar por nombre, correo, teléfono o cargo..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
+
+          <div className={styles.searchBox} style={{ flex: 1, minWidth: '250px' }}>
+            <i className="fas fa-search" style={{ color: '#9ca3af' }} />
+            <input 
+              className={styles.searchInput}
+              type="text" 
+              placeholder="Buscar por nombre, correo, teléfono o cargo..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
+          </div>
         </div>
       </div>
 
@@ -153,14 +163,14 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
           <p style={{ color: '#ef4444', marginBottom: '1rem' }}>{error}</p>
           <button className="btn-primary" onClick={fetchContacts}>Reintentar</button>
         </div>
-      ) : filteredContacts.length === 0 ? (
+      ) : finalFilteredContacts.length === 0 ? (
         <div className={styles.emptyPlaceholder}>
           <i className="fas fa-user-slash" style={{ fontSize: '2.5rem', color: '#cbd5e1', marginBottom: '1rem' }} />
           <p>No hay contactos registrados aún.</p>
         </div>
       ) : (
         <div className={styles.grid}>
-          {filteredContacts.map(c => (
+          {finalFilteredContacts.map(c => (
             <DirectoryCard
               key={c.id}
               type="contact"
@@ -174,7 +184,7 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
       )}
 
       <div className={styles.footer}>
-        <p>Mostrando <strong>{filteredContacts.length}</strong> de <strong>{contacts.length}</strong> contactos.</p>
+        <p>Mostrando <strong>{finalFilteredContacts.length}</strong> de <strong>{contacts.length}</strong> contactos.</p>
       </div>
 
       {/* FORM MODAL (Crear Nuevo) */}

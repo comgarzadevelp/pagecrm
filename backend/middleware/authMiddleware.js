@@ -16,6 +16,17 @@ export const verifyToken = (req, res, next) => {
   }
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
+    
+    const requestedCompanyId = req.headers['x-company-id'];
+    if (requestedCompanyId && decoded.additionalCompanies) {
+      const allowed = [decoded.companyId, ...decoded.additionalCompanies];
+      if (allowed.includes(requestedCompanyId)) {
+        decoded.companyId = requestedCompanyId;
+        if (req.headers['x-company-code']) decoded.companyCode = req.headers['x-company-code'];
+        if (req.headers['x-sae-empresa']) decoded.sae_empresa = req.headers['x-sae-empresa'];
+      }
+    }
+
     // attach decoded payload for later use
     req.user = decoded;
     next();

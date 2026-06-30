@@ -19,6 +19,8 @@ export default function AgendaPanelFeature({ leads = [] }) {
     showNoteModal, setShowNoteModal,
     handleReadNote,
     googleConnected,
+    markMeetingCompleted,
+    rescheduleMeeting,
   } = useAgendaData();
 
   const handleConnectCalendar = async () => {
@@ -120,6 +122,8 @@ export default function AgendaPanelFeature({ leads = [] }) {
             coldVisits={[]} // Limpiado por redundancia de localStorage
             reminders={[]}  // Limpiado por redundancia de localStorage
             onToggleReminder={() => {}}
+            onMarkMeetingCompleted={markMeetingCompleted}
+            onRescheduleMeeting={rescheduleMeeting}
           />
         )}
 

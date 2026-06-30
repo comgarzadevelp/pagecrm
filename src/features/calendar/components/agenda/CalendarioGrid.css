@@ -6,3 +6,14 @@
 .calendario-grid-root {
   width: 100%;
 }
+
+.agenda-day-card.completed-event {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+.agenda-day-card.completed-event:hover {
+  transform: none;
+  box-shadow: none;
+}

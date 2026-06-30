@@ -9,6 +9,7 @@ import EventCreatorModal from '../../calendar/components/EventCreatorModalFeatur
 import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
+import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {
@@ -75,6 +76,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const [zoomColumnKey, setZoomColumnKey] = useState(null);
   const [showFiltersPopover, setShowFiltersPopover] = useState(false);
   const [expandedCards, setExpandedCards] = useState({});
+  const [dateFilter, setDateFilter] = useState({ type: 'all', startDate: '', endDate: '' });
 
   useEffect(() => {
     if (!showFiltersPopover) return;
@@ -107,7 +109,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     showToast,
     debouncedSearch,
     filterChannel,
-    filterSeller
+    filterSeller,
+    dateFilter
   });
 
 
@@ -959,10 +962,12 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
 
       {/* ── HEADER & FILTERS BAR (Consolidated & Compacted) ── */}
       <div className="kanban-filters-bar glass" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.5rem 1.25rem', marginBottom: '0.75rem', borderRadius: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, flexWrap: 'wrap' }}>
           
+          <DateFilterComponent dateFilter={dateFilter} setDateFilter={setDateFilter} />
+
           {/* Search Box */}
-          <div className="search-box" style={{ flex: 1, maxWidth: '320px', position: 'relative' }}>
+          <div className="search-box" style={{ flex: 1, minWidth: '220px', maxWidth: '320px', position: 'relative' }}>
             <i className="fas fa-search" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
             <input
               type="text"
@@ -1391,7 +1396,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                         parsedNotes.general = lead.notes || '';
                       }
 
-                      const requirementText = parsedNotes.requirement_title || 'Sin requerimiento';
+                      const requirementText = parsedNotes.requirement_title || `REQUERIMIENTO - ${(lead.company || lead.name || 'PROSPECTO').toUpperCase()}`;
                       const projectText = parsedNotes.project_name || 'Obra no especificada';
                       const isExpanded = !!expandedCards[lead.id];
 
@@ -1407,9 +1412,16 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                           }}
                         >
                           <div className="card-header-row">
-                            <span className="channel-badge" style={{ backgroundColor: channel.color }}>
-                              {channel.label}
-                            </span>
+                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                              <span className="channel-badge" style={{ backgroundColor: channel.color }}>
+                                {channel.label}
+                              </span>
+                              {lead.is_opportunity && (
+                                <span className="channel-badge" style={{ backgroundColor: '#10b981', display: 'flex', alignItems: 'center', gap: '3px' }} title="Oportunidad Vinculada">
+                                  <i className="fas fa-link" style={{ fontSize: '0.7rem' }}></i> Opp
+                                </span>
+                              )}
+                            </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <button
                                 type="button"

@@ -234,12 +234,14 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
     }
     (currentNotes.timeline || []).forEach(item => {
       const isChange = item.type === 'change' || item.type === 'status_change' || item.type === 'archive';
-      const isNote = item.type === 'nota' || !item.type; // Default to note if type is not specified or is 'nota'
+      const isEvidence = item.type === 'evidence';
+      const isNote = item.type === 'nota' || (!item.type && !isChange); // Default to note if type is not specified
       list.push({ 
         ...item, 
         isNote, 
         isChange, 
-        isVisita: false, 
+        isVisita: false,
+        isEvidence,
         ts: new Date(item.date).getTime() 
       });
     });
@@ -552,8 +554,8 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
               {(() => {
                 const filteredItems = timelineItems.filter(item => {
                   if (activeTab === 'notas') return item.isNote;
-                  if (activeTab === 'visitas') return item.isVisita;
-                  if (activeTab === 'bitacora') return item.isNote || item.isVisita;
+                  if (activeTab === 'visitas') return item.isVisita || item.isEvidence;
+                  if (activeTab === 'bitacora') return item.isNote || item.isVisita || item.isEvidence;
                   if (activeTab === 'cambios') return item.isChange;
                   return true; // completo
                 });
@@ -570,7 +572,10 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
                 return filteredItems.map((tl, i) => {
                   let iconClass = 'nota';
                   let faIcon = 'fa-sticky-note';
-                  if (tl.isVisita) {
+                  if (tl.isEvidence) {
+                    iconClass = 'visita'; // Use visita class for styling consistency
+                    faIcon = 'fa-camera';
+                  } else if (tl.isVisita) {
                     iconClass = 'visita';
                     faIcon = tl.type === 'llamada' ? 'fa-phone' : 'fa-map-marker-alt';
                   } else if (tl.isChange) {
@@ -586,13 +591,25 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
                       <div className="fc-tl-content">
                         <div className="fc-tl-meta">
                           <span className="fc-tl-type">
-                            {tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial')}
+                            {tl.isEvidence ? 'Evidencia Fotográfica' : tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial')}
                           </span>
                           <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {tl.author || 'Usuario'}</span>
                           <span className="fc-tl-date">{formatDate(tl.date)}</span>
                         </div>
                         <div className="fc-tl-text" style={{ whiteSpace: 'pre-wrap' }}>{tl.text}</div>
                         {tl.sub && <div className="fc-tl-sub">{tl.sub}</div>}
+                        
+                        {/* Evidencia Fotográfica */}
+                        {(tl.photoUrl || tl.photo_url) && (
+                          <a href={tl.photoUrl || tl.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', marginTop: '10px' }}>
+                            <img src={tl.photoUrl || tl.photo_url} alt="Evidencia fotográfica" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
+                          </a>
+                        )}
+                        {(tl.deviceInfo || tl.device_info) && (
+                          <p style={{ marginTop: '6px', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', borderLeft: '2px solid #cbd5e1' }}>
+                            <strong>Dispositivo:</strong> {tl.deviceInfo || tl.device_info}
+                          </p>
+                        )}
                         
                         {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
                         {tl.gps_lat && tl.gps_lng && (

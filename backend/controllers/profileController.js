@@ -37,13 +37,13 @@ export const getExtendedProfile = async (req, res) => {
     }
 
     const companyCode = company?.company_code || 'N/A';
-    const isGarza = companyCode === 'GARZA';
+    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA');
 
     const userWithDb = {
       ...user,
       company,
-      dbConnectionName: isGarza ? 'ASPEL SAE 8.0 - Garza (Supabase Mirror)' : 'Ninguna (No Conectada)',
-      dbConnected: isGarza,
+      dbConnectionName: hasSae ? 'ASPEL SAE 8.0 (Supabase Mirror)' : 'Ninguna (No Conectada)',
+      dbConnected: hasSae,
       sae_vendor_key: user.sae_vendor_key || 'N/A'
     };
 
@@ -116,13 +116,13 @@ export const updateProfile = async (req, res) => {
     }
 
     const companyCode = company?.company_code || 'N/A';
-    const isGarza = companyCode === 'GARZA';
+    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA');
 
     const userWithDb = {
       ...updatedUser,
       company,
-      dbConnectionName: isGarza ? 'ASPEL SAE 8.0 - Garza (Supabase Mirror)' : 'Ninguna (No Conectada)',
-      dbConnected: isGarza,
+      dbConnectionName: hasSae ? 'ASPEL SAE 8.0 (Supabase Mirror)' : 'Ninguna (No Conectada)',
+      dbConnected: hasSae,
       sae_vendor_key: updatedUser.sae_vendor_key || 'N/A'
     };
 

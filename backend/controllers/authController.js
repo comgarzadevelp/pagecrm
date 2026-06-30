@@ -20,7 +20,7 @@ export const login = async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('crm_users')
-        .select('id, name, password_hash, role, company_id, supervisor_id')
+        .select('id, name, password_hash, role, company_id, supervisor_id, additional_companies')
         .eq('email', email)
         .single();
       
@@ -73,16 +73,24 @@ export const login = async (req, res) => {
     let company = null;
     const selectedCompany = companyCode || 'GARZA';
 
-    if (users.company_id) {
+    let allCompanies = [];
+    if (users.company_id || (users.additional_companies && users.additional_companies.length > 0)) {
       try {
+        const allowedIds = [];
+        if (users.company_id) allowedIds.push(users.company_id);
+        if (users.additional_companies) allowedIds.push(...users.additional_companies);
+
         const { data } = await supabase
           .from('enterprise_companies')
           .select('id, name, company_code, color_primary, color_accent, sae_connection')
-          .eq('id', users.company_id)
-          .single();
-        company = data;
+          .in('id', allowedIds);
+          
+        if (data && data.length > 0) {
+          allCompanies = data;
+          company = data.find(c => c.id === users.company_id) || data[0];
+        }
       } catch (err) {
-        console.warn('Failed to fetch company from database, falling back:', err.message);
+        console.warn('Failed to fetch companies from database, falling back:', err.message);
       }
     }
 
@@ -116,7 +124,8 @@ export const login = async (req, res) => {
         companyId: company.id,
         companyCode: company.company_code,
         sae_empresa: company.sae_connection || users.sae_empresa || null, // Fallback to user if not in company
-        supervisorId: users.supervisor_id || null
+        supervisorId: users.supervisor_id || null,
+        additionalCompanies: users.additional_companies || []
       }, 
       JWT_SECRET, 
       { expiresIn: '8h' }
@@ -130,7 +139,7 @@ export const login = async (req, res) => {
       companyId: company.id,
       companyCode: company.company_code,
       company: company,
-      companies: [company],
+      companies: allCompanies.length > 0 ? allCompanies : [company],
       message: `Bienvenido a ${company.name}`
     });
   } catch (err) {
@@ -151,7 +160,7 @@ export const loginSuperAdmin = async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('crm_users')
-        .select('id, name, password_hash, role, company_id, supervisor_id')
+        .select('id, name, password_hash, role, company_id, supervisor_id, additional_companies')
         .eq('email', email)
         .single();
       
@@ -211,7 +220,8 @@ export const loginSuperAdmin = async (req, res) => {
         companyId: company.id,
         companyCode: company.company_code,
         sae_empresa: company.sae_connection || users.sae_empresa || null,
-        supervisorId: users.supervisor_id || null
+        supervisorId: users.supervisor_id || null,
+        additionalCompanies: users.additional_companies || []
       }, 
       JWT_SECRET, 
       { expiresIn: '8h' }

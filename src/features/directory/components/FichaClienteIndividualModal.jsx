@@ -96,6 +96,11 @@ export default function FichaClienteIndividualModal({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [contactNotes, setContactNotes] = useState(null);
 
+  // Modal de descarte
+  const [showDiscardModal, setShowDiscardModal] = useState(false);
+  const [discardReason, setDiscardReason] = useState('');
+  const [isDiscarding, setIsDiscarding] = useState(false);
+
   const customerId = currentCustomer?.id;
   const isSae = customerId?.startsWith('sae-');
   const token = localStorage.getItem('token');
@@ -961,8 +966,18 @@ export default function FichaClienteIndividualModal({
 
   // --- ARCHIVAR CLIENTE ---
 
-  const handleArchiveCustomer = async () => {
-    if (!window.confirm('¿Está seguro de que desea descartar/archivar permanentemente este cliente?')) return;
+  const handleArchiveCustomerClick = () => {
+    setDiscardReason('');
+    setShowDiscardModal(true);
+  };
+
+  const confirmArchiveCustomer = async () => {
+    if (discardReason.trim() === '') {
+      showToast('Debe ingresar un motivo para poder descartar al cliente.', 'error');
+      return;
+    }
+
+    setIsDiscarding(true);
 
     let timeline = [];
     let generalNotes = '';
@@ -981,7 +996,7 @@ export default function FichaClienteIndividualModal({
 
     timeline.push({
       date: new Date().toISOString(),
-      text: 'Cliente archivado y descartado del flujo de ventas.',
+      text: `Cliente descartado. Motivo: "${discardReason.trim()}"`,
       author: 'Sistema',
       type: 'status_change'
     });
@@ -1013,6 +1028,7 @@ export default function FichaClienteIndividualModal({
       });
       if (res.ok) {
         showToast('Cliente descartado correctamente', 'success');
+        setShowDiscardModal(false);
         if (fetchCustomers) fetchCustomers();
         onClose();
       } else {
@@ -1020,6 +1036,9 @@ export default function FichaClienteIndividualModal({
       }
     } catch (err) {
       console.error('Error archiving:', err);
+      showToast('Error de conexión', 'error');
+    } finally {
+      setIsDiscarding(false);
     }
   };
 
@@ -2268,7 +2287,7 @@ export default function FichaClienteIndividualModal({
         <footer className="client-modal-footer">
           <button
             className="modal-footer-btn modal-footer-btn-danger"
-            onClick={handleArchiveCustomer}
+            onClick={handleArchiveCustomerClick}
           >
             <i className="fas fa-trash-alt" /> Descartar Cliente
           </button>
@@ -2656,6 +2675,81 @@ export default function FichaClienteIndividualModal({
                 </button>
               </footer>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE DESCARTE DE CLIENTE */}
+      {showDiscardModal && (
+        <div className="client-submodal-overlay" onClick={() => !isDiscarding && setShowDiscardModal(false)}>
+          <div className="client-submodal-container" style={{ maxWidth: '450px' }} onClick={(e) => e.stopPropagation()}>
+            <header className="submodal-header" style={{ background: '#fef2f2', borderBottomColor: '#fecaca' }}>
+              <h3 style={{ color: '#991b1b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fas fa-exclamation-triangle" /> Confirmar Descarte
+              </h3>
+              <button 
+                type="button" 
+                className="submodal-close" 
+                onClick={() => setShowDiscardModal(false)}
+                disabled={isDiscarding}
+                style={{ color: '#991b1b' }}
+              >
+                &times;
+              </button>
+            </header>
+            <div className="submodal-form">
+              <div style={{ padding: '20px', color: '#475569', fontSize: '0.95rem', lineHeight: '1.5' }}>
+                <p style={{ marginBottom: '16px' }}>
+                  ¿Estás seguro de que deseas archivar y descartar permanentemente a <strong>{currentCustomer?.name}</strong>?
+                </p>
+                <div className="form-group full-width">
+                  <label style={{ fontWeight: '600', color: '#334155' }}>
+                    Motivo del descarte <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <textarea
+                    autoFocus
+                    placeholder="Ej. Compró con la competencia, proyecto cancelado, etc."
+                    value={discardReason}
+                    onChange={(e) => setDiscardReason(e.target.value)}
+                    rows="3"
+                    style={{ 
+                      width: '100%', 
+                      padding: '10px', 
+                      borderRadius: '8px', 
+                      border: '1px solid #cbd5e1',
+                      outline: 'none',
+                      resize: 'vertical',
+                      fontSize: '0.9rem'
+                    }}
+                    onFocus={(e) => e.target.style.borderColor = '#991b1b'}
+                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                  />
+                </div>
+              </div>
+              <footer className="submodal-footer" style={{ background: '#f8fafc', padding: '16px 20px' }}>
+                <button 
+                  type="button" 
+                  className="submodal-btn secondary" 
+                  onClick={() => setShowDiscardModal(false)}
+                  disabled={isDiscarding}
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="button" 
+                  className="submodal-btn primary" 
+                  style={{ background: '#ef4444', borderColor: '#dc2626' }}
+                  onClick={confirmArchiveCustomer}
+                  disabled={isDiscarding || discardReason.trim() === ''}
+                >
+                  {isDiscarding ? (
+                    <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }} /> Descartando...</>
+                  ) : (
+                    <><i className="fas fa-trash-alt" style={{ marginRight: '6px' }} /> Descartar Cliente</>
+                  )}
+                </button>
+              </footer>
+            </div>
           </div>
         </div>
       )}

@@ -108,10 +108,9 @@ export const getContacts = async (req, res) => {
     }
 
     let saeContacts = [];
-    const isGarza = req.user?.companyCode === 'GARZA';
-    if (saeKey && isGarza) {
+    const { saeClient, suffix } = getSaeConnection(req.user);
+    if (saeKey && saeClient) {
       // Get keys of clients assigned to this seller
-      const { saeClient, suffix } = getSaeConnection(req.user);
       const { data: saeClients, error: saeError } = await saeClient
         .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, lista_prec')
@@ -536,18 +535,24 @@ export const linkContactToCompany = async (req, res) => {
     // 2. Resolver empresa si es de SAE
     if (company_id && String(company_id).startsWith('sae-')) {
       const saeClave = String(company_id).replace('sae-', '').trim();
-      const { data: existingCos } = await supabase
+      const { data: existingCosRaw } = await supabase
         .from('companies')
-        .select('id')
-        .like('notes', `%"sae_clave":"${saeClave}"%`)
-        .limit(1);
+        .select('id, notes')
+        .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-      if (existingCos && existingCos.length > 0) {
-        resolvedCompanyId = existingCos[0].id;
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+
+      if (exactMatch) {
+        resolvedCompanyId = exactMatch.id;
       } else {
-        const isGarza = req.user?.companyCode === 'GARZA';
-        if (isGarza) {
-          const { saeClient, suffix } = getSaeConnection(req.user);
+        const { saeClient, suffix } = getSaeConnection(req.user);
+        if (saeClient) {
           const { data: client } = await saeClient
             .from(`clie${suffix}`)
             .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
@@ -561,6 +566,7 @@ export const linkContactToCompany = async (req, res) => {
             const notesPayload = JSON.stringify({
               general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
               sae_clave: saeClave,
+              sae_empresa: targetEmpresa,
               timeline: []
             });
 

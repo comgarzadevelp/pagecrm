@@ -9,6 +9,8 @@ import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoMod
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
 import useDirectorio from '../../../pages/crm/hooks/useDirectorio';
+import { useDateFilter } from '../../../hooks/useDateFilter';
+import DateFilter from '../../../components/common/DateFilter/DateFilter';
 
 /**
  * DirectorioClientesFeature
@@ -33,6 +35,8 @@ export default function DirectorioClientesFeature({
     fetchCustomerDetails
   } = useDirectorio(API_BASE, localStorage.getItem('token'));
 
+  const { dateFilter, setDateFilter, filteredItems: dateFilteredCustomers } = useDateFilter(customers, 'created_at');
+
   const {
     searchTerm,
     setSearchTerm,
@@ -44,7 +48,7 @@ export default function DirectorioClientesFeature({
     setSelectedCustomer,
     showAddCustomerModal,
     setShowAddCustomerModal
-  } = useDirectorioClientes(customers);
+  } = useDirectorioClientes(dateFilteredCustomers);
 
   const [showCreateDealModal, setShowCreateDealModal] = React.useState(false);
   const [selectedCustomerForVenta, setSelectedCustomerForVenta] = React.useState(null);
@@ -153,15 +157,19 @@ export default function DirectorioClientesFeature({
           })}
         </div>
 
-        <div className={styles.searchBox}>
-          <i className="fas fa-search" style={{ color: '#9ca3af' }}></i>
-          <input
-            className={styles.searchInput}
-            type="text"
-            placeholder="Buscar por nombre, correo, teléfono o empresa..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
+          
+          <div className={styles.searchBox} style={{ flex: 1, minWidth: '250px' }}>
+            <i className="fas fa-search" style={{ color: '#9ca3af' }}></i>
+            <input
+              className={styles.searchInput}
+              type="text"
+              placeholder="Buscar por nombre, correo, teléfono o empresa..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
         </div>
       </div>
 

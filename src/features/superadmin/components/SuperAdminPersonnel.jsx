@@ -25,6 +25,7 @@ export default function SuperAdminPersonnel() {
   // Form states for modifications / creation
   const [editRole, setEditRole] = useState('sales');
   const [editCompanyId, setEditCompanyId] = useState('');
+  const [editAdditionalCompanies, setEditAdditionalCompanies] = useState([]);
   const [editSupervisorId, setEditSupervisorId] = useState('');
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -72,6 +73,7 @@ export default function SuperAdminPersonnel() {
     setEditEmail('');
     setEditRole('sales');
     setEditCompanyId('');
+    setEditAdditionalCompanies([]);
     setEditSupervisorId('');
     setEditSaeKey('');
     setCreatePassword('');
@@ -87,6 +89,7 @@ export default function SuperAdminPersonnel() {
     setEditEmail(user.email || '');
     setEditRole(user.role || 'sales');
     setEditCompanyId(user.company_id || '');
+    setEditAdditionalCompanies(user.additional_companies || []);
     setEditSupervisorId(user.supervisor_id || '');
     setEditSaeKey(user.sae_vendor_key || '');
     setCreatePassword('');
@@ -140,6 +143,7 @@ export default function SuperAdminPersonnel() {
       email: editEmail,
       role: editRole,
       company_id: editCompanyId || null,
+      additional_companies: editAdditionalCompanies,
       supervisor_id: editSupervisorId || null,
       sae_vendor_key: editSaeKey || null
     };
@@ -387,8 +391,8 @@ export default function SuperAdminPersonnel() {
                         <span className="meta-tag">
                           <i className="fas fa-building" /> {userCompany ? userCompany.name : 'N/A — Sin Empresa'}
                           {userCompany && (
-                            <span style={{ marginLeft: '6px', fontSize: '0.8em', color: userCompany.company_code === 'GARZA' ? '#059669' : '#e11d48' }}>
-                              ({userCompany.company_code === 'GARZA' ? 'DB SAE: Conectada' : 'Sin DB Externa'})
+                            <span style={{ marginLeft: '6px', fontSize: '0.8em', color: userCompany.sae_connection ? '#059669' : '#e11d48' }}>
+                              ({userCompany.sae_connection ? `DB SAE: Conectada (${userCompany.sae_connection})` : 'Sin DB Externa'})
                             </span>
                           )}
                         </span>
@@ -549,6 +553,34 @@ export default function SuperAdminPersonnel() {
                   </div>
                 </div>
 
+                {/* Additional Companies selection (For Multi-Empresa Supervisors) */}
+                {(editRole === 'admin' || editRole === 'supervisor') && (
+                  <div className="sa-pers-field-group animate-slide-up">
+                    <label>Sucursales Adicionales (Multi-Empresa)</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                      {companies.filter(c => c.id !== editCompanyId).map(c => (
+                        <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                          <input 
+                            type="checkbox"
+                            checked={editAdditionalCompanies.includes(c.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setEditAdditionalCompanies([...editAdditionalCompanies, c.id]);
+                              } else {
+                                setEditAdditionalCompanies(editAdditionalCompanies.filter(id => id !== c.id));
+                              }
+                            }}
+                          />
+                          {c.name} ({c.company_code})
+                        </label>
+                      ))}
+                      {companies.filter(c => c.id !== editCompanyId).length === 0 && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>No hay más sucursales disponibles.</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Supervisor Assignment (Only applicable for sellers) */}
                 {editRole === 'sales' && (
                   <div className="sa-pers-field-group animate-slide-up">
@@ -570,21 +602,27 @@ export default function SuperAdminPersonnel() {
                 )}
 
                 {/* SAE Vendor Key */}
-                {editRole === 'sales' && (
-                  <div className="sa-pers-field-group animate-slide-up">
-                    <label>Clave Vendedor SAE (Opcional)</label>
-                    <div className="field-input-wrapper">
-                      <i className="fas fa-key field-icon" />
-                      <input 
-                        type="text" 
-                        value={editSaeKey} 
-                        onChange={e => setEditSaeKey(e.target.value)}
-                        placeholder="Ej: 3"
-                        disabled={saving}
-                      />
-                    </div>
-                  </div>
-                )}
+                {(() => {
+                  const selComp = companies.find(c => c.id === editCompanyId);
+                  if (selComp && selComp.sae_connection) {
+                    return (
+                      <div className="sa-pers-field-group animate-slide-up">
+                        <label>Clave Vendedor SAE ({selComp.sae_connection === '03' ? 'Monterrey' : 'Guadalajara'})</label>
+                        <div className="field-input-wrapper">
+                          <i className="fas fa-key field-icon" />
+                          <input 
+                            type="text" 
+                            value={editSaeKey} 
+                            onChange={e => setEditSaeKey(e.target.value)}
+                            placeholder="Ej: 3 (Opcional, usado para sincronización ERP)"
+                            disabled={saving}
+                          />
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
               {/* ACTION BUTTONS */}

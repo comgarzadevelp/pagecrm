@@ -8,6 +8,7 @@ export const CompanyProvider = ({ children }) => {
   const [companyId, setCompanyId] = useState(null);
   const [companyCode, setCompanyCode] = useState(getStoredTheme());
   const [company, setCompany] = useState(null);
+  const [allowedCompanies, setAllowedCompanies] = useState([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -33,6 +34,13 @@ export const CompanyProvider = ({ children }) => {
       setCompanyCode(storedCompanyCode);
       applyTheme(storedCompanyCode);
     }
+    
+    const storedAllowed = localStorage.getItem('allowedCompanies');
+    if (storedAllowed) {
+      try {
+        setAllowedCompanies(JSON.parse(storedAllowed));
+      } catch (e) {}
+    }
   };
 
   return (
@@ -41,6 +49,7 @@ export const CompanyProvider = ({ children }) => {
         companyId,
         companyCode,
         company,
+        allowedCompanies,
         loading,
         switchCompany,
         loadCompanyFromStorage,

@@ -342,8 +342,72 @@ export const getLeads = async (req, res) => {
 
     if (error) throw error;
 
+    // --- FETCH CRM_OPPORTUNITIES Y UNIFICAR ---
+    let oppQuery = supabase
+      .from('crm_opportunities')
+      .select(`
+        id,
+        title,
+        description,
+        type,
+        stage,
+        created_at,
+        assigned_to (id, name),
+        company_id,
+        contact_id,
+        companies (id, name),
+        contacts (id, name, email, phone)
+      `)
+      .order('created_at', { ascending: false });
+
+    // Nota: crm_opportunities usa company_id como UUID (referencia a companies.id),
+    // no como tenant de SaaS ("03", "06"). Por tanto, no aplicamos el filtro de companyId aquí 
+    // directo a la columna company_id para evitar error de sintaxis UUID en Postgres.
+
+    const { data: opps, error: oppsError } = role === 'sales'
+      ? await oppQuery.eq('assigned_to', userId)
+      : await oppQuery;
+
+    if (oppsError) throw oppsError;
+
+    const mappedOpps = (opps || []).map(opp => {
+      let oppName = opp.title || 'Oportunidad';
+      if (opp.contacts?.name) oppName = opp.contacts.name;
+      else if (opp.companies?.name) oppName = opp.companies.name;
+
+      let project_name = '';
+      let description = opp.description || '';
+      const obraMatch = description.match(/^\[Obra:\s*(.*?)\]/);
+      if (obraMatch) {
+        project_name = obraMatch[1];
+      }
+
+      return {
+        id: opp.id,
+        name: oppName,
+        email: opp.contacts?.email || '',
+        phone: opp.contacts?.phone || '',
+        status: opp.stage || 'nuevo',
+        type: opp.type || 'proyecto',
+        company: opp.companies?.name || '',
+        notes: JSON.stringify({ 
+          general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${opp.description || ''}`,
+          project_name: project_name,
+          requirement_title: opp.title || '',
+          timeline: []
+        }),
+        created_at: opp.created_at,
+        assigned_to: opp.assigned_to,
+        is_opportunity: true
+      };
+    });
+
+    let combinedData = [...(data || []), ...mappedOpps];
+    combinedData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    // ------------------------------------------
+
     // Cruzar en memoria con citas activas de crm_appointments para mostrar fecha/hora en el Kanban
-    let leadsWithAppointments = data || [];
+    let leadsWithAppointments = combinedData;
     try {
       const { data: appointments } = await supabase
         .from('crm_appointments')
@@ -407,13 +471,58 @@ export const getLeads = async (req, res) => {
 export const getLeadById = async (req, res) => {
   const { id } = req.params;
   try {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('leads')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (error) throw error;
+    if (!data) {
+      // Intentar buscar en crm_opportunities
+      const { data: opp, error: oppError } = await supabase
+        .from('crm_opportunities')
+        .select(`
+          id,
+          title,
+          description,
+          type,
+          stage,
+          created_at,
+          assigned_to,
+          company_id,
+          contact_id,
+          companies (id, name),
+          contacts (id, name, email, phone)
+        `)
+        .eq('id', id)
+        .maybeSingle();
+
+      if (opp) {
+        let oppName = opp.title || 'Oportunidad';
+        if (opp.contacts?.name) oppName = opp.contacts.name;
+        else if (opp.companies?.name) oppName = opp.companies.name;
+
+        data = {
+          id: opp.id,
+          name: oppName,
+          email: opp.contacts?.email || '',
+          phone: opp.contacts?.phone || '',
+          status: opp.stage || 'nuevo',
+          type: opp.type || 'proyecto',
+          company: opp.companies?.name || '',
+          notes: JSON.stringify({ 
+            general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${opp.description || ''}`,
+            timeline: []
+          }),
+          created_at: opp.created_at,
+          assigned_to: opp.assigned_to,
+          is_opportunity: true
+        };
+        error = null;
+      }
+    }
+
+    if (error || !data) throw error || new Error('Not found');
     res.json({ success: true, lead: data });
   } catch (err) {
     console.error('getLeadById error', err);
@@ -427,14 +536,54 @@ export const updateLeadStage = async (req, res) => {
 
   try {
     // Fetch the full lead including phone and email for merge lookup
-    const { data: lead, error: fetchError } = await supabase
+    let { data: lead, error: fetchError } = await supabase
       .from('leads')
       .select('id, name, email, phone, notes, status, company_id, type')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !lead) {
-      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    if (!lead) {
+      // Intentar buscar en crm_opportunities
+      const { data: opp } = await supabase
+        .from('crm_opportunities')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (opp) {
+        let timelineText = `Cambio de estatus: de "${opp.stage || 'nuevo'}" a "${stage}".`;
+        let desc = opp.description || '';
+        
+        if (stage === 'cierre_ganado') {
+          const parsedValue = parseFloat(finalValue) || 0;
+          const formattedValue = parsedValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          timelineText = `¡Cierre Ganado! Monto Final: $${formattedValue} MXN. Ref/Pedido: ${invoiceNumber || 'N/A'}. Notas: ${closingNotes || 'Sin comentarios.'}`;
+        }
+        
+        const newDesc = `${desc}\n[${new Date().toLocaleDateString()}] ${timelineText}`.trim();
+
+        const updateData = { 
+          stage: stage,
+          stage_updated_at: new Date().toISOString(),
+          description: newDesc
+        };
+        
+        if (stage === 'cierre_ganado') {
+          updateData.value = parseFloat(finalValue) || opp.value;
+        }
+
+        const { data: updatedOpp, error: oppUpdateError } = await supabase
+          .from('crm_opportunities')
+          .update(updateData)
+          .eq('id', id)
+          .select();
+        
+        if (oppUpdateError) throw oppUpdateError;
+        
+        return res.json({ success: true, lead: { ...updatedOpp[0], status: updatedOpp[0].stage, is_opportunity: true } });
+      }
+
+      return res.status(404).json({ success: false, message: 'Prospecto/Oportunidad no encontrado.' });
     }
 
     let notesData = { general: '', timeline: [] };
@@ -925,14 +1074,45 @@ export const discardLead = async (req, res) => {
   }
 
   try {
-    const { data: lead, error: leadError } = await supabase
+    let { data: lead, error: leadError } = await supabase
       .from('leads')
       .select('*')
       .eq('id', leadId)
-      .single();
+      .maybeSingle();
 
-    if (leadError || !lead) {
-      return res.status(404).json({ success: false, message: 'Lead no encontrado.' });
+    if (!lead) {
+      // Try opportunity
+      const { data: opp, error: oppError } = await supabase
+        .from('crm_opportunities')
+        .select('*')
+        .eq('id', leadId)
+        .maybeSingle();
+
+      if (opp) {
+        const discardText = `\n[${new Date().toLocaleDateString()}] Oportunidad descartada. Motivo: ${reason}. Comentario: ${comment || 'Sin detalles'}`;
+        const newDesc = (opp.description || '') + discardText;
+
+        const { data: updatedOpp, error: oppUpdateError } = await supabase
+          .from('crm_opportunities')
+          .update({
+            stage: 'descartado',
+            description: newDesc,
+            stage_updated_at: new Date().toISOString()
+          })
+          .eq('id', leadId)
+          .select()
+          .single();
+
+        if (oppUpdateError) throw oppUpdateError;
+
+        return res.json({
+          success: true,
+          message: 'Oportunidad descartada con éxito.',
+          lead: { ...updatedOpp, status: 'descartado', is_opportunity: true }
+        });
+      }
+
+      return res.status(404).json({ success: false, message: 'Prospecto/Oportunidad no encontrado.' });
     }
 
     let notesObj = { general: '', timeline: [] };
@@ -1080,19 +1260,26 @@ export const createManualLead = async (req, res) => {
     if (finalCompanyId) {
       if (String(finalCompanyId).startsWith('sae-')) {
         const saeClave = String(finalCompanyId).replace('sae-', '').trim();
-        const { data: existingCos } = await supabase
+        const { data: existingCosRaw } = await supabase
           .from('companies')
-          .select('id')
-          .like('notes', `%"sae_clave":"${saeClave}"%`)
-          .limit(1);
+          .select('id, notes')
+          .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-        if (existingCos && existingCos.length > 0) {
-          localCompanyId = existingCos[0].id;
+        const targetEmpresa = req.user?.sae_empresa || '03';
+        const exactMatch = (existingCosRaw || []).find(co => {
+          try {
+            const p = JSON.parse(co.notes);
+            return (p.sae_empresa || '03') === targetEmpresa;
+          } catch(e) { return false; }
+        });
+
+        if (exactMatch) {
+          localCompanyId = exactMatch.id;
         } else {
-          const isGarza = req.user?.companyCode === 'GARZA';
-          if (isGarza) {
-            const { data: client } = await saeSupabase
-              .from('clie03')
+          const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+          if (saeObj.saeClient) {
+            const { data: client } = await saeObj.saeClient
+              .from(`clie${saeObj.suffix}`)
               .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
               .eq('clave', saeClave)
               .maybeSingle();
@@ -1114,6 +1301,7 @@ export const createManualLead = async (req, res) => {
                 notes: JSON.stringify({
                   general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
                   sae_clave: saeClave,
+                  sae_empresa: targetEmpresa,
                   timeline: sharedEvidenceNode ? [sharedEvidenceNode] : []
                 }),
                 created_by: userId,
@@ -1320,9 +1508,22 @@ export const createManualLead = async (req, res) => {
 
     if (localContactId || localCompanyId) {
       // ── FLUJO: NEGOCIACIÓN CON CLIENTE CONOCIDO ──────────────────────────
+      
+      let oppDescription = notes || 'Negociación registrada desde el flujo rápido.';
+      let leadObraName = obra_name || '';
+      
+      if (finalObraId && !obra_name) {
+        const { data: oData } = await supabase.from('obras').select('name').eq('id', finalObraId).maybeSingle();
+        if (oData) leadObraName = oData.name;
+      }
+      
+      if (leadObraName) {
+        oppDescription = `[Obra: ${leadObraName}]\n${oppDescription}`;
+      }
+
       const opportunityPayload = {
         title: requirement_title.trim(),
-        description: notes || 'Negociación registrada desde el flujo rápido.',
+        description: oppDescription,
         type: 'proyecto',
         stage: 'nuevo',
         value: 0,
@@ -1688,14 +1889,40 @@ export const addLeadTimelineEntry = async (req, res) => {
   }
 
   try {
-    const { data: lead, error: fetchError } = await supabase
+    let { data: lead, error: fetchError } = await supabase
       .from('leads')
       .select('id, notes, name, assigned_to')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !lead) {
-      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    if (!lead) {
+      // Try opportunity
+      const { data: opp } = await supabase
+        .from('crm_opportunities')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (opp) {
+        const textToAppend = `\n[${new Date().toLocaleDateString()} - ${userName}] ${text.trim()}`;
+        const newDesc = (opp.description || '') + textToAppend;
+
+        const { error: oppUpdateError } = await supabase
+          .from('crm_opportunities')
+          .update({ description: newDesc })
+          .eq('id', id);
+
+        if (oppUpdateError) throw oppUpdateError;
+
+        // Note: Opportunities don't currently have a JSON timeline array on the frontend,
+        // but we return a mock one for compatibility with the DetallesNegociacion modal state.
+        return res.json({ 
+          success: true, 
+          timeline: [{ date: new Date().toISOString(), text: text.trim(), author: userName, type: type || 'note' }] 
+        });
+      }
+
+      return res.status(404).json({ success: false, message: 'Prospecto/Oportunidad no encontrado.' });
     }
 
     let notesData = { general: '', timeline: [] };
@@ -2058,7 +2285,7 @@ export const updateSeller = async (req, res) => {
     }
 
     const { id } = req.params;
-    const { name, email, sae_vendor_key, role, company_id, supervisor_id } = req.body;
+    const { name, email, sae_vendor_key, role, company_id, supervisor_id, additional_companies } = req.body;
 
     const updatePayload = {
       name,
@@ -2070,6 +2297,7 @@ export const updateSeller = async (req, res) => {
     if (requesterRole === 'super_admin') {
       if (role) updatePayload.role = role;
       if (company_id) updatePayload.company_id = company_id;
+      if (additional_companies !== undefined) updatePayload.additional_companies = additional_companies;
       if (supervisor_id !== undefined) updatePayload.supervisor_id = supervisor_id;
     } else if (requesterRole === 'admin' || requesterRole === 'supervisor') {
       if (supervisor_id !== undefined) updatePayload.supervisor_id = supervisor_id;
@@ -2134,8 +2362,10 @@ export const getSaeSellersList = async (req, res) => {
     }
 
     // Consultar la tabla vend03 en la base de datos espejo de Supabase
-    const { data, error } = await saeSupabase
-      .from('vend03')
+    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    if (!saeObj.saeClient) return res.json({ success: true, vendors: [] });
+    const { data, error } = await saeObj.saeClient
+      .from(`vend${saeObj.suffix}`)
       .select('cve_vend, nombre, status')
       .eq('status', 'A')
       .order('nombre', { ascending: true });
@@ -2192,9 +2422,9 @@ export const getCustomers = async (req, res) => {
       const { data: results, error } = await globalQuery;
       if (error) throw error;
 
-      // 2. Buscar en Aspel SAE (si la empresa es GARZA)
+      // 2. Buscar en Aspel SAE
       const saeCustomers = [];
-      const isGarza = req.user?.companyCode === 'GARZA';
+      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
 
       let userSaeKey = null;
       if (role === 'sales' && userId) {
@@ -2208,9 +2438,9 @@ export const getCustomers = async (req, res) => {
         }
       }
 
-      if (isGarza) {
-        const { data: saeData, error: saeError } = await saeSupabase
-          .from('clie03')
+      if (saeObj.saeClient) {
+        const { data: saeData, error: saeError } = await saeObj.saeClient
+          .from(`clie${saeObj.suffix}`)
           .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
           .eq('status', 'A')
           .or(`nombre.ilike.${searchTerm},nombrecomercial.ilike.${searchTerm}`)
@@ -2242,7 +2472,11 @@ export const getCustomers = async (req, res) => {
               try {
                 const parsed = JSON.parse(cust.notes.trim());
                 if (parsed && parsed.sae_clave) {
-                  saeLinkedClaves.add(parsed.sae_clave.trim());
+                  const coEmpresa = parsed.sae_empresa || '03';
+                  const userEmpresa = req.user?.sae_empresa || '03';
+                  if (coEmpresa === userEmpresa) {
+                    saeLinkedClaves.add(parsed.sae_clave.trim());
+                  }
                 }
               } catch (e) {}
             }
@@ -2264,6 +2498,7 @@ export const getCustomers = async (req, res) => {
             const notes = JSON.stringify({
               general: `Cliente de Aspel SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
               sae_clave: clave,
+              sae_empresa: req.user?.sae_empresa || '03',
               timeline: []
             });
 
@@ -2351,7 +2586,11 @@ export const getCustomers = async (req, res) => {
         try {
           const parsed = JSON.parse(cust.notes.trim());
           if (parsed && parsed.sae_clave) {
-            saeClave = parsed.sae_clave.trim();
+            const coEmpresa = parsed.sae_empresa || '03';
+            const userEmpresa = req.user?.sae_empresa || '03';
+            if (coEmpresa === userEmpresa) {
+              saeClave = parsed.sae_clave.trim();
+            }
           }
         } catch (e) {
           // not JSON
@@ -2379,10 +2618,10 @@ export const getCustomers = async (req, res) => {
     }
 
     let saeCustomers = [];
-    const isGarza = req.user?.companyCode === 'GARZA';
-    if (saeKey && isGarza) {
-      const { data: saeData, error: saeError } = await saeSupabase
-        .from('clie03')
+    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    if (saeKey && saeObj.saeClient) {
+      const { data: saeData, error: saeError } = await saeObj.saeClient
+        .from(`clie${saeObj.suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
         .eq('cve_vend', saeKey)
         .eq('status', 'A'); // A = Activo
@@ -2451,8 +2690,12 @@ export const getCustomers = async (req, res) => {
           try {
             const parsed = JSON.parse(comp.notes.trim());
             if (parsed && parsed.sae_clave) {
-              const saeClave = String(parsed.sae_clave).trim();
-              companyUuidToSaeClave[comp.id] = saeClave;
+              const coEmpresa = parsed.sae_empresa || '03';
+              const userEmpresa = req.user?.sae_empresa || '03';
+              if (coEmpresa === userEmpresa) {
+                const saeClave = String(parsed.sae_clave).trim();
+                companyUuidToSaeClave[comp.id] = saeClave;
+              }
             }
           } catch (e) {}
         }
@@ -2804,7 +3047,7 @@ export const getCustomers = async (req, res) => {
           let baseNivel = 1;
           if (wonCount >= 3) {
             baseNivel = 3;
-          } else if (wonCount >= 1 || activeCount >= 1) {
+          } else if (wonCount >= 1) {
             baseNivel = 2;
           }
 
@@ -2937,8 +3180,12 @@ export const updateCustomer = async (req, res) => {
           try {
             const parsed = JSON.parse(lead.notes.trim());
             if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
-              matchedLead = lead;
-              break;
+              const coEmpresa = parsed.sae_empresa || '03';
+              const userEmpresa = req.user?.sae_empresa || '03';
+              if (coEmpresa === userEmpresa) {
+                matchedLead = lead;
+                break;
+              }
             }
           } catch (e) {}
         }
@@ -2975,8 +3222,10 @@ export const updateCustomer = async (req, res) => {
       const indexVal = parseInt(indexStr) - 1;
 
       if (saeClave) {
-        const { data: saeConts } = await saeSupabase
-          .from('contac03')
+        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        if (!saeObj.saeClient) return;
+        const { data: saeConts } = await saeObj.saeClient
+          .from(`contac${saeObj.suffix}`)
           .select('nombre, telefono, email')
           .eq('cve_clie', saeClave)
           .eq('status', 'A');
@@ -3026,19 +3275,26 @@ export const updateCustomer = async (req, res) => {
     // Resolver resolvedCompanyId si es de SAE
     if (resolvedCompanyId && String(resolvedCompanyId).startsWith('sae-')) {
       const saeClave = String(resolvedCompanyId).replace('sae-', '').trim();
-      const { data: existingCos } = await supabase
+      const { data: existingCosRaw } = await supabase
         .from('companies')
-        .select('id')
-        .like('notes', `%"sae_clave":"${saeClave}"%`)
-        .limit(1);
+        .select('id, notes')
+        .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-      if (existingCos && existingCos.length > 0) {
-        resolvedCompanyId = existingCos[0].id;
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+
+      if (exactMatch) {
+        resolvedCompanyId = exactMatch.id;
       } else {
-        const isGarza = req.user?.companyCode === 'GARZA';
-        if (isGarza) {
-          const { data: client } = await saeSupabase
-            .from('clie03')
+        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        if (saeObj.saeClient) {
+          const { data: client } = await saeObj.saeClient
+            .from(`clie${saeObj.suffix}`)
             .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
             .eq('clave', saeClave)
             .maybeSingle();
@@ -3050,6 +3306,7 @@ export const updateCustomer = async (req, res) => {
             const notesPayload = JSON.stringify({
               general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
               sae_clave: saeClave,
+              sae_empresa: targetEmpresa,
               timeline: []
             });
 
@@ -3286,6 +3543,7 @@ export const updateCustomer = async (req, res) => {
     notesData.company_id = resolvedCompanyId;
     if (saeClave) {
       notesData.sae_clave = saeClave;
+      notesData.sae_empresa = req.user?.sae_empresa || '03';
     }
 
     const notesPayload = JSON.stringify(notesData);
@@ -3406,8 +3664,12 @@ export const getCustomerQuotes = async (req, res) => {
           try {
             const parsed = JSON.parse(lead.notes.trim());
             if (parsed && parsed.sae_clave && parsed.sae_clave.trim() === saeClave) {
-              matchedUuid = lead.id;
-              break;
+              const coEmpresa = parsed.sae_empresa || '03';
+              const userEmpresa = req.user?.sae_empresa || '03';
+              if (coEmpresa === userEmpresa) {
+                matchedUuid = lead.id;
+                break;
+              }
             }
           } catch (e) {
             // ignore
@@ -3556,22 +3818,30 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
     const saeClave = customerId.replace('sae-', '').trim();
 
     // Filtrar directamente en Postgres por el patrón JSON en notes — evita full table scan
-    const { data: existingRecords, error: fetchErr } = await supabase
+    const { data: existingRecordsRaw, error: fetchErr } = await supabase
       .from(targetTable)
       .select('id, notes')
-      .like('notes', `%"sae_clave":"${saeClave}"%`)
-      .limit(1);
+      .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-    if (!fetchErr && existingRecords && existingRecords.length > 0) {
-      const rec = existingRecords[0];
-      realId = rec.id;
-      customerData = rec;
+    const targetEmpresa = req.user?.sae_empresa || '03';
+    const exactMatch = (existingRecordsRaw || []).find(co => {
+      try {
+        const p = JSON.parse(co.notes);
+        return (p.sae_empresa || '03') === targetEmpresa;
+      } catch(e) { return false; }
+    });
+
+    if (!fetchErr && exactMatch) {
+      realId = exactMatch.id;
+      customerData = exactMatch;
     }
 
-    // 2. If not found in our CRM, fetch from SAE mirror clie03 and insert
+    // 2. If not found in our CRM, fetch from SAE mirror
     if (!customerData) {
-      const { data: client, error: clientError } = await saeSupabase
-        .from('clie03')
+      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+      if (!saeObj.saeClient) throw new Error('Configuración de SAE no encontrada para el usuario.');
+      const { data: client, error: clientError } = await saeObj.saeClient
+        .from(`clie${saeObj.suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
         .eq('clave', saeClave)
         .single();
@@ -3584,6 +3854,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
         const notesPayload = JSON.stringify({
           general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
           sae_clave: saeClave,
+          sae_empresa: targetEmpresa,
           timeline: []
         });
 
@@ -3631,6 +3902,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
         const notesPayload = JSON.stringify({
           general: `Cliente de Aspel SAE. Clave: ${saeClave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
           sae_clave: saeClave,
+          sae_empresa: targetEmpresa,
           timeline: []
         });
 
@@ -3805,6 +4077,7 @@ export const uploadCustomerEvidence = async (req, res) => {
               notesObj.timeline = parsed.timeline || [];
               if (parsed.sae_clave) {
                 notesObj.sae_clave = parsed.sae_clave;
+                notesObj.sae_empresa = parsed.sae_empresa || '03';
               }
             } else {
               notesObj.general = rawNotes;
@@ -3925,6 +4198,7 @@ export const uploadCustomerInvoice = async (req, res) => {
           notesObj.invoices = parsed.invoices || [];
           if (parsed.sae_clave) {
             notesObj.sae_clave = parsed.sae_clave;
+            notesObj.sae_empresa = parsed.sae_empresa || '03';
           }
         } else {
           notesObj.general = rawNotes;
@@ -4147,11 +4421,11 @@ export const getOrphanLeads = async (req, res) => {
 
     // 2. Obtener Clientes Huérfanos de la copia espejo del SAE (cve_vend es null, vacío, o '   ' o similar y status es A)
     let saeOrphans = [];
-    const isGarza = req.user?.companyCode === 'GARZA';
-    if (isGarza) {
+    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    if (saeObj.saeClient) {
       try {
-        const { data: saeData, error: saeError } = await saeSupabase
-          .from('clie03')
+        const { data: saeData, error: saeError } = await saeObj.saeClient
+          .from(`clie${saeObj.suffix}`)
           .select('clave, nombre, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas')
           .eq('status', 'A')
           .or('cve_vend.is.null, cve_vend.eq."", cve_vend.eq." ", cve_vend.eq."  ", cve_vend.eq."   "');
@@ -4342,9 +4616,13 @@ export const updateCustomerB2BConfig = async (req, res) => {
           try {
             const parsed = JSON.parse(lead.notes.trim());
             if (parsed && parsed.sae_clave === saeClave) {
-              matchedLead = lead;
-              leadId = lead.id;
-              break;
+              const coEmpresa = parsed.sae_empresa || '03';
+              const userEmpresa = req.user?.sae_empresa || '03';
+              if (coEmpresa === userEmpresa) {
+                matchedLead = lead;
+                leadId = lead.id;
+                break;
+              }
             }
           } catch (e) {}
         }

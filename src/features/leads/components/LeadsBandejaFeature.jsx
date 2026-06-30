@@ -9,6 +9,8 @@ import StatusDropdown from '../../../pages/crm/components/StatusDropdown';
 import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
+import { useDateFilter } from '../../../hooks/useDateFilter';
+import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
 
 // Sleek Custom Dropdown for general Filters
 function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth = false }) {
@@ -157,7 +159,7 @@ export default function LeadsBandejaFeature({
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('this-month');
+  const { dateFilter, setDateFilter, filteredItems: dateFilteredLeads } = useDateFilter(leads, 'created_at');
   const [showFiltersPopover, setShowFiltersPopover] = useState(false);
   const [openDropdownLeadId, setOpenDropdownLeadId] = useState(null);
 
@@ -403,7 +405,7 @@ export default function LeadsBandejaFeature({
   const [localFiltered, setLocalFiltered] = useState([]);
 
   useEffect(() => {
-    let result = [...leads];
+    let result = [...dateFilteredLeads];
 
     // 1. Text Search filter (Searches exclusively by Client Name)
     if (debouncedSearchTerm.trim()) {
@@ -425,32 +427,10 @@ export default function LeadsBandejaFeature({
       result = result.filter(l => l.status !== 'descartado');
     }
 
-    // 4. Date filter (Default: Creados este mes)
-    const now = new Date();
-    const startOfThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
-    const startOfThisYear = new Date(now.getFullYear(), 0, 1);
-
-    if (dateFilter === 'this-month') {
-      result = result.filter(l => {
-        const d = new Date(l.created_at || l.updated_at);
-        return d >= startOfThisMonth;
-      });
-    } else if (dateFilter === 'last-month') {
-      result = result.filter(l => {
-        const d = new Date(l.created_at || l.updated_at);
-        return d >= startOfLastMonth && d <= endOfLastMonth;
-      });
-    } else if (dateFilter === 'this-year') {
-      result = result.filter(l => {
-        const d = new Date(l.created_at || l.updated_at);
-        return d >= startOfThisYear;
-      });
-    } // 'all' displays all past/present leads without restriction
+    // 4. Date filter is already applied by useDateFilter hook
 
     setLocalFiltered(result);
-  }, [leads, debouncedSearchTerm, typeFilter, statusFilter, dateFilter]);
+  }, [dateFilteredLeads, debouncedSearchTerm, typeFilter, statusFilter]);
 
   let selectedLeadNotesText = '';
   if (selectedLead) {
@@ -764,7 +744,7 @@ export default function LeadsBandejaFeature({
                 }}
               >
                 <i className="fas fa-filter"></i> Filtros
-                {(typeFilter !== 'all' || statusFilter !== 'all' || dateFilter !== 'this-month') && (
+                {(typeFilter !== 'all' || statusFilter !== 'all' || dateFilter.type !== 'all') && (
                   <span style={{
                     width: '8px',
                     height: '8px',
@@ -774,6 +754,8 @@ export default function LeadsBandejaFeature({
                   }} />
                 )}
               </button>
+              
+              <DateFilterComponent dateFilter={dateFilter} setDateFilter={setDateFilter} />
 
               {showFiltersPopover && (
                 <div
@@ -805,35 +787,12 @@ export default function LeadsBandejaFeature({
                       onClick={() => {
                         setTypeFilter('all');
                         setStatusFilter('all');
-                        setDateFilter('this-month');
+                        setDateFilter({ type: 'all', startDate: '', endDate: '' });
                       }}
                       style={{ border: 'none', background: 'transparent', color: '#ef4444', fontSize: '0.7rem', fontWeight: '700', cursor: 'pointer' }}
                     >
                       Limpiar
                     </button>
-                  </div>
-
-                  {/* Date Filter Selection */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                    <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#475569' }}>Rango de Creación</label>
-                    <select
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
-                      style={{
-                        padding: '0.45rem',
-                        borderRadius: '6px',
-                        border: '1px solid #cbd5e1',
-                        fontSize: '0.8rem',
-                        outline: 'none',
-                        background: '#ffffff',
-                        color: '#334155'
-                      }}
-                    >
-                      <option value="this-month">Creados este mes (Por defecto)</option>
-                      <option value="last-month">Creados el mes pasado</option>
-                      <option value="this-year">Creados este año</option>
-                      <option value="all">Ver todo (Negociaciones pasadas)</option>
-                    </select>
                   </div>
 
                   {/* Channel Selection */}
@@ -951,18 +910,25 @@ export default function LeadsBandejaFeature({
                 >
                   <div className="lead-card-body-ios" style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', flex: 1 }}>
                     {/* Project/Obra Title */}
-                    <h3 className="lead-opportunity-title" style={{
-                      fontFamily: "'Public Sans', sans-serif",
-                      fontSize: "1.05rem",
-                      fontWeight: "850",
-                      color: "#1e293b",
-                      margin: 0,
-                      lineHeight: "1.35",
-                      letterSpacing: "-0.01em",
-                      textTransform: "uppercase"
-                    }}>
-                      {displayTitle}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h3 className="lead-opportunity-title" style={{
+                        fontFamily: "'Public Sans', sans-serif",
+                        fontSize: "1.05rem",
+                        fontWeight: "850",
+                        color: "#1e293b",
+                        margin: 0,
+                        lineHeight: "1.35",
+                        letterSpacing: "-0.01em",
+                        textTransform: "uppercase"
+                      }}>
+                        {displayTitle}
+                      </h3>
+                      {lead.is_opportunity && (
+                        <span className="channel-badge" style={{ backgroundColor: '#10b981', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', color: '#fff', fontWeight: 'bold' }} title="Oportunidad Vinculada">
+                          <i className="fas fa-link"></i> Opp
+                        </span>
+                      )}
+                    </div>
 
                     {/* Muted description snippet */}
                     <p className="desc-text-compact" style={{

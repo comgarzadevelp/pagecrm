@@ -20,6 +20,7 @@ import {
   Tag
 } from 'lucide-react';
 import { useUX } from '../../../components/common/UXProvider';
+import '../styles/EventCreatorModal.css';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const WEEK_DAYS = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
@@ -517,6 +518,12 @@ const EventCreatorModal = ({
       const lastEmail = attendeeList[attendeeList.length - 1];
       setAttendeeList(prev => prev.slice(0, -1));
       setAttendeeInput(lastEmail);
+    }
+  };
+
+  const handleAttendeeBlur = () => {
+    if (attendeeInput.trim()) {
+      handleAddAttendee(attendeeInput);
     }
   };
 

@@ -92,18 +92,24 @@ export const createVisita = async (req, res) => {
     // 2. Resolver empresa si es de SAE
     if (company_id && String(company_id).startsWith('sae-')) {
       const saeClave = String(company_id).replace('sae-', '').trim();
-      const { data: existingCos } = await supabase
+      const { data: existingCosRaw } = await supabase
         .from('companies')
-        .select('id')
-        .like('notes', `%"sae_clave":"${saeClave}"%`)
-        .limit(1);
+        .select('id, notes')
+        .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-      if (existingCos && existingCos.length > 0) {
-        resolvedCompanyId = existingCos[0].id;
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+
+      if (exactMatch) {
+        resolvedCompanyId = exactMatch.id;
       } else {
-        const isGarza = userCompanyCode === 'GARZA';
-        if (isGarza) {
-          const { saeClient, suffix } = getSaeConnection(req.user);
+        const { saeClient, suffix } = getSaeConnection(req.user);
+        if (saeClient) {
           const { data: client } = await saeClient
             .from(`clie${suffix}`)
             .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
@@ -117,6 +123,7 @@ export const createVisita = async (req, res) => {
             const notesPayload = JSON.stringify({
               general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
               sae_clave: saeClave,
+              sae_empresa: targetEmpresa,
               timeline: []
             });
 
@@ -207,13 +214,21 @@ export const getVisitasByEntity = async (req, res) => {
       let targetCompanyId = entityId;
       if (String(entityId).startsWith('sae-')) {
         const saeClave = String(entityId).replace('sae-', '').trim();
-        const { data: existingCos } = await supabase
+        const { data: existingCosRaw } = await supabase
           .from('companies')
-          .select('id')
-          .like('notes', `%"sae_clave":"${saeClave}"%`)
-          .limit(1);
-        if (existingCos && existingCos.length > 0) {
-          targetCompanyId = existingCos[0].id;
+          .select('id, notes')
+          .like('notes', `%"sae_clave":"${saeClave}"%`);
+          
+        const targetEmpresa = req.user?.sae_empresa || '03';
+        const exactMatch = (existingCosRaw || []).find(co => {
+          try {
+            const p = JSON.parse(co.notes);
+            return (p.sae_empresa || '03') === targetEmpresa;
+          } catch(e) { return false; }
+        });
+        
+        if (exactMatch) {
+          targetCompanyId = exactMatch.id;
         }
       }
       query = query.eq('company_id', targetCompanyId);

@@ -22,7 +22,19 @@ export function useCrmData(role, enabledModules = []) {
   const [currentUserProfile, setCurrentUserProfile] = useState(null);
 
   // Company context
-  const { companyCode, companyId, loadCompanyFromStorage } = useCompany();
+  const { companyCode, companyId, company, loadCompanyFromStorage } = useCompany();
+
+  // Helper for generating headers
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'X-Company-Id': companyId || '',
+      'X-Company-Code': companyCode || '',
+      'X-Sae-Empresa': company?.sae_connection || ''
+    };
+  };
 
   // Sellers & SAE
   const [sellers, setSellers] = useState([]);
@@ -74,10 +86,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/leads`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
 
       if (res.status === 401 || res.status === 403) {
@@ -116,10 +125,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/sellers`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -137,10 +143,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/sellers/sae-list`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -160,10 +163,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/customers`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -185,7 +185,7 @@ export function useCrmData(role, enabledModules = []) {
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/profile`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok && data.user) {
@@ -205,7 +205,7 @@ export function useCrmData(role, enabledModules = []) {
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/crm/opportunities`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {
@@ -222,10 +222,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ stage: newStatus, ...extraFields })
       });
 
@@ -248,10 +245,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/assign`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({ sellerId })
       });
 
@@ -292,9 +286,7 @@ export function useCrmData(role, enabledModules = []) {
     try {
       const res = await fetch(`${API_BASE}/api/crm/customers/${id}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getAuthHeaders()
       });
       const data = await res.json();
       if (res.ok) {

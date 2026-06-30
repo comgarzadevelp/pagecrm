@@ -144,6 +144,9 @@ const Login = () => {
     localStorage.setItem('userName', data.name || '');
     localStorage.setItem('companyId', company.id);
     localStorage.setItem('companyCode', company.company_code);
+    if (data.companies) {
+      localStorage.setItem('allowedCompanies', JSON.stringify(data.companies));
+    }
 
     // Update company context
     switchCompany(company.id, company.company_code, company);

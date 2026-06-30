@@ -64,6 +64,7 @@ export default function Step0_SmartSearch() {
                 tipo: 'prospecto',
                 estatus: c.status || 'Activo',
                 company: c.company || '',
+                company_id: c.company_id || null,
                 phone: c.phone || '',
                 email: c.email || '',
                 entityType: 'prospecto',
@@ -102,7 +103,7 @@ export default function Step0_SmartSearch() {
   const handleSelectEntity = (entity) => {
     // Cuando seleccionamos un cliente existente, mapeamos su empresa y contacto correspondientes
     const resolvedEmpresa = entity.company ? {
-      id: entity.id.startsWith('sae-') ? entity.id : `company-ref-${entity.id}`,
+      id: entity.company_id || (entity.id.startsWith('sae-') ? entity.id : `company-ref-${entity.id}`),
       nombre: entity.company,
       tipo: 'empresa',
       rfc: entity.rfc || ''

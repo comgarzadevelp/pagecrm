@@ -10,6 +10,8 @@ import { computeDataQuality } from '../utils/dataQuality.js';
 // Importamos el código original gigante del formulario temporalmente (refactorizable en futuro)
 // Por ahora mantendremos el formulario dentro de este wrapper o podemos delegar.
 import EmpresaFormModal from './EmpresaFormModal';
+import { useDateFilter } from '../../../hooks/useDateFilter';
+import DateFilter from '../../../components/common/DateFilter/DateFilter';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -47,6 +49,9 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
     onCompanyStatusUpdated.__setCompanies = (updater) => setCompanies(updater);
   }, [onCompanyStatusUpdated, setCompanies]);
 
+  // Filtro de Fechas Global (Nuevo)
+  const { dateFilter, setDateFilter, filteredItems: dateFilteredCompanies } = useDateFilter(companies, 'created_at');
+
   // Capa de Lógica UI (Filtros locales)
   const {
     search,
@@ -62,7 +67,7 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
     qualityFilter,
     setQualityFilter,
     filteredCompanies
-  } = useEmpresasFeature(companies);
+  } = useEmpresasFeature(dateFilteredCompanies);
 
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
@@ -257,29 +262,35 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
 
         {/* Right Side: Compact Search Box and Filter Button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          {/* Search Box */}
-          <div style={{ width: '220px', position: 'relative' }}>
-            <i className="fas fa-search" style={{ position: 'absolute', left: '0.85rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }}></i>
+          <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
+
+          <div style={{
+            position: 'relative',
+            width: '240px',
+            height: '36px'
+          }}>
+            <i className="fas fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }} />
             <input
               type="text"
-              placeholder="Buscar..."
+              placeholder="Buscar empresas..."
               value={search}
               onChange={e => setSearch(e.target.value)}
               style={{
                 width: '100%',
-                padding: '0.4rem 0.85rem 0.4rem 2.15rem',
-                background: '#ffffff',
-                border: '1px solid #cbd5e1',
-                borderRadius: '8px',
-                fontSize: '0.78rem',
+                height: '100%',
+                padding: '0 12px 0 32px',
+                borderRadius: '100px',
+                border: '1px solid #e2e8f0',
                 outline: 'none',
-                transition: 'all 0.2s ease',
+                fontSize: '0.85rem',
+                color: '#334155',
                 boxSizing: 'border-box',
-                height: '32px'
+                transition: 'border-color 0.2s',
+                backgroundColor: '#f8fafc'
               }}
             />
           </div>
-
+          
           {/* Filter Toggle Button */}
           <button
             type="button"

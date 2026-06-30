@@ -246,31 +246,39 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 3. Subir fotos de evidencia (si existen y tenemos ID de empresa)
-      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0 && resolvedCompanyId) {
+      // 3. Subir fotos de evidencia
+      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
         setCurrentActionText('Subiendo fotos de evidencia fotográfica...');
-        for (let i = 0; i < wizardState.visita.fotos.length; i++) {
-          const foto = wizardState.visita.fotos[i];
-          const formData = new FormData();
-          formData.append('photo', foto.file);
-          formData.append('latitude', String(wizardState.visita.lat || 25.6866));
-          formData.append('longitude', String(wizardState.visita.lng || -100.3161));
-          formData.append('deviceInfo', 'FieldFlow Wizard');
+        
+        // Preferir subir a empresa si es un ID real, si no al contacto/prospecto
+        const isRealCompanyId = resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-');
+        const targetId = isRealCompanyId ? resolvedCompanyId : resolvedContactId;
+        const endpointType = isRealCompanyId ? 'companies' : 'customers';
 
-          try {
-            const uploadRes = await fetch(`${API_BASE}/api/crm/companies/${resolvedCompanyId}/evidence`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`
-              },
-              body: formData
-            });
-            const uploadData = await uploadRes.json();
-            if (!uploadRes.ok) {
-              console.warn(`Advertencia: Error al subir la foto ${i + 1}:`, uploadData.message);
+        if (targetId) {
+          for (let i = 0; i < wizardState.visita.fotos.length; i++) {
+            const foto = wizardState.visita.fotos[i];
+            const formData = new FormData();
+            formData.append('photo', foto.file);
+            formData.append('latitude', String(wizardState.visita.lat || 25.6866));
+            formData.append('longitude', String(wizardState.visita.lng || -100.3161));
+            formData.append('deviceInfo', 'FieldFlow Wizard');
+
+            try {
+              const uploadRes = await fetch(`${API_BASE}/api/crm/${endpointType}/${targetId}/evidence`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`
+                },
+                body: formData
+              });
+              const uploadData = await uploadRes.json();
+              if (!uploadRes.ok) {
+                console.warn(`Advertencia: Error al subir la foto ${i + 1}:`, uploadData.message);
+              }
+            } catch (uploadErr) {
+              console.warn(`Error de red al subir foto ${i + 1}:`, uploadErr);
             }
-          } catch (uploadErr) {
-            console.warn(`Error de red al subir foto ${i + 1}:`, uploadErr);
           }
         }
       }
@@ -278,7 +286,7 @@ function WizardContent({ onClose, onSuccess }) {
       // 4. Crear la Visita Principal
       setCurrentActionText('Despachando reporte de interacción de campo...');
       const visitaPayload = {
-        company_id: resolvedCompanyId || null,
+        company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
         contact_id: resolvedContactId || null,
         obra_id: wizardState.obra?.id || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
@@ -319,7 +327,7 @@ function WizardContent({ onClose, onSuccess }) {
         }
 
         const followupPayload = {
-          company_id: resolvedCompanyId || null,
+          company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
           contact_id: resolvedContactId || null,
           obra_id: wizardState.obra?.id || null,
           tipo: followupTipo,

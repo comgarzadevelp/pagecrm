@@ -173,7 +173,6 @@ export default function DashboardLayout({ role, enabledModules }) {
           sellers={sellers}
           handleStatusChange={handleStatusChange}
           handleAssignSeller={handleAssignSeller}
-          fetchLeads={fetchLeads}
           handleLoadPastQuote={(pq) => handleLoadPastQuote(pq, setActiveTab)}
           formatDate={formatDate}
         />

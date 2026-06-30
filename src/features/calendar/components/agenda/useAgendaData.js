@@ -104,6 +104,75 @@ export function useAgendaData() {
     }
   };
 
+  const markMeetingCompleted = async (eventId, crmAppointmentId, comment = '') => {
+    if (!crmAppointmentId) {
+      console.warn("No CRM appointment ID provided for completion.");
+      return { success: false, message: 'No se puede completar un evento sin ID de CRM' };
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/appointments/${crmAppointmentId}/outcome`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`
+        },
+        body: JSON.stringify({ outcome: 'completada', comments: comment })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Actualizar estado local para no recargar todo de Google
+        setMeetings(prev => prev.map(m => {
+          if (m.id === eventId) {
+            return { ...m, isCompleted: true }; // Flag it to apply styles
+          }
+          return m;
+        }));
+        return { success: true };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+
+  const rescheduleMeeting = async (eventId, crmAppointmentId, newStart, newEnd, comment = '') => {
+    if (!crmAppointmentId) {
+      return { success: false, message: 'No se puede reagendar un evento sin ID de CRM' };
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/calendar/appointments/${crmAppointmentId}/reschedule`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token()}`
+        },
+        body: JSON.stringify({ newStart, newEnd, comments: comment })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        // Actualizar estado local
+        setMeetings(prev => prev.map(m => {
+          if (m.id === eventId) {
+            return { 
+              ...m, 
+              start: { dateTime: newStart },
+              end: { dateTime: newEnd }
+            };
+          }
+          return m;
+        }));
+        return { success: true };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
+  };
+
   const fetchNotesFiles = async () => {
     setLoadingNotes(true);
     try {
@@ -165,5 +234,7 @@ export function useAgendaData() {
     setShowNoteModal,
     handleReadNote,
     googleConnected,
+    markMeetingCompleted,
+    rescheduleMeeting,
   };
 }

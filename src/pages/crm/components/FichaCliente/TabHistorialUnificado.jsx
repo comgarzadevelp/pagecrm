@@ -16,6 +16,35 @@ export default function TabHistorialUnificado({
   const [showCommentInput, setShowCommentInput] = React.useState(false);
   const [commentText, setCommentText] = React.useState('');
   const [savingComment, setSavingComment] = React.useState(false);
+  const [companyEvents, setCompanyEvents] = React.useState([]);
+
+  React.useEffect(() => {
+    if (!currentCustomer.isCompany && currentCustomer.company_id) {
+      const token = localStorage.getItem('token');
+      fetch(`${API_BASE}/api/crm/companies/${currentCustomer.company_id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.ok ? res.json() : Promise.reject('fetch error'))
+      .then(data => {
+        if (data.success && data.company) {
+          let cNotes = { timeline: [] };
+          try {
+            const trimmed = (data.company.notes || '').trim();
+            if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+              cNotes = JSON.parse(trimmed);
+            }
+          } catch(e) {}
+          if (cNotes.timeline) {
+             const evidenceEvents = cNotes.timeline.filter(note => note.type === 'evidence');
+             setCompanyEvents(evidenceEvents);
+          }
+        }
+      })
+      .catch(err => console.error('Failed to fetch company evidence:', err));
+    } else {
+      setCompanyEvents([]);
+    }
+  }, [currentCustomer.isCompany, currentCustomer.company_id, API_BASE]);
 
   const handleAddComment = async () => {
     if (!commentText.trim()) return;
@@ -178,14 +207,47 @@ export default function TabHistorialUnificado({
   
   if (parsedNotes.timeline) {
     parsedNotes.timeline.forEach(note => {
+      let title = '📝 Notas / Comentarios';
+      let icon = 'fa-comment-dots';
+      let color = 'blue';
+
+      if (note.type === 'update') {
+        title = '✏️ Actualización de Datos';
+        icon = 'fa-user-cog';
+      } else if (note.type === 'evidence') {
+        title = '📸 Evidencia Fotográfica (Visita)';
+        icon = 'fa-camera';
+        color = 'purple';
+      }
+
       eventsList.push({
         date: new Date(note.date),
-        title: note.type === 'update' ? '✏️ Actualización de Datos' : '📝 Notas / Comentarios',
+        title,
         text: note.text,
         author: note.author || 'Ejecutivo',
-        icon: note.type === 'update' ? 'fa-user-cog' : 'fa-comment-dots',
-        color: 'blue',
-        createdFrom: note.created_from || 'cliente'
+        icon,
+        color,
+        createdFrom: note.created_from || 'cliente',
+        photoUrl: note.photoUrl || note.photo_url,
+        gps: (note.latitude || note.gps?.lat) ? { lat: note.latitude || note.gps?.lat, lng: note.longitude || note.gps?.lng } : null,
+        internalNotes: (note.type === 'evidence' && (note.deviceInfo || note.device_info)) ? `Dispositivo: ${note.deviceInfo || note.device_info}` : null
+      });
+    });
+  }
+
+  if (companyEvents.length > 0) {
+    companyEvents.forEach(note => {
+      eventsList.push({
+        date: new Date(note.date),
+        title: '📸 Evidencia Fotográfica (Visita a Empresa)',
+        text: note.text,
+        author: note.author || 'Ejecutivo',
+        icon: 'fa-camera',
+        color: 'purple',
+        createdFrom: note.created_from || 'empresa',
+        photoUrl: note.photoUrl || note.photo_url,
+        gps: (note.latitude || note.gps?.lat) ? { lat: note.latitude || note.gps?.lat, lng: note.longitude || note.gps?.lng } : null,
+        internalNotes: (note.deviceInfo || note.device_info) ? `Dispositivo: ${note.deviceInfo || note.device_info}` : null
       });
     });
   }
@@ -202,7 +264,7 @@ export default function TabHistorialUnificado({
         icon: isPresencial ? 'fa-map-marked-alt' : v.tipo === 'llamada' ? 'fa-phone-volume' : 'fa-video',
         color: 'green',
         gps: v.gps_lat && v.gps_lng ? { lat: v.gps_lat, lng: v.gps_lng } : null,
-        internalNotes: v.notes
+        internalNotes: v.notas
       });
     });
   }
@@ -354,6 +416,12 @@ export default function TabHistorialUnificado({
                   <p style={{ marginTop: '8px', fontSize: '0.85rem', color: '#334155', lineHeight: '1.4', whiteSpace: 'pre-wrap' }}>
                     {evt.text}
                   </p>
+                  
+                  {evt.photoUrl && (
+                    <a href={evt.photoUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', marginTop: '10px' }}>
+                      <img src={evt.photoUrl} alt="Evidencia fotográfica" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
+                    </a>
+                  )}
                   
                   {/* Origin tag for comments/notes */}
                   {evt.icon === 'fa-comment-dots' && (

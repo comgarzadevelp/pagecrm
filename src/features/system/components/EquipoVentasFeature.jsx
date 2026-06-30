@@ -37,6 +37,7 @@ export default function EquipoVentas({
   const [editSellerSaeKey, setEditSellerSaeKey] = useState('');
   const [editSellerRole, setEditSellerRole] = useState('sales');
   const [editSellerCompanyId, setEditSellerCompanyId] = useState('');
+  const [editSellerAdditionalCompanies, setEditSellerAdditionalCompanies] = useState([]);
   const [editSellerSupervisorId, setEditSellerSupervisorId] = useState('');
   const [editSellerError, setEditSellerError] = useState('');
   const [editSellerSuccess, setEditSellerSuccess] = useState('');
@@ -148,6 +149,11 @@ export default function EquipoVentas({
       if (role === 'super_admin') {
         payload.role = editSellerRole;
         payload.company_id = editSellerCompanyId;
+        if (editSellerRole === 'admin' || editSellerRole === 'supervisor') {
+          payload.additional_companies = editSellerAdditionalCompanies;
+        } else {
+          payload.additional_companies = [];
+        }
       }
 
       const res = await fetch(`${API_BASE}/api/crm/sellers/${selectedSellerForEdit.id}`, {
@@ -460,13 +466,14 @@ export default function EquipoVentas({
                         className="btn-view-details"
                         onClick={() => {
                           fetchSaeSellers();
-                          setSelectedSellerForEdit(user);
-                          setEditSellerName(user.name || '');
-                          setEditSellerEmail(user.email || '');
-                          setEditSellerSaeKey(user.sae_vendor_key || '');
-                          setEditSellerRole(user.role || 'sales');
-                          setEditSellerCompanyId(user.company_id || '');
-                          setEditSellerSupervisorId(user.supervisor_id || '');
+                            setSelectedSellerForEdit(user);
+                            setEditSellerName(user.name || '');
+                            setEditSellerEmail(user.email || '');
+                            setEditSellerRole(user.role || 'sales');
+                            setEditSellerCompanyId(user.company_id || '');
+                            setEditSellerAdditionalCompanies(user.additional_companies || []);
+                            setEditSellerSaeKey(user.sae_vendor_key || '');
+                            setEditSellerSupervisorId(user.supervisor_id || '');
                           setEditSellerError('');
                           setEditSellerSuccess('');
                           setShowEditSellerModal(true);
@@ -735,6 +742,37 @@ export default function EquipoVentas({
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+
+              {/* Additional Companies selection (For Multi-Empresa Supervisors) */}
+              {role === 'super_admin' && (editSellerRole === 'admin' || editSellerRole === 'supervisor') && (
+                <div className="crm-input-group">
+                  <label className="crm-input-label">Sucursales Adicionales (Multi-Empresa)</label>
+                  <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', marginBottom: '8px' }}>
+                    Selecciona las otras sucursales que este supervisor puede administrar.
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '150px', overflowY: 'auto', padding: '10px', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
+                    {companies.filter(c => c.id !== editSellerCompanyId).map(c => (
+                      <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '0.9rem' }}>
+                        <input 
+                          type="checkbox"
+                          checked={editSellerAdditionalCompanies.includes(c.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditSellerAdditionalCompanies([...editSellerAdditionalCompanies, c.id]);
+                            } else {
+                              setEditSellerAdditionalCompanies(editSellerAdditionalCompanies.filter(id => id !== c.id));
+                            }
+                          }}
+                        />
+                        {c.name} ({c.company_code})
+                      </label>
+                    ))}
+                    {companies.filter(c => c.id !== editSellerCompanyId).length === 0 && (
+                      <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>No hay más sucursales disponibles.</span>
+                    )}
+                  </div>
                 </div>
               )}
 

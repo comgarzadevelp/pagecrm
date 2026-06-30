@@ -27,7 +27,7 @@ const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
 
 // Helpers for automatic customer status transitions
 
-const updateCustomerStatusToReactivando = async (companyId, contactId) => {
+const updateCustomerStatusToReactivando = async (companyId, contactId, user) => {
   try {
     if (companyId) {
       await supabase.from('companies').update({ status: 'reactivado_venta' }).eq('id', companyId);
@@ -45,7 +45,11 @@ const updateCustomerStatusToReactivando = async (companyId, contactId) => {
                 try {
                   const pLead = JSON.parse(lead.notes);
                   if (pLead && pLead.sae_clave && String(pLead.sae_clave).trim() === String(parsed.sae_clave).trim()) {
-                    await supabase.from('leads').update({ status: 'reactivado_venta' }).eq('id', lead.id);
+                    const coEmpresa = pLead.sae_empresa || '03';
+                    const userEmpresa = user?.sae_empresa || '03';
+                    if (coEmpresa === userEmpresa) {
+                      await supabase.from('leads').update({ status: 'reactivado_venta' }).eq('id', lead.id);
+                    }
                   }
                 } catch (e) {}
               }
@@ -76,7 +80,7 @@ const updateCustomerStatusToReactivando = async (companyId, contactId) => {
   }
 };
 
-const checkAndUpgradeCustomerToActive = async (companyId, contactId) => {
+const checkAndUpgradeCustomerToActive = async (companyId, contactId, user) => {
   try {
     let query = supabase
       .from('crm_opportunities')
@@ -115,7 +119,11 @@ const checkAndUpgradeCustomerToActive = async (companyId, contactId) => {
                   try {
                     const pLead = JSON.parse(lead.notes);
                     if (pLead && pLead.sae_clave && String(pLead.sae_clave).trim() === String(parsed.sae_clave).trim()) {
-                      await supabase.from('leads').update({ status: 'activo' }).eq('id', lead.id);
+                      const coEmpresa = pLead.sae_empresa || '03';
+                      const userEmpresa = user?.sae_empresa || '03';
+                      if (coEmpresa === userEmpresa) {
+                        await supabase.from('leads').update({ status: 'activo' }).eq('id', lead.id);
+                      }
                     }
                   } catch (e) {}
                 }
@@ -210,19 +218,25 @@ export const createOpportunity = async (req, res) => {
       if (String(customer_id).startsWith('sae-')) {
         const saeClave = String(customer_id).replace('sae-', '').trim();
         // 1. Check if company exists locally
-        const { data: existingCos } = await supabase
+        const { data: existingCosRaw } = await supabase
           .from('companies')
-          .select('id')
-          .like('notes', `%"sae_clave":"${saeClave}"%`)
-          .limit(1);
+          .select('id, notes')
+          .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-        if (existingCos && existingCos.length > 0) {
-          resolvedCompanyId = existingCos[0].id;
+        const targetEmpresa = req.user?.sae_empresa || '03';
+        const exactMatch = (existingCosRaw || []).find(co => {
+          try {
+            const p = JSON.parse(co.notes);
+            return (p.sae_empresa || '03') === targetEmpresa;
+          } catch(e) { return false; }
+        });
+
+        if (exactMatch) {
+          resolvedCompanyId = exactMatch.id;
         } else {
           // Fetch from SAE and insert local company
-          const isGarza = req.user?.companyCode === 'GARZA';
-          if (isGarza) {
-            const { saeClient, suffix } = getSaeConnection(req.user);
+          const { saeClient, suffix } = getSaeConnection(req.user);
+          if (saeClient) {
             const { data: client } = await saeClient
               .from(`clie${suffix}`)
               .select('nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail')
@@ -246,6 +260,7 @@ export const createOpportunity = async (req, res) => {
                 notes: JSON.stringify({
                   general: `Empresa importada de ASPEL SAE. Clave: ${saeClave}.`,
                   sae_clave: saeClave,
+                  sae_empresa: targetEmpresa,
                   timeline: []
                 }),
                 created_by: userId,
@@ -409,7 +424,7 @@ export const createOpportunity = async (req, res) => {
     if (error) throw error;
 
     // Trigger customer status change in the database
-    await updateCustomerStatusToReactivando(cleanCompanyId, cleanContactId);
+    await updateCustomerStatusToReactivando(cleanCompanyId, cleanContactId, req.user);
 
     // Trigger Super Admin Notification with dynamic money value logging
     const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(value || 0);
@@ -480,7 +495,7 @@ export const updateOpportunity = async (req, res) => {
 
     // Si transiciona a ganado, verificar si el cliente califica para ser ACTIVO
     if (stage === 'ganado') {
-      await checkAndUpgradeCustomerToActive(cleanCompanyId || currentOpp?.company_id, cleanContactId || currentOpp?.contact_id);
+      await checkAndUpgradeCustomerToActive(cleanCompanyId || currentOpp?.company_id, cleanContactId || currentOpp?.contact_id, req.user);
     }
 
     // Trigger Super Admin Notification
@@ -530,7 +545,7 @@ export const updateOpportunityStage = async (req, res) => {
     if (opp) {
       // Si transiciona a ganado, verificar si el cliente califica para ser ACTIVO
       if (stage === 'ganado') {
-        await checkAndUpgradeCustomerToActive(opp.company_id, opp.contact_id);
+        await checkAndUpgradeCustomerToActive(opp.company_id, opp.contact_id, req.user);
       }
 
       const formattedValue = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(opp.value || 0);

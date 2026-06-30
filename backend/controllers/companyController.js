@@ -18,14 +18,21 @@ export const searchCompanies = async (req, res) => {
 
     // Búsqueda por sae_clave exacto (para resolver clientes SAE a empresas locales)
     if (sae_clave && sae_clave.trim().length > 0) {
-      const { data, error } = await supabase
+      const { data: existingCosRaw, error } = await supabase
         .from('companies')
         .select('id, name, rfc, address, city, state, notes')
-        .like('notes', `%"sae_clave":"${sae_clave.trim()}"%`)
-        .limit(1);
+        .like('notes', `%"sae_clave":"${sae_clave.trim()}"%`);
 
       if (error) throw error;
-      return res.json({ success: true, companies: data || [] });
+      
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+      return res.json({ success: true, companies: exactMatch ? [exactMatch] : [] });
     }
 
     if (!q || q.length < 2) {
@@ -116,7 +123,11 @@ export const getCompanies = async (req, res) => {
         try {
           const parsed = JSON.parse(co.notes.trim());
           if (parsed && parsed.sae_clave) {
-            saeClave = parsed.sae_clave.trim();
+            const coEmpresa = parsed.sae_empresa || '03';
+            const userEmpresa = req.user?.sae_empresa || '03';
+            if (coEmpresa === userEmpresa) {
+              saeClave = parsed.sae_clave.trim();
+            }
           }
         } catch (e) {
           // not JSON
@@ -175,9 +186,8 @@ export const getCompanies = async (req, res) => {
     }
 
     let saeCompanies = [];
-    const isGarza = req.user?.companyCode === 'GARZA';
-    if (saeKey && isGarza) {
-      const { saeClient, suffix } = getSaeConnection(req.user);
+    const { saeClient, suffix } = getSaeConnection(req.user);
+    if (saeKey && saeClient) {
       const { data: saeData, error: saeError } = await saeClient
         .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
@@ -278,6 +288,7 @@ export const getCompanies = async (req, res) => {
           const notes = linkedCo ? linkedCo.notes : JSON.stringify({
             general: `Empresa importada de ASPEL SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
             sae_clave: clave,
+            sae_empresa: req.user?.sae_empresa || '03',
             timeline: []
           });
 
@@ -429,14 +440,13 @@ export const getCompanyById = async (req, res) => {
   const { id } = req.params;
   try {
     if (id.startsWith('sae-')) {
-      const isGarza = req.user?.companyCode === 'GARZA';
-      if (!isGarza) {
+      const { saeClient, suffix } = getSaeConnection(req.user);
+      if (!saeClient) {
         return res.status(400).json({ success: false, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
       }
       const saeKey = id.replace('sae-', '').trim();
 
       // Query mirror database clieXX
-      const { saeClient, suffix } = getSaeConnection(req.user);
       const { data: client, error: clientError } = await saeClient
         .from(`clie${suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, status, fch_ultcom, limcred, saldo, lista_prec, clasific, pag_web, colonia, codigo, ventas')
@@ -446,7 +456,7 @@ export const getCompanyById = async (req, res) => {
       if (clientError) throw clientError;
 
       // Buscar si existe en CRM vinculada a este saeKey
-      const { data: existingCos } = await supabase
+      const { data: existingCosRaw } = await supabase
         .from('companies')
         .select(`
           id, name, alias, type, rfc, address, city, state, maps_url, website, industry,
@@ -454,8 +464,16 @@ export const getCompanyById = async (req, res) => {
           email_main, email_purchases, email_payments,
           status, notes, created_by, contact_main, contact_purchases, contact_payments
         `)
-        .like('notes', `%"sae_clave":"${saeKey}"%`)
-        .limit(1);
+        .like('notes', `%"sae_clave":"${saeKey}"%`);
+
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+      const existingCos = exactMatch ? [exactMatch] : [];
 
       let dbStatus = 'pendiente_revision';
       let linkedCo = null;
@@ -489,6 +507,7 @@ export const getCompanyById = async (req, res) => {
       const notes = linkedCo ? linkedCo.notes : JSON.stringify({
         general: `Empresa importada de ASPEL SAE. Clave: ${client.clave.trim()}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
         sae_clave: client.clave.trim(),
+        sae_empresa: req.user?.sae_empresa || '03',
         timeline: []
       });
 
@@ -645,9 +664,8 @@ export const getCompanyById = async (req, res) => {
     }
 
     if (saeClave) {
-      const isGarza = req.user?.companyCode === 'GARZA';
-      if (isGarza) {
-        const { saeClient, suffix } = getSaeConnection(req.user);
+      const { saeClient, suffix } = getSaeConnection(req.user);
+      if (saeClient) {
         const { data: contactsData, error: contactsError } = await saeClient
           .from(`contac${suffix}`)
           .select('cve_clie, nombre, telefono, email, status')
@@ -761,26 +779,35 @@ export const updateCompany = async (req, res) => {
       const saeClave = id.replace('sae-', '').trim();
 
       // Filtrar en Postgres directamente — evita descargar toda la tabla para buscar sae_clave
-      const { data: existingCos, error: fetchErr } = await supabase
+      const { data: existingCosRaw, error: fetchErr } = await supabase
         .from('companies')
         .select('*')
-        .like('notes', `%"sae_clave":"${saeClave}"%`)
-        .limit(1);
+        .like('notes', `%"sae_clave":"${saeClave}"%`);
 
       if (fetchErr) throw fetchErr;
 
-      let matchedCo = existingCos && existingCos.length > 0 ? existingCos[0] : null;
+      const targetEmpresa = req.user?.sae_empresa || '03';
+      const exactMatch = (existingCosRaw || []).find(co => {
+        try {
+          const p = JSON.parse(co.notes);
+          return (p.sae_empresa || '03') === targetEmpresa;
+        } catch(e) { return false; }
+      });
+
+      let matchedCo = exactMatch || null;
 
       // Clean notes format ensuring we store the sae_clave
       let notesPayload = notes;
       try {
         const parsedNotes = JSON.parse(notes.trim());
         parsedNotes.sae_clave = saeClave;
+        parsedNotes.sae_empresa = targetEmpresa;
         notesPayload = JSON.stringify(parsedNotes);
       } catch (e) {
         notesPayload = JSON.stringify({
           general: notes,
           sae_clave: saeClave,
+          sae_empresa: targetEmpresa,
           timeline: []
         });
       }

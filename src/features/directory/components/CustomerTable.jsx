@@ -148,13 +148,13 @@ export default function CustomerTable({
                   <i className="fas fa-handshake" style={{ color: 'var(--color-brand-accent)', fontSize: '0.8rem' }} /> Ventas
                 </span>
                 <strong style={{
-                  color: cust.opportunities_count > 0 ? 'var(--color-brand-primary)' : '#64748b',
-                  background: cust.opportunities_count > 0 ? 'rgba(212, 163, 89, 0.12)' : '#f1f5f9',
+                  color: cust.won_count > 0 ? 'var(--color-brand-primary)' : '#64748b',
+                  background: cust.won_count > 0 ? 'rgba(212, 163, 89, 0.12)' : '#f1f5f9',
                   padding: '1px 6px',
                   borderRadius: '6px',
                   fontWeight: '800'
                 }}>
-                  {cust.opportunities_count || 0}
+                  {cust.won_count || 0}
                 </strong>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#64748b' }}>

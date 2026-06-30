@@ -116,19 +116,20 @@ router.get('/events', verifyToken, async (req, res) => {
     try {
       const { data: localAppts } = await supabase
         .from('crm_appointments')
-        .select('google_event_id, client_name');
+        .select('id, google_event_id, client_name');
 
       if (localAppts && localAppts.length > 0) {
         const apptIndex = {};
         localAppts.forEach(appt => {
           if (appt.google_event_id) {
-            apptIndex[appt.google_event_id] = appt.client_name;
+            apptIndex[appt.google_event_id] = { client_name: appt.client_name, id: appt.id };
           }
         });
 
         enrichedEvents = activeEvents.map(event => ({
           ...event,
-          client_name: apptIndex[event.id] || null
+          client_name: apptIndex[event.id]?.client_name || null,
+          crm_appointment_id: apptIndex[event.id]?.id || null
         }));
       }
     } catch (apptErr) {
@@ -421,6 +422,26 @@ router.put('/appointments/:appointmentId/outcome', verifyToken, async (req, res)
       return res.status(400).json({ success: false, message: 'El resultado de la reunión es obligatorio.' });
     }
 
+    // Handle CRM Visitas (FieldFlow) outcome if it starts with db-activity-
+    if (appointmentId.startsWith('db-activity-')) {
+      const visitaId = appointmentId.replace('db-activity-', '');
+      try {
+        const { data: visita } = await supabase.from('crm_visitas').select('*').eq('id', visitaId).single();
+        if (visita) {
+          await supabase
+            .from('crm_visitas')
+            .update({ 
+              resultado: outcome === 'completada' ? 'Completado' : outcome,
+              notas: `[COMPLETADA] ${comments || ''} | ${visita.notas || ''}`
+            })
+            .eq('id', visitaId);
+          return res.json({ success: true, message: 'Actividad de campo marcada como completada.' });
+        }
+      } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error al actualizar actividad de campo.' });
+      }
+    }
+
     // 1. Get local appointment
     const { data: appointment, error: apptError } = await supabase
       .from('crm_appointments')
@@ -444,6 +465,9 @@ router.put('/appointments/:appointmentId/outcome', verifyToken, async (req, res)
     } else if (outcome === 'pospuesta') {
       statusMapped = 'postponed';
       outcomeLabel = 'Pospuesta / Reprogramar';
+    } else if (outcome === 'completada') {
+      statusMapped = 'completed';
+      outcomeLabel = 'Completada Exitosamente';
     }
 
     const outcomeComments = comments || 'Sin comentarios adicionales';
@@ -538,6 +562,122 @@ router.put('/appointments/:appointmentId/outcome', verifyToken, async (req, res)
   }
 });
 
+// PUT /api/calendar/appointments/:appointmentId/reschedule - Reschedule a future appointment
+router.put('/appointments/:appointmentId/reschedule', verifyToken, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const userName = req.user?.name || 'Vendedor';
+    const { appointmentId } = req.params;
+    const { newStart, newEnd, comments } = req.body;
+
+    if (!newStart || !newEnd) {
+      return res.status(400).json({ success: false, message: 'La nueva fecha de inicio y fin son obligatorias.' });
+    }
+
+    // Handle CRM Visitas (FieldFlow) reschedule if it starts with db-activity-
+    if (appointmentId.startsWith('db-activity-')) {
+      const visitaId = appointmentId.replace('db-activity-', '');
+      try {
+        const { data: visita } = await supabase.from('crm_visitas').select('*').eq('id', visitaId).single();
+        if (visita) {
+          await supabase
+            .from('crm_visitas')
+            .update({ 
+              timestamp_servidor: new Date(newStart).toISOString(),
+              notas: `[REAGENDADA: ${comments || 'Sin comentarios'}] ${visita.notas || ''}`
+            })
+            .eq('id', visitaId);
+          return res.json({ success: true, message: 'Actividad de campo reagendada exitosamente.' });
+        }
+      } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error al reagendar actividad de campo.' });
+      }
+    }
+
+    // 1. Get local appointment
+    const { data: appointment, error: apptError } = await supabase
+      .from('crm_appointments')
+      .select('*')
+      .eq('id', appointmentId)
+      .single();
+
+    if (apptError || !appointment) {
+      return res.status(404).json({ success: false, message: 'Cita no encontrada.' });
+    }
+
+    // 2. Update local appointment
+    const { error: updateApptError } = await supabase
+      .from('crm_appointments')
+      .update({
+        start_time: newStart,
+        end_time: newEnd,
+        description: `[REAGENDADO: ${comments || 'Sin comentarios'}] ${appointment.description || ''}`,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', appointmentId);
+
+    if (updateApptError) throw updateApptError;
+
+    // 3. Update Google Calendar (if connected and has event ID)
+    if (appointment.google_event_id) {
+      try {
+        const { updateGoogleEvent } = await import('../services/googleCalendarService.js');
+        await updateGoogleEvent(userId, appointment.google_event_id, {
+          start: { dateTime: newStart },
+          end: { dateTime: newEnd },
+          description: `[REAGENDADO] ${appointment.description || ''}`
+        });
+      } catch (gErr) {
+        console.warn('Failed to update Google Calendar event during reschedule:', gErr.message);
+      }
+    }
+
+    // 4. Audit
+    await supabase
+      .from('crm_appointments_audit')
+      .insert([{
+        appointment_id: appointment.id,
+        vendedor_id: userId,
+        action: 'RESCHEDULE',
+        old_data: { start_time: appointment.start_time, end_time: appointment.end_time },
+        new_data: { start_time: newStart, end_time: newEnd, comments }
+      }]);
+
+    // 5. Update Lead history
+    if (appointment.client_name) {
+      try {
+        const { data: lead } = await supabase
+          .from('leads')
+          .select('id, notes')
+          .eq('name', appointment.client_name)
+          .single();
+
+        if (lead) {
+          let notesData = lead.notes || [];
+          if (!Array.isArray(notesData)) notesData = [];
+          
+          notesData.push({
+            id: `note-${Date.now()}`,
+            text: `📆 Cita reagendada para el ${new Date(newStart).toLocaleString('es-MX')} (Anterior: ${new Date(appointment.start_time).toLocaleString('es-MX')}). Notas: ${comments || 'N/A'}`,
+            author: userName,
+            timestamp: new Date().toISOString(),
+            isSystem: true
+          });
+
+          await supabase.from('leads').update({ notes: JSON.stringify(notesData) }).eq('id', lead.id);
+        }
+      } catch (leadErr) {
+        console.warn('Could not update lead history during reschedule:', leadErr.message);
+      }
+    }
+
+    res.json({ success: true, message: 'Cita reagendada exitosamente.' });
+  } catch (err) {
+    console.error('Error rescheduling meeting:', err);
+    res.status(500).json({ success: false, message: 'Error interno al reagendar la cita.' });
+  }
+});
+
 // DELETE /api/calendar/events/:eventId - Delete Google Calendar event (Resilient soft delete, audit & notifications with reason)
 router.delete('/events/:eventId', verifyToken, async (req, res) => {
   try {
@@ -549,6 +689,23 @@ router.delete('/events/:eventId', verifyToken, async (req, res) => {
     const { reason } = req.query; // Extract reason from query string
     
     const cancellationReason = reason || 'No especificado por el vendedor';
+
+    // Handle CRM Visitas (FieldFlow) cancellation if it starts with db-activity-
+    if (eventId.startsWith('db-activity-')) {
+      const visitaId = eventId.replace('db-activity-', '');
+      try {
+        await supabase
+          .from('crm_visitas')
+          .update({ 
+            resultado: 'Cancelada', 
+            notas: `[CANCELADA] Motivo: ${cancellationReason}` 
+          })
+          .eq('id', visitaId);
+        return res.json({ success: true, message: 'Actividad de campo cancelada exitosamente.' });
+      } catch (err) {
+        return res.status(500).json({ success: false, message: 'Error al cancelar actividad de campo.' });
+      }
+    }
 
     // 1. Local Lookup & Soft Delete
     let localAppointment = null;

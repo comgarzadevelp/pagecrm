@@ -11,7 +11,7 @@ export const mapLeadStatus = (status) => {
   return 'contactado';
 };
 
-export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debouncedSearch, filterChannel, filterSeller }) {
+export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debouncedSearch, filterChannel, filterSeller, dateFilter }) {
   // Guardar ref para evitar que actualizaciones del callback de fetchLeads causen loops o invaliden closures
   const fetchLeadsRef = useRef(fetchLeads);
   useEffect(() => {
@@ -238,8 +238,37 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
         result = result.filter(l => l.assigned_to?.id === filterSeller);
       }
     }
+    if (dateFilter && dateFilter.type !== 'all') {
+      const now = new Date();
+      let start = null;
+      let end = null;
+      if (dateFilter.type === 'today') {
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end = new Date(start.getTime() + 86400000 - 1);
+      } else if (dateFilter.type === 'week') {
+        const day = now.getDay() || 7;
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day + 1);
+        end = new Date(start.getTime() + 7 * 86400000 - 1);
+      } else if (dateFilter.type === 'month') {
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      } else if (dateFilter.type === 'custom') {
+        if (dateFilter.startDate) start = new Date(dateFilter.startDate + 'T00:00:00');
+        if (dateFilter.endDate) end = new Date(dateFilter.endDate + 'T23:59:59');
+      }
+
+      result = result.filter(l => {
+        if (!l.created_at) return true;
+        const itemDate = new Date(l.created_at);
+        if (isNaN(itemDate.getTime())) return true;
+        if (start && itemDate < start) return false;
+        if (end && itemDate > end) return false;
+        return true;
+      });
+    }
+
     return result;
-  }, [leads, debouncedSearch, filterChannel, filterSeller, role, getLoggedInUserId]);
+  }, [leads, debouncedSearch, filterChannel, filterSeller, role, getLoggedInUserId, dateFilter]);
 
   const columnCounts = useMemo(() => {
     const counts = {};

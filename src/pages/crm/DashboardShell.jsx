@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY, ROLE_LABELS, ROLE_ICONS } from './moduleRegistry';
 import QuickCreateFab from './components/QuickCreate/QuickCreateFab';
 import { useUX } from '../../components/common/UXProvider';
+import { useCompany } from '../../contexts/CompanyContext';
 import './Dashboard.css';
 import './MobileApp.css';
 
@@ -284,6 +285,21 @@ const DashboardShell = ({
 
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false);
+  
+  // Multi-company support
+  const { allowedCompanies, companyId, switchCompany, company } = useCompany();
+  const hasMultipleCompanies = allowedCompanies && allowedCompanies.length > 1;
+
+  const handleCompanySwitch = (e) => {
+    const newCompanyId = e.target.value;
+    const selected = allowedCompanies.find(c => c.id === newCompanyId);
+    if (selected) {
+      switchCompany(selected.id, selected.company_code, selected);
+      setTimeout(() => {
+        handleRefreshAll('', true);
+      }, 50);
+    }
+  };
 
   const closeMoreMenu = () => {
     setIsClosingMoreMenu(true);
@@ -385,10 +401,35 @@ const DashboardShell = ({
               alt="Garza Logo"
               className="crm-logo-img"
             />
+            )}
+          </div>
+  
+          {hasMultipleCompanies && !sidebarCollapsed && (
+            <div className="crm-sidebar-company-selector" style={{ padding: '0 1.25rem', marginTop: '1rem' }}>
+              <select 
+                className="crm-login-input" 
+                value={companyId || ''} 
+                onChange={handleCompanySwitch}
+                style={{ 
+                  width: '100%', 
+                  padding: '8px', 
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255,255,255,0.1)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  color: '#fff',
+                  fontSize: '0.85rem'
+                }}
+              >
+                {allowedCompanies.map(c => (
+                  <option key={c.id} value={c.id} style={{ color: '#000' }}>
+                    {c.name} {c.sae_connection ? `(${c.sae_connection === '03' ? 'MTY' : 'GDL'})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
-        </div>
-
-        <nav className="crm-sidebar-nav" style={{ marginTop: '1.5rem' }}>
+  
+          <nav className="crm-sidebar-nav" style={{ marginTop: '1.5rem' }}>
           {sidebarItems.map(item => {
             const hasPulseBadge = item.badge === 'LIVE' || item.badge === 'NEW';
             return (

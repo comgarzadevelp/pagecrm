@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 
-export default function StatusDropdown({ currentStatus, onChange, customStages = [], onOpenChange }) {
+export default function StatusDropdown({ currentStatus, onChange, customStages = [], onOpenChange, isWebLead = false }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const mapLeadStatus = (status) => {
     if (!status) return 'nuevo';
     const s = status.toLowerCase();
-    if (s === 'nuevo' || s === 'asignado') return 'nuevo';
+    if (s === 'nuevo' || s === 'asignado' || s === 'recibido') return s; // Keep asignado and recibido separate for web leads
     if (s === 'ganado' || s === 'cierre_ganado' || s === 'pedido') return 'cierre_ganado';
     if (s === 'perdido' || s === 'cierre_perdido') return 'cierre_perdido';
     if (s === 'descartado' || s === 'frio') return 'descartado';
@@ -16,7 +16,14 @@ export default function StatusDropdown({ currentStatus, onChange, customStages =
 
   const cleanStatus = mapLeadStatus(currentStatus);
 
-  const options = [
+  const options = isWebLead ? [
+    { value: 'nuevo', label: 'Nuevo', color: '#0ea5e9' },
+    { value: 'asignado', label: 'Asignado', color: '#f59e0b' },
+    { value: 'recibido', label: 'Recibido / Enterado', color: '#0284c7' },
+    { value: 'contactado', label: 'Contactado', color: '#8b5cf6' },
+    { value: 'cierre_ganado', label: 'Convertir a Prospecto', color: '#10b981' },
+    { value: 'descartado', label: 'Descartado', color: '#ef4444' }
+  ] : [
     { value: 'nuevo', label: 'Nueva negociación', color: '#0086c0' },
     { value: 'contactado', label: 'En pláticas', color: '#ffcb00', textColor: '#000' },
     { value: 'cotizando', label: 'Se le hizo cotización', color: '#7c3aed' },

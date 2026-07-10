@@ -29,6 +29,8 @@ import ChatbotConfigPanel from '../../../features/superadmin/components/ChatbotC
 import ConjuntoEmpresarial from '../../../features/superadmin/components/EnterpriseGroupPanel';
 import PersonalGarza from '../../../features/superadmin/components/SuperAdminPersonnel';
 import AdminAgendaPanel from '../../../features/superadmin/components/SuperAdminAgenda';
+import SuperAdminStats from '../../../features/superadmin/components/SuperAdminStats';
+import SuperAdminContactos from '../../../features/superadmin/components/SuperAdminContactos';
 
 export default function DashboardLayout({ role, enabledModules }) {
   const {
@@ -96,25 +98,25 @@ export default function DashboardLayout({ role, enabledModules }) {
   }
 
   return (
-    <DashboardShell
-      activeTab={activeTab}
-      setActiveTab={setActiveTab}
-      sidebarCollapsed={sidebarCollapsed}
-      setSidebarCollapsed={setSidebarCollapsed}
-      role={role}
-      userName={userName}
-      enabledModules={enabledModules}
-      handleRefreshAll={handleRefreshAll}
-      handleLogout={handleLogout}
-      stats={stats}
-      API_BASE={API_BASE}
-      allOpportunities={allOpportunities}
-      currentUserProfile={currentUserProfile}
-      fetchCustomers={fetchCustomers}
-      fetchOpportunitiesList={fetchOpportunitiesList}
-      customers={customers}
-    >
-      {activeTab === 'inicio' && (
+      <DashboardShell
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        sidebarCollapsed={sidebarCollapsed}
+        setSidebarCollapsed={setSidebarCollapsed}
+        role={role}
+        userName={userName}
+        enabledModules={enabledModules}
+        handleRefreshAll={handleRefreshAll}
+        handleLogout={handleLogout}
+        stats={stats}
+        API_BASE={API_BASE}
+        allOpportunities={allOpportunities}
+        currentUserProfile={currentUserProfile}
+        fetchCustomers={fetchCustomers}
+        fetchOpportunitiesList={fetchOpportunitiesList}
+        customers={customers}
+      >
+        {activeTab === 'inicio' && (
         <InicioFeature
           API_BASE={API_BASE}
           role={role}
@@ -270,6 +272,8 @@ export default function DashboardLayout({ role, enabledModules }) {
       {activeTab === 'enterprise-group' && role === 'super_admin' && <ConjuntoEmpresarial />}
       {activeTab === 'personnel' && role === 'super_admin' && <PersonalGarza />}
       {activeTab === 'agenda' && role === 'super_admin' && <AdminAgendaPanel />}
+      {activeTab === 'sa-stats' && role === 'super_admin' && <SuperAdminStats setActiveTab={setActiveTab} />}
+      {activeTab === 'sa-contacts' && role === 'super_admin' && <SuperAdminContactos />}
 
       {selectedCustomer && selectedCustomer.isCompany ? (
         <FichaEmpresaModal

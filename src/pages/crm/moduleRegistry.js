@@ -161,11 +161,25 @@ export const MODULE_REGISTRY = {
     category: 'superadmin',
     needsData: [],
   },
+  'sa-stats': {
+    key: 'sa-stats',
+    label: 'Estadísticas Globales',
+    icon: 'fa-chart-line',
+    category: 'superadmin',
+    needsData: [],
+  },
+  'sa-contacts': {
+    key: 'sa-contacts',
+    label: 'Directorio Contactos',
+    icon: 'fa-address-card',
+    category: 'superadmin',
+    needsData: [],
+  },
 };
 
 export const ROLE_DEFAULTS = {
   super_admin: [
-    'dashboard', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
+    'dashboard', 'sa-stats', 'sa-contacts', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
   ],
   admin: [
     'inicio', 'dashboard', 'directory', 'personal-agenda', 'ventas',

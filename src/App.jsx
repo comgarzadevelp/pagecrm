@@ -18,13 +18,21 @@ import LoginSuperAdmin from './pages/crm/LoginSuperAdmin';
 import DashboardRouter from './pages/crm/DashboardRouter';
 import LabComponent from './pages/crm/LabComponent';
 
+// SuperAdmin V2
+import SA2Layout from './features/superadmin-v2/layouts/SA2Layout';
+import SA2DashboardPage from './features/superadmin-v2/pages/SA2DashboardPage';
+import SA2PersonalPage from './features/superadmin-v2/pages/SA2PersonalPage';
+import SA2LeadsWebPage from './features/superadmin-v2/pages/SA2LeadsWebPage';
+
 function AppContent() {
   const location = useLocation();
   const isCrmRoute = location.pathname.startsWith('/crm');
+  const isSA2Route = location.pathname.startsWith('/crm/sa2');
+  const isHiddenHeader = isCrmRoute || isSA2Route;
 
   return (
     <div className="app-wrapper">
-      {!isCrmRoute && <NavBar />}
+      {!isHiddenHeader && <NavBar />}
       <main className="content-wrapper">
         <Routes>
           <Route path="/" element={<Home />} />
@@ -38,12 +46,19 @@ function AppContent() {
           <Route path="/crm/dashboard" element={<DashboardRouter />} />
           <Route path="/crm/dashboard/:tab" element={<DashboardRouter />} />
           <Route path="/crm/lab" element={<LabComponent />} />
+
+          {/* SuperAdmin V2 Isolated Route */}
+          <Route path="/crm/sa2" element={<SA2Layout />}>
+            <Route index element={<SA2DashboardPage />} />
+            <Route path="personal" element={<SA2PersonalPage />} />
+            <Route path="leads-web" element={<SA2LeadsWebPage />} />
+          </Route>
         </Routes>
       </main>
 
-      {!isCrmRoute && <Footer />}
-      {!isCrmRoute && <LeadPopup />}
-      {!isCrmRoute && <AIChat />}
+      {!isHiddenHeader && <Footer />}
+      {!isHiddenHeader && <LeadPopup />}
+      {!isHiddenHeader && <AIChat />}
     </div>
   );
 }

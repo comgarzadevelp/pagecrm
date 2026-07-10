@@ -869,7 +869,7 @@ export default function LeadsBandejaFeature({
           </div>
         ) : (
           <div className="crm-leads-list-glass">
-            {localFiltered.map((lead) => {
+            {localFiltered.filter(l => !['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map((lead) => {
               let notesText = '';
               let parsedNotes = {};
               try {
@@ -1073,8 +1073,53 @@ export default function LeadsBandejaFeature({
             })}
           </div>
         )}
-        <div className="crm-table-footer">
-          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.filter(l => l.status !== 'descartado').length}</strong> negociaciones.</p>
+        
+        {/* WEBLEADS ASIGNADOS SECTION (MOCKUP) */}
+        {localFiltered.some(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)) && (
+          <div className="crm-web-leads-section" style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px' }}>
+            <h2 style={{ fontSize: '1.4rem', color: '#0f172a', marginBottom: '1rem', fontStyle: 'italic', fontWeight: '900' }}>Lead asignados</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+              {localFiltered.filter(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map(lead => (
+                <div 
+                  key={lead.id} 
+                  onClick={() => setSelectedLead(lead)} 
+                  style={{ 
+                    background: '#e2e8f0', 
+                    borderRadius: '8px', 
+                    padding: '1.25rem', 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, background 0.2s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <div>
+                    <div style={{ fontWeight: '900', fontSize: '1.1rem', textTransform: 'uppercase', color: '#0f172a' }}>{lead.name || 'Sin Nombre'}</div>
+                    <div style={{ fontWeight: '900', fontSize: '1.1rem', fontStyle: 'italic', color: '#0f172a' }}>{lead.phone || 'Sin Teléfono'}</div>
+                  </div>
+                  <div style={{ 
+                    background: '#be123c', 
+                    color: 'white', 
+                    padding: '6px 16px', 
+                    borderRadius: '4px', 
+                    fontWeight: '800', 
+                    fontSize: '0.85rem', 
+                    textTransform: 'uppercase',
+                    boxShadow: '0 2px 4px rgba(190, 18, 60, 0.3)'
+                  }}>
+                    {lead.status === 'nuevo' ? 'NUEVO' : lead.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="crm-table-footer" style={{ marginTop: '1.5rem' }}>
+          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.filter(l => l.status !== 'descartado').length}</strong> negociaciones en total.</p>
         </div>
       </section>
 

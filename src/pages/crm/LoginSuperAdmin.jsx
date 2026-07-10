@@ -47,8 +47,8 @@ const LoginSuperAdmin = () => {
       // Clean sessionStorage
       sessionStorage.clear();
 
-      // Navigate to dashboard
-      navigate('/crm/dashboard');
+      // Navigate to dashboard V2 for Super Admin
+      navigate('/crm/sa2');
       setIsLoading(false);
     } catch (err) {
       console.error('Error de red en Login Super Admin:', err);

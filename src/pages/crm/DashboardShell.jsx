@@ -5,6 +5,7 @@ import { useUX } from '../../components/common/UXProvider';
 import { useCompany } from '../../contexts/CompanyContext';
 import './Dashboard.css';
 import './MobileApp.css';
+import './dashboards/DashboardSuperAdmin.css';
 
 // Notificaciones Drawer y Modales
 import NotificacionesDrawer from '../../features/home/components/NotificacionesDrawer';
@@ -331,6 +332,7 @@ const DashboardShell = ({
   const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
   const showGlobalStatsGrid =
+    role !== 'super_admin' &&
     activeTab !== 'ventas' &&
     activeTab !== 'inicio' &&
     activeTab !== 'leads' &&
@@ -649,6 +651,7 @@ const DashboardShell = ({
           isOpen={true} 
           lead={selectedLead} 
           onClose={() => setSelectedLead(null)} 
+          onUpdateLead={(updated) => setSelectedLead(updated)}
           API_BASE={API_BASE} 
           role={role} 
         />

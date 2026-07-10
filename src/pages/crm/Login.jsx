@@ -155,7 +155,11 @@ const Login = () => {
     sessionStorage.clear();
 
     // Navigate to dashboard
-    navigate('/crm/dashboard');
+    if (data.role === 'super_admin') {
+      navigate('/crm/sa2');
+    } else {
+      navigate('/crm/dashboard');
+    }
   };
 
   if (isSelectingCompany && companies.length > 0) {

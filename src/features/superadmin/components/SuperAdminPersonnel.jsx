@@ -304,7 +304,7 @@ export default function SuperAdminPersonnel() {
       </div>
 
       {/* TOP FILTER BAR */}
-      <div className="sa-pers-filter-bar glass">
+      <div className="sa-pers-filter-bar sa-glass-panel">
         <div className="sa-pers-search-box">
           <i className="fas fa-search search-icon" />
           <input 
@@ -344,14 +344,14 @@ export default function SuperAdminPersonnel() {
       <div className="sa-pers-layout-grid">
         
         {/* LEFT COLUMN: INTERACTIVE PERSONNEL LIST */}
-        <div className="sa-pers-list-card glass">
+        <div className="sa-pers-list-card sa-glass-panel">
           <div className="sa-pers-list-header">
             <div>
               <h3>Lista de Colaboradores</h3>
               <span className="sa-pers-counter">{filteredUsers.length} registros</span>
             </div>
             <button 
-              className="crm-btn-primary" 
+              className="sa-btn-primary" 
               onClick={handleAddNewClick}
             >
               <i className="fas fa-user-plus" /> Agregar Nuevo
@@ -415,7 +415,7 @@ export default function SuperAdminPersonnel() {
         </div>
 
         {/* RIGHT COLUMN: PERMISSION AND ROLE CONFIG PANEL */}
-        <div className="sa-pers-config-card glass">
+        <div className="sa-pers-config-card sa-glass-panel">
           {!selectedUser && !isCreateMode ? (
             <div className="sa-pers-config-placeholder">
               <i className="fas fa-sliders-h placeholder-icon" />
@@ -630,7 +630,7 @@ export default function SuperAdminPersonnel() {
                 <div style={{ display: 'flex', gap: '16px', width: '100%' }}>
                   <button 
                     type="submit" 
-                    className="btn-save-pers crm-btn-primary" 
+                    className="btn-save-pers sa-btn-primary" 
                     style={{ flex: 2 }}
                     disabled={saving}
                   >

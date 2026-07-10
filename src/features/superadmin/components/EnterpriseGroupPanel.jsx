@@ -146,7 +146,7 @@ export default function EnterpriseGroupPanel() {
 
       <div className="sa-group-grid">
         {/* CREATE FORM CARD */}
-        <div className="sa-group-card glass form-card">
+        <div className="sa-group-card sa-glass-panel form-card">
           <h3>
             <i className={editingId ? "fas fa-edit" : "fas fa-plus-circle"} style={{ color: 'var(--color-brand-accent)', marginRight: '8px' }} />
             {editingId ? "Editar Empresa" : "Dar de Alta Nueva Empresa"}
@@ -259,7 +259,7 @@ export default function EnterpriseGroupPanel() {
             </div>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-              <button type="submit" className="btn-submit" style={{ flex: 2 }} disabled={submitting}>
+              <button type="submit" className="sa-btn-primary" style={{ flex: 2 }} disabled={submitting}>
                 {submitting ? (
                   <><i className="fas fa-spinner fa-spin" /> Guardando...</>
                 ) : editingId ? (
@@ -285,19 +285,19 @@ export default function EnterpriseGroupPanel() {
         </div>
 
         {/* LISTINGS CARD */}
-        <div className="sa-group-card glass list-card">
+        <div className="sa-group-card sa-glass-panel list-card">
           <h3>
             <i className="fas fa-list" style={{ color: 'var(--color-brand-accent)', marginRight: '8px' }} />
             Empresas en el Conjunto ({companies.length})
           </h3>
 
           {loading ? (
-            <div className="list-placeholder loading">
+            <div className="sa-loading-placeholder">
               <div className="spinner" />
               <p>Consultando base de datos corporativa...</p>
             </div>
           ) : error ? (
-            <div className="list-placeholder error">
+            <div className="sa-error-placeholder">
               <i className="fas fa-exclamation-triangle" />
               <p>{error}</p>
               <button className="btn-primary" onClick={fetchCompanies}>Reintentar</button>

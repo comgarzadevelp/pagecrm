@@ -3,6 +3,18 @@
 
 .sa-contacts-root {
   color: #fff;
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Glass Panels (Overrides CRM .glass) */
+.sa-glass-panel {
+  background: rgba(10, 20, 22, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 242, 254, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  padding: 25px;
+  margin-bottom: 20px;
 }
 
 .sa-contacts-header {
@@ -400,6 +412,137 @@
 
 .sa-contacts-modal-btn-close:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Table Styles */
+.sa-contacts-table-wrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sa-contacts-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.sa-contacts-table th {
+  background: rgba(0, 0, 0, 0.4);
+  color: var(--color-brand-accent, #00f2fe);
+  text-align: left;
+  padding: 15px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.sa-contacts-table td {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  vertical-align: middle;
+}
+
+.sa-contacts-table tr:hover td {
+  background: rgba(0, 242, 254, 0.05);
+}
+
+.sa-contacts-name {
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 4px;
+}
+
+.sa-contacts-position {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sa-contacts-info {
+  font-size: 0.85rem;
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sa-contacts-info i {
+  color: var(--color-brand-accent, #00f2fe);
+  opacity: 0.8;
+}
+
+.sa-contacts-info.muted {
+  opacity: 0.5;
+  font-style: italic;
+}
+
+.sa-contacts-source {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sa-contacts-creator {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+/* Placeholders & Buttons */
+.sa-loading-placeholder,
+.sa-error-placeholder,
+.sa-empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 250px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  margin-top: 20px;
+}
+
+.sa-loading-placeholder .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 242, 254, 0.1);
+  border-top-color: #00f2fe;
+  border-radius: 50%;
+  animation: sa-spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+.sa-error-placeholder i, .sa-empty-placeholder i {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 15px;
+}
+
+.sa-btn-primary {
+  background: linear-gradient(135deg, #0575e6 0%, #00f2fe 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 15px;
+}
+
+.sa-btn-outline {
+  background: transparent;
+  color: #00f2fe;
+  border: 1px solid rgba(0, 242, 254, 0.5);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.sa-btn-outline:hover {
+  background: rgba(0, 242, 254, 0.1);
+  border-color: #00f2fe;
 }
 
 /* -------------------------------------------------------------

@@ -265,3 +265,61 @@
   border: 1px solid rgba(0, 242, 254, 0.1) !important;
   color: #e2f1f2 !important;
 }
+
+/* 6. SA Global Reusable Components */
+.sa-glass-panel {
+  background: rgba(10, 20, 22, 0.6) !important;
+  backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(0, 242, 254, 0.1) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.sa-btn-primary {
+  background: linear-gradient(135deg, #0575e6 0%, #00f2fe 100%) !important;
+  color: #fff !important;
+  border: none !important;
+  padding: 10px 20px !important;
+  border-radius: 8px !important;
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  transition: opacity 0.3s ease, transform 0.2s ease !important;
+}
+
+.sa-btn-primary:hover {
+  opacity: 0.9 !important;
+  transform: translateY(-2px) !important;
+}
+
+.sa-loading-placeholder,
+.sa-error-placeholder,
+.sa-empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 250px;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(10, 20, 22, 0.4);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  margin-top: 20px;
+}
+
+.sa-loading-placeholder .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 242, 254, 0.1);
+  border-top-color: #00f2fe;
+  border-radius: 50%;
+  animation: sa-spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+.sa-error-placeholder i, .sa-empty-placeholder i {
+  font-size: 3rem;
+  color: #ef4444;
+  margin-bottom: 15px;
+}
+

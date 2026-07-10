@@ -24,6 +24,76 @@
   font-family: 'Outfit', sans-serif;
 }
 
+/* Glass Panels (Overrides CRM .glass) */
+.sa-glass-panel {
+  background: var(--sa-bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--sa-border-medium);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  padding: 25px;
+  margin-bottom: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa-glass-panel:hover {
+  border: 1px solid var(--sa-accent-25);
+  box-shadow: 0 12px 40px 0 var(--sa-accent-15);
+  transform: translateY(-4px);
+}
+
+/* Placeholders & Buttons */
+.sa-stats-loading-placeholder,
+.sa-stats-error-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--sa-text-muted);
+  font-family: 'Outfit', sans-serif;
+  background: var(--sa-bg-card);
+  border-radius: 16px;
+  border: 1px dashed var(--sa-border-medium);
+  margin-top: 20px;
+}
+
+.sa-stats-loading-placeholder .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 242, 254, 0.1);
+  border-top-color: var(--sa-accent);
+  border-radius: 50%;
+  animation: sa-spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes sa-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sa-stats-error-placeholder i {
+  font-size: 3rem;
+  color: var(--sa-danger);
+  margin-bottom: 15px;
+}
+
+.sa-btn-primary {
+  background: linear-gradient(135deg, #0575e6 0%, #00f2fe 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 15px;
+  transition: opacity 0.3s ease;
+}
+
+.sa-btn-primary:hover {
+  opacity: 0.9;
+}
+
 .sa-stats-top-bar {
   display: flex;
   flex-wrap: wrap;

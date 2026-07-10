@@ -72,17 +72,17 @@ export default function SuperAdminStats({ setActiveTab }) {
   };
 
   if (loading) return (
-    <div className="crm-loading-placeholder">
+    <div className="sa-stats-loading-placeholder">
       <div className="spinner" />
-      <p>Cargando tablero analítico en tiempo real...</p>
+      <p>Cargando tablero analítico corporativo en tiempo real...</p>
     </div>
   );
 
   if (error) return (
-    <div className="crm-error-placeholder">
+    <div className="sa-stats-error-placeholder">
       <i className="fas fa-exclamation-triangle" />
       <p>{error}</p>
-      <button className="btn-primary" onClick={fetchInitialData}>Reintentar</button>
+      <button className="sa-btn-primary" onClick={fetchInitialData}>Reintentar</button>
     </div>
   );
 
@@ -382,7 +382,7 @@ export default function SuperAdminStats({ setActiveTab }) {
       {/* DOUBLE SECTION CHARTS */}
       <div className="sa-stats-double-row">
         {/* FUNNEL CARD */}
-        <div className="sa-stats-card-funnel stats-section-card glass">
+        <div className="sa-stats-card-funnel sa-glass-panel">
           <h3>
             <i className="fas fa-filter" style={{ color: 'var(--color-brand-accent)' }} />
             Distribución del Pipeline (Embudo de Ventas)
@@ -428,7 +428,7 @@ export default function SuperAdminStats({ setActiveTab }) {
         </div>
 
         {/* TENDENCIA VALOR DE COTIZACIONES */}
-        <div className="sa-stats-card-trend stats-section-card glass" style={{ position: 'relative' }}>
+        <div className="sa-stats-card-trend sa-glass-panel" style={{ position: 'relative' }}>
           <h3>
             <i className="fas fa-chart-area" style={{ color: 'var(--color-brand-accent)' }} />
             Tendencia de Cotizaciones Emitidas (Valor)
@@ -496,7 +496,7 @@ export default function SuperAdminStats({ setActiveTab }) {
       {/* SECCIÓN SAE Y USO CRM */}
       <div className="sa-stats-double-row">
         {/* PEDIDOS VENDIDOS POR EJECUTIVO (SAE) */}
-        <div className="sa-stats-card-funnel stats-section-card glass">
+        <div className="sa-stats-card-funnel sa-glass-panel">
           <h3>
             <i className="fas fa-handshake" style={{ color: 'var(--color-brand-accent)' }} />
             Pedidos Vendidos por Ejecutivo (SAE)
@@ -551,7 +551,7 @@ export default function SuperAdminStats({ setActiveTab }) {
         </div>
 
         {/* USO DE HERRAMIENTAS DEL CRM */}
-        <div className="sa-stats-card-trend stats-section-card glass">
+        <div className="sa-stats-card-trend sa-glass-panel">
           <div className="sa-stats-crm-use-header">
             <h3>
               <i className="fas fa-tools" style={{ color: 'var(--color-brand-accent)' }} />

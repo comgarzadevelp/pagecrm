@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import DirectoryCard from '../../directory/components/DirectoryCard';
 import './SuperAdminContactos.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -106,7 +105,11 @@ export default function SuperAdminContactos({ onViewCompanyDetails }) {
 
     // 4. Seller Filter
     if (filterSeller !== 'all') {
-      result = result.filter(c => c.created_by === filterSeller || c.assigned_to === filterSeller);
+      result = result.filter(c => {
+        const creatorId = c.created_by && typeof c.created_by === 'object' ? c.created_by.id : c.created_by;
+        const assigneeId = c.assigned_to && typeof c.assigned_to === 'object' ? c.assigned_to.id : c.assigned_to;
+        return creatorId === filterSeller || assigneeId === filterSeller;
+      });
     }
 
     setFiltered(result);
@@ -142,7 +145,7 @@ export default function SuperAdminContactos({ onViewCompanyDetails }) {
   };
 
   return (
-    <section className="crm-table-container glass sa-contacts-root">
+    <div className="sa-contacts-root sa-glass-panel">
       
       {/* HEADER SECTION */}
       <div className="sa-contacts-header">
@@ -233,27 +236,63 @@ export default function SuperAdminContactos({ onViewCompanyDetails }) {
 
       {/* RENDER LISTINGS */}
       {loading ? (
-        <div className="crm-loading-placeholder"><div className="spinner" /><p>Cargando directorio global corporativo...</p></div>
+        <div className="sa-loading-placeholder"><div className="spinner" /><p>Cargando directorio global corporativo...</p></div>
       ) : error ? (
-        <div className="crm-error-placeholder"><i className="fas fa-exclamation-triangle" /><p>{error}</p><button className="btn-primary" onClick={fetchInitialData}>Reintentar</button></div>
+        <div className="sa-error-placeholder"><i className="fas fa-exclamation-triangle" /><p>{error}</p><button className="sa-btn-primary" onClick={fetchInitialData}>Reintentar</button></div>
       ) : filtered.length === 0 ? (
-        <div className="crm-empty-placeholder"><i className="fas fa-user-slash" /><p>No se encontraron contactos con los filtros aplicados.</p></div>
+        <div className="sa-empty-placeholder"><i className="fas fa-user-slash" /><p>No se encontraron contactos con los filtros aplicados.</p></div>
       ) : (
-        <div className="contacts-cards-grid">
-          {filtered.map(c => {
-            const creatorName = sellers.find(s => s.id === c.created_by)?.name || 'Corporativo';
-            return (
-              <DirectoryCard
-                key={c.id}
-                type="contact"
-                data={c}
-                onViewDetails={openDetail}
-                onViewCompanyDetails={onViewCompanyDetails}
-                creatorName={creatorName}
-                priceLists={priceLists}
-              />
-            );
-          })}
+        <div className="sa-contacts-table-wrapper">
+          <table className="sa-contacts-table">
+            <thead>
+              <tr>
+                <th>Contacto</th>
+                <th>Datos de Contacto</th>
+                <th>Empresa(s)</th>
+                <th>Origen / Creador</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(c => {
+                const creatorName = c.created_by && typeof c.created_by === 'object' 
+                  ? c.created_by.name 
+                  : (sellers.find(s => s.id === c.created_by)?.name || 'Corporativo');
+                return (
+                  <tr key={c.id}>
+                    <td>
+                      <div className="sa-contacts-name">{c.name}</div>
+                      <div className="sa-contacts-position">{c.position || 'Sin puesto'}</div>
+                    </td>
+                    <td>
+                      <div className="sa-contacts-info"><i className="fas fa-envelope" /> {c.email || 'N/A'}</div>
+                      <div className="sa-contacts-info"><i className="fas fa-phone" /> {c.phone || 'N/A'}</div>
+                    </td>
+                    <td>
+                      {c.contact_companies && c.contact_companies.length > 0 ? (
+                        c.contact_companies.map(cc => (
+                          <div key={cc.company?.id} className="sa-contacts-company-tag">
+                            <i className="fas fa-building" /> {cc.company?.name || 'Desconocida'}
+                          </div>
+                        ))
+                      ) : (
+                        <span className="sa-contacts-info muted">Sin empresas vinculadas</span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="sa-contacts-source">{c.sae_clave ? 'SAE Base Datos' : 'CRM Garza'}</div>
+                      <div className="sa-contacts-creator">{creatorName}</div>
+                    </td>
+                    <td>
+                      <button className="sa-btn-outline" onClick={() => openDetail(c)}>
+                        Ver Detalles
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -362,6 +401,6 @@ export default function SuperAdminContactos({ onViewCompanyDetails }) {
         document.body
       )}
 
-    </section>
+    </div>
   );
 }

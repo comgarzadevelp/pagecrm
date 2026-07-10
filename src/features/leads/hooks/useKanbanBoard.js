@@ -216,8 +216,11 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
   }, [customStages, columnOrder]);
 
   const filteredLeads = useMemo(() => {
-    // Excluir leads descartados (archivados) del tablero activo
-    let result = leads.filter(l => l.status !== 'descartado');
+    // Excluir leads descartados (archivados) del tablero activo y leads automatizados de web/chatbot
+    let result = leads.filter(l => 
+      l.status !== 'descartado' && 
+      !['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)
+    );
     if (debouncedSearch.trim()) {
       const term = debouncedSearch.toLowerCase();
       result = result.filter(l =>

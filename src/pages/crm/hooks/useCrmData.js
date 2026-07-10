@@ -63,8 +63,13 @@ export function useCrmData(role, enabledModules = []) {
   const [opportunitySearch, setOpportunitySearch] = useState('');
 
   // Calculate stats from leads
+  const WEB_LEAD_TYPES = ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'];
   const calculateStats = (leadsList) => {
-    const activeLeads = leadsList.filter(l => l.status?.toLowerCase() !== 'descartado' && l.status?.toLowerCase() !== 'descartada');
+    const activeLeads = leadsList.filter(l =>
+      l.status?.toLowerCase() !== 'descartado' &&
+      l.status?.toLowerCase() !== 'descartada' &&
+      !WEB_LEAD_TYPES.includes(l.type)
+    );
     const total = activeLeads.length;
     const popup = activeLeads.filter(l => l.type === 'popup_whatsapp').length;
     const contact = activeLeads.filter(l => l.type === 'contact_form').length;

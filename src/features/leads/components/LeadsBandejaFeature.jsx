@@ -11,6 +11,7 @@ import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoMod
 import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
+import { validateQuotePDF } from '../../../pages/crm/utils/pdfValidator';
 
 // Sleek Custom Dropdown for general Filters
 function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth = false }) {
@@ -179,6 +180,15 @@ export default function LeadsBandejaFeature({
   const [stageToDelete, setStageToDelete] = useState(null);
   const [timeTick, setTimeTick] = useState(0);
   const [transferTargetStage, setTransferTargetStage] = useState('nuevo');
+
+  // Evidence Modal states
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
+  const [evidenceLeadId, setEvidenceLeadId] = useState(null);
+  const [evidenceFile, setEvidenceFile] = useState(null);
+  const [evidenceValue, setEvidenceValue] = useState('');
+  const [evidenceDescription, setEvidenceDescription] = useState('');
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
+  const [evidenceError, setEvidenceError] = useState('');
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -385,7 +395,7 @@ export default function LeadsBandejaFeature({
 
 
   // SLA Calculation helper
-  const getLeadAgeInfo = (lead) => sharedGetLeadAgeInfo(lead.created_at, lead.notes);
+  const getLeadAgeInfo = (lead) => sharedGetLeadAgeInfo(lead.created_at, lead.notes, lead.stage_updated_at);
 
   // Safe JSON extraction for notes field
   const parseLeadNotes = (notesString) => {
@@ -754,7 +764,7 @@ export default function LeadsBandejaFeature({
                   }} />
                 )}
               </button>
-              
+
               <DateFilterComponent dateFilter={dateFilter} setDateFilter={setDateFilter} />
 
               {showFiltersPopover && (
@@ -869,7 +879,7 @@ export default function LeadsBandejaFeature({
           </div>
         ) : (
           <div className="crm-leads-list-glass">
-            {localFiltered.map((lead) => {
+            {localFiltered.filter(l => !['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map((lead) => {
               let notesText = '';
               let parsedNotes = {};
               try {
@@ -1052,7 +1062,7 @@ export default function LeadsBandejaFeature({
                       </span>
                       <StatusDropdown
                         currentStatus={lead.status}
-                        onChange={(newStage) => {
+                        onChange={async (newStage) => {
                           if (newStage === 'descartado') {
                             setLeadToDiscard(lead);
                             setDiscardForm({ reason: 'Sin presupuesto / Muy caro', comment: '' });
@@ -1060,6 +1070,9 @@ export default function LeadsBandejaFeature({
                           } else if (newStage === 'cierre_ganado') {
                             setLeadToPromote(lead);
                             setPromoteModalOpen(true);
+                          } else if (newStage === 'cotizando') {
+                            setEvidenceLeadId(lead.id);
+                            setShowEvidenceModal(true);
                           } else {
                             handleStatusChange(lead.id, newStage);
                           }
@@ -1073,8 +1086,53 @@ export default function LeadsBandejaFeature({
             })}
           </div>
         )}
-        <div className="crm-table-footer">
-          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.filter(l => l.status !== 'descartado').length}</strong> negociaciones.</p>
+
+        {/* WEBLEADS ASIGNADOS SECTION (MOCKUP) */}
+        {localFiltered.some(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)) && (
+          <div className="crm-web-leads-section" style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px' }}>
+            <h2 style={{ fontSize: '1.4rem', color: '#0f172a', marginBottom: '1rem', fontStyle: 'italic', fontWeight: '900' }}>Lead asignados</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+              {localFiltered.filter(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map(lead => (
+                <div
+                  key={lead.id}
+                  onClick={() => setSelectedLead(lead)}
+                  style={{
+                    background: '#e2e8f0',
+                    borderRadius: '8px',
+                    padding: '1.25rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    transition: 'transform 0.2s, background 0.2s'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  <div>
+                    <div style={{ fontWeight: '900', fontSize: '1.1rem', textTransform: 'uppercase', color: '#0f172a' }}>{lead.name || 'Sin Nombre'}</div>
+                    <div style={{ fontWeight: '900', fontSize: '1.1rem', fontStyle: 'italic', color: '#0f172a' }}>{lead.phone || 'Sin Teléfono'}</div>
+                  </div>
+                  <div style={{
+                    background: '#be123c',
+                    color: 'white',
+                    padding: '6px 16px',
+                    borderRadius: '4px',
+                    fontWeight: '800',
+                    fontSize: '0.85rem',
+                    textTransform: 'uppercase',
+                    boxShadow: '0 2px 4px rgba(190, 18, 60, 0.3)'
+                  }}>
+                    {lead.status === 'nuevo' ? 'NUEVO' : lead.status}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="crm-table-footer" style={{ marginTop: '1.5rem' }}>
+          <p>Mostrando <strong>{localFiltered.length}</strong> de <strong>{leads.filter(l => l.status !== 'descartado').length}</strong> negociaciones en total.</p>
         </div>
       </section>
 
@@ -1297,6 +1355,318 @@ export default function LeadsBandejaFeature({
                 onClick={() => executeDeleteStage(stageToDelete.id, transferTargetStage)}
               >
                 Confirmar y Transferir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* EVIDENCE UPLOAD MODAL FOR COTIZANDO */}
+      {showEvidenceModal && (
+        <div className="modal-overlay-glass" style={{ zIndex: 11000 }}>
+          <style>{`
+            .evidence-modal-card {
+              background: rgba(255, 255, 255, 0.95) !important;
+              backdrop-filter: blur(16px) saturate(180%) !important;
+              -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+              border: 1px solid rgba(255, 255, 255, 0.7) !important;
+              box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
+            }
+            .evidence-modal-title {
+              font-family: 'Outfit', 'Inter', sans-serif !important;
+              font-size: 1.3rem !important;
+              font-weight: 800 !important;
+              color: #0f172a !important;
+              letter-spacing: -0.02em !important;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              margin: 0;
+            }
+            .evidence-field-group {
+              display: flex !important;
+              flex-direction: column !important;
+              gap: 6px !important;
+              width: 100% !important;
+              align-items: flex-start !important;
+              text-align: left !important;
+            }
+            .evidence-field-label {
+              display: block !important;
+              font-size: 0.75rem !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.05em !important;
+              color: #475569 !important;
+              margin-bottom: 2px !important;
+              text-align: left !important;
+            }
+            .evidence-input-container {
+              position: relative !important;
+              display: flex !important;
+              align-items: center !important;
+              width: 100% !important;
+            }
+            .evidence-icon-prefix {
+              position: absolute !important;
+              left: 12px !important;
+              color: #94a3b8 !important;
+              font-size: 0.95rem !important;
+              pointer-events: none !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+            }
+            .evidence-input-text {
+              width: 100% !important;
+              padding: 10px 14px 10px 32px !important;
+              border-radius: 10px !important;
+              border: 1.5px solid #cbd5e1 !important;
+              font-size: 0.9rem !important;
+              color: #0f172a !important;
+              background: #ffffff !important;
+              outline: none !important;
+              transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+              font-family: inherit !important;
+              box-sizing: border-box !important;
+            }
+            .evidence-input-text:focus {
+              border-color: #7c3aed !important;
+              box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12) !important;
+            }
+            .evidence-textarea-field {
+              width: 100% !important;
+              padding: 10px 14px !important;
+              border-radius: 10px !important;
+              border: 1.5px solid #cbd5e1 !important;
+              font-size: 0.9rem !important;
+              color: #0f172a !important;
+              background: #ffffff !important;
+              outline: none !important;
+              transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+              font-family: inherit !important;
+              box-sizing: border-box !important;
+              resize: vertical !important;
+              min-height: 70px !important;
+            }
+            .evidence-textarea-field:focus {
+              border-color: #7c3aed !important;
+              box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12) !important;
+            }
+            .evidence-upload-zone {
+              border: 2px dashed rgba(124, 58, 237, 0.25) !important;
+              border-radius: 12px !important;
+              padding: 1.5rem 1rem !important;
+              text-align: center !important;
+              background: rgba(124, 58, 237, 0.01) !important;
+              cursor: pointer !important;
+              position: relative !important;
+              transition: all 0.2s ease !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 0.6rem !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+            }
+            .evidence-upload-zone:hover {
+              border-color: rgba(124, 58, 237, 0.6) !important;
+              background: rgba(124, 58, 237, 0.03) !important;
+            }
+            .evidence-upload-circle {
+              width: 44px !important;
+              height: 44px !important;
+              border-radius: 50% !important;
+              background: rgba(226, 68, 92, 0.08) !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              color: #e2445c !important;
+              font-size: 1.15rem !important;
+              transition: transform 0.2s ease !important;
+            }
+            .evidence-upload-zone:hover .evidence-upload-circle {
+              transform: scale(1.05) !important;
+            }
+          `}</style>
+          <div className="modal-content-glass evidence-modal-card" style={{ height: 'auto', minHeight: 'unset', maxHeight: '90vh', maxWidth: '460px', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header-row">
+              <h2 className="evidence-modal-title">
+                <i className="fas fa-file-pdf" style={{ color: '#e2445c' }} />
+                Evidencia de Cotización
+              </h2>
+              <button
+                className="modal-close-btn"
+                onClick={() => {
+                  setShowEvidenceModal(false);
+                  setEvidenceLeadId(null);
+                  setEvidenceFile(null);
+                  setEvidenceValue('');
+                  setEvidenceDescription('');
+                  setEvidenceError('');
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: '1.5' }}>
+              Por favor, sube el PDF de la cotización (ej. de ASPEL SAE o cotizador interno) y llena los datos para validarlo y autorizar el avance de etapa.
+            </p>
+
+            <div className="evidence-form-body">
+              <div className="evidence-upload-zone">
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={e => {
+                    setEvidenceFile(e.target.files[0] || null);
+                    setEvidenceError('');
+                  }}
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    height: '100%',
+                    opacity: 0,
+                    cursor: 'pointer'
+                  }}
+                />
+                <div className="evidence-upload-circle">
+                  <i className={evidenceFile ? "fas fa-file-pdf" : "fas fa-cloud-upload-alt"} />
+                </div>
+                {evidenceFile ? (
+                  <div>
+                    <p style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px' }}>
+                      {evidenceFile.name}
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', marginBottom: 0 }}>
+                      {(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', margin: 0 }}>
+                      Haz clic o arrastra el PDF aquí
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', marginBottom: 0 }}>
+                      Solo archivos PDF de cotizaciones
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="evidence-field-group">
+                <label className="evidence-field-label">Monto Estimado Cotizado ($)</label>
+                <div className="evidence-input-container">
+                  <span className="evidence-icon-prefix">
+                    <i className="fas fa-dollar-sign"></i>
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="evidence-input-text"
+                    placeholder="Ej. 15000.00"
+                    value={evidenceValue}
+                    onChange={(e) => setEvidenceValue(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="evidence-field-group">
+                <label className="evidence-field-label">¿Qué se cotizó? (Descripción breve)</label>
+                <textarea
+                  rows="2"
+                  className="evidence-textarea-field"
+                  placeholder="Ej. Luminarias LED de 60W, Material eléctrico..."
+                  value={evidenceDescription}
+                  onChange={(e) => setEvidenceDescription(e.target.value)}
+                  required
+                ></textarea>
+              </div>
+
+              {evidenceError && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.8rem', marginTop: '2px' }}>
+                  <i className="fas fa-exclamation-circle" />
+                  <span>{evidenceError}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer-actions" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className="cancel-modal-btn"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  border: '1px solid #cbd5e1',
+                  background: 'transparent',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onClick={() => {
+                  setShowEvidenceModal(false);
+                  setEvidenceLeadId(null);
+                  setEvidenceFile(null);
+                  setEvidenceValue('');
+                  setEvidenceDescription('');
+                  setEvidenceError('');
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="submit-modal-btn"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? '#cbd5e1' : 'var(--color-brand-primary, #7c3aed)',
+                  color: '#ffffff',
+                  cursor: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? 'none' : '0 4px 12px rgba(124, 58, 237, 0.25)'
+                }}
+                disabled={!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence}
+                onClick={async () => {
+                  if (!evidenceFile || !evidenceValue || !evidenceDescription.trim()) return;
+                  setIsUploadingEvidence(true);
+                  setEvidenceError('');
+                  try {
+                    const validation = await validateQuotePDF(evidenceFile);
+                    if (validation.isValid) {
+                      await handleStatusChange(evidenceLeadId, 'cotizando', {
+                        quoteValue: evidenceValue,
+                        quoteDescription: evidenceDescription
+                      });
+                      setShowEvidenceModal(false);
+                      setEvidenceLeadId(null);
+                      setEvidenceFile(null);
+                      setEvidenceValue('');
+                      setEvidenceDescription('');
+                      setEvidenceError('');
+                    } else {
+                      setEvidenceError(validation.reason || validation.message || 'El archivo no parece ser un PDF válido de cotización.');
+                    }
+                  } catch (err) {
+                    console.error('Evidence error:', err);
+                    setEvidenceError('Ocurrió un error al procesar el archivo. Revisa que sea un PDF legible.');
+                  } finally {
+                    setIsUploadingEvidence(false);
+                  }
+                }}
+              >
+                {isUploadingEvidence ? 'Analizando...' : 'Validar y Continuar'}
               </button>
             </div>
           </div>

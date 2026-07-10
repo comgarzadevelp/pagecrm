@@ -247,6 +247,11 @@
   border-left-color: #8b5cf6;
 }
 
+.bitacora-bubble.bubble-status {
+  background: rgba(224, 146, 43, 0.06);
+  border-left-color: #E0922B;
+}
+
 .bubble-header {
   display: flex;
   justify-content: space-between;

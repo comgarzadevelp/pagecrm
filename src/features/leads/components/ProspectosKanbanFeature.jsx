@@ -183,6 +183,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [evidenceLeadId, setEvidenceLeadId] = useState(null);
   const [evidenceFile, setEvidenceFile] = useState(null);
+  const [evidenceValue, setEvidenceValue] = useState('');
+  const [evidenceDescription, setEvidenceDescription] = useState('');
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
   const [evidenceError, setEvidenceError] = useState('');
   // ── Lead Detail Modal State ──
@@ -507,11 +509,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           if (data.success && data.appointment) {
             setReunionAppointment(data.appointment);
             setPendingCancelLeadData({ id: lead.id, targetStage });
-            
+
             const apptTime = new Date(data.appointment.end_time || data.appointment.start_time);
             const now = new Date();
             const isPast = apptTime < now;
-            
+
             if (isPast) {
               setMeetingOutcome('concretada');
               setMeetingComments('');
@@ -615,7 +617,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     try {
       const res = await fetch(`${API_BASE}/api/calendar/appointments/${reunionAppointment.id}/outcome`, {
         method: 'PUT',
-        headers: { 
+        headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
         },
@@ -669,25 +671,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           break;
 
         case 'cotizando': {
-          let hasInternalQuote = false;
-          const headers = { 'Authorization': `Bearer ${localStorage.getItem('token')}` };
-          try {
-            const res = await fetch(`${API_BASE}/api/crm/customers/${leadId}/quotes`, { headers });
-            if (res.ok) {
-              const data = await res.json();
-              hasInternalQuote = (data.quotes || []).length > 0;
-            }
-          } catch (e) {
-            console.warn('[Antifraude] No se pudo verificar cotizaciones internas. Permitiendo movimiento.');
-            hasInternalQuote = true; // Fail-open: ante la duda, no bloquear.
-          }
-
-          if (hasInternalQuote) {
-            await executeStageUpdate(leadId, targetColKey);
-          } else {
-            setEvidenceLeadId(leadId);
-            setShowEvidenceModal(true);
-          }
+          setEvidenceLeadId(leadId);
+          setShowEvidenceModal(true);
           break;
         }
 
@@ -963,7 +948,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {/* ── HEADER & FILTERS BAR (Consolidated & Compacted) ── */}
       <div className="kanban-filters-bar glass" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.5rem 1.25rem', marginBottom: '0.75rem', borderRadius: '10px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flex: 1, flexWrap: 'wrap' }}>
-          
+
           <DateFilterComponent dateFilter={dateFilter} setDateFilter={setDateFilter} />
 
           {/* Search Box */}
@@ -1023,8 +1008,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             </button>
 
             {showFiltersPopover && (
-              <div 
-                className="glass" 
+              <div
+                className="glass"
                 style={{
                   position: 'absolute',
                   top: 'calc(100% + 6px)',
@@ -1047,7 +1032,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
                   <strong style={{ fontSize: '0.85rem', color: '#1e293b' }}>Opciones de Filtrado</strong>
-                  <button 
+                  <button
                     type="button"
                     onClick={() => {
                       setFilterChannel('all');
@@ -1112,8 +1097,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           </div>
         </div>
 
-        <button 
-          className="new-lead-btn" 
+        <button
+          className="new-lead-btn"
           onClick={() => { setCreateLeadInitialNotes(''); setCreateModalOpen(true); }}
           style={{ padding: '0.45rem 1rem', fontSize: '0.78rem', borderRadius: '8px', boxShadow: 'none' }}
         >
@@ -1124,7 +1109,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {/* ── PIPELINE SUMMARY BAND (Zoom) ── */}
       <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', padding: '10px 16px', borderRadius: '100px', marginBottom: '0.5rem', minHeight: '52px', boxSizing: 'border-box' }}>
         <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '8px', letterSpacing: '0.05em' }}>Zoom:</span>
-        
+
         {/* 'Todos' Pill */}
         <button
           type="button"
@@ -1173,7 +1158,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           const count = columnCounts[col.key] || 0;
           const isActive = zoomColumnKey === col.key;
           const softBgColor = `${col.color}12`; // ~7% opacity
-          
+
           return (
             <button
               key={col.key}
@@ -1255,7 +1240,14 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
           {/* Desktop Kanban Board */}
           <div className={`kanban-board-container ${zoomColumnKey ? 'has-zoom' : ''}`}>
             {(previewOrder ? previewOrder.map(key => columns.find(c => c.key === key)).filter(Boolean) : columns).map(col => {
-              const colLeads = filteredLeads.filter(l => (l.status || 'nuevo').toLowerCase() === col.key);
+              const colLeads = filteredLeads
+                .filter(l => (l.status || 'nuevo').toLowerCase() === col.key && !['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type))
+                .sort((a, b) => {
+                  if (col.key === 'nuevo') return new Date(b.created_at) - new Date(a.created_at);
+                  const aDate = new Date(a.stage_updated_at || a.updated_at || a.created_at);
+                  const bDate = new Date(b.stage_updated_at || b.updated_at || b.created_at);
+                  return bDate - aDate;
+                });
               const limit = colLimits[col.key] || CARDS_PER_PAGE;
               const paginatedLeads = colLeads.slice(0, limit);
               const hasMore = colLeads.length > limit;
@@ -1367,16 +1359,16 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                       const isStageCritical = ageInfo.stage.critical;
                       const isStageWarning = ageInfo.stage.warning;
 
-                      const slaClass = isFollowupCritical 
-                        ? 'sla-warning-high' 
-                        : isFollowupWarning 
-                          ? 'sla-warning-medium' 
+                      const slaClass = isFollowupCritical
+                        ? 'sla-warning-high'
+                        : isFollowupWarning
+                          ? 'sla-warning-medium'
                           : '';
 
-                      const stageClass = isStageCritical 
-                        ? 'stage-warning-high' 
-                        : isStageWarning 
-                          ? 'stage-warning-medium' 
+                      const stageClass = isStageCritical
+                        ? 'stage-warning-high'
+                        : isStageWarning
+                          ? 'stage-warning-medium'
                           : '';
 
                       const isPulseActive = droppedCardPulse && String(droppedCardPulse.id) === String(lead.id);
@@ -1519,8 +1511,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                           </div>
 
                           <div className="card-quick-actions">
-                            <button 
-                              className="btn-quick-action" 
+                            <button
+                              className="btn-quick-action"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (lead.phone) window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank');
@@ -1529,8 +1521,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                             >
                               <i className="fab fa-whatsapp" style={{ color: '#25D366' }}></i> WhatsApp
                             </button>
-                            <button 
-                              className="btn-quick-action" 
+                            <button
+                              className="btn-quick-action"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 if (lead.phone) window.location.href = `tel:${lead.phone.replace(/\D/g, '')}`;
@@ -1659,6 +1651,52 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
         </>
       )}
 
+      {/* WEBLEADS ASIGNADOS SECTION 
+      {filteredLeads.some(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)) && (
+        <div className="crm-web-leads-section" style={{ marginTop: '2rem', padding: '1.5rem', background: '#f8fafc', borderRadius: '12px' }}>
+          <h2 style={{ fontSize: '1.4rem', color: '#0f172a', marginBottom: '1rem', fontStyle: 'italic', fontWeight: '900', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fas fa-robot" style={{ color: '#7c3aed' }}></i> Lead asignados
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+            {filteredLeads.filter(l => ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map(lead => (
+              <div 
+                key={lead.id} 
+                onClick={() => setSelectedLead(lead)} 
+                style={{ 
+                  background: '#e2e8f0', 
+                  borderRadius: '8px', 
+                  padding: '1.25rem', 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  cursor: 'pointer',
+                  transition: 'transform 0.2s, background 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; }}
+              >
+                <div>
+                  <div style={{ fontWeight: '900', fontSize: '1.1rem', textTransform: 'uppercase', color: '#0f172a' }}>{lead.name || 'Sin Nombre'}</div>
+                  <div style={{ fontWeight: '900', fontSize: '1.1rem', fontStyle: 'italic', color: '#0f172a' }}>{lead.phone || 'Sin Teléfono'}</div>
+                </div>
+                <div style={{ 
+                  background: '#be123c', 
+                  color: 'white', 
+                  padding: '6px 16px', 
+                  borderRadius: '4px', 
+                  fontWeight: '800', 
+                  fontSize: '0.85rem', 
+                  textTransform: 'uppercase',
+                  boxShadow: '0 2px 4px rgba(190, 18, 60, 0.3)'
+                }}>
+                  {lead.status === 'nuevo' ? 'NUEVO' : lead.status}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+*/}
       {/* ── CARD OPTIONS CONTEXT MENU ── */}
       {cardMenuState && (
         <>
@@ -1973,18 +2011,146 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {/* EVIDENCE UPLOAD MODAL FOR COTIZANDO */}
       {showEvidenceModal && (
         <div className="modal-overlay-glass" style={{ zIndex: 11000 }}>
-          <div className="modal-content-glass" style={{ height: 'auto', minHeight: 'unset', maxHeight: '90vh', maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+          <style>{`
+            .evidence-modal-card {
+              background: rgba(255, 255, 255, 0.95) !important;
+              backdrop-filter: blur(16px) saturate(180%) !important;
+              -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
+              border: 1px solid rgba(255, 255, 255, 0.7) !important;
+              box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
+            }
+            .evidence-modal-title {
+              font-family: 'Outfit', 'Inter', sans-serif !important;
+              font-size: 1.3rem !important;
+              font-weight: 800 !important;
+              color: #0f172a !important;
+              letter-spacing: -0.02em !important;
+              display: flex;
+              align-items: center;
+              gap: 8px;
+              margin: 0;
+            }
+            .evidence-field-group {
+              display: flex !important;
+              flex-direction: column !important;
+              gap: 6px !important;
+              width: 100% !important;
+              align-items: flex-start !important;
+              text-align: left !important;
+            }
+            .evidence-field-label {
+              display: block !important;
+              font-size: 0.75rem !important;
+              font-weight: 700 !important;
+              text-transform: uppercase !important;
+              letter-spacing: 0.05em !important;
+              color: #475569 !important;
+              margin-bottom: 2px !important;
+              text-align: left !important;
+            }
+            .evidence-input-container {
+              position: relative !important;
+              display: flex !important;
+              align-items: center !important;
+              width: 100% !important;
+            }
+            .evidence-icon-prefix {
+              position: absolute !important;
+              left: 12px !important;
+              color: #94a3b8 !important;
+              font-size: 0.95rem !important;
+              pointer-events: none !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+            }
+            .evidence-input-text {
+              width: 100% !important;
+              padding: 10px 14px 10px 32px !important;
+              border-radius: 10px !important;
+              border: 1.5px solid #cbd5e1 !important;
+              font-size: 0.9rem !important;
+              color: #0f172a !important;
+              background: #ffffff !important;
+              outline: none !important;
+              transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+              font-family: inherit !important;
+              box-sizing: border-box !important;
+            }
+            .evidence-input-text:focus {
+              border-color: #7c3aed !important;
+              box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12) !important;
+            }
+            .evidence-textarea-field {
+              width: 100% !important;
+              padding: 10px 14px !important;
+              border-radius: 10px !important;
+              border: 1.5px solid #cbd5e1 !important;
+              font-size: 0.9rem !important;
+              color: #0f172a !important;
+              background: #ffffff !important;
+              outline: none !important;
+              transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+              font-family: inherit !important;
+              box-sizing: border-box !important;
+              resize: vertical !important;
+              min-height: 70px !important;
+            }
+            .evidence-textarea-field:focus {
+              border-color: #7c3aed !important;
+              box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12) !important;
+            }
+            .evidence-upload-zone {
+              border: 2px dashed rgba(124, 58, 237, 0.25) !important;
+              border-radius: 12px !important;
+              padding: 1.5rem 1rem !important;
+              text-align: center !important;
+              background: rgba(124, 58, 237, 0.01) !important;
+              cursor: pointer !important;
+              position: relative !important;
+              transition: all 0.2s ease !important;
+              display: flex !important;
+              flex-direction: column !important;
+              align-items: center !important;
+              justify-content: center !important;
+              gap: 0.6rem !important;
+              width: 100% !important;
+              box-sizing: border-box !important;
+            }
+            .evidence-upload-zone:hover {
+              border-color: rgba(124, 58, 237, 0.6) !important;
+              background: rgba(124, 58, 237, 0.03) !important;
+            }
+            .evidence-upload-circle {
+              width: 44px !important;
+              height: 44px !important;
+              border-radius: 50% !important;
+              background: rgba(226, 68, 92, 0.08) !important;
+              display: flex !important;
+              align-items: center !important;
+              justify-content: center !important;
+              color: #e2445c !important;
+              font-size: 1.15rem !important;
+              transition: transform 0.2s ease !important;
+            }
+            .evidence-upload-zone:hover .evidence-upload-circle {
+              transform: scale(1.05) !important;
+            }
+          `}</style>
+          <div className="modal-content-glass evidence-modal-card" style={{ height: 'auto', minHeight: 'unset', maxHeight: '90vh', maxWidth: '460px', padding: '1.75rem' }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header-row">
-              <h2>
-                <i className="fas fa-file-pdf" style={{ color: '#e2445c', marginRight: '8px' }} />
+              <h2 className="evidence-modal-title">
+                <i className="fas fa-file-pdf" style={{ color: '#e2445c' }} />
                 Evidencia de Cotización
               </h2>
-              <button 
-                className="modal-close-btn" 
+              <button
+                className="modal-close-btn"
                 onClick={() => {
                   setShowEvidenceModal(false);
                   setEvidenceLeadId(null);
                   setEvidenceFile(null);
+                  setEvidenceValue('');
+                  setEvidenceDescription('');
                   setEvidenceError('');
                 }}
               >
@@ -1992,32 +2158,12 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
               </button>
             </div>
 
-            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
-              El sistema no detecta ninguna cotización interna generada para este prospecto. Por favor, sube el PDF de la cotización externa (ej. de ASPEL SAE) para validarlo y autorizar el avance de etapa.
+            <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0, lineHeight: '1.5' }}>
+              Por favor, sube el PDF de la cotización (ej. de ASPEL SAE o cotizador interno) y llena los datos para validarlo y autorizar el avance de etapa.
             </p>
 
-            <div className="modal-body-form" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '0.5rem' }}>
-              <div 
-                className="premium-file-upload-zone"
-                style={{
-                  border: '2px dashed rgba(124, 58, 237, 0.3)',
-                  borderRadius: '12px',
-                  padding: '2rem',
-                  textAlign: 'center',
-                  background: 'rgba(124, 58, 237, 0.02)',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: 'all 0.2s ease',
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.6)';
-                  e.currentTarget.style.background = 'rgba(124, 58, 237, 0.04)';
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.3)';
-                  e.currentTarget.style.background = 'rgba(124, 58, 237, 0.02)';
-                }}
-              >
+            <div className="evidence-form-body">
+              <div className="evidence-upload-zone">
                 <input
                   type="file"
                   accept="application/pdf"
@@ -2035,58 +2181,90 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                     cursor: 'pointer'
                   }}
                 />
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: 'rgba(226, 68, 92, 0.1)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#e2445c',
-                    fontSize: '1.5rem'
-                  }}>
-                    <i className={evidenceFile ? "fas fa-file-pdf" : "fas fa-cloud-upload-alt"} />
+                <div className="evidence-upload-circle">
+                  <i className={evidenceFile ? "fas fa-file-pdf" : "fas fa-cloud-upload-alt"} />
+                </div>
+                {evidenceFile ? (
+                  <div>
+                    <p style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px' }}>
+                      {evidenceFile.name}
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', marginBottom: 0 }}>
+                      {(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
                   </div>
-                  {evidenceFile ? (
-                    <div>
-                      <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--color-text-main, #1e293b)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '380px' }}>
-                        {evidenceFile.name}
-                      </p>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted, #64748b)', marginTop: '4px', marginBottom: 0 }}>
-                        {(evidenceFile.size / (1024 * 1024)).toFixed(2)} MB
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--color-text-main, #1e293b)', margin: 0 }}>
-                        Haz clic o arrastra el PDF aquí
-                      </p>
-                      <p style={{ fontSize: '0.78rem', color: 'var(--color-text-muted, #64748b)', marginTop: '4px', marginBottom: 0 }}>
-                        Solo archivos PDF de cotizaciones
-                      </p>
-                    </div>
-                  )}
+                ) : (
+                  <div>
+                    <p style={{ fontWeight: '600', fontSize: '0.85rem', color: '#0f172a', margin: 0 }}>
+                      Haz clic o arrastra el PDF aquí
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px', marginBottom: 0 }}>
+                      Solo archivos PDF de cotizaciones
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="evidence-field-group">
+                <label className="evidence-field-label">Monto Estimado Cotizado ($)</label>
+                <div className="evidence-input-container">
+                  <span className="evidence-icon-prefix">
+                    <i className="fas fa-dollar-sign"></i>
+                  </span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="evidence-input-text"
+                    placeholder="Ej. 15000.00"
+                    value={evidenceValue}
+                    onChange={(e) => setEvidenceValue(e.target.value)}
+                    required
+                  />
                 </div>
               </div>
 
+              <div className="evidence-field-group">
+                <label className="evidence-field-label">¿Qué se cotizó? (Descripción breve)</label>
+                <textarea
+                  rows="2"
+                  className="evidence-textarea-field"
+                  placeholder="Ej. Luminarias LED de 60W, Material eléctrico..."
+                  value={evidenceDescription}
+                  onChange={(e) => setEvidenceDescription(e.target.value)}
+                  required
+                ></textarea>
+              </div>
+
               {evidenceError && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.85rem', marginTop: '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontSize: '0.8rem', marginTop: '2px' }}>
                   <i className="fas fa-exclamation-circle" />
                   <span>{evidenceError}</span>
                 </div>
               )}
             </div>
 
-            <div className="modal-footer-actions">
+            <div className="modal-footer-actions" style={{ marginTop: '1.5rem', display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
               <button
                 type="button"
                 className="cancel-modal-btn"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  border: '1px solid #cbd5e1',
+                  background: 'transparent',
+                  color: '#475569',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
                 onClick={() => {
                   setShowEvidenceModal(false);
                   setEvidenceLeadId(null);
                   setEvidenceFile(null);
+                  setEvidenceValue('');
+                  setEvidenceDescription('');
                   setEvidenceError('');
                 }}
               >
@@ -2095,24 +2273,42 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
               <button
                 type="button"
                 className="submit-modal-btn"
-                style={{ backgroundColor: 'var(--color-brand-primary, #7c3aed)' }}
-                disabled={!evidenceFile || isUploadingEvidence}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '10px',
+                  fontSize: '0.875rem',
+                  fontWeight: '600',
+                  border: 'none',
+                  background: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? '#cbd5e1' : 'var(--color-brand-primary, #7c3aed)',
+                  color: '#ffffff',
+                  cursor: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: (!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence) ? 'none' : '0 4px 12px rgba(124, 58, 237, 0.25)'
+                }}
+                disabled={!evidenceFile || !evidenceValue || !evidenceDescription.trim() || isUploadingEvidence}
                 onClick={async () => {
-                  if (!evidenceFile) return;
+                  if (!evidenceFile || !evidenceValue || !evidenceDescription.trim()) return;
                   setIsUploadingEvidence(true);
                   setEvidenceError('');
                   try {
                     const validation = await validateQuotePDF(evidenceFile);
                     if (validation.isValid) {
-                      await executeStageUpdate(evidenceLeadId, 'cotizando');
+                      await executeStageUpdate(evidenceLeadId, 'cotizando', {
+                        quoteValue: evidenceValue,
+                        quoteDescription: evidenceDescription
+                      });
                       setShowEvidenceModal(false);
                       setEvidenceLeadId(null);
                       setEvidenceFile(null);
+                      setEvidenceValue('');
+                      setEvidenceDescription('');
+                      setEvidenceError('');
                     } else {
-                      setEvidenceError(validation.reason);
+                      setEvidenceError(validation.reason || validation.message || 'El archivo no parece ser un PDF válido de cotización.');
                     }
-                  } catch (e) {
-                    setEvidenceError('Ocurrió un error al analizar el PDF.');
+                  } catch (err) {
+                    console.error('Evidence error:', err);
+                    setEvidenceError('Ocurrió un error al procesar el archivo. Revisa que sea un PDF legible.');
                   } finally {
                     setIsUploadingEvidence(false);
                   }
@@ -2128,23 +2324,23 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {isCancelReunionModalOpen && (
         <div className="calendar-modal-backdrop" style={{ zIndex: 11000 }}>
           <div className="calendar-modal-card animate-slide-up cancel-modal-custom" onClick={(e) => e.stopPropagation()}>
-            <button 
-              className="calendar-modal-close" 
-              onClick={() => { 
-                setIsCancelReunionModalOpen(false); 
+            <button
+              className="calendar-modal-close"
+              onClick={() => {
+                setIsCancelReunionModalOpen(false);
                 setReunionAppointment(null);
                 setPendingCancelLeadData(null);
-                setCancelReunionReason(''); 
+                setCancelReunionReason('');
               }}
             >
               <i className="fas fa-times" />
             </button>
-            
+
             <div className="cancel-modal-title">
               <i className="fas fa-archive notif-alert-ico" style={{ color: '#ef4444' }} />
               <h3 style={{ color: '#b91c1c' }}>CANCELAR REUNIÓN DE VENTAS</h3>
             </div>
-            
+
             <p className="cancel-subtitle">
               Prospecto: <strong>{reunionAppointment?.client_name}</strong> - Cita: <strong>{reunionAppointment?.title}</strong>
             </p>
@@ -2178,9 +2374,9 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             </div>
 
             <div className="cancel-modal-actions" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
-              <button 
+              <button
                 type="button"
-                className="btn-cancel-modal-close" 
+                className="btn-cancel-modal-close"
                 style={{
                   background: 'transparent',
                   border: '1px solid #cbd5e1',
@@ -2191,11 +2387,11 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                   color: '#475569',
                   cursor: 'pointer'
                 }}
-                onClick={() => { 
-                  setIsCancelReunionModalOpen(false); 
+                onClick={() => {
+                  setIsCancelReunionModalOpen(false);
                   setReunionAppointment(null);
                   setPendingCancelLeadData(null);
-                  setCancelReunionReason(''); 
+                  setCancelReunionReason('');
                 }}
               >
                 Cancelar Movimiento
@@ -2230,10 +2426,10 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       {isOutcomeModalOpen && (
         <div className="calendar-modal-backdrop" style={{ zIndex: 11000 }}>
           <div className="calendar-modal-card animate-slide-up cancel-modal-custom" onClick={(e) => e.stopPropagation()}>
-            <button 
-              className="calendar-modal-close" 
-              onClick={() => { 
-                setIsOutcomeModalOpen(false); 
+            <button
+              className="calendar-modal-close"
+              onClick={() => {
+                setIsOutcomeModalOpen(false);
                 setReunionAppointment(null);
                 setPendingCancelLeadData(null);
                 setMeetingOutcome('concretada');
@@ -2242,7 +2438,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             >
               <i className="fas fa-times" />
             </button>
-            
+
             <div className="cancel-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
               <div style={{
                 width: '40px',
@@ -2259,7 +2455,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
               </div>
               <h3 style={{ color: '#0891b2', margin: 0, fontSize: '1.25rem', fontFamily: 'Outfit, sans-serif', fontWeight: '800' }}>REGISTRAR RESULTADO DE REUNIÓN</h3>
             </div>
-            
+
             <p className="cancel-subtitle" style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.5rem 0 1rem 0' }}>
               La cita con <strong>{reunionAppointment?.client_name}</strong> ya ha transcurrido. Registra el resultado comercial para actualizar el prospecto.
             </p>
@@ -2312,9 +2508,9 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
             </div>
 
             <div className="cancel-modal-actions" style={{ display: 'flex', gap: '8px', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
-              <button 
+              <button
                 type="button"
-                className="btn-cancel-modal-close" 
+                className="btn-cancel-modal-close"
                 style={{
                   background: 'transparent',
                   border: '1px solid #cbd5e1',
@@ -2326,8 +2522,8 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                   cursor: 'pointer',
                   fontFamily: 'Outfit, sans-serif'
                 }}
-                onClick={() => { 
-                  setIsOutcomeModalOpen(false); 
+                onClick={() => {
+                  setIsOutcomeModalOpen(false);
                   setReunionAppointment(null);
                   setPendingCancelLeadData(null);
                   setMeetingOutcome('concretada');

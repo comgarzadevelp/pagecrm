@@ -303,6 +303,76 @@ export const getProducts = async (req, res) => {
   }
 };
 
+// Helper to parse opportunity description and split the appended status_change timeline
+const parseOpportunityDescription = (title, description, opp) => {
+  let project_name = '';
+  const descriptionStr = description || '';
+  const obraMatch = descriptionStr.match(/^\[Obra:\s*(.*?)\]/);
+  if (obraMatch) {
+    project_name = obraMatch[1];
+  }
+
+  const lines = descriptionStr.split('\n');
+  const timelineEntries = [];
+  const generalLines = [];
+
+  const isSameDay = (d1, d2) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+  };
+
+  const oppStageDate = opp && opp.stage_updated_at ? new Date(opp.stage_updated_at) : null;
+  const oppCreatedDate = opp && opp.created_at ? new Date(opp.created_at) : null;
+  const oppUpdatedDate = opp && opp.updated_at ? new Date(opp.updated_at) : null;
+
+  lines.forEach(line => {
+    // Matches: [dd/mm/yyyy] text OR [dd/mm/yyyy - Author] text
+    const match = line.match(/^\[(\d{1,2}\/\d{1,2}\/\d{4})(?:\s*-\s*([^\]]+))?\]\s*(.*)/);
+    if (match) {
+      const dateStr = match[1];
+      const authorName = match[2] ? match[2].trim() : 'Sistema';
+      const text = match[3];
+      const parts = dateStr.split('/');
+      let date;
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const year = parseInt(parts[2], 10);
+        date = new Date(year, month, day);
+
+        // Inherit exact time if the parsed date is the same day as one of the database timestamps
+        if (oppUpdatedDate && isSameDay(date, oppUpdatedDate)) {
+          date = oppUpdatedDate;
+        } else if (oppStageDate && isSameDay(date, oppStageDate)) {
+          date = oppStageDate;
+        } else if (oppCreatedDate && isSameDay(date, oppCreatedDate)) {
+          date = oppCreatedDate;
+        }
+      } else {
+        date = new Date();
+      }
+
+      timelineEntries.push({
+        date: isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(),
+        text: text,
+        author: authorName,
+        type: match[2] ? 'note' : 'status_change'
+      });
+    } else {
+      generalLines.push(line);
+    }
+  });
+
+  const cleanDescription = generalLines.join('\n');
+
+  return {
+    cleanDescription,
+    project_name,
+    timelineEntries
+  };
+};
+
 // ---------- LEADS ----------
 export const getLeads = async (req, res) => {
   try {
@@ -327,6 +397,7 @@ export const getLeads = async (req, res) => {
         company,
         notes,
         created_at,
+        source_session_id,
         assigned_to (id, name)
       `)
       .neq('type', 'crm_customer')
@@ -352,6 +423,8 @@ export const getLeads = async (req, res) => {
         type,
         stage,
         created_at,
+        stage_updated_at,
+        updated_at,
         assigned_to (id, name),
         company_id,
         contact_id,
@@ -375,12 +448,7 @@ export const getLeads = async (req, res) => {
       if (opp.contacts?.name) oppName = opp.contacts.name;
       else if (opp.companies?.name) oppName = opp.companies.name;
 
-      let project_name = '';
-      let description = opp.description || '';
-      const obraMatch = description.match(/^\[Obra:\s*(.*?)\]/);
-      if (obraMatch) {
-        project_name = obraMatch[1];
-      }
+      const parsed = parseOpportunityDescription(opp.title, opp.description, opp);
 
       return {
         id: opp.id,
@@ -391,12 +459,13 @@ export const getLeads = async (req, res) => {
         type: opp.type || 'proyecto',
         company: opp.companies?.name || '',
         notes: JSON.stringify({ 
-          general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${opp.description || ''}`,
-          project_name: project_name,
+          general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${parsed.cleanDescription}`,
+          project_name: parsed.project_name,
           requirement_title: opp.title || '',
-          timeline: []
+          timeline: parsed.timelineEntries
         }),
         created_at: opp.created_at,
+        stage_updated_at: opp.stage_updated_at,
         assigned_to: opp.assigned_to,
         is_opportunity: true
       };
@@ -488,6 +557,8 @@ export const getLeadById = async (req, res) => {
           type,
           stage,
           created_at,
+          stage_updated_at,
+          updated_at,
           assigned_to,
           company_id,
           contact_id,
@@ -502,6 +573,7 @@ export const getLeadById = async (req, res) => {
         if (opp.contacts?.name) oppName = opp.contacts.name;
         else if (opp.companies?.name) oppName = opp.companies.name;
 
+        const parsed = parseOpportunityDescription(opp.title, opp.description, opp);
         data = {
           id: opp.id,
           name: oppName,
@@ -511,10 +583,13 @@ export const getLeadById = async (req, res) => {
           type: opp.type || 'proyecto',
           company: opp.companies?.name || '',
           notes: JSON.stringify({ 
-            general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${opp.description || ''}`,
-            timeline: []
+            general: `[Oportunidad vinculada: ${opp.title || 'S/N'}] ${parsed.cleanDescription}`,
+            project_name: parsed.project_name,
+            requirement_title: opp.title || '',
+            timeline: parsed.timelineEntries
           }),
           created_at: opp.created_at,
+          stage_updated_at: opp.stage_updated_at,
           assigned_to: opp.assigned_to,
           is_opportunity: true
         };
@@ -532,7 +607,7 @@ export const getLeadById = async (req, res) => {
 
 export const updateLeadStage = async (req, res) => {
   const { id } = req.params;
-  const { stage, finalValue, invoiceNumber, closingNotes } = req.body;
+  const { stage, finalValue, invoiceNumber, closingNotes, quoteValue, quoteDescription } = req.body;
 
   try {
     // Fetch the full lead including phone and email for merge lookup
@@ -558,6 +633,10 @@ export const updateLeadStage = async (req, res) => {
           const parsedValue = parseFloat(finalValue) || 0;
           const formattedValue = parsedValue.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
           timelineText = `¡Cierre Ganado! Monto Final: $${formattedValue} MXN. Ref/Pedido: ${invoiceNumber || 'N/A'}. Notas: ${closingNotes || 'Sin comentarios.'}`;
+        } else if (stage === 'cotizando' && quoteValue) {
+          const parsedQuote = parseFloat(quoteValue) || 0;
+          const formattedQuote = parsedQuote.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          timelineText = `Cambio de estatus a "cotizando". Monto cotizado: $${formattedQuote} MXN. Descripción: ${quoteDescription || 'N/A'}`;
         }
         
         const newDesc = `${desc}\n[${new Date().toLocaleDateString()}] ${timelineText}`.trim();
@@ -570,6 +649,8 @@ export const updateLeadStage = async (req, res) => {
         
         if (stage === 'cierre_ganado') {
           updateData.value = parseFloat(finalValue) || opp.value;
+        } else if (stage === 'cotizando' && quoteValue) {
+          updateData.value = parseFloat(quoteValue) || opp.value;
         }
 
         const { data: updatedOpp, error: oppUpdateError } = await supabase
@@ -721,6 +802,12 @@ export const updateLeadStage = async (req, res) => {
           return res.json({ success: true, lead: data[0] });
         }
       }
+    } else if (stage === 'cotizando' && quoteValue) {
+      const parsedQuote = parseFloat(quoteValue) || 0;
+      notesData.quote_value = parsedQuote;
+      notesData.quote_description = quoteDescription || '';
+      const formattedQuote = parsedQuote.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      timelineText = `Cambio de estatus a "cotizando". Monto cotizado: $${formattedQuote} MXN. Descripción: ${quoteDescription || 'N/A'}`;
     }
 
     const newEntry = {
@@ -759,14 +846,75 @@ export const updateLead = async (req, res) => {
 
   try {
     // 1. Obtener el lead original
-    const { data: lead, error: fetchError } = await supabase
+    let { data: lead, error: fetchError } = await supabase
       .from('leads')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
-    if (fetchError || !lead) {
-      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
+    if (!lead) {
+      // Intentar buscar en crm_opportunities
+      const { data: opp, error: oppError } = await supabase
+        .from('crm_opportunities')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (opp) {
+        let desc = opp.description || '';
+        const parsed = parseOpportunityDescription(opp.title, desc);
+        
+        let newDesc = parsed.cleanDescription;
+        if (notes_general !== undefined) {
+          newDesc = notes_general.trim();
+        }
+        
+        // Re-append the timeline entries as text
+        const timelineTextLines = parsed.timelineEntries.map(evt => {
+          const dateStr = new Date(evt.date).toLocaleDateString();
+          return `[${dateStr}] ${evt.text}`;
+        });
+        
+        const finalDesc = [newDesc, ...timelineTextLines].join('\n').trim();
+        
+        const updateData = {
+          title: name !== undefined ? name.trim() : opp.title,
+          description: finalDesc,
+          updated_at: new Date().toISOString()
+        };
+        
+        const { data: updatedOpp, error: oppUpdateError } = await supabase
+          .from('crm_opportunities')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+          
+        if (oppUpdateError) throw oppUpdateError;
+        
+        const mappedParsed = parseOpportunityDescription(updatedOpp.title, updatedOpp.description, updatedOpp);
+        
+        return res.json({
+          success: true,
+          lead: {
+            id: updatedOpp.id,
+            name: updatedOpp.title,
+            status: updatedOpp.stage,
+            type: updatedOpp.type,
+            notes: JSON.stringify({
+              general: `[Oportunidad vinculada: ${updatedOpp.title || 'S/N'}] ${mappedParsed.cleanDescription}`,
+              project_name: mappedParsed.project_name,
+              requirement_title: updatedOpp.title || '',
+              timeline: mappedParsed.timelineEntries
+            }),
+            created_at: updatedOpp.created_at,
+            stage_updated_at: updatedOpp.stage_updated_at,
+            is_opportunity: true
+          }
+        });
+      }
+      
+      return res.status(404).json({ success: false, message: 'Prospecto/Oportunidad no encontrado o eliminado.' });
     }
 
     // 2. Si el celular cambia, verificar duplicados en leads activos

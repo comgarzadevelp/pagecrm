@@ -1,6 +1,8 @@
 export const getLeadAgeInfo = (createdAt, notes, stageUpdatedAt) => {
   // 1. INACTIVIDAD DE SEGUIMIENTO (Notas/Timeline)
   let refDate = new Date(createdAt);
+  let computedStageUpdatedAt = stageUpdatedAt;
+
   if (notes) {
     try {
       const parsed = typeof notes === 'string' ? JSON.parse(notes) : notes;
@@ -11,11 +13,23 @@ export const getLeadAgeInfo = (createdAt, notes, stageUpdatedAt) => {
         if (dates.length > 0) {
           refDate = new Date(Math.max(...dates));
         }
+
+        // Fallback for stage time calculation if stageUpdatedAt is missing
+        if (!computedStageUpdatedAt) {
+          const statusChanges = parsed.timeline
+            .filter(t => t.type === 'status_change')
+            .map(t => new Date(t.date))
+            .filter(d => !isNaN(d.getTime()));
+          if (statusChanges.length > 0) {
+            computedStageUpdatedAt = new Date(Math.max(...statusChanges));
+          }
+        }
       }
     } catch (e) {
       // Ignore if notes is not valid JSON
     }
   }
+
   const diffMs = new Date() - refDate;
   const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
   
@@ -34,7 +48,7 @@ export const getLeadAgeInfo = (createdAt, notes, stageUpdatedAt) => {
   }
 
   // 2. TIEMPO CONGELADO EN ETAPA (Columna del Kanban)
-  const stageRef = stageUpdatedAt ? new Date(stageUpdatedAt) : new Date(createdAt);
+  const stageRef = computedStageUpdatedAt ? new Date(computedStageUpdatedAt) : new Date(createdAt);
   const stageDiffMs = new Date() - stageRef;
   const stageDiffDays = Math.floor(stageDiffMs / (1000 * 60 * 60 * 24));
   

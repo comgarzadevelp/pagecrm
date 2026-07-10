@@ -327,6 +327,7 @@ export const getLeads = async (req, res) => {
         company,
         notes,
         created_at,
+        source_session_id,
         assigned_to (id, name)
       `)
       .neq('type', 'crm_customer')

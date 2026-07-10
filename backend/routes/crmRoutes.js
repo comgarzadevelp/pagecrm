@@ -1,7 +1,7 @@
-// backend/routes/crmRoutes.js
 import express from 'express';
 import multer from 'multer';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import { getChatHistory } from '../controllers/saController.js';
 
 // Original CRM controller
 import {
@@ -71,6 +71,7 @@ router.put('/leads/:id/stage', updateLeadStage);
 router.put('/leads/:id/assign', assignLead);
 router.post('/leads/:id/promote', promoteLeadToContact);
 router.post('/leads/:id/discard', discardLead);
+router.get('/chat-history/:sessionId', getChatHistory);
 
 // ── CLIENTES (Customers Directory) ───────────────────────────
 router.get('/customers', getCustomers);

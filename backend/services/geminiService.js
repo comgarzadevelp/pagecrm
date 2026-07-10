@@ -103,36 +103,58 @@ export const generateAIResponse = async (history, userMessage) => {
 };
 
 /**
- * Analiza un mensaje del usuario para detectar números telefónicos o correos electrónicos.
- * Es un parser rápido para identificar intención de lead en la conversación.
- * @param {string} text Mensaje del usuario
- * @returns {object|null} Un objeto con los datos extraídos o null si no hay nada
+ * Analiza un mensaje del usuario y el historial para detectar la información de contacto.
+ * Utiliza Regex como disparador, y luego Gemini para extraer el contexto completo (ej. el nombre mencionado antes).
+ * @param {Array} history Historial de la conversación
+ * @param {string} currentMessage Mensaje actual del usuario
+ * @returns {Promise<object|null>}
  */
-export const extractContactInfo = (text) => {
-  const phoneRegex = /(?:\+?52)?\s*\(?[0-9]{2,3}\)?[-.\s]*[0-9]{3,4}[-.\s]*[0-9]{4}/g;
-  const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-  const nameRegex = /(?:me llamo|soy|mi nombre es)\s+([A-ZÁÉÍÓÚÑa-záéíóúñ]{2,}(?:\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]{2,}){0,2})/i;
-  
-  const phones = text.match(phoneRegex);
-  const emails = text.match(emailRegex);
-  const nameMatch = text.match(nameRegex);
+export const extractContactInfo = async (history, currentMessage) => {
+  try {
+    const phoneRegex = /(?:\+?52)?\s*\(?[0-9]{2,3}\)?[-.\s]*[0-9]{3,4}[-.\s]*[0-9]{4}/g;
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    
+    const hasPhone = currentMessage.match(phoneRegex);
+    const hasEmail = currentMessage.match(emailRegex);
 
-  if (phones || emails) {
-    let cleanPhone = null;
-    if (phones && phones.length > 0) {
-      // Limpiar caracteres no numéricos y quedarse con los últimos 10 dígitos
-      cleanPhone = phones[0].replace(/[^0-9]/g, '');
-      if (cleanPhone.length > 10) {
-        cleanPhone = cleanPhone.slice(-10);
+    if (hasPhone || hasEmail) {
+      let cleanPhone = null;
+      if (hasPhone && hasPhone.length > 0) {
+        cleanPhone = hasPhone[0].replace(/[^0-9]/g, '');
+        if (cleanPhone.length > 10) cleanPhone = cleanPhone.slice(-10);
+      }
+      
+      const safeHistory = history || [];
+      const conversationText = safeHistory.map(h => `${h.role}: ${h.message || h.text || ''}`).join('\n') + `\nuser: ${currentMessage}`;
+      
+      const prompt = `Analiza la siguiente conversación y extrae la información de contacto del cliente. 
+Busca su nombre (name), correo (email) y teléfono (phone).
+Devuelve ÚNICAMENTE un objeto JSON válido con este formato exacto: {"name": "Nombre", "email": "correo@ejemplo.com", "phone": "1234567890"}.
+Si algún dato no fue proporcionado en la conversación, coloca null.
+
+Conversación:
+${conversationText}`;
+
+      const model = genAI.getGenerativeModel({ model: GEMINI_MODEL });
+      const result = await model.generateContent(prompt);
+      let text = result.response.text();
+      text = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+      
+      try {
+        const parsed = JSON.parse(text);
+        return {
+          name: parsed.name || null,
+          email: parsed.email || (hasEmail ? hasEmail[0] : null),
+          phone: cleanPhone || parsed.phone
+        };
+      } catch (e) {
+        console.error("Error al parsear el JSON de extracción de lead:", text);
+        return { name: null, email: (hasEmail ? hasEmail[0] : null), phone: cleanPhone };
       }
     }
-    
-    return {
-      name: nameMatch ? nameMatch[1].trim() : null,
-      phone: cleanPhone,
-      email: emails && emails.length > 0 ? emails[0] : null
-    };
+    return null;
+  } catch (error) {
+    console.error("Error en extractContactInfo:", error);
+    return null;
   }
-
-  return null;
 };

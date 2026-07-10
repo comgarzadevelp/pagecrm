@@ -64,6 +64,7 @@ import crmRoutes from './routes/crmRoutes.js';
 import saeRoutes from './routes/saeRoutes.js';
 import calendarRoutes from './routes/calendarRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import saRoutes from './routes/saRoutes.js';
 import { startLeadNotificationJob } from './services/leadNotificationJob.js';
 
 // Variable de entorno para orígenes permitidos
@@ -112,6 +113,7 @@ app.use('/api/crm', crmRoutes);
 app.use('/api/sae', saeRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/sa', saRoutes);
 
 // Intercept callback URI matching user's custom google setup and route internally
 app.get('/auth/google/callback', (req, res) => {

@@ -62,7 +62,7 @@ export const handleChatMessage = async (req, res) => {
     }
 
     // 5. INTELIGENCIA DE LEADS: Intentar extraer información de contacto automáticamente
-    const contactInfo = extractContactInfo(message);
+    const contactInfo = await extractContactInfo(history, message);
     if (contactInfo && contactInfo.phone) {
       console.log(`¡Información de contacto detectada en el chat! Teléfono: ${contactInfo.phone}`);
 

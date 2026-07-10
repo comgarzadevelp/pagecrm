@@ -596,7 +596,7 @@ export default function DetallesNegociacionFeature({
                   <div className="dashboard-card quotes-card" style={{ marginTop: '1.5rem' }}>
                     <div className="card-header-flex">
                       <span className="card-sec-title"><i className="fas fa-file-invoice-dollar"></i> Cotizaciones Emitidas ({leadQuotes.length})</span>
-                      <button className="quote-shortcut-btn" onClick={openQuoteGenerator} title="Abrir Cotizador B2B para este prospecto">
+                      <button className="quote-shortcut-btn" onClick={() => showToast('Cotizador en construcción...', 'info')} title="Abrir Cotizador B2B para este prospecto">
                         <i className="fas fa-calculator"></i> Nueva
                       </button>
                     </div>
@@ -736,7 +736,7 @@ export default function DetallesNegociacionFeature({
                   {/* Feed de Bitácora */}
                   <div className="bitacora-feed-scroll" style={{ flex: 1, maxHeight: '280px', overflowY: 'auto' }}>
                     {(() => {
-                      const interactions = notesData.timeline.filter(evt => ['note', 'call', 'whatsapp', 'visit'].includes(evt.type));
+                      const interactions = notesData.timeline.filter(evt => ['note', 'call', 'whatsapp', 'visit', 'status_change'].includes(evt.type));
 
                       if (interactions.length === 0) {
                         return (
@@ -755,6 +755,7 @@ export default function DetallesNegociacionFeature({
                         if (evt.type === 'call') { bubbleClass = 'bubble-call'; iconClass = 'fas fa-phone-alt'; }
                         else if (evt.type === 'whatsapp') { bubbleClass = 'bubble-whatsapp'; iconClass = 'fab fa-whatsapp'; }
                         else if (evt.type === 'visit') { bubbleClass = 'bubble-visit'; iconClass = 'fas fa-handshake'; }
+                        else if (evt.type === 'status_change') { bubbleClass = 'bubble-status'; iconClass = 'fas fa-sync-alt'; }
 
                         let textContent = evt.text;
                         let imgUrls = [];

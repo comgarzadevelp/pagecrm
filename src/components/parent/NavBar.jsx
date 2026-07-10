@@ -103,7 +103,7 @@ const NavBar = () => {
               <a href="https://www.linkedin.com/in/comercializadora-garza-08a976309/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><i className="fab fa-linkedin-in"></i></a>
               <a href="https://wa.me/528120189555" target="_blank" rel="noopener noreferrer" className="wa-nav" aria-label="WhatsApp"><i className="fab fa-whatsapp"></i></a>
             </div>
-            <button className="btn-primary">Cotiza tu Proyecto</button>
+            <a href="https://wa.me/528120189555" target="_blank" rel="noopener noreferrer" className="btn-primary">Cotiza tu Proyecto</a>
           </div>
         </div>
 
@@ -115,7 +115,7 @@ const NavBar = () => {
             <a href="https://www.linkedin.com/in/comercializadora-garza-08a976309/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn"><i className="fab fa-linkedin-in"></i></a>
             <a href="https://wa.me/528120189555" target="_blank" rel="noopener noreferrer" className="wa-nav" aria-label="WhatsApp"><i className="fab fa-whatsapp"></i></a>
           </div>
-          <button className="btn-primary">Cotiza tu Proyecto</button>
+          <a href="https://wa.me/528120189555" target="_blank" rel="noopener noreferrer" className="btn-primary">Cotiza tu Proyecto</a>
         </div>
 
         {/* HAMBURGER */}

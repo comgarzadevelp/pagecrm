@@ -268,7 +268,7 @@ const Contacto = () => {
             <div className="map-wrapper glass">
               <iframe
                 title="Google Maps Monterrey"
-                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3593.68444583161!2d-100.3846313!3d25.7483015!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x86629633e7f9e863%3A0x8f3c7e0f2f0f0f0f!2sDiv.%20del%20Sur%205024%2C%20Plutarco%20El%20El%C3%ADas%20Calles%2C%2064108%20Monterrey%2C%20N.L.!5e0!3m2!1sen!2smx!4v1700000000000!5m2!1sen!2smx"
+                src="https://maps.google.com/maps?q=Comercializadora+de+Productos+Sustentables+Garza+SA+de+CV&t=&z=16&ie=UTF8&iwloc=&output=embed"
                 width="100%"
                 height="350"
                 style={{ border: 0 }}

@@ -14,6 +14,19 @@ El CRM está estructurado bajo una arquitectura de alto rendimiento y bajo consu
 
 ---
 
+## 🏗️ 1.1. Arquitectura Modular del Frontend (CRMv3 & sapanelv2)
+
+En esta actualización establecemos una arquitectura basada en **Features Desacopladas** para facilitar la escalabilidad del sistema:
+* **Estructura Modular:** Las vistas y componentes complejos viven en `src/features/[feature-name]/components/`.
+* **Leads Webs Inteligentes (`LeadsWebsiteFeature`):**
+  * Nuevo módulo que permite rastrear y procesar leads provenientes del sitio web en tiempo real.
+  * Integra la previsualización del historial de chat conversacional conversado con el cliente (`DetallesNegociacionFeature.jsx`) mediante sesiones identificadoras (`source_session_id`).
+* **Superadmin V2:** Modularización de los paneles de administración de empresas, personal y estadísticas generales segregados del flujo del CRM tradicional de ventas.
+
+---
+
+---
+
 ## ❌ 2. Errores Encontrados y Cómo los Resolvimos
 
 Durante el montaje del servidor nos enfrentamos a desafíos comunes de despliegue que solucionamos científicamente:

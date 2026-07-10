@@ -58,6 +58,11 @@ export default function SA2Layout() {
                 <i className="fas fa-globe"></i>
                 {isSidebarOpen && <span>Leads Web <span className="sa2-badge">LIVE</span></span>}
               </NavLink>
+
+              <NavLink to="/crm/sa2/quotes-stats" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
+                <i className="fas fa-chart-line"></i>
+                {isSidebarOpen && <span>Estadísticas</span>}
+              </NavLink>
               
               <NavLink to="/crm/sa2/personal" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
                 <i className="fas fa-users-cog"></i>

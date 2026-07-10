@@ -244,3 +244,70 @@ export const deleteLead = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error interno al eliminar lead' });
   }
 };
+
+/**
+ * GET /api/sa/quotes-stats
+ * Consolida cotizaciones (oportunidades del Kanban) y calcula estadísticas y el olvido
+ */
+export const getQuotesStats = async (req, res) => {
+  try {
+    const { data: opportunities, error } = await supabase
+      .from('crm_opportunities')
+      .select(`
+        id,
+        quote_num:id,
+        title,
+        description,
+        stage,
+        total:value,
+        created_at,
+        updated_at,
+        stage_updated_at,
+        assigned_to,
+        contact_id,
+        company_id,
+        seller:crm_users!assigned_to (id, name, email),
+        contact:contacts!contact_id (id, name),
+        company:companies!company_id (id, name)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Transform opportunities into the format expected by the frontend quotes logic
+    const quotes = (opportunities || []).map(opp => ({
+      ...opp,
+      // Map company name or contact name to client name
+      client: {
+        id: opp.contact_id || opp.company_id,
+        name: opp.company?.name || opp.contact?.name || 'Sin Cliente'
+      },
+      // Generate a mock quote_num using part of the UUID if not available
+      quote_num: opp.id.substring(0, 6).toUpperCase(),
+      // Send the opportunity fields directly in the root or a nested object
+      opportunity: {
+        id: opp.id,
+        title: opp.title,
+        stage: opp.stage,
+        updated_at: opp.updated_at,
+        stage_updated_at: opp.stage_updated_at
+      },
+      // For items (top products), we can use the title or description since crm_opportunities lacks an items JSON
+      items: [
+        {
+          name: opp.title || 'Servicio General',
+          description: opp.title || 'Servicio General',
+          total: opp.total
+        }
+      ]
+    }));
+
+    res.json({
+      success: true,
+      quotes: quotes
+    });
+  } catch (error) {
+    console.error('Error in getQuotesStats:', error);
+    res.status(500).json({ success: false, message: 'Error al obtener estadísticas de cotizaciones.' });
+  }
+};

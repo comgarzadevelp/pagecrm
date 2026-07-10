@@ -23,6 +23,7 @@ import SA2Layout from './features/superadmin-v2/layouts/SA2Layout';
 import SA2DashboardPage from './features/superadmin-v2/pages/SA2DashboardPage';
 import SA2PersonalPage from './features/superadmin-v2/pages/SA2PersonalPage';
 import SA2LeadsWebPage from './features/superadmin-v2/pages/SA2LeadsWebPage';
+import SA2QuotesStatsPage from './features/superadmin-v2/pages/SA2QuotesStatsPage';
 
 function AppContent() {
   const location = useLocation();
@@ -52,6 +53,7 @@ function AppContent() {
             <Route index element={<SA2DashboardPage />} />
             <Route path="personal" element={<SA2PersonalPage />} />
             <Route path="leads-web" element={<SA2LeadsWebPage />} />
+            <Route path="quotes-stats" element={<SA2QuotesStatsPage />} />
           </Route>
         </Routes>
       </main>

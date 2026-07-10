@@ -1,5 +1,5 @@
 import express from 'express';
-import { getLeadsWebsite, getAnalytics, updateLeadStatus, getSellers, getChatHistory, deleteLead } from '../controllers/saController.js';
+import { getLeadsWebsite, getAnalytics, updateLeadStatus, getSellers, getChatHistory, deleteLead, getQuotesStats } from '../controllers/saController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -34,5 +34,8 @@ router.get('/chat-history/:sessionId', getChatHistory);
 
 // Obtener métricas para los gráficos del dashboard (consolida MTY y GDL)
 router.get('/analytics', getAnalytics);
+
+// Obtener cotizaciones y estadísticas consolidadas para Super Admin
+router.get('/quotes-stats', getQuotesStats);
 
 export default router;

@@ -80,6 +80,32 @@ export default function DetallesNegociacionFeature({
   const [leadQuotes, setLeadQuotes] = useState([]);
   const [loadingLeadQuotes, setLoadingLeadQuotes] = useState(false);
 
+  // Web Lead Logic
+  const isWebLead = ['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(lead?.type);
+  const [chatHistory, setChatHistory] = useState([]);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
+
+  useEffect(() => {
+    if (isWebLead && lead?.source_session_id) {
+      const fetchChat = async () => {
+        setIsLoadingChat(true);
+        try {
+          const token = localStorage.getItem('token');
+          const res = await fetch(`${API_BASE}/api/crm/chat-history/${lead.source_session_id}`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          const data = await res.json();
+          if (res.ok) setChatHistory(data.history);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setIsLoadingChat(false);
+        }
+      };
+      fetchChat();
+    }
+  }, [lead, isWebLead, API_BASE]);
+
   // Parse notes JSON safely
   const parseLeadNotes = useCallback((notesString) => {
     if (!notesString) return { general: '', timeline: [] };
@@ -460,37 +486,69 @@ export default function DetallesNegociacionFeature({
               <div className="dashboard-left-col">
                 
                 {/* Requerimiento / Obra */}
-                <div className="dashboard-card">
-                  <div className="card-header-row">
-                    <span className="card-sec-title">Detalles del Requerimiento / Obra</span>
-                    {!isEditingInfo && (
-                      <button
-                        type="button"
-                        className="edit-req-btn-link"
-                        onClick={() => {
-                          setIsEditingInfo(true);
-                          setEditName(lead.name || '');
-                          setEditCompany(lead.company || '');
-                          setEditPhone(lead.phone || '');
-                          setEditEmail(lead.email || '');
-                          setEditGeneralNotes(leadNotesText || '');
-                        }}
-                      >
+                <div className="dashboard-card info-card">
+                  <div className="card-header-flex">
+                    <span className="card-sec-title">
+                      {isWebLead ? (lead.source_session_id ? <><i className="fas fa-robot"></i> Transcripción del Chatbot</> : <><i className="fas fa-comment-alt"></i> Requerimiento / Mensaje Inicial</>) : <><i className="fas fa-building"></i> Requerimiento / Obra</>}
+                    </span>
+                    {!isWebLead && (
+                      <button className="edit-info-btn" onClick={() => setIsEditingInfo(true)}>
                         <i className="fas fa-pen"></i> Editar Ficha
                       </button>
                     )}
                   </div>
-                  {isEditingInfo ? (
-                    <textarea
-                      value={editGeneralNotes}
-                      onChange={(e) => setEditGeneralNotes(e.target.value)}
-                      rows={4}
-                      className="dashboard-textarea"
-                      placeholder="Describe la obra, volumen de concreto, productos cotizados, etc..."
-                    />
-                  ) : (
-                    <p className="dashboard-notes-text">{leadNotesText || 'Sin observaciones del requerimiento.'}</p>
-                  )}
+                  
+                  <div style={{ marginTop: '15px' }}>
+                    {isWebLead && lead.source_session_id ? (
+                      <div className="sa2-chat-transcript" style={{ maxHeight: '300px', overflowY: 'auto', padding: '10px', background: '#f8fafc', borderRadius: '8px' }}>
+                        {isLoadingChat ? (
+                          <p>Cargando historial del chat...</p>
+                        ) : chatHistory && chatHistory.length > 0 ? (
+                          chatHistory.map((msg, idx) => (
+                            <div key={idx} style={{ marginBottom: '10px', display: 'flex', flexDirection: 'column', alignItems: msg.role === 'model' ? 'flex-start' : 'flex-end' }}>
+                              <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#64748b' }}>{msg.role === 'model' ? 'Asistente IA' : 'Prospecto'}</span>
+                              <div style={{ background: msg.role === 'model' ? '#e2e8f0' : '#0ea5e9', color: msg.role === 'model' ? '#0f172a' : '#fff', padding: '8px 12px', borderRadius: '8px', maxWidth: '90%', fontSize: '0.9rem' }}>
+                                {msg.message}
+                              </div>
+                            </div>
+                          ))
+                        ) : (
+                          <p style={{ fontSize: '0.9rem', color: '#64748b' }}>No se encontró historial para esta sesión.</p>
+                        )}
+                      </div>
+                    ) : (
+                      <>
+                        {isEditingInfo ? (
+                          <textarea
+                            value={editGeneralNotes}
+                            onChange={(e) => setEditGeneralNotes(e.target.value)}
+                            rows={4}
+                            className="dashboard-textarea"
+                            placeholder="Describe la obra, volumen de concreto, productos cotizados, etc..."
+                          />
+                        ) : (
+                          <p className="dashboard-notes-text">{leadNotesText || 'Sin observaciones del requerimiento.'}</p>
+                        )}
+                        {isEditingInfo && (
+                          <button
+                            type="button"
+                            className="edit-req-btn-link"
+                            style={{ display: 'none' }}
+                            onClick={() => {
+                              setIsEditingInfo(true);
+                              setEditName(lead.name || '');
+                              setEditCompany(lead.company || '');
+                              setEditPhone(lead.phone || '');
+                              setEditEmail(lead.email || '');
+                              setEditGeneralNotes(leadNotesText || '');
+                            }}
+                          >
+                            <i className="fas fa-pen"></i> Editar Ficha
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Estatus y Asignación */}
@@ -501,6 +559,7 @@ export default function DetallesNegociacionFeature({
                       <StatusDropdown
                         currentStatus={lead.status || 'nuevo'}
                         customStages={customStages}
+                        isWebLead={isWebLead}
                         onChange={handleStageChange}
                       />
                     </div>
@@ -533,39 +592,43 @@ export default function DetallesNegociacionFeature({
                 </div>
 
                 {/* Cotizaciones */}
-                <div className="dashboard-card">
-                  <span className="card-sec-title">
-                    <i className="fas fa-file-invoice-dollar" style={{ marginRight: '6px' }}></i>
-                    Cotizaciones Emitidas ({leadQuotes.length})
-                  </span>
-                  <div className="quotes-list-container">
-                    {loadingLeadQuotes ? (
-                      <p className="empty-quotes-state">Cargando cotizaciones...</p>
-                    ) : leadQuotes.length === 0 ? (
-                      <div className="empty-quotes-state">
-                        <i className="far fa-file-alt" style={{ fontSize: '1.5rem', color: '#cbd5e1', marginBottom: '6px' }}></i>
-                        <span>Sin cotizaciones emitidas.</span>
-                      </div>
-                    ) : (
-                      <div className="quotes-mini-grid">
-                        {leadQuotes.map(q => (
-                          <div key={q.id} className="quote-item-row">
-                            <div className="quote-item-info">
-                              <i className="fas fa-file-invoice quote-icon"></i>
-                              <div>
-                                <span className="quote-number">{q.quote_num}</span>
-                                <span className="quote-date">{q.created_at ? new Date(q.created_at).toLocaleDateString() : ''}</span>
+                {!isWebLead && (
+                  <div className="dashboard-card quotes-card" style={{ marginTop: '1.5rem' }}>
+                    <div className="card-header-flex">
+                      <span className="card-sec-title"><i className="fas fa-file-invoice-dollar"></i> Cotizaciones Emitidas ({leadQuotes.length})</span>
+                      <button className="quote-shortcut-btn" onClick={openQuoteGenerator} title="Abrir Cotizador B2B para este prospecto">
+                        <i className="fas fa-calculator"></i> Nueva
+                      </button>
+                    </div>
+                    <div className="quotes-list-container">
+                      {loadingLeadQuotes ? (
+                        <p className="empty-quotes-state">Cargando cotizaciones...</p>
+                      ) : leadQuotes.length === 0 ? (
+                        <div className="empty-quotes-state">
+                          <i className="far fa-file-alt" style={{ fontSize: '1.5rem', color: '#cbd5e1', marginBottom: '6px' }}></i>
+                          <span>Sin cotizaciones emitidas.</span>
+                        </div>
+                      ) : (
+                        <div className="quotes-mini-grid">
+                          {leadQuotes.map(q => (
+                            <div key={q.id} className="quote-item-row">
+                              <div className="quote-item-info">
+                                <i className="fas fa-file-invoice quote-icon"></i>
+                                <div>
+                                  <span className="quote-number">{q.quote_num}</span>
+                                  <span className="quote-date">{q.created_at ? new Date(q.created_at).toLocaleDateString() : ''}</span>
+                                </div>
+                              </div>
+                              <div className="quote-amount">
+                                ${parseFloat(q.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                               </div>
                             </div>
-                            <div className="quote-amount">
-                              ${parseFloat(q.total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Acciones del Modo Edición */}
                 {isEditingInfo && (

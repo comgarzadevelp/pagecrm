@@ -507,7 +507,7 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status !== 'descartado').length}</h3>
+            <h3>{leads.filter(l => l.status !== 'descartado' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>Total de Negociaciones</p>
           </div>
         </div>
@@ -523,7 +523,7 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box total" style={{ color: '#0086c0', background: 'rgba(0, 134, 192, 0.08)' }}><i className="fas fa-folder-plus"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'nuevo').length}</h3>
+            <h3>{leads.filter(l => l.status === 'nuevo' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>Nueva negociación</p>
           </div>
         </div>
@@ -539,7 +539,7 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box contact" style={{ color: '#d97706', background: 'rgba(217, 119, 6, 0.08)' }}><i className="fas fa-comments"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'contactado').length}</h3>
+            <h3>{leads.filter(l => l.status === 'contactado' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>En pláticas</p>
           </div>
         </div>
@@ -555,7 +555,7 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box" style={{ color: '#7c3aed', background: 'rgba(124, 58, 237, 0.08)' }}><i className="fas fa-file-invoice-dollar"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'cotizando').length}</h3>
+            <h3>{leads.filter(l => l.status === 'cotizando' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>Se le hizo cotización</p>
           </div>
         </div>
@@ -571,7 +571,7 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box" style={{ color: '#16a34a', background: 'rgba(22, 163, 74, 0.08)' }}><i className="fas fa-trophy"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'cierre_ganado').length}</h3>
+            <h3>{leads.filter(l => l.status === 'cierre_ganado' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>Venta Exitosa</p>
           </div>
         </div>
@@ -587,14 +587,14 @@ export default function LeadsBandejaFeature({
         >
           <div className="stat-icon-box" style={{ color: '#dc2626', background: 'rgba(220, 38, 38, 0.08)' }}><i className="fas fa-times-circle"></i></div>
           <div className="stat-val-box">
-            <h3>{leads.filter(l => l.status === 'cierre_perdido').length}</h3>
+            <h3>{leads.filter(l => l.status === 'cierre_perdido' && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length}</h3>
             <p>Venta perdida</p>
           </div>
         </div>
 
         {/* Dynamic cards for each custom stage */}
         {customStages.map(stage => {
-          const count = leads.filter(l => l.status === stage.name.toLowerCase()).length;
+          const count = leads.filter(l => l.status === stage.name.toLowerCase() && !['contact_form','popup_whatsapp','whatsapp_inbound','chatbot_capture'].includes(l.type)).length;
           const isCurrent = statusFilter === stage.name.toLowerCase();
           return (
             <div

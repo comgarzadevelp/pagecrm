@@ -68,15 +68,24 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
         const data = await res.json();
         if (res.ok && data.success && Array.isArray(data.customers)) {
           // Mapear al formato unificado
-          const mapped = data.customers.map(c => ({
-            id: String(c.id),
-            nombre: c.name || '',
-            company: c.company || '',
-            company_id: c.company_id,
-            email: c.email || '',
-            phone: c.phone || '',
-            type: 'cliente'
-          }));
+          const mapped = data.customers.map(c => {
+            let actualCompanyId = c.company_id;
+            if (c.notes) {
+              try {
+                const parsed = JSON.parse(c.notes);
+                if (parsed.company_id) actualCompanyId = parsed.company_id;
+              } catch(e) {}
+            }
+            return {
+              id: String(c.id),
+              nombre: c.name || '',
+              company: c.company || '',
+              company_id: actualCompanyId,
+              email: c.email || '',
+              phone: c.phone || '',
+              type: 'cliente'
+            };
+          });
           setCustomersCache(mapped);
         }
       } catch (err) {

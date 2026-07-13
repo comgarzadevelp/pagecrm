@@ -1155,7 +1155,7 @@ export default function FichaClienteIndividualModal({
 
     uniqueTimelineEntries.forEach((n, idx) => {
       const isChange = n.type === 'change' || n.type === 'status_change' || n.type === 'archive';
-      const isNote = n.type === 'nota' || !n.type;
+      const isNote = n.type === 'nota' || n.type === 'evidence' || !n.type;
       events.push({
         id: `manual-${idx}`,
         date: n.date || currentCustomer.created_at,
@@ -1164,6 +1164,10 @@ export default function FichaClienteIndividualModal({
         text: n.text,
         author: n.author || 'Ejecutivo',
         created_from: n.created_from || null,
+        photoUrl: n.photoUrl || null,
+        deviceInfo: n.deviceInfo || null,
+        gps_lat: n.gps ? n.gps.lat : null,
+        gps_lng: n.gps ? n.gps.lng : null,
         isNote,
         isVisita: false,
         isChange
@@ -2229,6 +2233,18 @@ export default function FichaClienteIndividualModal({
                               </span>
                             </div>
                             <p className="timeline-node-text" style={{ whiteSpace: 'pre-wrap' }}>{evt.text}</p>
+
+                            {/* Evidencia fotográfica */}
+                            {evt.photoUrl && (
+                              <div style={{ marginTop: '10px', marginBottom: '10px' }}>
+                                <img src={evt.photoUrl} alt="Evidencia de visita" style={{ maxWidth: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }} />
+                                {evt.deviceInfo && (
+                                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
+                                    <i className="fas fa-camera" /> Capturado desde: {evt.deviceInfo}
+                                  </div>
+                                )}
+                              </div>
+                            )}
 
                             {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
                             {evt.gps_lat && evt.gps_lng && (

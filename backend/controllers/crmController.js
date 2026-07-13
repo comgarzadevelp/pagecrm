@@ -3352,14 +3352,21 @@ export const updateCustomer = async (req, res) => {
 
     // 2. Obtener Contacto y Empresa asociados
     let contactId = null;
-    let resolvedCompanyId = company_id || (matchedLead ? matchedLead.company_id : null);
+    let resolvedCompanyId = null;
 
     if (matchedLead && matchedLead.notes) {
       try {
         const parsed = JSON.parse(matchedLead.notes.trim());
         if (parsed.contact_id) contactId = parsed.contact_id;
-        if (!resolvedCompanyId && parsed.company_id) resolvedCompanyId = parsed.company_id;
+        if (parsed.company_id) resolvedCompanyId = parsed.company_id;
       } catch (e) {}
+    }
+
+    if (req.body.contact_id !== undefined) {
+      contactId = req.body.contact_id;
+    }
+    if (req.body.company_id !== undefined) {
+      resolvedCompanyId = req.body.company_id;
     }
 
     // Resolver contactId si es de SAE

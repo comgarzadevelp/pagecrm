@@ -132,3 +132,22 @@ Estando conectado por SSH en tu VPS, estos comandos te salvarán la vida para mo
   # Luego de editar, siempre debes reiniciar el backend:
   pm2 restart garza-backend
   ```
+
+---
+
+## 🩹 5. Historial de Incidentes y Parches (Hotfixes en Producción)
+
+A continuación se registran los parches críticos aplicados directamente a la rama de producción (`CRMv3`) en julio de 2026:
+
+### A. Fix de Registro y Persistencia de Obras en FieldFlow (14-Julio-2026)
+* **Incidente:** En campo, al dar de alta una Obra nueva desde el formulario del Wizard, la relación no persistía y el backend creaba la visita comercial sin `obra_id`, dejando las fotos huérfanas en el visor del vendedor.
+* **Solución:** Se ajustó [FieldFlowWizard.jsx](file:///z:/Diseño%20V2/GARZA/06-GarzaPage/src/features/fieldflow/FieldFlowWizard.jsx) para validar si el objeto obra posee la bandera `isNew`. Si es así, realiza un POST a `/api/crm/obras`, obtiene el ID asignado por Supabase y ejecuta secuencialmente los enlaces de la constructora/empresa y contacto de obra a la relación antes de guardar el registro de la visita comercial final.
+
+### B. Mejora de Geocerca y Alta Precisión de GPS (14-Julio-2026)
+* **Incidente:** La obtención de geolocalización del navegador fallaba en dispositivos móviles debido a límites de tiempo de espera (timeout) muy cortos (6000ms), cayendo en fallbacks inexactos.
+* **Solución:** Se configuró el servicio del navegador en [CrearProspectoModal.jsx](file:///z:/Diseño%20V2/GARZA/06-GarzaPage/src/pages/crm/components/CrearProspectoModal.jsx) y [EntityResolver.jsx](file:///z:/Diseño%20V2/GARZA/06-GarzaPage/src/features/fieldflow/engine/EntityResolver.jsx) con los parámetros `{ enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }` asegurando mayor precisión y tiempo de respuesta.
+
+### C. Alerta de Edición de Empresa Global (14-Julio-2026)
+* **Incidente:** Los vendedores modificaban RFCs y Direcciones de empresas pensando que eran cambios locales a su contacto, afectando de manera no intencionada a contactos de otros vendedores asignados a la misma Razón Social.
+* **Solución:** Se colocó una advertencia destacada en amarillo en [FichaClienteIndividualModal.jsx](file:///z:/Diseño%20V2/GARZA/06-GarzaPage/src/features/directory/components/FichaClienteIndividualModal.jsx) avisando que editar la información fiscal afectará globalmente la empresa y a todos sus contactos asociados.
+

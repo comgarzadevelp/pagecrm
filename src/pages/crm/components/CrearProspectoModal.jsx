@@ -151,15 +151,15 @@ export default function CrearProspectoModal({
     if (!navigator.geolocation) return;
     setAcquiringGps(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCreationCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+      (position) => {
+        setCreationCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
         setAcquiringGps(false);
       },
       (err) => {
         console.warn('Auditoría GPS en segundo plano no disponible:', err);
         setAcquiringGps(false);
       },
-      { enableHighAccuracy: true, timeout: 6000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   };
 

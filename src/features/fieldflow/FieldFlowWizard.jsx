@@ -246,7 +246,68 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 3. Subir fotos de evidencia
+      // 3.3 Crear Obra si es nueva y/o vincular
+      let resolvedObraId = wizardState.obra?.id;
+      if (wizardState.obra) {
+        if (wizardState.obra.isNew) {
+          setCurrentActionText('Registrando nueva obra / proyecto...');
+          const obraRes = await fetch(`${API_BASE}/api/crm/obras`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name: wizardState.obra.nombre,
+              address: wizardState.obra.direccion || '',
+              latitude: wizardState.obra.lat || null,
+              longitude: wizardState.obra.lng || null
+            })
+          });
+          const obraData = await obraRes.json();
+          if (!obraRes.ok || !obraData.success) {
+            console.warn('Advertencia al crear la obra:', obraData.message);
+          } else {
+            resolvedObraId = obraData.obra.id;
+          }
+        }
+
+        // Vincular obra a empresa y contacto
+        if (resolvedObraId) {
+          if (resolvedCompanyId) {
+            setCurrentActionText('Vinculando obra a empresa...');
+            await fetch(`${API_BASE}/api/crm/obras/${resolvedObraId}/link-company`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                company_id: resolvedCompanyId,
+                role: 'Constructora / Cliente'
+              })
+            }).catch(e => console.warn(e));
+          }
+
+          if (resolvedContactId) {
+            setCurrentActionText('Vinculando obra a contacto...');
+            await fetch(`${API_BASE}/api/crm/obras/${resolvedObraId}/link-contact`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                contact_id: resolvedContactId,
+                company_id: resolvedCompanyId || null,
+                role: wizardState.contacto?.cargo || 'Contacto en Obra'
+              })
+            }).catch(e => console.warn(e));
+          }
+        }
+      }
+
+      // 3.4 Subir fotos de evidencia
       if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
         setCurrentActionText('Subiendo fotos de evidencia fotográfica...');
         
@@ -288,7 +349,7 @@ function WizardContent({ onClose, onSuccess }) {
       const visitaPayload = {
         company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
         contact_id: resolvedContactId || null,
-        obra_id: wizardState.obra?.id || null,
+        obra_id: resolvedObraId || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
         resultado: wizardState.visita.nota || 'Visita comercial de campo registrada.',
         notas: 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
@@ -329,7 +390,7 @@ function WizardContent({ onClose, onSuccess }) {
         const followupPayload = {
           company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
           contact_id: resolvedContactId || null,
-          obra_id: wizardState.obra?.id || null,
+          obra_id: resolvedObraId || null,
           tipo: followupTipo,
           resultado: followupResultado,
           notas: `Recordatorio automático creado desde FieldFlow. Actividad programada para el ${date} a las ${time || '10:00'}.`,

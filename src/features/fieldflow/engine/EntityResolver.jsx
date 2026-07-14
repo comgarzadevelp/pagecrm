@@ -321,7 +321,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
     }, (error) => {
       alert('No se pudo obtener la ubicación: ' + error.message);
       setIsLocating(false);
-    });
+    }, { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 });
   };
 
   const handleSelectSuggestion = (suggestion) => {

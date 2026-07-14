@@ -374,6 +374,123 @@ export default function DetallesNegociacionFeature({
         <div className="modal-body">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
+            {/* Panel de Control Super Admin */}
+            {role === 'super_admin' && (
+              <div className="dashboard-card admin-special-card" style={{ marginTop: '0', marginBottom: '16px', background: '#fffbeb', border: '1px solid #fef3c7', padding: '16px', borderRadius: '12px' }}>
+                <span className="card-sec-title" style={{ color: '#b45309', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '800', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                  <i className="fas fa-user-shield"></i> Control de Super Admin
+                </span>
+                <div style={{ marginTop: '10px', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '8px', color: '#475569' }}>
+                  <div><strong>ID de Oportunidad:</strong> <span style={{ fontFamily: 'monospace', color: '#1e293b' }}>{lead.id}</span></div>
+                  <div><strong>Fecha Creación:</strong> <span style={{ color: '#1e293b' }}>{lead.created_at ? new Date(lead.created_at).toLocaleString('es-MX') : 'N/A'}</span></div>
+                  
+                  {(() => {
+                    const timeline = notesData.timeline || [];
+                    const now = new Date();
+                    const parseSafeDate = (d) => {
+                      let dt = new Date(d);
+                      if (isNaN(dt.getTime()) || dt > new Date(now.getTime() + 86400000)) return new Date(0);
+                      return dt;
+                    };
+                    const sorted = [...timeline].sort((a, b) => parseSafeDate(b.date) - parseSafeDate(a.date));
+                    const lastInteraction = sorted[0];
+                    
+                    let lastActivityTime = NaN;
+                    if (lastInteraction && lastInteraction.date) {
+                      lastActivityTime = parseSafeDate(lastInteraction.date).getTime();
+                    }
+                    if (isNaN(lastActivityTime) || lastActivityTime === 0) {
+                      lastActivityTime = lead.created_at ? parseSafeDate(lead.created_at).getTime() : now.getTime();
+                    }
+                    
+                    const daysInactive = Math.max(0, Math.floor((now.getTime() - lastActivityTime) / (24 * 60 * 60 * 1000))) || 0;
+                    const daysToWarning = Math.max(0, 3 - daysInactive);
+                    const daysToAlert = Math.max(0, 7 - daysInactive);
+                    
+                    let activityText = 'Creación de oportunidad';
+                    let activityAuthor = lead.assigned_to ? (typeof lead.assigned_to === 'object' ? lead.assigned_to.name : lead.assigned_to) : 'Sistema';
+                    
+                    if (lastInteraction) {
+                      activityAuthor = lastInteraction.author || 'Vendedor';
+                      const typeLabel = 
+                        lastInteraction.type === 'note' ? 'Nota/Comentario' :
+                        lastInteraction.type === 'call' ? 'Llamada' :
+                        lastInteraction.type === 'whatsapp' ? 'WhatsApp' :
+                        lastInteraction.type === 'visit' ? 'Visita presencial' :
+                        lastInteraction.type === 'status_change' ? 'Cambio de etapa' : 'Actividad';
+                        
+                      let detailSnippet = lastInteraction.text || '';
+                      try {
+                        const innerParsed = JSON.parse(lastInteraction.text);
+                        if (innerParsed && typeof innerParsed === 'object') {
+                          detailSnippet = innerParsed.comment || '';
+                        }
+                      } catch (e) {}
+                      
+                      if (detailSnippet.length > 60) {
+                        detailSnippet = detailSnippet.substring(0, 60) + '...';
+                      }
+                      
+                      activityText = `[${typeLabel}] "${detailSnippet}"`;
+                    }
+
+                    let alertLabel = 'Saludable';
+                    let alertDetails = '';
+                    if (daysInactive === 0) {
+                      alertLabel = 'Activo Hoy';
+                      alertDetails = 'Advertencia en 3 días / Alerta en 7 días';
+                    } else if (daysInactive >= 7) {
+                      alertLabel = 'Crítico (Alerta)';
+                      alertDetails = `Inactivo hace ${daysInactive} días`;
+                    } else if (daysInactive >= 3) {
+                      alertLabel = 'Advertencia';
+                      alertDetails = `Inactivo hace ${daysInactive} días (Alerta en ${daysToAlert} ${daysToAlert === 1 ? 'día' : 'días'})`;
+                    } else {
+                      alertLabel = 'Saludable';
+                      alertDetails = `Inactivo hace ${daysInactive} ${daysInactive === 1 ? 'día' : 'días'} (Advertencia en ${daysToWarning} ${daysToWarning === 1 ? 'día' : 'días'})`;
+                    }
+
+                    return (
+                      <>
+                        <div><strong>Última Modificación (Bitácora):</strong> <span style={{ color: '#1e293b' }}>{new Date(lastActivityTime).toLocaleString('es-MX')}</span></div>
+                        <div><strong>Qué hizo:</strong> <span style={{ color: '#1e293b' }}>{activityText} por <strong>{activityAuthor}</strong></span></div>
+                        <div><strong>Alerta de Inactividad:</strong>{' '}
+                          <span style={{ 
+                            padding: '2px 8px', 
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold',
+                            color: daysInactive >= 7 ? '#b91c1c' : daysInactive >= 3 ? '#b45309' : '#047857',
+                            background: daysInactive >= 7 ? '#fee2e2' : daysInactive >= 3 ? '#fef3c7' : '#d1fae5'
+                          }}>
+                            {alertLabel} — {alertDetails}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  <div><strong>Canal de Entrada / Origen:</strong> <span style={{ color: '#1e293b' }}>{(() => {
+                    const type = lead.type;
+                    if (type === 'proyecto') return 'Oportunidad Vinculada';
+                    if (type === 'contact_form') return 'Formulario Web';
+                    if (type === 'whatsapp_inbound') return 'WhatsApp Directo';
+                    if (type === 'chatbot_capture') return 'Chatbot IA';
+                    if (type === 'popup_whatsapp') return 'Popup WhatsApp';
+                    return type || 'Creación Manual';
+                  })()}</span></div>
+                  {lead.source_url && (
+                    <div>
+                      <strong>Página Web de Origen:</strong>{' '}
+                      <a href={lead.source_url} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'underline' }}>
+                        Ver enlace
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Tarjeta de Información del Cliente (Unificada) */}
             <div className="client-info-card-premium">
               <div className="client-info-header">
@@ -491,7 +608,7 @@ export default function DetallesNegociacionFeature({
                     <span className="card-sec-title">
                       {isWebLead ? (lead.source_session_id ? <><i className="fas fa-robot"></i> Transcripción del Chatbot</> : <><i className="fas fa-comment-alt"></i> Requerimiento / Mensaje Inicial</>) : <><i className="fas fa-building"></i> Requerimiento / Obra</>}
                     </span>
-                    {!isWebLead && (
+                    {!isWebLead && role !== 'super_admin' && (
                       <button className="edit-info-btn" onClick={() => setIsEditingInfo(true)}>
                         <i className="fas fa-pen"></i> Editar Ficha
                       </button>
@@ -555,17 +672,28 @@ export default function DetallesNegociacionFeature({
                 <div className="dashboard-card status-assigned-card">
                   <div>
                     <span className="card-sec-title">Estatus de Negociación</span>
-                    <div style={{ marginTop: '6px' }}>
-                      <StatusDropdown
-                        currentStatus={lead.status || 'nuevo'}
-                        customStages={customStages}
-                        isWebLead={isWebLead}
-                        onChange={handleStageChange}
-                      />
+                    <div style={{ marginTop: '10px' }}>
+                      {role === 'super_admin' ? (
+                        <span className={`sa2-qs-badge ${
+                          (lead.status?.toLowerCase().includes('ganad') || lead.status?.toLowerCase().includes('exito')) ? 'green' :
+                          (lead.status?.toLowerCase().includes('perdid') || lead.status?.toLowerCase().includes('cancel') || lead.status?.toLowerCase().includes('descart')) ? 'red' :
+                          (lead.status?.toLowerCase().includes('platica')) ? 'yellow' :
+                          (lead.status?.toLowerCase().includes('cotiz')) ? 'purple' : 'blue'
+                        }`} style={{ padding: '8px 16px', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '6px', borderRadius: '20px', fontWeight: 'bold' }}>
+                          {lead.status?.replace(/_/g, ' ').toUpperCase() || 'NUEVA NEGOCIACIÓN'}
+                        </span>
+                      ) : (
+                        <StatusDropdown
+                          currentStatus={lead.status || 'nuevo'}
+                          customStages={customStages}
+                          isWebLead={isWebLead}
+                          onChange={handleStageChange}
+                        />
+                      )}
                     </div>
                   </div>
                   <div>
-                    {(role === 'admin' || role === 'supervisor' || role === 'super_admin') ? (
+                    {(role === 'admin' || role === 'supervisor') ? (
                       <>
                         <span className="card-sec-title"><i className="fas fa-user-plus"></i> Asignación</span>
                         <select
@@ -583,8 +711,17 @@ export default function DetallesNegociacionFeature({
                     ) : (
                       <>
                         <span className="card-sec-title"><i className="fas fa-user-tie"></i> Vendedor Asignado</span>
-                        <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', fontWeight: '700', color: 'var(--color-brand-primary)' }}>
-                          {lead.assigned_to ? lead.assigned_to.name : 'Sin asignar'}
+                        <p style={{ margin: '8px 0 0 0', fontSize: '0.85rem', fontWeight: '700', color: '#2563eb' }}>
+                          {(() => {
+                            if (!lead.assigned_to) return 'Sin asignar';
+                            if (typeof lead.assigned_to === 'object') {
+                              if (lead.assigned_to.name) return lead.assigned_to.name;
+                              const found = sellers.find(s => s.id === lead.assigned_to.id);
+                              return found ? found.name : (lead.assigned_to.id || 'Sin asignar');
+                            }
+                            const found = sellers.find(s => s.id === lead.assigned_to);
+                            return found ? found.name : lead.assigned_to;
+                          })()}
                         </p>
                       </>
                     )}
@@ -596,9 +733,11 @@ export default function DetallesNegociacionFeature({
                   <div className="dashboard-card quotes-card" style={{ marginTop: '1.5rem' }}>
                     <div className="card-header-flex">
                       <span className="card-sec-title"><i className="fas fa-file-invoice-dollar"></i> Cotizaciones Emitidas ({leadQuotes.length})</span>
-                      <button className="quote-shortcut-btn" onClick={() => showToast('Cotizador en construcción...', 'info')} title="Abrir Cotizador B2B para este prospecto">
-                        <i className="fas fa-calculator"></i> Nueva
-                      </button>
+                      {role !== 'super_admin' && (
+                        <button className="quote-shortcut-btn" onClick={() => showToast('Cotizador en construcción...', 'info')} title="Abrir Cotizador B2B para este prospecto">
+                          <i className="fas fa-calculator"></i> Nueva
+                        </button>
+                      )}
                     </div>
                     <div className="quotes-list-container">
                       {loadingLeadQuotes ? (
@@ -665,73 +804,75 @@ export default function DetallesNegociacionFeature({
                   </span>
 
                   {/* Formulario rápido de Interacción */}
-                  <form onSubmit={handleAddTimelineNote} className="bitacora-quick-form">
-                    <div className="form-row-compact">
-                      <select
-                        value={timelineNoteType}
-                        onChange={(e) => {
-                          setTimelineNoteType(e.target.value);
-                          if (e.target.value !== 'visit') {
-                            setVisitPhotos([]);
-                          }
-                        }}
-                        className="bitacora-type-select"
-                      >
-                        <option value="note">📝 Nota</option>
-                        <option value="call">📞 Llamada</option>
-                        <option value="whatsapp">💬 WhatsApp</option>
-                        <option value="visit">🤝 Visita</option>
-                      </select>
-                      
-                      {timelineNoteType === 'visit' && (
-                        <div className="visit-photo-upload-compact">
-                          <label htmlFor="visit-photo-input" className="visit-photo-label-btn">
-                            <i className="fas fa-camera"></i>
-                          </label>
-                          <input
-                            id="visit-photo-input"
-                            type="file"
-                            accept="image/*"
-                            multiple
-                            onChange={handleFileChange}
-                            disabled={visitPhotos.length >= 2}
-                            style={{ display: 'none' }}
-                          />
+                  {role !== 'super_admin' && (
+                    <form onSubmit={handleAddTimelineNote} className="bitacora-quick-form">
+                      <div className="form-row-compact">
+                        <select
+                          value={timelineNoteType}
+                          onChange={(e) => {
+                            setTimelineNoteType(e.target.value);
+                            if (e.target.value !== 'visit') {
+                              setVisitPhotos([]);
+                            }
+                          }}
+                          className="bitacora-type-select"
+                        >
+                          <option value="note">📝 Nota</option>
+                          <option value="call">📞 Llamada</option>
+                          <option value="whatsapp">💬 WhatsApp</option>
+                          <option value="visit">🤝 Visita</option>
+                        </select>
+                        
+                        {timelineNoteType === 'visit' && (
+                          <div className="visit-photo-upload-compact">
+                            <label htmlFor="visit-photo-input" className="visit-photo-label-btn">
+                              <i className="fas fa-camera"></i>
+                            </label>
+                            <input
+                              id="visit-photo-input"
+                              type="file"
+                              accept="image/*"
+                              multiple
+                              onChange={handleFileChange}
+                              disabled={visitPhotos.length >= 2}
+                              style={{ display: 'none' }}
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {timelineNoteType === 'visit' && visitPhotos.length > 0 && (
+                        <div className="visit-photos-preview-grid" style={{ marginBottom: '8px' }}>
+                          {visitPhotos.map((photo, pIdx) => (
+                            <div key={pIdx} className="visit-photo-preview-item">
+                              <img src={photo} alt={`Preview ${pIdx + 1}`} />
+                              <button
+                                type="button"
+                                className="delete-preview-btn"
+                                onClick={() => setVisitPhotos(prev => prev.filter((_, idx) => idx !== pIdx))}
+                              >
+                                &times;
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       )}
-                    </div>
 
-                    {timelineNoteType === 'visit' && visitPhotos.length > 0 && (
-                      <div className="visit-photos-preview-grid" style={{ marginBottom: '8px' }}>
-                        {visitPhotos.map((photo, pIdx) => (
-                          <div key={pIdx} className="visit-photo-preview-item">
-                            <img src={photo} alt={`Preview ${pIdx + 1}`} />
-                            <button
-                              type="button"
-                              className="delete-preview-btn"
-                              onClick={() => setVisitPhotos(prev => prev.filter((_, idx) => idx !== pIdx))}
-                            >
-                              &times;
-                            </button>
-                          </div>
-                        ))}
+                      <div className="bitacora-input-group">
+                        <textarea
+                          placeholder="Registrar detalles del seguimiento..."
+                          value={timelineNote}
+                          onChange={(e) => setTimelineNote(e.target.value)}
+                          required
+                          rows={2}
+                          className="bitacora-textarea"
+                        />
+                        <button type="submit" className="bitacora-submit-btn">
+                          <i className="fas fa-paper-plane"></i>
+                        </button>
                       </div>
-                    )}
-
-                    <div className="bitacora-input-group">
-                      <textarea
-                        placeholder="Registrar detalles del seguimiento..."
-                        value={timelineNote}
-                        onChange={(e) => setTimelineNote(e.target.value)}
-                        required
-                        rows={2}
-                        className="bitacora-textarea"
-                      />
-                      <button type="submit" className="bitacora-submit-btn">
-                        <i className="fas fa-paper-plane"></i>
-                      </button>
-                    </div>
-                  </form>
+                    </form>
+                  )}
 
                   {/* Feed de Bitácora */}
                   <div className="bitacora-feed-scroll" style={{ flex: 1, maxHeight: '280px', overflowY: 'auto' }}>
@@ -747,7 +888,13 @@ export default function DetallesNegociacionFeature({
                         );
                       }
 
-                      const sortedInteractions = [...interactions].sort((a, b) => new Date(b.date) - new Date(a.date));
+                      const sortedInteractions = [...interactions].sort((a, b) => {
+                        const dateA = new Date(a.date);
+                        const dateB = new Date(b.date);
+                        const safeA = isNaN(dateA.getTime()) || dateA > new Date(Date.now() + 86400000) ? new Date(0) : dateA;
+                        const safeB = isNaN(dateB.getTime()) || dateB > new Date(Date.now() + 86400000) ? new Date(0) : dateB;
+                        return safeB - safeA;
+                      });
 
                       return sortedInteractions.map((evt, idx) => {
                         let bubbleClass = 'bubble-note';

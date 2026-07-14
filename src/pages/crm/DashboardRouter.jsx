@@ -143,8 +143,13 @@ const DashboardRouter = () => {
     );
   }
 
+  // Si el usuario es super_admin, redirigir automáticamente al panel V2
+  if (role === 'super_admin') {
+    return <Navigate to="/crm/sa2" replace />;
+  }
+
   // Si el usuario no tiene rol válido, sacarlo al login
-  if (!['super_admin', 'admin', 'supervisor', 'sales', 'sistemas'].includes(role)) {
+  if (!['admin', 'supervisor', 'sales', 'sistemas'].includes(role)) {
     localStorage.clear();
     return <Navigate to="/crm/login" replace />;
   }

@@ -8,7 +8,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [activeCompany, setActiveCompany] = useState('GARZA'); // 'GARZA' or 'RAV' pre-selector
+  const [activeCompany, setActiveCompany] = useState('GARZA'); // Pre-selector de marca: 'GARZA' o 'RAV' 🏢🔥
   const [companies, setCompanies] = useState([]);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [isSelectingCompany, setIsSelectingCompany] = useState(false);
@@ -17,12 +17,12 @@ const Login = () => {
   const { switchCompany } = useCompany();
 
   useEffect(() => {
-    // Apply theme based on activeCompany selection
+    // 🎨 Aplicar tema visual dinámico según la empresa seleccionada (Garza o RAV)
     applyTheme(activeCompany);
   }, [activeCompany]);
 
   useEffect(() => {
-    // Check if user was redirected from company selection
+    // 🔄 Verificar si el usuario proviene de un flujo de selección multi-empresa previo
     const storedEmail = sessionStorage.getItem('loginEmail');
     const storedPassword = sessionStorage.getItem('loginPassword');
     const storedCompanies = sessionStorage.getItem('userCompanies');
@@ -33,7 +33,7 @@ const Login = () => {
       const parsedCompanies = JSON.parse(storedCompanies);
       setCompanies(parsedCompanies);
       setIsSelectingCompany(true);
-      // Auto-select if only one company
+      // Auto-seleccionar si el usuario solo pertenece a una empresa
       if (parsedCompanies.length === 1) {
         setSelectedCompany(parsedCompanies[0]);
       }
@@ -65,18 +65,18 @@ const Login = () => {
         return;
       }
 
-      // User belongs to ONE company or fallback resolved company
+      // 🏢 Caso A: El usuario pertenece a una única empresa
       const userCompanies = data.companies || [];
       
       if (userCompanies.length === 1) {
-        // Auto-proceed with the user's only company
+        // Proceder automáticamente con su única empresa asignada
         completeLogin(data, userCompanies[0]);
       } else if (userCompanies.length > 1) {
-        // Show selector (rare case)
+        // 🔀 Caso B: El usuario tiene múltiples empresas (Mostrar selector especial)
         setCompanies(userCompanies);
         setSelectedCompany(null);
         setIsSelectingCompany(true);
-        // Store credentials temporarily
+        // Guardar credenciales temporalmente en sesión para el segundo paso
         sessionStorage.setItem('loginEmail', email);
         sessionStorage.setItem('loginPassword', password);
         sessionStorage.setItem('userCompanies', JSON.stringify(userCompanies));
@@ -121,7 +121,7 @@ const Login = () => {
         return;
       }
 
-      // Verify user belongs to selected company
+      // Verificar que el usuario tenga acceso real a la empresa seleccionada
       const company = data.companies?.find(c => c.id === selectedCompany.id);
       if (!company) {
         setError('No tienes permiso para acceder a esta empresa');
@@ -138,7 +138,7 @@ const Login = () => {
   };
 
   const completeLogin = (data, company) => {
-    // Save to localStorage
+    // 💾 Guardar datos de sesión de forma local
     localStorage.setItem('token', data.token);
     localStorage.setItem('role', data.role);
     localStorage.setItem('userName', data.name || '');
@@ -148,13 +148,13 @@ const Login = () => {
       localStorage.setItem('allowedCompanies', JSON.stringify(data.companies));
     }
 
-    // Update company context
+    // 🔄 Sincronizar el contexto global de la empresa activa
     switchCompany(company.id, company.company_code, company);
 
-    // Clean sessionStorage
+    // Limpiar almacenamiento temporal de sesión
     sessionStorage.clear();
 
-    // Navigate to dashboard
+    // 🔀 Redirección según rol (Super Administrador va al panel V2, los demás al panel estándar)
     if (data.role === 'super_admin') {
       navigate('/crm/sa2');
     } else {
@@ -162,6 +162,7 @@ const Login = () => {
     }
   };
 
+  // 🔀 INTERFAZ VARIANTE 2: Selector Multi-empresa (aparece si el usuario pertenece a más de una empresa) 🏢🏢
   if (isSelectingCompany && companies.length > 0) {
     return (
       <div className="crm-login-page">
@@ -186,7 +187,7 @@ const Login = () => {
                     backgroundColor: company.color_primary,
                     boxShadow: `0 2px 8px ${company.color_primary}40`
                   }} 
-                />
+                  />
                 <div className="company-info">
                   <h3>{company.name}</h3>
                   <p className="company-code">{company.company_code}</p>
@@ -232,6 +233,7 @@ const Login = () => {
     );
   }
 
+  // 📝 INTERFAZ VARIANTE 1: Formulario Estándar de Inicio de Sesión (Garza / RAV) 🖥️👤
   return (
     <div className={`crm-login-page company-theme-${activeCompany.toLowerCase()}`}>
       <div className="crm-login-card">
@@ -245,7 +247,7 @@ const Login = () => {
           {activeCompany === 'RAV' ? 'RAV Aire y Calefacción' : 'Comercializadora Garza'}
         </p>
 
-        {/* Dynamic Company Selection Buttons */}
+        {/* 📑 Pestanas Superiores para Alternar Marca (Garza / RAV) */}
         <div className="crm-company-tabs">
           <button
             type="button"
@@ -305,6 +307,7 @@ const Login = () => {
           </div>
         )}
 
+        {/* 🔐 Enlace Directo a Consola de Administrador General / Super Admin */}
         <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(0,0,0,0.06)', paddingTop: '1.25rem', width: '100%', textAlign: 'center' }}>
           <button
             type="button"
@@ -336,5 +339,3 @@ const Login = () => {
 };
 
 export default Login;
-
-

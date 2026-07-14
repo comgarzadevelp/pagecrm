@@ -327,18 +327,36 @@ const parseOpportunityDescription = (title, description, opp) => {
   const oppUpdatedDate = opp && opp.updated_at ? new Date(opp.updated_at) : null;
 
   lines.forEach(line => {
-    // Matches: [dd/mm/yyyy] text OR [dd/mm/yyyy - Author] text
-    const match = line.match(/^\[(\d{1,2}\/\d{1,2}\/\d{4})(?:\s*-\s*([^\]]+))?\]\s*(.*)/);
+    // Matches: [dateString] text OR [dateString - Author] text
+    const match = line.match(/^\[([^\]]+?)\]\s*(.*)/);
     if (match) {
-      const dateStr = match[1];
-      const authorName = match[2] ? match[2].trim() : 'Sistema';
-      const text = match[3];
-      const parts = dateStr.split('/');
+      const innerBracket = match[1].trim();
+      const text = match[2];
+      
+      let dateStr = innerBracket;
+      let authorName = 'Sistema';
+      
+      const dashIndex = innerBracket.indexOf(' - ');
+      if (dashIndex !== -1) {
+        dateStr = innerBracket.substring(0, dashIndex).trim();
+        authorName = innerBracket.substring(dashIndex + 3).trim();
+      }
+
       let date;
+      const parts = dateStr.split('/');
       if (parts.length === 3) {
-        const day = parseInt(parts[0], 10);
-        const month = parseInt(parts[1], 10) - 1;
+        // Old DD/MM/YYYY format or MM/DD/YYYY US format
+        let day = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10) - 1;
         const year = parseInt(parts[2], 10);
+
+        if (month > 11) {
+          // Flip: first part is month, second is day
+          const temp = day;
+          day = parseInt(parts[1], 10);
+          month = temp - 1;
+        }
+
         date = new Date(year, month, day);
 
         // Inherit exact time if the parsed date is the same day as one of the database timestamps
@@ -350,14 +368,19 @@ const parseOpportunityDescription = (title, description, opp) => {
           date = oppCreatedDate;
         }
       } else {
+        // Try parsing ISO string
+        date = new Date(dateStr);
+      }
+
+      if (isNaN(date.getTime())) {
         date = new Date();
       }
 
       timelineEntries.push({
-        date: isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString(),
+        date: date.toISOString(),
         text: text,
         author: authorName,
-        type: match[2] ? 'note' : 'status_change'
+        type: dashIndex !== -1 ? 'note' : 'status_change'
       });
     } else {
       generalLines.push(line);
@@ -639,7 +662,7 @@ export const updateLeadStage = async (req, res) => {
           timelineText = `Cambio de estatus a "cotizando". Monto cotizado: $${formattedQuote} MXN. Descripción: ${quoteDescription || 'N/A'}`;
         }
         
-        const newDesc = `${desc}\n[${new Date().toLocaleDateString()}] ${timelineText}`.trim();
+        const newDesc = `${desc}\n[${new Date().toISOString()}] ${timelineText}`.trim();
 
         const updateData = { 
           stage: stage,
@@ -871,8 +894,9 @@ export const updateLead = async (req, res) => {
         
         // Re-append the timeline entries as text
         const timelineTextLines = parsed.timelineEntries.map(evt => {
-          const dateStr = new Date(evt.date).toLocaleDateString();
-          return `[${dateStr}] ${evt.text}`;
+          const dateStr = new Date(evt.date).toISOString();
+          const authorStr = evt.author && evt.author !== 'Sistema' ? ` - ${evt.author}` : '';
+          return `[${dateStr}${authorStr}] ${evt.text}`;
         });
         
         const finalDesc = [newDesc, ...timelineTextLines].join('\n').trim();
@@ -1237,7 +1261,7 @@ export const discardLead = async (req, res) => {
         .maybeSingle();
 
       if (opp) {
-        const discardText = `\n[${new Date().toLocaleDateString()}] Oportunidad descartada. Motivo: ${reason}. Comentario: ${comment || 'Sin detalles'}`;
+        const discardText = `\n[${new Date().toISOString()}] Oportunidad descartada. Motivo: ${reason}. Comentario: ${comment || 'Sin detalles'}`;
         const newDesc = (opp.description || '') + discardText;
 
         const { data: updatedOpp, error: oppUpdateError } = await supabase
@@ -2052,12 +2076,15 @@ export const addLeadTimelineEntry = async (req, res) => {
         .maybeSingle();
 
       if (opp) {
-        const textToAppend = `\n[${new Date().toLocaleDateString()} - ${userName}] ${text.trim()}`;
+        const textToAppend = `\n[${new Date().toISOString()} - ${userName}] ${text.trim()}`;
         const newDesc = (opp.description || '') + textToAppend;
 
         const { error: oppUpdateError } = await supabase
           .from('crm_opportunities')
-          .update({ description: newDesc })
+          .update({ 
+            description: newDesc,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', id);
 
         if (oppUpdateError) throw oppUpdateError;

@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
+import DetallesNegociacionFeature from '../../leads/components/DetallesNegociacionFeature';
+import { UXProvider } from '../../../components/common/UXProvider';
 import './SA2QuotesStatsPage.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -9,14 +11,38 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
 const formatCurrency = (val) => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(val || 0);
 const formatPercent = (val) => new Intl.NumberFormat('es-MX', { style: 'percent', maximumFractionDigits: 0 }).format(val || 0);
 
+const getStageBadgeClass = (stageStr) => {
+  const stage = stageStr?.toLowerCase() || '';
+  if (stage.includes('platica') || stage.includes('conversac')) return 'yellow';
+  if (stage.includes('cotiza') || stage.includes('propuesta')) return 'purple';
+  if (stage.includes('exitos') || stage.includes('ganad') || stage.includes('cerrad')) return 'green';
+  if (stage.includes('perdid') || stage.includes('cancelad') || stage.includes('descartad')) return 'red';
+  return 'blue'; // Nueva Negociación o por defecto
+};
+
+const getStageIcon = (stageStr) => {
+  const stage = stageStr?.toLowerCase() || '';
+  if (stage.includes('platica') || stage.includes('conversac')) return 'fa-comments';
+  if (stage.includes('cotiza') || stage.includes('propuesta')) return 'fa-file-invoice-dollar';
+  if (stage.includes('exitos') || stage.includes('ganad') || stage.includes('cerrad')) return 'fa-handshake';
+  if (stage.includes('perdid') || stage.includes('cancelad') || stage.includes('descartad')) return 'fa-ban';
+  return 'fa-plus-circle'; // Nueva
+};
+
 export default function SA2QuotesStatsPage() {
   const token = localStorage.getItem('token');
+  const queryClient = useQueryClient();
   const [filterSeller, setFilterSeller] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('month'); // today, week, month, all
   
   // Modal state
-  const [selectedSeller, setSelectedSeller] = useState(null); 
-  const [modalTab, setModalTab] = useState('active'); // active, closed, lost
+  const [expandedSellerId, setExpandedSellerId] = useState(null); 
+  const [showNegotiationsModal, setShowNegotiationsModal] = useState(false);
+  const [tablePeriod, setTablePeriod] = useState('month'); // today, week, month, all
+
+  const [selectedLead, setSelectedLead] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [loadingLead, setLoadingLead] = useState(false);
 
   // Cargar Cotizaciones con react-query
   const { data: rawQuotes, isLoading, isError, error } = useQuery({
@@ -31,6 +57,39 @@ export default function SA2QuotesStatsPage() {
     }
   });
 
+  // Cargar etapas personalizadas
+  const { data: customStages = [] } = useQuery({
+    queryKey: ['sa2-custom-stages'],
+    queryFn: async () => {
+      const res = await fetch(`${API_BASE}/api/crm/leads/custom-stages`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.stages || [];
+    }
+  });
+
+  const handleOpenLeadDetails = async (opportunityId) => {
+    if (!opportunityId) return;
+    setLoadingLead(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/leads/${opportunityId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Error al obtener detalles de la negociación.');
+      const data = await res.json();
+      if (data.success) {
+        setSelectedLead(data.lead);
+        setIsDetailsOpen(true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingLead(false);
+    }
+  };
+
   // --- PROCESAMIENTO DE COTIZACIONES ---
   const { parsedQuotes, uniqueSellers } = useMemo(() => {
     if (!rawQuotes) return { parsedQuotes: [], uniqueSellers: [] };
@@ -42,12 +101,16 @@ export default function SA2QuotesStatsPage() {
       const createdTime = new Date(q.created_at).getTime();
       const lastActivityStr = q.opportunity?.stage_updated_at || q.opportunity?.updated_at || q.created_at;
       const lastActivityTime = new Date(lastActivityStr).getTime();
-      const daysInactive = Math.floor((now.getTime() - lastActivityTime) / oneDay);
+      let daysInactive = 0;
+      if (!isNaN(lastActivityTime) && lastActivityTime < now.getTime() && lastActivityTime > new Date('2020-01-01').getTime()) {
+         daysInactive = Math.max(0, Math.floor((now.getTime() - lastActivityTime) / oneDay));
+      }
       
       const stage = q.opportunity?.stage?.toLowerCase() || 'nuevo';
       let status = 'en_proceso';
       if (stage.includes('ganad') || stage.includes('cerrad')) status = 'ganado';
-      if (stage.includes('perdid') || stage.includes('cancelad')) status = 'perdido';
+      else if (stage.includes('perdid') || stage.includes('cancelad')) status = 'perdido';
+      else if (stage.includes('descartad')) status = 'descartado';
 
       let itemsArr = [];
       try {
@@ -84,7 +147,7 @@ export default function SA2QuotesStatsPage() {
     };
   }, [rawQuotes]);
 
-  // --- FILTRADO ---
+  // --- FILTRADO GLOBAL (KPIs, Funnel, etc) ---
   const filteredQuotes = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -103,6 +166,24 @@ export default function SA2QuotesStatsPage() {
       return true;
     });
   }, [parsedQuotes, filterSeller, filterPeriod]);
+
+  // --- FILTRADO LOCAL DE LA TABLA (Desempeño) ---
+  const tableFilteredQuotes = useMemo(() => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const oneWeekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+    const oneMonthAgo = now.getTime() - (30 * 24 * 60 * 60 * 1000);
+
+    return parsedQuotes.filter(q => {
+      if (filterSeller !== 'all' && q.sellerId !== filterSeller) return false;
+      
+      if (tablePeriod === 'today' && q.createdTime < todayStart) return false;
+      if (tablePeriod === 'week' && q.createdTime < oneWeekAgo) return false;
+      if (tablePeriod === 'month' && q.createdTime < oneMonthAgo) return false;
+
+      return true;
+    });
+  }, [parsedQuotes, filterSeller, tablePeriod]);
 
   // --- CÁLCULO DE MÉTRICAS ---
   const { kpis, sellerPerformance, topProducts, funnel, alerts } = useMemo(() => {
@@ -142,12 +223,23 @@ export default function SA2QuotesStatsPage() {
         if (q.daysInactive >= 7) forgotten.push(q);
         else if (q.daysInactive >= 3 && q.daysInactive < 7) inAdvertence.push(q);
       }
+      
+      // Top Productos
+      q.itemsArr.forEach(item => {
+        const pName = item.description || item.name || 'Producto Sin Nombre';
+        if (!productMap[pName]) productMap[pName] = { name: pName, quotes: 0, total: 0 };
+        productMap[pName].quotes += 1;
+        productMap[pName].total += (parseFloat(item.total) || 0);
+      });
+    });
 
-      // Desempeño de Vendedor
+    // Desempeño de Vendedor (Calculado con tableFilteredQuotes)
+    tableFilteredQuotes.forEach(q => {
+      const amount = parseFloat(q.total) || 0;
       if (!sellerMap[q.sellerId]) {
         sellerMap[q.sellerId] = { 
           id: q.sellerId, name: q.sellerName, count: 0, amount: 0, wonCount: 0, wonAmount: 0,
-          lostCount: 0, inProcessCount: 0, today: 0, week: 0, month: 0
+          lostCount: 0, discardedCount: 0, inProcessCount: 0
         };
       }
       const s = sellerMap[q.sellerId];
@@ -156,19 +248,8 @@ export default function SA2QuotesStatsPage() {
       
       if (q.status === 'ganado') { s.wonCount++; s.wonAmount += amount; }
       else if (q.status === 'perdido') { s.lostCount++; }
+      else if (q.status === 'descartado') { s.discardedCount++; }
       else { s.inProcessCount++; }
-
-      if (q.createdTime >= todayStart) s.today++;
-      if (q.createdTime >= weekStart) s.week++;
-      if (q.createdTime >= monthStart) s.month++;
-
-      // Top Productos
-      q.itemsArr.forEach(item => {
-        const pName = item.description || item.name || 'Producto Sin Nombre';
-        if (!productMap[pName]) productMap[pName] = { name: pName, quotes: 0, total: 0 };
-        productMap[pName].quotes += 1;
-        productMap[pName].total += (parseFloat(item.total) || 0);
-      });
     });
 
     const winRate = closedCount > 0 ? (wonCount / closedCount) : 0;
@@ -193,7 +274,7 @@ export default function SA2QuotesStatsPage() {
     return {
       kpis: {
         totalAmount,
-        totalCount: filteredQuotes.length,
+        totalCount: filteredQuotes.filter(q => q.status === 'en_proceso').length,
         winRate,
         wonAmount,
         lostAmount,
@@ -215,7 +296,7 @@ export default function SA2QuotesStatsPage() {
         realTime
       }
     };
-  }, [filteredQuotes, parsedQuotes]);
+  }, [filteredQuotes, parsedQuotes, tableFilteredQuotes]);
 
   if (isLoading) return <div style={{padding: '40px', textAlign: 'center', color: '#fff'}}>Cargando estadísticas...</div>;
   if (isError) return <div style={{padding: '40px', color: '#ef4444'}}>Error al cargar información...</div>;
@@ -239,20 +320,16 @@ export default function SA2QuotesStatsPage() {
           <span className="sa2-qs-filter-label">Período:</span>
           <div className="sa2-qs-btn-group">
             <button className={`sa2-qs-btn ${filterPeriod === 'today' ? 'active' : ''}`} onClick={() => setFilterPeriod('today')}>
-              {filterPeriod === 'today' && <motion.div layoutId="activeTab" className="sa2-qs-btn-highlight" />}
               Hoy
             </button>
             <button className={`sa2-qs-btn ${filterPeriod === 'week' ? 'active' : ''}`} onClick={() => setFilterPeriod('week')}>
-              {filterPeriod === 'week' && <motion.div layoutId="activeTab" className="sa2-qs-btn-highlight" />}
               Esta Semana
             </button>
             <button className={`sa2-qs-btn ${filterPeriod === 'month' ? 'active' : ''}`} onClick={() => setFilterPeriod('month')}>
-              {filterPeriod === 'month' && <motion.div layoutId="activeTab" className="sa2-qs-btn-highlight" />}
               Este Mes
             </button>
             <button className={`sa2-qs-btn ${filterPeriod === 'all' ? 'active' : ''}`} onClick={() => setFilterPeriod('all')}>
-              {filterPeriod === 'all' && <motion.div layoutId="activeTab" className="sa2-qs-btn-highlight" />}
-              <span style={{display: 'flex', gap: '6px', alignItems: 'center'}}>Histórico <i className="fas fa-calendar-alt"></i></span>
+              Histórico
             </button>
           </div>
         </div>
@@ -272,15 +349,18 @@ export default function SA2QuotesStatsPage() {
       {/* 4 KPIs (Uiverse Glow Cards) */}
       <motion.div className="sa2-qs-kpis" variants={itemVars}>
         <div className="sa2-qs-kpi-card">
-          <div className="sa2-qs-kpi-title">Monto Total Cotizado</div>
+          <div className="sa2-qs-kpi-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            Monto Total en Negociación
+            <i className="fas fa-info-circle" style={{ color: '#94a3b8', cursor: 'help', fontSize: '0.9rem' }} title="Esta métrica sumará los montos una vez que las negociaciones se coticen formalmente. Por ahora se muestra N/A ya que las negociaciones activas no tienen un monto asignado aún."></i>
+          </div>
           <motion.div className="sa2-qs-kpi-value" key={kpis.totalAmount} initial={{scale: 0.8}} animate={{scale: 1}}>
-            {formatCurrency(kpis.totalAmount)}
-            <i className="fas fa-arrow-up sa2-qs-kpi-trend"></i>
+            {kpis.totalAmount > 0 ? formatCurrency(kpis.totalAmount) : 'N/A'}
+            {kpis.totalAmount > 0 && <i className="fas fa-arrow-up sa2-qs-kpi-trend"></i>}
           </motion.div>
         </div>
         
-        <div className="sa2-qs-kpi-card">
-          <div className="sa2-qs-kpi-title">Total Cotizaciones</div>
+        <div className="sa2-qs-kpi-card clickable" onClick={() => setShowNegotiationsModal(true)}>
+          <div className="sa2-qs-kpi-title">Total Negociaciones</div>
           <motion.div className="sa2-qs-kpi-value" key={kpis.totalCount} initial={{scale: 0.8}} animate={{scale: 1}}>
             {kpis.totalCount}
             <i className="fas fa-arrow-up sa2-qs-kpi-trend"></i>
@@ -317,59 +397,121 @@ export default function SA2QuotesStatsPage() {
       </motion.div>
 
       {/* TABLA DESEMPEÑO POR VENDEDOR (Uilora Tables) */}
-      <motion.h3 className="sa2-qs-section-title" variants={itemVars}>Desempeño por Vendedor</motion.h3>
+      <div className="sa2-qs-table-header-container">
+        <motion.h3 className="sa2-qs-section-title" style={{ margin: 0 }} variants={itemVars}>Desempeño por Vendedor</motion.h3>
+        <div className="sa2-qs-table-tabs">
+          <input type="radio" id="radio-table-today" name="table-period-tabs" checked={tablePeriod === 'today'} onChange={() => setTablePeriod('today')} />
+          <label className="sa2-qs-table-tab" htmlFor="radio-table-today">Hoy</label>
+
+          <input type="radio" id="radio-table-week" name="table-period-tabs" checked={tablePeriod === 'week'} onChange={() => setTablePeriod('week')} />
+          <label className="sa2-qs-table-tab" htmlFor="radio-table-week">Semana</label>
+
+          <input type="radio" id="radio-table-month" name="table-period-tabs" checked={tablePeriod === 'month'} onChange={() => setTablePeriod('month')} />
+          <label className="sa2-qs-table-tab" htmlFor="radio-table-month">Mes</label>
+
+          <input type="radio" id="radio-table-all" name="table-period-tabs" checked={tablePeriod === 'all'} onChange={() => setTablePeriod('all')} />
+          <label className="sa2-qs-table-tab" htmlFor="radio-table-all">Histórico</label>
+
+          <span className="sa2-qs-table-glider"></span>
+        </div>
+      </div>
       <motion.div className="sa2-qs-table-container" variants={itemVars}>
         <table className="sa2-qs-table">
           <thead>
             <tr>
               <th>Vendedor</th>
-              <th>Hoy <i className="fas fa-sort"></i></th>
-              <th>Semana <i className="fas fa-sort"></i></th>
-              <th>Mes <i className="fas fa-sort"></i></th>
-              <th>En Proceso <i className="fas fa-sort"></i></th>
-              <th>Cerradas <i className="fas fa-sort"></i></th>
-              <th>Perdidas <i className="fas fa-sort"></i></th>
-              <th>Monto Cotizado <i className="fas fa-sort"></i></th>
-              <th>Monto Cerrado <i className="fas fa-sort"></i></th>
-              <th>Tasa Conv. <i className="fas fa-sort"></i></th>
+              <th>Creadas</th>
+              <th>En Proceso</th>
+              <th>Ventas Cerradas</th>
+              <th>Ventas Perdidas</th>
+              <th>Descartadas</th>
+              <th>Monto Cotizado</th>
+              <th>Monto Cerrado</th>
+              <th>Tasa Conv.</th>
             </tr>
           </thead>
           <tbody>
             <AnimatePresence>
               {sellerPerformance.map(s => (
-                <motion.tr key={s.id} onClick={() => setSelectedSeller(s)} initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} layout>
-                  <td style={{fontWeight: 600, color: '#f8fafc'}}><i className="fas fa-chevron-right" style={{color: '#3b82f6', marginRight: '8px', fontSize: '0.75rem'}}></i> {s.name}</td>
-                  <td>{s.today}</td>
-                  <td>{s.week}</td>
-                  <td>{s.month}</td>
-                  <td>{s.inProcessCount}</td>
-                  <td>{s.wonCount}</td>
-                  <td>{s.lostCount}</td>
-                  <td style={{fontWeight: 600}}>{formatCurrency(s.amount)}</td>
-                  <td style={{fontWeight: 600, color: '#10b981'}}>{formatCurrency(s.wonAmount)}</td>
-                  <td>
-                    <i className={`fas fa-circle sa2-qs-dot ${s.winRate >= 0.5 ? 'green' : s.winRate >= 0.35 ? 'yellow' : 'red'}`}></i>
-                    <span style={{fontWeight: 600}}>{formatPercent(s.winRate)}</span>
-                  </td>
-                </motion.tr>
+                <React.Fragment key={s.id}>
+                  <motion.tr onClick={() => setExpandedSellerId(expandedSellerId === s.id ? null : s.id)} initial={{opacity: 0}} animate={{opacity: 1}} exit={{opacity: 0}} layout>
+                    <td style={{fontWeight: 600, color: '#0f172a'}}>
+                      <i className={`fas ${expandedSellerId === s.id ? 'fa-chevron-down' : 'fa-chevron-right'}`} style={{color: '#3b82f6', marginRight: '8px', fontSize: '0.75rem'}}></i> 
+                      {s.name}
+                    </td>
+                    <td>{s.count}</td>
+                    <td>{s.inProcessCount}</td>
+                    <td>{s.wonCount}</td>
+                    <td>{s.lostCount}</td>
+                    <td>{s.discardedCount || 0}</td>
+                    <td style={{fontWeight: 600}}>{s.amount > 0 ? formatCurrency(s.amount) : 'N/A'}</td>
+                    <td style={{fontWeight: 600, color: '#10b981'}}>{s.wonAmount > 0 ? formatCurrency(s.wonAmount) : 'N/A'}</td>
+                    <td>
+                      <i className={`fas fa-circle sa2-qs-dot ${s.winRate >= 0.5 ? 'green' : s.winRate >= 0.35 ? 'yellow' : 'red'}`}></i>
+                      <span style={{fontWeight: 600}}>{formatPercent(s.winRate)}</span>
+                    </td>
+                  </motion.tr>
+                  {expandedSellerId === s.id && (
+                    <tr key={`detail-${s.id}`}>
+                      <td colSpan="9" style={{ padding: '0px', background: '#f8fafc' }}>
+                        <div className="sa2-qs-expanded-container">
+                          <div className="sa2-qs-expanded-title">Negociaciones de {s.name} ({tablePeriod === 'all' ? 'Histórico' : tablePeriod})</div>
+                          <table className="sa2-qs-expanded-table">
+                            <thead>
+                              <tr>
+                                <th>ID</th>
+                                <th>Cliente</th>
+                                <th>Detalle</th>
+                                <th>Monto</th>
+                                <th>Etapa</th>
+                                <th>Inactividad</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {tableFilteredQuotes.filter(q => q.sellerId === s.id).map(q => (
+                                <tr key={q.id} onClick={() => handleOpenLeadDetails(q.opportunity?.id || q.opportunity_id)} style={{ cursor: 'pointer' }}>
+                                  <td style={{ fontWeight: 700, color: '#94a3b8' }}>#{q.quote_num}</td>
+                                  <td style={{ fontWeight: 600, color: '#0f172a' }}>{q.clientName}</td>
+                                  <td>{q.mainProduct}</td>
+                                  <td style={{ fontWeight: 600 }}>{parseFloat(q.total) > 0 ? formatCurrency(q.total) : 'N/A'}</td>
+                                  <td>
+                                    <span className={`sa2-qs-badge ${getStageBadgeClass(q.opportunity?.stage || 'nuevo')}`}>
+                                      <i className={`fas ${getStageIcon(q.opportunity?.stage || 'nuevo')}`}></i> {q.opportunity?.stage || 'Negociación'}
+                                    </span>
+                                  </td>
+                                  <td>{q.daysInactive} días</td>
+                                </tr>
+                              ))}
+                              {tableFilteredQuotes.filter(q => q.sellerId === s.id).length === 0 && (
+                                <tr>
+                                  <td colSpan="6" style={{ textAlign: 'center', padding: '16px', color: '#94a3b8' }}>No hay negociaciones para este período.</td>
+                                </tr>
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </AnimatePresence>
             {sellerPerformance.length === 0 && (
               <tr>
-                <td colSpan="10" style={{textAlign: 'center', padding: '32px', color: '#94a3b8'}}>No hay datos para el período seleccionado.</td>
+                <td colSpan="9" style={{textAlign: 'center', padding: '32px', color: '#94a3b8'}}>No hay datos para el período seleccionado.</td>
               </tr>
             )}
           </tbody>
         </table>
       </motion.div>
 
-      {/* ANÁLISIS DE COTIZACIONES */}
-      <motion.h3 className="sa2-qs-section-title" variants={itemVars}>Análisis de Cotizaciones</motion.h3>
+      {/* ANÁLISIS DE NEGOCIACIONES */}
+      <motion.h3 className="sa2-qs-section-title" variants={itemVars}>Análisis de Negociaciones</motion.h3>
       <motion.div className="sa2-qs-analysis-grid" variants={itemVars}>
         
         {/* Top Productos */}
         <div className="sa2-qs-card">
-          <div className="sa2-qs-card-title">Top Productos/Servicios Cotizados</div>
+          <div className="sa2-qs-card-title">Top Productos/Servicios en Negociación</div>
           {topProducts.map((p, i) => {
             const maxQuotes = topProducts[0]?.quotes || 1;
             const pct = (p.quotes / maxQuotes) * 100;
@@ -445,8 +587,8 @@ export default function SA2QuotesStatsPage() {
           <div className="sa2-qs-alert-header text-red"><i className="fas fa-times-circle"></i> OLVIDADAS (&gt;7 días)</div>
           <ul className="sa2-qs-alert-list">
              {alerts.forgotten.length > 0 ? alerts.forgotten.slice(0,2).map(q => (
-              <li key={q.id}>Cot. #{q.quote_num} - {q.sellerName} - {formatCurrency(q.total)}</li>
-            )) : <li>No hay cotizaciones olvidadas.</li>}
+              <li key={q.id}>Neg. #{q.quote_num} - {q.sellerName} - {formatCurrency(q.total)}</li>
+            )) : <li>No hay negociaciones olvidadas.</li>}
           </ul>
           <button className="sa2-qs-alert-btn danger">Reasignar / Alertar</button>
         </div>
@@ -463,88 +605,97 @@ export default function SA2QuotesStatsPage() {
 
       </motion.div>
 
-      {/* MODAL DEL VENDEDOR */}
+      {/* MODAL DE TOTAL NEGOCIACIONES ACTIVAS */}
       <AnimatePresence>
-        {selectedSeller && (
-          <motion.div className="sa2-qs-modal-overlay" onClick={() => setSelectedSeller(null)} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
+        {showNegotiationsModal && (
+          <motion.div className="sa2-qs-modal-overlay" onClick={() => setShowNegotiationsModal(false)} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
             <motion.div className="sa2-qs-modal" onClick={e => e.stopPropagation()} initial={{y: 50, opacity: 0, scale: 0.95}} animate={{y: 0, opacity: 1, scale: 1}} exit={{y: 50, opacity: 0, scale: 0.95}}>
               <div className="sa2-qs-modal-header">
                 <div className="sa2-qs-modal-info">
-                  <i className="fas fa-user" style={{color: '#3b82f6'}}></i> {selectedSeller.name} |
-                  <i className={`fas fa-circle sa2-qs-dot ${selectedSeller.winRate >= 0.5 ? 'green' : 'yellow'}`} style={{marginLeft: '4px'}}></i> Tasa Conv.: {formatPercent(selectedSeller.winRate)} |
-                  <span className="stats"><i className="fas fa-trophy" style={{color: '#f59e0b'}}></i> Ranking: #1 | Período: {filterPeriod === 'all' ? 'Histórico' : filterPeriod}</span>
+                  <i className="fas fa-briefcase" style={{color: '#3b82f6'}}></i> Total Negociaciones Activas
+                  <span className="stats" style={{marginLeft: '12px'}}><i className="fas fa-clock" style={{color: '#f59e0b'}}></i> En Proceso ({kpis.totalCount})</span>
                 </div>
-                <button className="sa2-qs-modal-close" onClick={() => setSelectedSeller(null)}><i className="fas fa-times"></i></button>
+                <button className="sa2-qs-modal-close" onClick={() => setShowNegotiationsModal(false)}><i className="fas fa-times"></i></button>
               </div>
               
-              <div className="sa2-qs-modal-tabs">
-                <div className={`sa2-qs-modal-tab ${modalTab === 'active' ? 'active' : ''}`} onClick={() => setModalTab('active')}><i className="fas fa-sync-alt" style={{color: '#3b82f6'}}></i> Activas ({selectedSeller.inProcessCount})</div>
-                <div className={`sa2-qs-modal-tab ${modalTab === 'closed' ? 'active' : ''}`} onClick={() => setModalTab('closed')}><i className="fas fa-handshake" style={{color: '#f59e0b'}}></i> Cerradas ({selectedSeller.wonCount})</div>
-                <div className={`sa2-qs-modal-tab ${modalTab === 'lost' ? 'active' : ''}`} onClick={() => setModalTab('lost')}><i className="fas fa-ban red"></i> Perdidas ({selectedSeller.lostCount})</div>
-              </div>
-
-              <div className="sa2-qs-modal-body">
+              <div className="sa2-qs-modal-body" style={{ maxHeight: '600px' }}>
                 <table className="sa2-qs-modal-table">
                   <thead>
                     <tr>
-                      <th>ID Cotización</th>
+                      <th>ID</th>
+                      <th>Vendedor</th>
+                      <th>Fecha</th>
                       <th>Cliente</th>
-                      <th>Producto Principal</th>
-                      <th>Monto</th>
-                      <th>Estatus</th>
-                      <th>Último Contacto</th>
-                      <th>Días Abierta</th>
+                      <th>Detalle</th>
+                      <th>Etapa</th>
+                      <th>Inactividad</th>
                     </tr>
                   </thead>
                   <tbody>
                     <AnimatePresence>
-                      {filteredQuotes.filter(q => {
-                        if (q.sellerId !== selectedSeller.id) return false;
-                        if (modalTab === 'active' && q.status !== 'en_proceso') return false;
-                        if (modalTab === 'closed' && q.status !== 'ganado') return false;
-                        if (modalTab === 'lost' && q.status !== 'perdido') return false;
-                        return true;
-                      }).map(q => (
-                        <motion.tr key={q.id} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}}>
-                          <td style={{fontWeight: 600, color: '#f8fafc'}}>#{q.quote_num}</td>
-                          <td>{q.clientName}</td>
+                      {filteredQuotes.filter(q => q.status === 'en_proceso').map(q => (
+                        <motion.tr key={q.id} initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onClick={() => handleOpenLeadDetails(q.opportunity?.id || q.opportunity_id)} style={{ cursor: 'pointer' }}>
+                          <td style={{fontWeight: 700, color: '#94a3b8'}}>#{q.quote_num}</td>
+                          <td style={{fontWeight: 600, color: '#0f172a'}}><i className="fas fa-user text-blue-500" style={{marginRight: '6px'}}></i> {q.sellerName}</td>
+                          <td style={{color: '#64748b'}}>{new Date(q.createdTime).toLocaleDateString()}</td>
+                          <td style={{fontWeight: 500, color: '#334155'}}>{q.clientName}</td>
                           <td>{q.mainProduct}</td>
-                          <td style={{fontWeight: 600}}>{formatCurrency(q.total)}</td>
                           <td>
-                            {q.status === 'en_proceso' ? (
-                              q.daysInactive >= 3 ? <span className="text-yellow"><i className="fas fa-exclamation-triangle"></i> Advertencia</span> : <span><i className="fas fa-comment-dots text-green"></i> Negociación</span>
-                            ) : q.status === 'ganado' ? (
-                              <span className="text-green"><i className="fas fa-check"></i> Ganada</span>
-                            ) : (
-                              <span className="text-red"><i className="fas fa-times"></i> Perdida</span>
-                            )}
+                            <span className={`sa2-qs-badge ${getStageBadgeClass(q.opportunity?.stage || 'nuevo')}`}>
+                              <i className={`fas ${getStageIcon(q.opportunity?.stage || 'nuevo')}`}></i> {q.opportunity?.stage || 'Nueva Negociación'}
+                            </span>
                           </td>
-                          <td style={{color: '#94a3b8'}}>Hace {q.daysInactive === 0 ? 'horas' : `${q.daysInactive} días`}</td>
-                          <td style={{fontWeight: 600}}>{q.daysInactive} días</td>
+                          <td>
+                             <span className={`sa2-qs-badge ${q.daysInactive >= 7 ? 'red' : q.daysInactive >= 3 ? 'yellow' : 'green'}`}>
+                              {q.daysInactive} días
+                             </span>
+                          </td>
                         </motion.tr>
                       ))}
                     </AnimatePresence>
-                    {filteredQuotes.filter(q => q.sellerId === selectedSeller.id && 
-                      ((modalTab === 'active' && q.status === 'en_proceso') ||
-                      (modalTab === 'closed' && q.status === 'ganado') ||
-                      (modalTab === 'lost' && q.status === 'perdido'))
-                    ).length === 0 && (
-                      <tr><td colSpan="7" style={{textAlign: 'center', padding: '32px', color: '#94a3b8'}}>No hay cotizaciones para este estatus.</td></tr>
+                    {kpis.totalCount === 0 && (
+                      <tr><td colSpan="7" style={{textAlign: 'center', padding: '32px', color: '#94a3b8'}}>No hay negociaciones activas en este período.</td></tr>
                     )}
                   </tbody>
                 </table>
-              </div>
-
-              <div className="sa2-qs-modal-footer">
-                <div className="sa2-qs-modal-footer-title">Acciones Rápidas</div>
-                <button className="sa2-qs-action-btn"><i className="fas fa-envelope text-blue-500"></i> Enviar Recordatorio</button>
-                <button className="sa2-qs-action-btn"><i className="fas fa-edit text-yellow-500"></i> Añadir Nota</button>
-                <button className="sa2-qs-action-btn red"><i className="fas fa-times"></i> Marcar como Perdida</button>
               </div>
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* MODAL DETALLES DE NEGOCIACIÓN COMPLETO */}
+      {isDetailsOpen && selectedLead && (
+        <UXProvider>
+          <DetallesNegociacionFeature
+            isOpen={isDetailsOpen}
+            lead={selectedLead}
+            role="super_admin"
+            onClose={() => setIsDetailsOpen(false)}
+            onUpdateLead={(updatedLead) => {
+              setSelectedLead(updatedLead);
+              queryClient.invalidateQueries({ queryKey: ['sa2-quotes-stats'] });
+            }}
+            role="super_admin"
+            sellers={uniqueSellers}
+            customStages={customStages}
+            API_BASE={API_BASE}
+          />
+        </UXProvider>
+      )}
+
+      {loadingLead && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, width: '100%', height: '100%',
+          background: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', zIndex: 100000, fontWeight: 600
+        }}>
+          Cargando detalles de la negociación...
+        </div>
+      )}
 
     </motion.div>
   );

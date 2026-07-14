@@ -130,3 +130,13 @@ backend/productos_servicios_rav_completo.json
 backend/scripts/*.js
 
 backend/services/conect-497817-09d028ec19be.json
+
+# Temporary / diagnostic scripts
+check.js
+check.mjs
+backend/check.cjs
+backend/fixDates.js
+backend/fixSpecific.js
+backend/fixSpecific2.js
+backend/printDesc.js
+backend/standardizeDates.js

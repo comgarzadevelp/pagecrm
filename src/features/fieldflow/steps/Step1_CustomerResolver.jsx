@@ -715,7 +715,7 @@ export default function Step1_CustomerResolver() {
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <User style={{ width: '16px', height: '16px', color: '#05393A' }} />
-              <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contacto de la Obra</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contacto Principal del Cliente</span>
             </div>
 
             {/* Caso 1: Contacto Seleccionado */}
@@ -767,10 +767,16 @@ export default function Step1_CustomerResolver() {
                         updateEntity('contacto', null);
                       }}
                       className="btn-resolver-back"
-                      style={{ color: '#ef4444', borderColor: 'transparent' }}
+                      style={{ 
+                        color: '#ef4444', 
+                        borderColor: '#fca5a5', 
+                        background: '#fef2f2',
+                        padding: '4px',
+                        borderRadius: '6px'
+                      }}
                       title="Desvincular Contacto"
                     >
-                      <X style={{ width: '15px', height: '15px' }} />
+                      <X style={{ width: '15px', height: '15px', strokeWidth: '2.5px' }} />
                     </button>
                   </div>
                 </div>

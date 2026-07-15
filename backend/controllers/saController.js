@@ -251,28 +251,52 @@ export const deleteLead = async (req, res) => {
  */
 export const getQuotesStats = async (req, res) => {
   try {
-    const { data: opportunities, error } = await supabase
-      .from('crm_opportunities')
-      .select(`
-        id,
-        quote_num:id,
-        title,
-        description,
-        stage,
-        total:value,
-        created_at,
-        updated_at,
-        stage_updated_at,
-        assigned_to,
-        contact_id,
-        company_id,
-        seller:crm_users!assigned_to (id, name, email),
-        contact:contacts!contact_id (id, name),
-        company:companies!company_id (id, name)
-      `)
-      .order('created_at', { ascending: false });
+    const [oppsRes, contactsRes, companiesRes, usersRes, visitasRes] = await Promise.all([
+      supabase
+        .from('crm_opportunities')
+        .select(`
+          id,
+          quote_num:id,
+          title,
+          description,
+          stage,
+          total:value,
+          created_at,
+          updated_at,
+          stage_updated_at,
+          assigned_to,
+          contact_id,
+          company_id,
+          seller:crm_users!assigned_to (id, name, email),
+          contact:contacts!contact_id (id, name),
+          company:companies!company_id (id, name)
+        `)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('contacts')
+        .select('created_by, created_at, updated_at')
+        .not('created_by', 'is', null),
+      supabase
+        .from('leads')
+        .select('id, created_by:assigned_to, created_at, status, company_id, contact_id')
+        .eq('type', 'crm_customer')
+        .not('assigned_to', 'is', null),
+      supabase
+        .from('crm_users')
+        .select('id, name'),
+      supabase
+        .from('crm_visitas')
+        .select('user_id, timestamp_servidor')
+        .not('user_id', 'is', null)
+    ]);
 
-    if (error) throw error;
+    if (oppsRes.error) throw oppsRes.error;
+
+    const opportunities = oppsRes.data || [];
+    const contactsData = contactsRes.data || [];
+    const companiesData = companiesRes.data || [];
+    const usersData = usersRes.data || [];
+    const visitasData = visitasRes.data || [];
 
     // Transform opportunities into the format expected by the frontend quotes logic
     const quotes = (opportunities || []).map(opp => ({
@@ -304,7 +328,13 @@ export const getQuotesStats = async (req, res) => {
 
     res.json({
       success: true,
-      quotes: quotes
+      quotes: quotes,
+      activity: {
+        contacts: contactsData,
+        companies: companiesData,
+        users: usersData,
+        visitas: visitasData
+      }
     });
   } catch (error) {
     console.error('Error in getQuotesStats:', error);

@@ -45,17 +45,19 @@ export default function SA2QuotesStatsPage() {
   const [loadingLead, setLoadingLead] = useState(false);
 
   // Cargar Cotizaciones con react-query
-  const { data: rawQuotes, isLoading, isError, error } = useQuery({
+  const { data: statsResponse, isLoading, isError, error } = useQuery({
     queryKey: ['sa2-quotes-stats'],
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/sa/quotes-stats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!res.ok) throw new Error('Error al obtener estadísticas.');
-      const data = await res.json();
-      return data.quotes || [];
+      return res.json();
     }
   });
+
+  const rawQuotes = statsResponse?.quotes || [];
+  const rawActivity = statsResponse?.activity || { contacts: [], companies: [] };
 
   // Cargar etapas personalizadas
   const { data: customStages = [] } = useQuery({
@@ -186,7 +188,7 @@ export default function SA2QuotesStatsPage() {
   }, [parsedQuotes, filterSeller, tablePeriod]);
 
   // --- CÁLCULO DE MÉTRICAS ---
-  const { kpis, sellerPerformance, topProducts, funnel, alerts } = useMemo(() => {
+  const { kpis, sellerPerformance, sellerActivityRanking, funnel, alerts } = useMemo(() => {
     let totalAmount = 0;
     let wonAmount = 0;
     let lostAmount = 0;
@@ -194,7 +196,6 @@ export default function SA2QuotesStatsPage() {
     let closedCount = 0;
 
     const sellerMap = {};
-    const productMap = {};
     
     // Alertas
     const inAdvertence = [];
@@ -223,14 +224,6 @@ export default function SA2QuotesStatsPage() {
         if (q.daysInactive >= 7) forgotten.push(q);
         else if (q.daysInactive >= 3 && q.daysInactive < 7) inAdvertence.push(q);
       }
-      
-      // Top Productos
-      q.itemsArr.forEach(item => {
-        const pName = item.description || item.name || 'Producto Sin Nombre';
-        if (!productMap[pName]) productMap[pName] = { name: pName, quotes: 0, total: 0 };
-        productMap[pName].quotes += 1;
-        productMap[pName].total += (parseFloat(item.total) || 0);
-      });
     });
 
     // Desempeño de Vendedor (Calculado con tableFilteredQuotes)
@@ -261,9 +254,165 @@ export default function SA2QuotesStatsPage() {
       winRate: (s.wonCount + s.lostCount) > 0 ? (s.wonCount / (s.wonCount + s.lostCount)) : 0
     })).sort((a, b) => b.amount - a.amount);
 
-    const productList = Object.values(productMap)
-      .sort((a, b) => b.quotes - a.quotes)
-      .slice(0, 3); // Top 3
+    // --- CÁLCULO DE ACTIVIDAD Y ADOPCIÓN DEL CRM ---
+    const getMxDateStr = (timeStrOrMs) => {
+      if (!timeStrOrMs) return '';
+      const d = new Date(timeStrOrMs);
+      if (isNaN(d.getTime())) return '';
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Monterrey',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+      }).format(d);
+    };
+
+    const isInPeriod = (timeStrOrMs) => {
+      if (!timeStrOrMs) return false;
+      const t = new Date(timeStrOrMs).getTime();
+      if (isNaN(t)) return false;
+      
+      const eventMxStr = getMxDateStr(timeStrOrMs);
+      const todayMxStr = getMxDateStr(new Date());
+
+      if (filterPeriod === 'today') {
+        return eventMxStr === todayMxStr;
+      }
+      if (filterPeriod === 'week') {
+        const nowMs = new Date().getTime();
+        return (nowMs - t) <= (7 * 24 * 60 * 60 * 1000);
+      }
+      if (filterPeriod === 'month') {
+        const nowMs = new Date().getTime();
+        return (nowMs - t) <= (30 * 24 * 60 * 60 * 1000);
+      }
+      return true; // 'all'
+    };
+
+    const activityMap = {};
+    const sellerNames = {};
+
+    // Primero poblamos con la lista de todos los usuarios del backend
+    if (rawActivity?.users && Array.isArray(rawActivity.users)) {
+      rawActivity.users.forEach(u => {
+        sellerNames[u.id] = u.name;
+        activityMap[u.id] = {
+          id: u.id,
+          name: u.name,
+          createdOpps: 0,
+          wonSales: 0,
+          newClients: 0,
+          updatedContacts: 0,
+          registeredVisits: 0,
+          score: 0
+        };
+      });
+    }
+
+    // Por si acaso, nos aseguramos de incluir los uniqueSellers por si no venían en crm_users
+    uniqueSellers.forEach(s => {
+      sellerNames[s.id] = s.name;
+      if (!activityMap[s.id]) {
+        activityMap[s.id] = {
+          id: s.id,
+          name: s.name,
+          createdOpps: 0,
+          wonSales: 0,
+          newClients: 0,
+          updatedContacts: 0,
+          registeredVisits: 0,
+          score: 0
+        };
+      }
+    });
+
+    const getOrCreateActivity = (id, defaultName) => {
+      if (!activityMap[id]) {
+        activityMap[id] = {
+          id,
+          name: defaultName || 'Vendedor Desconocido',
+          createdOpps: 0,
+          wonSales: 0,
+          newClients: 0,
+          updatedContacts: 0,
+          registeredVisits: 0,
+          score: 0
+        };
+      }
+      return activityMap[id];
+    };
+
+    // 1. Oportunidades creadas y ventas ganadas en el período seleccionado
+    parsedQuotes.forEach(q => {
+      if (isInPeriod(q.created_at)) {
+        const act = getOrCreateActivity(q.sellerId, q.sellerName);
+        act.createdOpps++;
+      }
+      if (q.status === 'ganado') {
+        const wonTime = new Date(q.opportunity?.stage_updated_at || q.opportunity?.updated_at || q.updated_at).getTime();
+        if (!isNaN(wonTime) && isInPeriod(wonTime)) {
+          const act = getOrCreateActivity(q.sellerId, q.sellerName);
+          act.wonSales++;
+        }
+      }
+    });
+
+    // 2. Clientes nuevos creados en el período seleccionado
+    if (rawActivity?.companies && Array.isArray(rawActivity.companies)) {
+      rawActivity.companies.forEach(co => {
+        if (isInPeriod(co.created_at)) {
+          const name = sellerNames[co.created_by] || 'Vendedor';
+          const act = getOrCreateActivity(co.created_by, name);
+          act.newClients++;
+        }
+      });
+    }
+
+    // 3. Contactos actualizados/creados en el período seleccionado
+    if (rawActivity?.contacts && Array.isArray(rawActivity.contacts)) {
+      rawActivity.contacts.forEach(c => {
+        const updatedTime = new Date(c.updated_at || c.created_at).getTime();
+        if (!isNaN(updatedTime) && isInPeriod(updatedTime)) {
+          const name = sellerNames[c.created_by] || 'Vendedor';
+          const act = getOrCreateActivity(c.created_by, name);
+          act.updatedContacts++;
+        }
+      });
+    }
+
+    // 4. Visitas registradas en el período seleccionado (Excluyendo recordatorios y exigiendo GPS + Foto de FieldFlow)
+    if (rawActivity?.visitas && Array.isArray(rawActivity.visitas)) {
+      rawActivity.visitas.forEach(v => {
+        const isReminder = (v.notes || '').includes('Recordatorio automático') || 
+                           (v.notas || '').includes('Recordatorio automático') || 
+                           (v.resultado || '').includes('agendada') || 
+                           (v.resultado || '').includes('programada');
+        if (isReminder) return;
+
+        // Solo contar visitas presenciales con GPS y Foto (creadas vía FieldFlow)
+        const isFieldVisitWithPhoto = v.tipo === 'visita_presencial' && 
+                                      v.gps_lat !== null && 
+                                      v.gps_lng !== null && 
+                                      (v.notas || '').includes('vía FieldFlow');
+        if (!isFieldVisitWithPhoto) return;
+
+        const visitTime = new Date(v.timestamp_servidor).getTime();
+        if (!isNaN(visitTime) && isInPeriod(visitTime)) {
+          const name = sellerNames[v.user_id] || 'Vendedor';
+          const act = getOrCreateActivity(v.user_id, name);
+          act.registeredVisits++;
+        }
+      });
+    }
+
+    // 5. Calcular Score total
+    Object.values(activityMap).forEach(act => {
+      act.score = (act.createdOpps * 5) + 
+                  (act.wonSales * 10) + 
+                  (act.newClients * 2) + 
+                  (act.updatedContacts * 2) + 
+                  (act.registeredVisits * 5);
+    });
+
+    const ranking = Object.values(activityMap).sort((a, b) => b.score - a.score);
 
     // Embudo simulado (basado en estados y tiempos de inactividad)
     const fCreated = filteredQuotes.length;
@@ -281,7 +430,7 @@ export default function SA2QuotesStatsPage() {
         splitWonPct
       },
       sellerPerformance: sellerList,
-      topProducts: productList,
+      sellerActivityRanking: ranking,
       funnel: {
         created: { count: fCreated, amount: totalAmount },
         sent: { count: fSent, amount: totalAmount * 0.95 },
@@ -296,7 +445,7 @@ export default function SA2QuotesStatsPage() {
         realTime
       }
     };
-  }, [filteredQuotes, parsedQuotes, tableFilteredQuotes]);
+  }, [filteredQuotes, parsedQuotes, tableFilteredQuotes, rawActivity, uniqueSellers, filterPeriod]);
 
   if (isLoading) return <div style={{padding: '40px', textAlign: 'center', color: '#fff'}}>Cargando estadísticas...</div>;
   if (isError) return <div style={{padding: '40px', color: '#ef4444'}}>Error al cargar información...</div>;
@@ -509,27 +658,51 @@ export default function SA2QuotesStatsPage() {
       <motion.h3 className="sa2-qs-section-title" variants={itemVars}>Análisis de Negociaciones</motion.h3>
       <motion.div className="sa2-qs-analysis-grid" variants={itemVars}>
         
-        {/* Top Productos */}
-        <div className="sa2-qs-card">
-          <div className="sa2-qs-card-title">Top Productos/Servicios en Negociación</div>
-          {topProducts.map((p, i) => {
-            const maxQuotes = topProducts[0]?.quotes || 1;
-            const pct = (p.quotes / maxQuotes) * 100;
-            const totalQuotesAllTop = topProducts.reduce((acc, curr) => acc + curr.quotes, 0);
-            const absolutePct = totalQuotesAllTop > 0 ? (p.quotes / totalQuotesAllTop) * 100 : 0;
-            return (
-              <div className="sa2-qs-product-item" key={i}>
-                <div className="sa2-qs-product-info">
-                  <span>{i+1}. {p.name} - {p.quotes} cots - {formatCurrency(p.total)}</span>
-                  <span style={{fontWeight: 600}}>{Math.round(absolutePct)}%</span>
+        {/* Top Actividad y Adopción */}
+        <div className="sa2-qs-card" style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="sa2-qs-card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <span>Top 10 Actividad y Adopción del CRM</span>
+            <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 'normal' }}>
+              Puntos: Cot (5) | Ganada (10) | Cli Nuevo (2) | Cont Act (2) | Visita (5)
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
+            {sellerActivityRanking.slice(0, 10).map((act, i) => {
+              const maxScore = sellerActivityRanking[0]?.score || 1;
+              const pct = maxScore > 0 ? (act.score / maxScore) * 100 : 0;
+              return (
+                <div className="sa2-qs-product-item" key={act.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderBottom: '1px solid #f1f5f9', paddingBottom: '10px', marginBottom: '0px' }}>
+                  <div className="sa2-qs-product-info" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 600, color: '#1e293b' }}>
+                      {i + 1}º. {act.name}
+                    </span>
+                    <span style={{ fontWeight: 700, color: '#2563eb' }}>
+                      {act.score} pts
+                    </span>
+                  </div>
+                  <div className="sa2-qs-product-bar-bg" style={{ height: '6px', background: '#f1f5f9', borderRadius: '3px', overflow: 'hidden' }}>
+                    <motion.div 
+                      className="sa2-qs-product-bar-fill" 
+                      style={{ height: '100%', background: 'linear-gradient(90deg, #2563eb, #60a5fa)', borderRadius: '3px' }}
+                      initial={{ width: 0 }} 
+                      animate={{ width: `${pct}%` }} 
+                      transition={{ duration: 1, delay: i * 0.1 }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.75rem', color: '#64748b', flexWrap: 'wrap', marginTop: '4px' }}>
+                    <span>📝 {act.createdOpps} cots</span>
+                    <span>🏆 {act.wonSales} ganadas</span>
+                    <span>🆕 {act.newClients} clis nuevos</span>
+                    <span>✏️ {act.updatedContacts} conts</span>
+                    <span>📍 {act.registeredVisits} visitas</span>
+                  </div>
                 </div>
-                <div className="sa2-qs-product-bar-bg">
-                  <motion.div className="sa2-qs-product-bar-fill" initial={{width: 0}} animate={{width: `${pct}%`}} transition={{duration: 1, delay: i*0.2}}></motion.div>
-                </div>
-              </div>
-            );
-          })}
-          {topProducts.length === 0 && <p style={{color: '#94a3b8'}}>Sin datos de productos.</p>}
+              );
+            })}
+            {sellerActivityRanking.length === 0 && (
+              <p style={{ color: '#94a3b8', textAlign: 'center', margin: '24px 0' }}>Sin actividad registrada en este período.</p>
+            )}
+          </div>
         </div>
 
         {/* Embudo */}

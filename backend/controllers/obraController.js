@@ -201,3 +201,31 @@ export const getObrasByContact = async (req, res) => {
   }
 };
 
+// PUT /api/crm/obras/:id
+export const updateObra = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, address, latitude, longitude, maps_url, status } = req.body;
+
+    const { data, error } = await supabase
+      .from('obras')
+      .update({
+        name,
+        address,
+        latitude,
+        longitude,
+        maps_url,
+        status
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    res.json({ success: true, obra: data });
+  } catch (err) {
+    console.error('updateObra error:', err);
+    res.status(500).json({ success: false, message: 'Error al actualizar la obra.' });
+  }
+};
+

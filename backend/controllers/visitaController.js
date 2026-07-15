@@ -256,15 +256,45 @@ export const getMyActivities = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Usuario no autorizado.' });
     }
 
-    const { data, error } = await supabase
+    const { data: visitas, error: visitasError } = await supabase
       .from('crm_visitas')
       .select('*')
       .eq('user_id', userId)
       .order('timestamp_servidor', { ascending: false });
 
-    if (error) throw error;
+    if (visitasError) throw visitasError;
 
-    res.json({ success: true, visitas: data || [] });
+    if (!visitas || visitas.length === 0) {
+      return res.json({ success: true, visitas: [] });
+    }
+
+    const companyIds = [...new Set(visitas.map(v => v.company_id).filter(Boolean))];
+    const contactIds = [...new Set(visitas.map(v => v.contact_id).filter(Boolean))];
+    const obraIds = [...new Set(visitas.map(v => v.obra_id).filter(Boolean))];
+
+    const [companiesRes, contactsRes, obrasRes] = await Promise.all([
+      companyIds.length > 0 ? supabase.from('companies').select('id, name').in('id', companyIds) : Promise.resolve({ data: [] }),
+      contactIds.length > 0 ? supabase.from('contacts').select('id, name, phone, email').in('id', contactIds) : Promise.resolve({ data: [] }),
+      obraIds.length > 0 ? supabase.from('obras').select('id, name, address').in('id', obraIds) : Promise.resolve({ data: [] })
+    ]);
+
+    const companiesMap = {};
+    (companiesRes.data || []).forEach(c => { companiesMap[c.id] = c; });
+
+    const contactsMap = {};
+    (contactsRes.data || []).forEach(c => { contactsMap[c.id] = c; });
+
+    const obrasMap = {};
+    (obrasRes.data || []).forEach(o => { obrasMap[o.id] = o; });
+
+    const hydratedVisitas = visitas.map(v => ({
+      ...v,
+      companies: v.company_id ? (companiesMap[v.company_id] || null) : null,
+      contacts: v.contact_id ? (contactsMap[v.contact_id] || null) : null,
+      obras: v.obra_id ? (obrasMap[v.obra_id] || null) : null
+    }));
+
+    res.json({ success: true, visitas: hydratedVisitas });
   } catch (err) {
     console.error('Error fetching my activities:', err);
     res.status(500).json({ success: false, message: 'Error al obtener tus actividades.' });

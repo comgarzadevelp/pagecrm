@@ -29,21 +29,42 @@ export default function Step4_VisitaCapture() {
   // Estados para el Selector de Fecha/Hora Interactivo de @recordatorio (A prueba de fallos humanos)
   const [showDatePickerOverlay, setShowDatePickerOverlay] = useState(false);
   const [tempPickerData, setTempPickerData] = useState({ date: '', time: '10:00' });
+  const [editingChipType, setEditingChipType] = useState(null);
 
-  // Sistema de Bloques de Variables (Chips no editables)
+  // Sistema de Bloques de Variables (Chips interactivos y editables)
   const [activeChips, setActiveChips] = useState([]);
 
-  const addChip = (type, label, color, bg) => {
+  const addChip = (type, label, color, bg, meta = null) => {
     setActiveChips(prev => [
       ...prev.filter(c => c.type !== type),
-      { type, label, color, bg }
+      { type, label, color, bg, meta }
     ]);
   };
 
   const removeChip = (type) => {
     setActiveChips(prev => prev.filter(c => c.type !== type));
-    if (type === 'recordatorio') {
-      setWantsFollowUp(false);
+    setTimeout(() => {
+      setActiveChips(current => {
+        const hasReminders = current.some(c => c.type.startsWith('recordatorio-'));
+        if (!hasReminders) {
+          setWantsFollowUp(false);
+        }
+        return current;
+      });
+    }, 50);
+  };
+
+  const handleChipClick = (chip) => {
+    if (chip.type.startsWith('recordatorio-')) {
+      setEditingChipType(chip.type);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().split('T')[0];
+      setTempPickerData({
+        date: chip.meta?.date || tomorrowStr,
+        time: chip.meta?.time || '10:00'
+      });
+      setShowDatePickerOverlay(true);
     }
   };
 
@@ -150,6 +171,69 @@ export default function Step4_VisitaCapture() {
     return { parsedDate, parsedTime };
   };
 
+  const detectActivityType = (text) => {
+    // Quitar el prefijo auto-generado para analizar solo el mensaje del usuario
+    let cleanText = text;
+    const prefixMatch = text.match(/^registro de visita a [^:]+:\s*/i);
+    if (prefixMatch) {
+      cleanText = text.substring(prefixMatch[0].length);
+    }
+    
+    const textLower = cleanText.toLowerCase();
+    
+    // 1. Detección de visita (prioridad alta: requiere calendarizar traslado/presencia física)
+    if (/visit|reuni|ir\s+a|obra|campo/i.test(textLower)) {
+      return { type: 'visit', labelVerb: 'Visitar' };
+    }
+    
+    // 2. Detección de cotización (prioridad media: tarea de oficina / seguimiento)
+    if (/cotiz|presupuest|propuest|precio/i.test(textLower)) {
+      return { type: 'quote', labelVerb: 'Cotizar' };
+    }
+    
+    // 3. Predeterminado: Llamar
+    return { type: 'call', labelVerb: 'Llamar' };
+  };
+
+  const parseMultipleReminders = (text) => {
+    // Dividir el texto en segmentos lógicos por "y", comas, puntos o saltos de línea
+    const segments = text.split(/\by\b|\.|\n|,\s*/i);
+    const parsedReminders = [];
+    const seenTypes = new Set();
+
+    // Limpiar prefijo para evitar falsos positivos
+    let cleanText = text;
+    const prefixMatch = text.match(/^registro de visita a [^:]+:\s*/i);
+    if (prefixMatch) {
+      cleanText = text.substring(prefixMatch[0].length);
+    }
+
+    segments.forEach(segment => {
+      // Ignorar si el segmento está vacío
+      if (!segment.trim()) return;
+
+      const hasActionWord = /cotiz|presupuest|propuest|precio|visit|reuni|ir\s+a|obra|campo|llam|marc/i.test(segment);
+      if (hasActionWord) {
+        const activity = detectActivityType(segment);
+        const uniqueKey = activity.type;
+
+        if (!seenTypes.has(uniqueKey)) {
+          seenTypes.add(uniqueKey);
+          const parsedDate = parseReminderFromText(segment);
+          
+          parsedReminders.push({
+            date: parsedDate.parsedDate || null,
+            time: parsedDate.parsedDate ? parsedDate.parsedTime : '10:00',
+            type: activity.type,
+            labelVerb: activity.labelVerb
+          });
+        }
+      }
+    });
+
+    return parsedReminders;
+  };
+
   const handleNotaChange = (val) => {
     setNota(val);
     
@@ -166,22 +250,62 @@ export default function Step4_VisitaCapture() {
       setShowMentions(false);
     }
 
-    // 2. Análisis NLP de recordatorio en tiempo real
-    const parsed = parseReminderFromText(val);
-    if (parsed.parsedDate) {
-      // Registrarlo directamente como Chip visual e interactivo
-      const [year, month, day] = parsed.parsedDate.split('-');
-      const monthsStr = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
-      const friendlyMonthName = monthsStr[parseInt(month) - 1];
+    // 2. Análisis NLP de múltiples recordatorios en tiempo real
+    const parsedList = parseMultipleReminders(val);
+    
+    setActiveChips(prev => {
+      // Filtrar chips que no sean recordatorios de NLP
+      const nonReminderChips = prev.filter(c => !c.type.startsWith('recordatorio-'));
       
-      addChip('recordatorio', `⏰ Recordatorio: Llamar el ${parseInt(day)} de ${friendlyMonthName} a las ${parsed.parsedTime}`, '#7c3aed', 'rgba(124, 58, 237, 0.05)');
-      setWantsFollowUp(true);
-      setFollowUpData({
-        date: parsed.parsedDate,
-        time: parsed.parsedTime,
-        type: 'call'
+      // Preservar los recordatorios que el usuario ya configuró manualmente
+      const manualReminderChips = prev.filter(c => c.type.startsWith('recordatorio-') && c.meta?.isManuallySet);
+      const manualTypes = new Set(manualReminderChips.map(c => c.meta.type));
+
+      const newReminderChips = parsedList
+        .filter(r => !manualTypes.has(r.type)) // Evitar sobreescribir si ya se programó manualmente
+        .map(r => {
+          if (r.date) {
+            const [year, month, day] = r.date.split('-');
+            const monthsStr = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const friendlyMonthName = monthsStr[parseInt(month) - 1];
+            
+            return {
+              type: `recordatorio-${r.type}-${r.date}-${r.time}`,
+              label: `⏰ Recordatorio: ${r.labelVerb} el ${parseInt(day)} de ${friendlyMonthName} a las ${r.time}`,
+              color: '#7c3aed',
+              bg: 'rgba(124, 58, 237, 0.05)',
+              meta: r
+            };
+          } else {
+            // Si detecta la tarea pero no hay fecha en el texto, dar opción de hacer clic para calendarizar
+            return {
+              type: `recordatorio-${r.type}-pending`,
+              label: `⏰ Recordatorio: ${r.labelVerb} (Clic para programar)`,
+              color: '#4f46e5',
+              bg: 'rgba(79, 70, 229, 0.05)',
+              meta: r
+            };
+          }
+        });
+
+      return [...nonReminderChips, ...manualReminderChips, ...newReminderChips];
+    });
+
+    // Activar seguimiento si hay algún recordatorio válido (ya sea manual o parseado con fecha)
+    setTimeout(() => {
+      setActiveChips(current => {
+        const validReminders = current.filter(c => c.type.startsWith('recordatorio-') && c.meta?.date);
+        if (validReminders.length > 0) {
+          setWantsFollowUp(true);
+          setFollowUpData({
+            date: validReminders[0].meta.date,
+            time: validReminders[0].meta.time,
+            type: validReminders[0].meta.type
+          });
+        }
+        return current;
       });
-    }
+    }, 50);
   };
 
   const getSuggestions = () => {
@@ -245,12 +369,38 @@ export default function Step4_VisitaCapture() {
     const monthsStr = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const friendlyMonthName = monthsStr[parseInt(month) - 1];
     
-    const labelText = `⏰ Recordatorio: Llamar el ${parseInt(day)} de ${friendlyMonthName} a las ${tempPickerData.time}`;
-    
-    // Insertar como Chip
-    addChip('recordatorio', labelText, '#7c3aed', 'rgba(124, 58, 237, 0.05)');
-    
-    // Sincronizar automáticamente el calendario/follow-up del pie del componente
+    if (editingChipType) {
+      setActiveChips(prev => prev.map(chip => {
+        if (chip.type === editingChipType) {
+          const originalMeta = chip.meta || {};
+          const updatedMeta = {
+            ...originalMeta,
+            date: tempPickerData.date,
+            time: tempPickerData.time,
+            isManuallySet: true
+          };
+          const labelVerb = originalMeta.labelVerb || 'Seguimiento';
+          return {
+            ...chip,
+            type: `recordatorio-${updatedMeta.type}-${updatedMeta.date}-${updatedMeta.time}`,
+            label: `⏰ Recordatorio: ${labelVerb} el ${parseInt(day)} de ${friendlyMonthName} a las ${tempPickerData.time}`,
+            meta: updatedMeta
+          };
+        }
+        return chip;
+      }));
+      setEditingChipType(null);
+    } else {
+      const labelText = `⏰ Recordatorio: Seguimiento el ${parseInt(day)} de ${friendlyMonthName} a las ${tempPickerData.time}`;
+      addChip('recordatorio-manual', labelText, '#7c3aed', 'rgba(124, 58, 237, 0.05)', {
+        date: tempPickerData.date,
+        time: tempPickerData.time,
+        type: 'call',
+        labelVerb: 'Seguimiento',
+        isManuallySet: true
+      });
+    }
+
     setWantsFollowUp(true);
     setFollowUpData({
       date: tempPickerData.date,
@@ -265,6 +415,25 @@ export default function Step4_VisitaCapture() {
     }, 50);
   };
 
+  const [deviceAddress, setDeviceAddress] = useState('');
+
+  // Pre-cargar notas si es visita de campo y hay obra asignada
+  useEffect(() => {
+    if (tipo === 'field_visit' && wizardState.obra) {
+      const obraName = wizardState.obra.nombre || wizardState.obra.name || '';
+      const prefix = `Registro de visita a ${obraName}: `;
+      if (!nota || nota.startsWith('Registro de visita a ')) {
+        setNota(prefix);
+      }
+    } else if (tipo !== 'field_visit' && nota.startsWith('Registro de visita a ')) {
+      const obraName = wizardState.obra?.nombre || wizardState.obra?.name || '';
+      const prefix = `Registro de visita a ${obraName}: `;
+      if (nota === prefix) {
+        setNota('');
+      }
+    }
+  }, [tipo, wizardState.obra]);
+
   // Efecto de carga asíncrona de GPS on mount
   useEffect(() => {
     if (!navigator.geolocation) {
@@ -272,7 +441,6 @@ export default function Step4_VisitaCapture() {
       return;
     }
     
-    // Ejecución en segundo plano, no bloqueante para UI
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setCoords({ lat: position.coords.latitude, lng: position.coords.longitude });
@@ -285,6 +453,18 @@ export default function Step4_VisitaCapture() {
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, []);
+
+  // Geocodificación inversa de coordenadas del dispositivo
+  useEffect(() => {
+    if (coords && window.google && window.google.maps) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ location: coords }, (results, status) => {
+        if (status === 'OK' && results[0]) {
+          setDeviceAddress(results[0].formatted_address);
+        }
+      });
+    }
+  }, [coords]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -302,12 +482,25 @@ export default function Step4_VisitaCapture() {
 
   const handleSubmit = () => {
     let consolidatedNota = nota;
+
+    // Si es visita presencial (field_visit), agregamos la ubicación de registro automática
+    if (tipo === 'field_visit') {
+      const obraName = wizardState.obra?.nombre || wizardState.obra?.name || 'Obra';
+      const gpsLocationStr = deviceAddress || (coords ? `${coords.lat}, ${coords.lng}` : 'Coordenadas no disponibles');
+      consolidatedNota += `\n\n📍 Visita registrada en: ${obraName} desde ${gpsLocationStr}`;
+    }
+
     if (activeChips.length > 0) {
       consolidatedNota += "\n\n--- Metadatos del Registro ---";
       activeChips.forEach(chip => {
         consolidatedNota += `\n[${chip.label}]`;
       });
     }
+
+    // Extraer todos los recordatorios detectados en los chips
+    const detectedFollowups = activeChips
+      .filter(chip => chip.type.startsWith('recordatorio-') && chip.meta)
+      .map(chip => chip.meta);
 
     updateEntity('visita', {
       tipo,
@@ -316,6 +509,7 @@ export default function Step4_VisitaCapture() {
       lng: coords?.lng || null,
       fotos: fotos, 
       followup: wantsFollowUp ? followUpData : null,
+      followups: detectedFollowups, // Enviar array de recordatorios múltiples detectados
       timestamp: new Date().toISOString()
     });
     paginate(1);
@@ -419,6 +613,8 @@ export default function Step4_VisitaCapture() {
                   {activeChips.map(chip => (
                     <div
                       key={chip.type}
+                      onClick={() => handleChipClick(chip)}
+                      title={chip.type.startsWith('recordatorio-') ? "Haz clic para programar/editar fecha y hora" : undefined}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -429,13 +625,31 @@ export default function Step4_VisitaCapture() {
                         fontWeight: '750',
                         background: chip.bg,
                         color: chip.color,
-                        border: `1px solid ${chip.color}25`
+                        border: `1px solid ${chip.color}25`,
+                        cursor: chip.type.startsWith('recordatorio-') ? 'pointer' : 'default',
+                        transition: 'all 0.15s ease',
+                        boxShadow: chip.type.startsWith('recordatorio-') && chip.type.endsWith('-pending') ? '0 0 6px rgba(79, 70, 229, 0.15)' : 'none'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (chip.type.startsWith('recordatorio-')) {
+                          e.currentTarget.style.transform = 'scale(1.03)';
+                          e.currentTarget.style.boxShadow = `0 2px 8px ${chip.color}20`;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (chip.type.startsWith('recordatorio-')) {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.boxShadow = chip.type.endsWith('-pending') ? '0 0 6px rgba(79, 70, 229, 0.15)' : 'none';
+                        }
                       }}
                     >
                       <span>{chip.label}</span>
                       <button
                         type="button"
-                        onClick={() => removeChip(chip.type)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeChip(chip.type);
+                        }}
                         style={{
                           background: 'transparent',
                           border: 'none',

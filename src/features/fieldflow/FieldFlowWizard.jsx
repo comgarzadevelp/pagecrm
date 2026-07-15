@@ -88,9 +88,7 @@ function WizardContent({ onClose, onSuccess }) {
           throw new Error(compData.message || 'Error al crear la empresa en el CRM.');
         }
         resolvedCompanyId = compData.company.id;
-      }
-
-      // 2. Crear Contacto si es nuevo (Hacer esto ANTES de crear el crm_customer para tener su ID real)
+      }      // 2. Crear Contacto si es nuevo (Hacer esto ANTES de crear el crm_customer para tener su ID real)
       if (wizardState.contacto?.isNew) {
         setCurrentActionText('Registrando nuevo contacto...');
         const contRes = await fetch(`${API_BASE}/api/crm/contacts`, {
@@ -114,6 +112,36 @@ function WizardContent({ onClose, onSuccess }) {
           throw new Error(contData.message || 'Error al crear el contacto en el CRM.');
         }
         resolvedContactId = contData.contact.id;
+      }
+
+      // 2.5 Crear Obra si es nueva
+      let resolvedObraId = wizardState.obra?.id;
+      if (wizardState.obra?.isNew) {
+        setCurrentActionText('Registrando nueva obra / proyecto...');
+        const mapsUrl = wizardState.obra.lat && wizardState.obra.lng 
+          ? `https://www.google.com/maps/search/?api=1&query=${wizardState.obra.lat},${wizardState.obra.lng}`
+          : '';
+          
+        const obraRes = await fetch(`${API_BASE}/api/crm/obras`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: wizardState.obra.nombre,
+            address: wizardState.obra.direccion,
+            latitude: wizardState.obra.lat || null,
+            longitude: wizardState.obra.lng || null,
+            maps_url: mapsUrl,
+            status: 'En Construcción'
+          })
+        });
+        const obraData = await obraRes.json();
+        if (!obraRes.ok || !obraData.success) {
+          throw new Error(obraData.message || 'Error al crear la obra en el CRM.');
+        }
+        resolvedObraId = obraData.obra.id;
       }
 
       // 3. Crear Cliente en el CRM (crm_customer) dependiendo del perfil seleccionado
@@ -247,7 +275,7 @@ function WizardContent({ onClose, onSuccess }) {
       }
 
       // 3.3 Crear Obra si es nueva y/o vincular
-      let resolvedObraId = wizardState.obra?.id;
+      resolvedObraId = resolvedObraId || wizardState.obra?.id;
       if (wizardState.obra) {
         if (wizardState.obra.isNew) {
           setCurrentActionText('Registrando nueva obra / proyecto...');
@@ -352,7 +380,7 @@ function WizardContent({ onClose, onSuccess }) {
         obra_id: resolvedObraId || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
         resultado: wizardState.visita.nota || 'Visita comercial de campo registrada.',
-        notas: 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
+        notes: 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
         gps_lat: wizardState.visita.lat || 25.68661,
         gps_lng: wizardState.visita.lng || -100.31611,
         timestamp_servidor: wizardState.visita.timestamp || new Date().toISOString()
@@ -371,21 +399,69 @@ function WizardContent({ onClose, onSuccess }) {
         throw new Error(visitaData.message || 'Error al registrar la interacción principal.');
       }
 
-      // 5. Crear la Actividad de Seguimiento (si se programó)
+      // 5. Crear las Actividades de Seguimiento (Soporta múltiples recordatorios detectados por NLP)
+      const followupsToCreate = [];
       if (wizardState.visita?.followup) {
-        setCurrentActionText('Agendando actividad de seguimiento comercial...');
-        const { date, time, type } = wizardState.visita.followup;
-        const followupTimestamp = new Date(`${date}T${time || '10:00'}:00`).toISOString();
+        followupsToCreate.push(wizardState.visita.followup);
+      }
+      if (Array.isArray(wizardState.visita?.followups)) {
+        followupsToCreate.push(...wizardState.visita.followups);
+      }
+
+      // Eliminar duplicados para evitar registrar la misma actividad dos veces
+      const uniqueFollowups = [];
+      const seenF = new Set();
+      followupsToCreate.forEach(f => {
+        const key = `${f.date}_${f.time}_${f.type}`;
+        if (!seenF.has(key)) {
+          seenF.add(key);
+          uniqueFollowups.push(f);
+        }
+      });
+
+      for (let i = 0; i < uniqueFollowups.length; i++) {
+        const f = uniqueFollowups[i];
+        setCurrentActionText(`Agendando actividad de seguimiento ${i + 1} de ${uniqueFollowups.length}...`);
         
+        const { date, time, type } = f;
+         
+        // Si la fecha es null (porque no se hizo clic para programar), por defecto agendamos para mañana
+        let finalDate = date;
+        if (!finalDate) {
+          const tomorrow = new Date();
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          const yyyy = tomorrow.getFullYear();
+          const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+          const dd = String(tomorrow.getDate()).padStart(2, '0');
+          finalDate = `${yyyy}-${mm}-${dd}`;
+        }
+
+        const followupTimestamp = new Date(`${finalDate}T${time || '10:00'}:00`).toISOString();
+        
+        const companyName = wizardState.empresa?.nombre || wizardState.empresa?.name || '';
+        const contactName = wizardState.contacto?.nombre || wizardState.contacto?.name || '';
+        const obraName = wizardState.obra?.nombre || wizardState.obra?.name || '';
+
         let followupTipo = 'llamada';
-        let followupResultado = 'Llamada de seguimiento comercial agendada';
+        let followupResultado = '';
+
         if (type === 'visit') {
           followupTipo = 'visita_presencial';
-          followupResultado = 'Visita comercial de campo agendada';
+          followupResultado = `Visita: Visitar obra ${obraName || ''}`;
+          if (contactName) followupResultado += ` con ${contactName}`;
+          if (companyName) followupResultado += ` (${companyName})`;
         } else if (type === 'quote') {
           followupTipo = 'llamada';
-          followupResultado = 'Elaborar y enviar cotización formal';
+          followupResultado = `Llamada: Cotizar ${obraName ? `obra ${obraName}` : 'proyecto'}`;
+          if (companyName) followupResultado += ` para ${companyName}`;
+          if (contactName) followupResultado += ` (${contactName})`;
+        } else {
+          followupTipo = 'llamada';
+          followupResultado = `Llamada: Llamar a ${contactName || 'contacto'}`;
+          if (companyName) followupResultado += ` de ${companyName}`;
         }
+        
+        followupResultado = followupResultado.replace(/\s+/g, ' ').trim();
 
         const followupPayload = {
           company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
@@ -393,23 +469,27 @@ function WizardContent({ onClose, onSuccess }) {
           obra_id: resolvedObraId || null,
           tipo: followupTipo,
           resultado: followupResultado,
-          notas: `Recordatorio automático creado desde FieldFlow. Actividad programada para el ${date} a las ${time || '10:00'}.`,
-          gps_lat: null,
-          gps_lng: null,
+          notas: `Recordatorio automático de seguimiento creado desde FieldFlow. Actividad programada para el ${date} a las ${time || '10:00'}.`,
+          gps_lat: wizardState.visita?.lat || null,
+          gps_lng: wizardState.visita?.lng || null,
           timestamp_servidor: followupTimestamp
         };
 
-        const followupRes = await fetch(`${API_BASE}/api/crm/visitas`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(followupPayload)
-        });
-        const followupData = await followupRes.json();
-        if (!followupRes.ok || !followupData.success) {
-          console.warn('Advertencia al programar seguimiento:', followupData.message);
+        try {
+          const followupRes = await fetch(`${API_BASE}/api/crm/visitas`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(followupPayload)
+          });
+          const followupData = await followupRes.json();
+          if (!followupRes.ok || !followupData.success) {
+            console.warn(`Advertencia al programar seguimiento ${i + 1}:`, followupData.message);
+          }
+        } catch (fErr) {
+          console.warn(`Error de red al agendar seguimiento ${i + 1}:`, fErr);
         }
       }
 

@@ -97,6 +97,8 @@ export function FieldFlowProvider({ children }) {
             tipo: 'prospecto',
             estatus: c.status || 'Activo',
             company: c.company || '',
+            company_id: c.company_id ? String(c.company_id) : null,
+            contact_id: c.contact_id ? String(c.contact_id) : null,
             phone: c.phone || '',
             email: c.email || '',
             entityType: 'prospecto'
@@ -139,6 +141,8 @@ export function FieldFlowProvider({ children }) {
             id: String(o.id),
             nombre: o.name || '',
             direccion: o.address || '',
+            lat: o.latitude || o.lat,
+            lng: o.longitude || o.lng,
             tipo: 'obra',
             estatus: o.status || 'Activo'
           }));

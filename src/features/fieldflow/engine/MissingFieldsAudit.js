@@ -32,9 +32,19 @@ export function auditEntity(entityType, entityData) {
   
   const schema = COMPLETENESS_SCHEMA[entityType];
   
-  const missing = schema.required.filter(
-    field => !entityData[field] || String(entityData[field]).trim() === ''
-  );
+  const missing = schema.required.filter(field => {
+    const val = entityData[field];
+    if (!val || String(val).trim() === '') return true;
+    
+    // Regla especial para dirección de obra: debe tener coordenadas GPS y longitud mínima de 8 caracteres
+    if (entityType === 'obra' && field === 'direccion') {
+      if (String(val).trim().length < 8) return true;
+      const lat = entityData.lat || entityData.latitude;
+      const lng = entityData.lng || entityData.longitude;
+      if (!lat || !lng) return true;
+    }
+    return false;
+  });
   
   const recommended = schema.recommended.filter(
     field => !entityData[field] || String(entityData[field]).trim() === ''

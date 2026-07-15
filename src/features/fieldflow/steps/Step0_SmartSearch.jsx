@@ -65,6 +65,7 @@ export default function Step0_SmartSearch() {
                 estatus: c.status || 'Activo',
                 company: c.company || '',
                 company_id: c.company_id || null,
+                contact_id: c.contact_id || null,
                 phone: c.phone || '',
                 email: c.email || '',
                 entityType: 'prospecto',
@@ -110,7 +111,7 @@ export default function Step0_SmartSearch() {
     } : null;
 
     const resolvedContacto = {
-      id: entity.id,
+      id: entity.contact_id || entity.id,
       nombre: entity.nombre,
       tipo: 'contacto',
       cargo: entity.cargo || 'Cliente',

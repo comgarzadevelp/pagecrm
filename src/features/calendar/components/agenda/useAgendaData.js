@@ -74,20 +74,46 @@ export function useAgendaData() {
             const isFuture = new Date(dateStr) > new Date();
             
             // Traducir el tipo al formato visual de categorías
-            let catKey = 'seguimiento';
+            let catKey = 'visita'; // default: visita presencial
             if (v.tipo === 'llamada') catKey = 'llamada';
             else if (v.tipo === 'reunion_virtual') catKey = 'demo';
+
+            // Detectar si el registro es un recordatorio automático.
+            // Criterio 1: la fecha es futura → definitivamente es un recordatorio agendado.
+            // Criterio 2: el texto de notas o resultado tiene la marca de FieldFlow (fallback para registros viejos).
+            const isReminder = isFuture || 
+              v.notas?.includes('Recordatorio') || 
+              v.resultado?.startsWith('Llamada:') || 
+              v.resultado?.startsWith('Visita:');
+            
+            // Si es un recordatorio de cotizar, sobreescribir la categoría
+            const isCotizacionReminder = isReminder && (
+              v.resultado?.toLowerCase().includes('cotizar') ||
+              v.resultado?.toLowerCase().includes('cotizaci') ||
+              v.notas?.toLowerCase().includes('cotizar')
+            );
+            if (isCotizacionReminder) catKey = 'cotizacion';
             
             return {
               id: `db-activity-${v.id}`,
-              summary: `${v.tipo === 'llamada' ? '📞 Llamada' : v.tipo === 'reunion_virtual' ? '💻 Reunión' : '📍 Visita'}: ${v.resultado || 'Actividad registrada'}`,
+              // Si es cotización, el prefijo del summary debe ser explícito para que
+              // parseStructuredTitle lo clasifique correctamente como Cotización.
+              summary: isCotizacionReminder
+                ? `💰 Cotización: ${v.resultado}`
+                : `${v.tipo === 'llamada' ? '📞 Llamada' : v.tipo === 'reunion_virtual' ? '💻 Reunión' : '📍 Visita'}: ${v.resultado || 'Actividad registrada'}`,
               description: `[CAT:${catKey}] ${v.notas || ''}`,
               start: { dateTime: dateStr },
               end: { dateTime: new Date(new Date(dateStr).getTime() + 45 * 60000).toISOString() }, // Asumimos 45 minutos
-              location: v.tipo === 'visita_presencial' ? 'Trabajo de Campo' : v.tipo === 'reunion_virtual' ? 'Reunión Virtual' : 'Llamada telefónica',
+              location: v.gps_lat && v.gps_lng 
+                ? `${v.gps_lat}, ${v.gps_lng}` 
+                : (v.tipo === 'visita_presencial' ? 'Trabajo de Campo' : v.tipo === 'reunion_virtual' ? 'Reunión Virtual' : 'Llamada telefónica'),
               client_name: v.resultado,
-              isDbActivity: true,
-              isFutureActivity: isFuture
+              isDbActivity: !isReminder, // Si es un recordatorio, no es una actividad histórica/registro principal
+              isFutureActivity: isFuture,
+              company: v.companies,
+              contact: v.contacts,
+              obra: v.obras,
+              rawActivity: v
             };
           });
         }

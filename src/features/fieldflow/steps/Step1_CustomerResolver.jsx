@@ -409,71 +409,110 @@ export default function Step1_CustomerResolver() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '5rem' }}>
 
           {/* ================= SECCIÓN PERFIL DEL CLIENTE ================= */}
+          {/* ================= SECCIÓN PERFIL DEL CLIENTE ================= */}
           {(isCreatingEmpresa || isCreatingContacto || wizardState.empresa?.isNew || wizardState.contacto?.isNew || wizardState.cliente?.isNew) ? (
-            <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-              <User style={{ width: '16px', height: '16px', color: '#05393A' }} />
-              <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>¿Quién es el cliente principal?</span>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <button
-                type="button"
-                onClick={() => setClientProfile('b2b')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  border: wizardState.client_profile === 'b2b' ? '2px solid #05393A' : '1px solid #e5e7eb',
-                  background: wizardState.client_profile === 'b2b' ? 'rgba(5, 57, 58, 0.03)' : '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  textAlign: 'left'
-                }}
-              >
+            <>
+              {/* Banner Guía de UX explicativo en caso de nuevo prospecto */}
+              {wizardState.cliente?.isNew && (
                 <div style={{
-                  width: '24px', height: '24px', borderRadius: '50%', border: '2px solid',
-                  borderColor: wizardState.client_profile === 'b2b' ? '#05393A' : '#d1d5db',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  {wizardState.client_profile === 'b2b' && <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#05393A' }} />}
-                </div>
-                <div>
-                  <div style={{ fontWeight: '600', color: '#111827', fontSize: '0.9rem' }}>La Empresa (B2B)</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Cuenta corporativa. Rotación de contactos.</div>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setClientProfile('b2c')}
-                style={{
+                  padding: '12px 16px',
+                  background: '#f0fdf4',
+                  border: '1.5px solid #bbf7d0',
+                  borderRadius: '16px',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '1rem',
-                  borderRadius: '12px',
-                  border: wizardState.client_profile === 'b2c' ? '2px solid #05393A' : '1px solid #e5e7eb',
-                  background: wizardState.client_profile === 'b2c' ? 'rgba(5, 57, 58, 0.03)' : '#fff',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  textAlign: 'left'
-                }}
-              >
-                <div style={{
-                  width: '24px', height: '24px', borderRadius: '50%', border: '2px solid',
-                  borderColor: wizardState.client_profile === 'b2c' ? '#05393A' : '#d1d5db',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  gap: '12px',
+                  alignItems: 'flex-start'
                 }}>
-                  {wizardState.client_profile === 'b2c' && <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#05393A' }} />}
+                  <div style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '50%',
+                    background: '#dcfce7',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#15803d',
+                    fontSize: '1rem',
+                    flexShrink: 0
+                  }}>
+                    <i className="fas fa-magic" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                    <span style={{ fontSize: '0.825rem', color: '#166534', fontWeight: '750' }}>
+                      Registrando Prospecto Nuevo: "{wizardState.cliente.nombre}"
+                    </span>
+                    <p style={{ margin: 0, fontSize: '0.72rem', color: '#166534', lineHeight: '1.45' }}>
+                      El sistema creará a esta persona/empresa en tu catálogo. Completa los campos de abajo indicando a qué constructora pertenece y quién es tu <strong>contacto clave</strong> en la obra (el guardia, residente o encargado con el que interactuaste hoy).
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontWeight: '600', color: '#111827', fontSize: '0.9rem' }}>La Persona (B2C)</div>
-                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Contratista o comprador individual.</div>
+              )}
+
+              <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <User style={{ width: '16px', height: '16px', color: '#05393A' }} />
+                  <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>¿Quién es el cliente principal?</span>
                 </div>
-              </button>
-            </div>
-          </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setClientProfile('b2b')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '1rem',
+                      borderRadius: '12px',
+                      border: wizardState.client_profile === 'b2b' ? '2px solid #05393A' : '1px solid #e5e7eb',
+                      background: wizardState.client_profile === 'b2b' ? 'rgba(5, 57, 58, 0.03)' : '#fff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{
+                      width: '24px', height: '24px', borderRadius: '50%', border: '2px solid',
+                      borderColor: wizardState.client_profile === 'b2b' ? '#05393A' : '#d1d5db',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {wizardState.client_profile === 'b2b' && <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#05393A' }} />}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: '600', color: '#111827', fontSize: '0.9rem' }}>La Empresa (B2B)</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Cuenta corporativa. Rotación de contactos.</div>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setClientProfile('b2c')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem',
+                      padding: '1rem',
+                      borderRadius: '12px',
+                      border: wizardState.client_profile === 'b2c' ? '2px solid #05393A' : '1px solid #e5e7eb',
+                      background: wizardState.client_profile === 'b2c' ? 'rgba(5, 57, 58, 0.03)' : '#fff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      textAlign: 'left'
+                    }}
+                  >
+                    <div style={{
+                      width: '24px', height: '24px', borderRadius: '50%', border: '2px solid',
+                      borderColor: wizardState.client_profile === 'b2c' ? '#05393A' : '#d1d5db',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                      {wizardState.client_profile === 'b2c' && <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#05393A' }} />}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: '600', color: '#111827', fontSize: '0.9rem' }}>La Persona (B2C)</div>
+                      <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>Contratista o comprador individual.</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '0.75rem', background: '#f8fafc' }}>
               <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#05393A', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -676,62 +715,81 @@ export default function Step1_CustomerResolver() {
           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <User style={{ width: '16px', height: '16px', color: '#05393A' }} />
-              <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contacto de la Obra</span>
+              <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contacto Principal del Cliente</span>
             </div>
 
             {/* Caso 1: Contacto Seleccionado */}
             {wizardState.contacto && !isCreatingContacto && (
-              <div
-                className="fieldflow-result-card"
-                onClick={handleEditContacto}
-                style={{
-                  border: '1px solid rgba(16, 185, 129, 0.25)',
-                  background: 'rgba(16, 185, 129, 0.01)',
-                  cursor: 'pointer',
-                  margin: 0,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.01)';
-                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.25)';
-                }}
-              >
-                <div className="result-icon-box contacto">
-                  <User />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  className="fieldflow-result-card"
+                  onClick={handleEditContacto}
+                  style={{
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    background: 'rgba(16, 185, 129, 0.01)',
+                    cursor: 'pointer',
+                    margin: 0,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.04)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.01)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+                  }}
+                >
+                  <div className="result-icon-box contacto">
+                    <User />
+                  </div>
+                  <div className="result-info">
+                    <h4>{wizardState.contacto.nombre}</h4>
+                    <p>{wizardState.contacto.cargo ? `${wizardState.contacto.cargo}` : 'Contacto Registrado'}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditContacto();
+                      }}
+                      className="btn-resolver-back"
+                      style={{ color: '#4f46e5', borderColor: 'transparent' }}
+                      title="Editar Contacto"
+                    >
+                      <Pencil style={{ width: '15px', height: '15px' }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateEntity('contacto', null);
+                      }}
+                      className="btn-resolver-danger"
+                      title="Desvincular Contacto"
+                    >
+                      <X />
+                    </button>
+                  </div>
                 </div>
-                <div className="result-info">
-                  <h4>{wizardState.contacto.nombre}</h4>
-                  <p>{wizardState.contacto.cargo ? `${wizardState.contacto.cargo}` : 'Contacto Registrado'}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditContacto();
-                    }}
-                    className="btn-resolver-back"
-                    style={{ color: '#4f46e5', borderColor: 'transparent' }}
-                    title="Editar Contacto"
-                  >
-                    <Pencil style={{ width: '15px', height: '15px' }} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateEntity('contacto', null);
-                    }}
-                    className="btn-resolver-back"
-                    style={{ color: '#ef4444', borderColor: 'transparent' }}
-                    title="Desvincular Contacto"
-                  >
-                    <X style={{ width: '15px', height: '15px' }} />
-                  </button>
+                
+                {/* Texto de ayuda visual para cambio de contacto en visitas recurrentes */}
+                <div style={{ 
+                  fontSize: '0.72rem', 
+                  color: '#64748b', 
+                  background: '#f8fafc', 
+                  padding: '8px 12px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <i className="fas fa-info-circle" style={{ color: '#3b82f6' }} />
+                  <span>
+                    ¿Hablaste con alguien más hoy? Haz clic en la <strong>X</strong> roja para quitarlo y registrar al nuevo contacto clave de esta visita.
+                  </span>
                 </div>
               </div>
             )}
@@ -749,7 +807,12 @@ export default function Step1_CustomerResolver() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                   {/* Fila 1: Nombre Completo */}
                   <div className="resolver-field-group">
-                    <label className="resolver-field-label">Nombre Completo *</label>
+                    <label className="resolver-field-label">
+                      Nombre Completo * 
+                      <span style={{ display: 'block', fontSize: '0.68rem', color: '#64748b', fontWeight: 'normal', textTransform: 'none', marginTop: '2px' }}>
+                        Registra el nombre de la persona con la que hablaste hoy (ej: residente de obra, supervisor, etc.).
+                      </span>
+                    </label>
                     <input
                       type="text"
                       value={contactoForm.nombre}
@@ -759,7 +822,7 @@ export default function Step1_CustomerResolver() {
                       style={{ height: '38px', fontSize: '0.825rem' }}
                     />
                   </div>
-
+ 
                   {/* Fila 2: Tipo de Contacto (Segmented Control Pills exactas a Imagen 2) */}
                   <div className="resolver-field-group">
                     <label className="resolver-field-label">Tipo de Contacto</label>
@@ -956,13 +1019,32 @@ export default function Step1_CustomerResolver() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <User style={{ width: '16px', height: '16px', color: '#4f46e5' }} />
-                <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contactos Adicionales de la Obra</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Otros Contactos (Adicionales o Secundarios)</span>
               </div>
               {wizardState.contactosAdicionales && wizardState.contactosAdicionales.length > 0 && (
                 <span style={{ fontSize: '0.7rem', fontWeight: '700', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '2px 8px', borderRadius: '20px' }}>
                   {wizardState.contactosAdicionales.length} vinculados
                 </span>
               )}
+            </div>
+
+            {/* Banner de aclaración de jerarquía de datos */}
+            <div style={{ 
+              fontSize: '0.7rem', 
+              color: '#475569', 
+              background: '#f5f3ff', 
+              padding: '8px 12px', 
+              borderRadius: '10px', 
+              border: '1px solid #ddd6fe',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '6px',
+              marginBottom: '1rem'
+            }}>
+              <i className="fas fa-exclamation-triangle" style={{ color: '#7c3aed', marginTop: '2px' }} />
+              <span>
+                <strong>¡Atención Jerarquía!</strong> Usa este apartado únicamente para registrar contactos secundarios en la obra (como almacenistas, guardias o residentes adicionales). Los datos de la persona clave que compra o decide deben registrarse en la sección superior de <strong>Contacto Principal</strong>.
+              </span>
             </div>
 
             {/* Listado de Contactos Adicionales */}

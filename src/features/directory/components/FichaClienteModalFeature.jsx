@@ -587,6 +587,7 @@ export default function FichaClienteModal({
               API_BASE={API_BASE}
               role={role}
               onCompanyUpdated={onCompanyStatusUpdated}
+              linkedContacts={linkedContacts}
             />
           )}
 

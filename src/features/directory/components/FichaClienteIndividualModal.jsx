@@ -551,17 +551,72 @@ export default function FichaClienteIndividualModal({
 
   const fetchObras = async (id) => {
     setLoadingObras(true);
-    const cleanId = isSae ? id : id; // El endpoint de contactos maneja el ID local
     try {
-      const res = await fetch(`${API_BASE}/api/crm/obras/contact/${cleanId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setObras(data.obras || []);
+      let localContactId = null;
+      let localCompanyId = null;
+
+      if (currentCustomer?.contact_id && !String(currentCustomer.contact_id).startsWith('sae-')) {
+        localContactId = currentCustomer.contact_id;
       }
+      if (currentCustomer?.company_id && !String(currentCustomer.company_id).startsWith('sae-') && !String(currentCustomer.company_id).startsWith('company-')) {
+        localCompanyId = currentCustomer.company_id;
+      }
+
+      if ((!localContactId || !localCompanyId) && currentCustomer?.notes) {
+        try {
+          const parsed = JSON.parse(currentCustomer.notes);
+          if (!localContactId && parsed?.contact_id && !String(parsed.contact_id).startsWith('sae-')) {
+            localContactId = parsed.contact_id;
+          }
+          if (!localCompanyId && parsed?.company_id && !String(parsed.company_id).startsWith('sae-')) {
+            localCompanyId = parsed.company_id;
+          }
+        } catch (e) {}
+      }
+
+      const urls = [];
+      if (localCompanyId) {
+        urls.push(`${API_BASE}/api/crm/obras/company/${localCompanyId}`);
+      }
+      if (localContactId) {
+        urls.push(`${API_BASE}/api/crm/obras/contact/${localContactId}`);
+      }
+      if (!localCompanyId && !localContactId) {
+        // Fallback for leads directly (if backend handles it this way, though unlikely)
+        urls.push(`${API_BASE}/api/crm/obras/contact/${id}`);
+      }
+
+      const requests = urls.map(url =>
+        fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+          .then(r => r.json())
+          .catch(() => ({ success: false, obras: [] }))
+      );
+
+      const results = await Promise.all(requests);
+      
+      let allObras = [];
+      results.forEach((res, i) => {
+        if (res.success && res.obras) {
+          const source = urls[i].includes('/company/') ? 'company' : 'contact';
+          const augmented = res.obras.map(o => ({ ...o, _source: source }));
+          allObras = [...allObras, ...augmented];
+        }
+      });
+
+      // Eliminar duplicados por id
+      const uniqueObras = [];
+      const seenIds = new Set();
+      allObras.forEach(o => {
+        if (!seenIds.has(o.id)) {
+          seenIds.add(o.id);
+          uniqueObras.push(o);
+        }
+      });
+
+      setObras(uniqueObras);
     } catch (err) {
       console.error('Error fetching obras:', err);
+      setObras([]);
     } finally {
       setLoadingObras(false);
     }
@@ -658,7 +713,11 @@ export default function FichaClienteIndividualModal({
       const dataOpp = await resOpp.json();
 
       if (resOpp.ok && dataOpp.success) {
-        setOpportunities(dataOpp.opportunities || []);
+        const opps = (dataOpp.opportunities || []).map(opp => ({
+          ...opp,
+          _source: localContactId && opp.contact_id === localContactId ? 'contact' : 'company'
+        }));
+        setOpportunities(opps);
       } else {
         setOpportunities([]);
       }
@@ -1238,20 +1297,23 @@ export default function FichaClienteIndividualModal({
 
   const statusColor = getStatusColor(currentCustomer.status);
 
+  const contactOpportunities = useMemo(() => opportunities.filter(opp => opp._source === 'contact' || !opp._source), [opportunities]);
+  const companyOpportunities = useMemo(() => opportunities.filter(opp => opp._source === 'company'), [opportunities]);
+
   // Calcular contadores dinámicos basados en la lista combinada
   const activeOpportunitiesCount = useMemo(() => {
-    return opportunities.filter(opp => {
+    return contactOpportunities.filter(opp => {
       const stage = (opp.stage || '').toLowerCase();
       return stage !== 'ganado' && stage !== 'perdido' && stage !== 'descartado' && stage !== 'cierre_ganado' && stage !== 'cierre_perdido' && stage !== 'venta_ganada';
     }).length;
-  }, [opportunities]);
+  }, [contactOpportunities]);
 
   const wonOpportunitiesCount = useMemo(() => {
-    return opportunities.filter(opp => {
+    return contactOpportunities.filter(opp => {
       const stage = (opp.stage || '').toLowerCase();
       return stage === 'ganado' || stage === 'cierre_ganado' || stage === 'venta_ganada';
     }).length;
-  }, [opportunities]);
+  }, [contactOpportunities]);
 
   // Traducción de etapas para alineación con el Kanban
   const translateStage = (stage) => {
@@ -1755,8 +1817,20 @@ export default function FichaClienteIndividualModal({
                         <i className="fas fa-drafting-compass" />
                       </div>
                       <div className="obra-item-info">
-                        <span className="obra-item-name">{obra.nombre}</span>
-                        <span className="obra-item-address">{obra.direccion || 'Sin dirección'}</span>
+                        <span className="obra-item-name">{obra.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                          <span className="obra-item-address" style={{ margin: 0 }}>{obra.address || 'Sin dirección'}</span>
+                          {obra._source === 'company' && (
+                            <span style={{ fontSize: '0.65rem', background: '#e2e8f0', color: '#475569', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                              De la empresa
+                            </span>
+                          )}
+                          {obra._source === 'contact' && (
+                            <span style={{ fontSize: '0.65rem', background: '#dcfce7', color: '#166534', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+                              Directo
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1767,8 +1841,15 @@ export default function FichaClienteIndividualModal({
             {/* CARD: NEGOCIOS Y OPORTUNIDADES (COTIZACIONES) */}
             <section className="info-section-card">
               <h3 className="info-section-title">
-                <i className="fas fa-handshake" /> Negocios y Oportunidades ({opportunities.length})
+                <i className="fas fa-handshake" /> Negocios y Oportunidades ({contactOpportunities.length})
               </h3>
+
+              {companyOpportunities.length > 0 && (
+                <div style={{ fontSize: '0.7rem', color: '#64748b', background: '#f1f5f9', padding: '10px', borderRadius: '6px', marginBottom: '12px', borderLeft: '3px solid #94a3b8' }}>
+                  <i className="fas fa-info-circle" style={{ marginRight: '6px' }} />
+                  La empresa vinculada comparte <strong>{companyOpportunities.length}</strong> negociaciones activas en su red corporativa. Aquí solo verás los tratos que pertenecen de forma directa a {currentCustomer.name}.
+                </div>
+              )}
 
               {/* KPIs de oportunidades/negocios */}
               <div className="kpi-b2b-grid" style={{ marginBottom: '12px' }}>
@@ -1786,13 +1867,13 @@ export default function FichaClienteIndividualModal({
                 <div style={{ textAlign: 'center', padding: '1rem' }}>
                   <div className="spinner-mini" style={{ display: 'inline-block' }} />
                 </div>
-              ) : opportunities.length === 0 ? (
+              ) : contactOpportunities.length === 0 ? (
                 <p style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', margin: 0 }}>
-                  No hay negocios u oportunidades registradas.
+                  No hay negocios u oportunidades registradas directamente a este contacto.
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '185px', overflowY: 'auto' }}>
-                  {opportunities.map(opp => {
+                  {contactOpportunities.map(opp => {
                     const stageLower = (opp.stage || '').toLowerCase();
                     const isWon = stageLower === 'ganado' || stageLower === 'venta_ganada';
                     const badgeColor = isWon ? '#10b981' : '#3b82f6';
@@ -1809,10 +1890,12 @@ export default function FichaClienteIndividualModal({
                         alignItems: 'center',
                         fontSize: '0.75rem'
                       }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', marginRight: '8px' }}>
-                          <span style={{ fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {opp.title || opp.name || 'Oportunidad de Venta'}
-                          </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', marginRight: '8px', gap: '2px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontWeight: '700', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {opp.title || opp.name || 'Oportunidad de Venta'}
+                            </span>
+                          </div>
                           <span style={{ fontSize: '0.65rem', color: '#64748b' }}>
                             Monto: <strong>${parseFloat(opp.amount || 0).toLocaleString('es-MX')}</strong>
                           </span>
@@ -2515,6 +2598,17 @@ export default function FichaClienteIndividualModal({
               <button type="button" className="submodal-close" onClick={() => setShowEditCompanyModal(false)}>&times;</button>
             </header>
             <form onSubmit={handleUpdateCompany} className="submodal-form">
+              {(selectedCompanyId || currentCustomer?.company_id) && (
+                <div style={{ margin: '0 16px 16px 16px', padding: '10px 14px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                  <i className="fas fa-exclamation-triangle" style={{ color: '#d97706', marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '0.75rem', color: '#92400e', marginBottom: '4px' }}>Estás editando una empresa existente</strong>
+                    <p style={{ margin: 0, fontSize: '0.7rem', color: '#b45309', lineHeight: '1.4' }}>
+                      Cualquier cambio en el RFC, dirección o nombre afectará <strong>globalmente</strong> a esta empresa y a todos los demás contactos vinculados a ella. Si solo deseas vincular a este contacto a otra empresa, busca el nombre arriba y guarda.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div className="form-group-grid">
                 <div className="form-group full-width">
                   <label>Razón Social o Nombre comercial</label>

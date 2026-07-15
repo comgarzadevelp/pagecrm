@@ -17,9 +17,11 @@ export default function TabPerfil({
   isEditingProfile,
   setIsEditingProfile,
   triggerProfileSave,
-  onCompanyUpdated
+  onCompanyUpdated,
+  linkedContacts = []
 }) {
   const { showToast } = useUX();
+  const [selectedContactModal, setSelectedContactModal] = useState(null);
 
   // Campos de edición locales
   const [editCustName, setEditCustName] = useState('');
@@ -403,7 +405,186 @@ export default function TabPerfil({
             ></iframe>
           </div>
         )}
+
+        {/* Sección de otros contactos vinculados o secundarios */}
+        {linkedContacts && linkedContacts.length > 0 && (
+          <div style={{ marginTop: '2rem', borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem' }}>
+            <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: 'var(--color-brand-primary)', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <i className="fas fa-users-cog" style={{ color: 'var(--color-brand-accent)' }}></i>
+              Otros Contactos y Representantes de la Constructora
+            </h4>
+            <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '1rem' }}>
+              Haz clic en cualquier tarjeta para ver su información de contacto detallada, teléfonos y correo.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '0.75rem' }}>
+              {linkedContacts.map((lc, idx) => {
+                const contact = lc.contact || lc;
+                const isPrincipal = currentCustomer.contact_id === contact.id;
+                
+                return (
+                  <div
+                    key={contact.id || idx}
+                    onClick={() => setSelectedContactModal(contact)}
+                    style={{
+                      padding: '0.85rem',
+                      background: isPrincipal ? 'rgba(16, 185, 129, 0.03)' : '#ffffff',
+                      border: isPrincipal ? '1.5px solid rgba(16, 185, 129, 0.3)' : '1px solid #e2e8f0',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.65rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    <div style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      background: isPrincipal ? 'rgba(16, 185, 129, 0.1)' : 'rgba(79, 70, 229, 0.1)',
+                      color: isPrincipal ? '#10b981' : '#4f46e5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.8rem',
+                      fontWeight: '800'
+                    }}>
+                      {contact.name ? contact.name.charAt(0).toUpperCase() : 'C'}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '0.8rem', fontWeight: '750', color: '#1f2937', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                        {contact.name}
+                      </span>
+                      <span style={{ fontSize: '0.68rem', color: isPrincipal ? '#10b981' : '#64748b', fontWeight: '600' }}>
+                        {isPrincipal ? '👑 Contacto Principal' : (contact.position || lc.role || 'Contacto Secundario')}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </form>
+
+      {/* Modal / Popup de Detalle de Contacto */}
+      {selectedContactModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.4)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '1rem'
+        }} onClick={() => setSelectedContactModal(null)}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '380px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            border: '1px solid rgba(0,0,0,0.06)',
+            overflow: 'hidden',
+            animation: 'scaleIn 0.2s ease-out'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header del modal */}
+            <div style={{
+              background: 'linear-gradient(135deg, #05393A 0%, #095052 100%)',
+              padding: '1.25rem',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: '800'
+                }}>
+                  {selectedContactModal.name ? selectedContactModal.name.charAt(0).toUpperCase() : 'C'}
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '800' }}>{selectedContactModal.name}</h4>
+                  <span style={{ fontSize: '0.7rem', color: '#a5f3fc', fontWeight: '600' }}>
+                    {selectedContactModal.position || 'Contacto'}
+                  </span>
+                </div>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setSelectedContactModal(null)}
+                style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: '1rem' }}
+              >
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            {/* Contenido del modal */}
+            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {selectedContactModal.phone && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af' }}>Teléfono Principal</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: '750', color: '#1f2937' }}>{selectedContactModal.phone}</span>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <a href={`tel:${selectedContactModal.phone}`} style={{ color: '#05393A', fontSize: '0.85rem' }} title="Llamar">
+                        <i className="fas fa-phone-alt"></i>
+                      </a>
+                      <a 
+                        href={`https://wa.me/52${selectedContactModal.phone.replace(/\D/g, '')}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        style={{ color: '#25d366', fontSize: '0.95rem' }} 
+                        title="Enviar WhatsApp"
+                      >
+                        <i className="fab fa-whatsapp"></i>
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedContactModal.email && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af' }}>Correo Electrónico</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <span style={{ fontSize: '0.78rem', fontWeight: '600', color: '#1f2937', wordBreak: 'break-all', marginRight: '8px' }}>{selectedContactModal.email}</span>
+                    <a href={`mailto:${selectedContactModal.email}`} style={{ color: '#05393A', fontSize: '0.85rem' }} title="Enviar Correo">
+                      <i className="fas fa-envelope"></i>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {selectedContactModal.notes && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af' }}>Notas de Registro</span>
+                  <div style={{ background: '#f8fafc', padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.75rem', color: '#475569', lineHeight: '1.4' }}>
+                    {selectedContactModal.notes}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

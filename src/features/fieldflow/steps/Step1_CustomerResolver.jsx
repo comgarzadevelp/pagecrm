@@ -768,15 +768,15 @@ export default function Step1_CustomerResolver() {
                       }}
                       className="btn-resolver-back"
                       style={{ 
-                        color: '#ef4444', 
-                        borderColor: '#fca5a5', 
-                        background: '#fef2f2',
-                        padding: '4px',
-                        borderRadius: '6px'
+                        color: '#ef4444 !important', 
+                        borderColor: '#fca5a5 !important', 
+                        background: '#fef2f2 !important',
+                        padding: '4px !important',
+                        borderRadius: '6px !important'
                       }}
                       title="Desvincular Contacto"
                     >
-                      <X style={{ width: '15px', height: '15px', strokeWidth: '2.5px' }} />
+                      <X style={{ width: '15px !important', height: '15px !important', stroke: '#ef4444 !important', strokeWidth: '2.5px !important' }} />
                     </button>
                   </div>
                 </div>
@@ -1026,13 +1026,32 @@ export default function Step1_CustomerResolver() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <User style={{ width: '16px', height: '16px', color: '#4f46e5' }} />
-                <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Contactos Adicionales de la Obra</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: '800', textTransform: 'uppercase', color: '#9ca3af', letterSpacing: '0.04em' }}>Otros Contactos (Adicionales o Secundarios)</span>
               </div>
               {wizardState.contactosAdicionales && wizardState.contactosAdicionales.length > 0 && (
                 <span style={{ fontSize: '0.7rem', fontWeight: '700', background: 'rgba(79, 70, 229, 0.1)', color: '#4f46e5', padding: '2px 8px', borderRadius: '20px' }}>
                   {wizardState.contactosAdicionales.length} vinculados
                 </span>
               )}
+            </div>
+
+            {/* Banner de aclaración de jerarquía de datos */}
+            <div style={{ 
+              fontSize: '0.7rem', 
+              color: '#475569', 
+              background: '#f5f3ff', 
+              padding: '8px 12px', 
+              borderRadius: '10px', 
+              border: '1px solid #ddd6fe',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '6px',
+              marginBottom: '1rem'
+            }}>
+              <i className="fas fa-exclamation-triangle" style={{ color: '#7c3aed', marginTop: '2px' }} />
+              <span>
+                <strong>¡Atención Jerarquía!</strong> Usa este apartado únicamente para registrar contactos secundarios en la obra (como almacenistas, guardias o residentes adicionales). Los datos de la persona clave que compra o decide deben registrarse en la sección superior de <strong>Contacto Principal</strong>.
+              </span>
             </div>
 
             {/* Listado de Contactos Adicionales */}

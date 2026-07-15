@@ -1265,6 +1265,31 @@ input:checked + .switch-slider:before {
   height: 14px !important;
 }
 
+.btn-resolver-danger {
+  padding: 4px !important;
+  border-radius: 8px !important;
+  color: #ef4444 !important;
+  background: #fef2f2 !important;
+  border: 1px solid #fca5a5 !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.15s ease !important;
+}
+
+.btn-resolver-danger:hover {
+  background: #fee2e2 !important;
+  border-color: #f87171 !important;
+}
+
+.btn-resolver-danger svg {
+  width: 14px !important;
+  height: 14px !important;
+  stroke: #ef4444 !important;
+  stroke-width: 2.5px !important;
+}
+
 /* ==========================================================================
    14. Premium Stepper Styles
    ========================================================================== */

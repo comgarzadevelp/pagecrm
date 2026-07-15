@@ -766,17 +766,10 @@ export default function Step1_CustomerResolver() {
                         e.stopPropagation();
                         updateEntity('contacto', null);
                       }}
-                      className="btn-resolver-back"
-                      style={{ 
-                        color: '#ef4444 !important', 
-                        borderColor: '#fca5a5 !important', 
-                        background: '#fef2f2 !important',
-                        padding: '4px !important',
-                        borderRadius: '6px !important'
-                      }}
+                      className="btn-resolver-danger"
                       title="Desvincular Contacto"
                     >
-                      <X style={{ width: '15px !important', height: '15px !important', stroke: '#ef4444 !important', strokeWidth: '2.5px !important' }} />
+                      <X />
                     </button>
                   </div>
                 </div>

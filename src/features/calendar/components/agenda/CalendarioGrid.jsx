@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import PropTypes from 'prop-types';
-import { getEventCategory } from './calendarHelpers';
+import { getEventCategory, CATEGORIES_CONFIG } from './calendarHelpers';
 import './CalendarioGrid.css';
 
 const monthNames = [
@@ -28,15 +28,25 @@ const parseStructuredTitle = (title) => {
   
   let texto = mainPart;
 
-  if (mainPart.startsWith('VISITA:')) {
+  const upperPart = mainPart.toUpperCase();
+  if (upperPart.startsWith('VISITA:')) {
     tipo = 'Visita';
-    texto = mainPart.replace(/^VISITA:\s*/, '').trim();
-  } else if (mainPart.startsWith('LLAMADA:')) {
+    texto = mainPart.substring(7).trim();
+  } else if (upperPart.startsWith('LLAMADA: COTIZAR') || upperPart.startsWith('COTIZAR:') || upperPart.startsWith('COTIZACIÓN:') || upperPart.startsWith('COTIZACION:')) {
+    tipo = 'Cotización';
+    if (upperPart.startsWith('LLAMADA: ')) {
+      texto = mainPart.substring(9).trim();
+    } else {
+      const match = mainPart.match(/^(COTIZAR|COTIZACIÓN|COTIZACION):\s*/i);
+      texto = match ? mainPart.substring(match[0].length).trim() : mainPart;
+    }
+  } else if (upperPart.startsWith('LLAMADA:')) {
     tipo = 'Llamada';
-    texto = mainPart.replace(/^LLAMADA:\s*/, '').trim();
-  } else if (mainPart.startsWith('REUNIÓN:') || mainPart.startsWith('REUNION:')) {
+    texto = mainPart.substring(8).trim();
+  } else if (upperPart.startsWith('REUNIÓN:') || upperPart.startsWith('REUNION:')) {
     tipo = 'Reunión';
-    texto = mainPart.replace(/^REUNIÓ?N:\s*/, '').trim();
+    const offset = upperPart.startsWith('REUNIÓN:') ? 8 : 8;
+    texto = mainPart.substring(offset).trim();
   }
 
   let registro = null;
@@ -180,16 +190,24 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                   {mtgs.map(m => {
                     const cat = getEventCategory(m.description, m.summary);
                     const isPast = day < new Date(new Date().setHours(0,0,0,0)) && !m.isCompleted;
-                    const isFuture = day > new Date(new Date().setHours(23,59,59,999)) && !m.isCompleted;
+                    const isFutureMtg = !m.isDbActivity; // pendiente = false en isDbActivity
                     let cls = `calendar-event-item meeting category-${cat}`;
                     if (m.isCompleted) cls += ' completed-event';
                     else if (isPast) cls += ' past-event';
-                    else if (isFuture) cls += ' future-event';
+                    else if (isFutureMtg) cls += ' future-event';
+
+                    // Estilo dinámico en mini card: rosa para visita pendiente, color tipo para otros pendientes
+                    const miniColor = (isFutureMtg && cat === 'visita') ? '#ec4899' : (CATEGORIES_CONFIG[cat] || CATEGORIES_CONFIG['negocios']).color;
+                    const miniInlineStyle = {
+                      ...(m.isCompleted || isPast ? { opacity: 0.55, filter: 'grayscale(0.5)' } : {}),
+                      borderLeftColor: miniColor,
+                      color: miniColor,
+                      background: `${miniColor}12`,
+                    };
 
                     return (
-                      <div key={m.id} className={cls} title={`Reunión: ${m.summary}`}
-                           style={{ ...(m.isCompleted || isPast ? { opacity: 0.55, filter: 'grayscale(0.5)' } : {}) }}>
-                        <i className="fas fa-circle event-dot-micro" /> {m.summary}
+                      <div key={m.id} className={cls} title={m.summary} style={miniInlineStyle}>
+                        <i className={`fas ${isFutureMtg ? 'fa-clock' : 'fa-circle'} event-dot-micro`} /> {m.summary}
                       </div>
                     );
                   })}
@@ -218,7 +236,19 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                 </div>
 
                 <div className="day-dots-container" style={{ display: 'flex', gap: '2px', justifyContent: 'center', marginTop: '4px' }}>
-                  {mtgs.length > 0 && <span className="mobile-dot mtg-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: 'var(--color-brand-primary, #05393A)', display: 'inline-block' }} />}
+                  {mtgs.length > 0 && (() => {
+                    // Si hay mezcla, un dot por cada tipo visual: rosa para futuros, color-tipo para históricos
+                    const hasFuture = mtgs.some(m => new Date(m.start?.dateTime || m.start?.date) > new Date());
+                    const hasHistory = mtgs.some(m => !m.isDbActivity === false || new Date(m.start?.dateTime || m.start?.date) <= new Date());
+                    const firstCat = getEventCategory(mtgs[0].description, mtgs[0].summary);
+                    const typeColor = (CATEGORIES_CONFIG[firstCat] || CATEGORIES_CONFIG['negocios']).color;
+                    return (
+                      <>
+                        {hasHistory && <span className="mobile-dot mtg-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: typeColor, display: 'inline-block' }} />}
+                        {hasFuture && <span className="mobile-dot mtg-dot-pending" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#ec4899', display: 'inline-block' }} />}
+                      </>
+                    );
+                  })()}
                   {visits.length > 0 && <span className="mobile-dot visit-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#E0922B', display: 'inline-block' }} />}
                   {rmds.length > 0 && <span className="mobile-dot reminder-dot" style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#2563eb', display: 'inline-block' }} />}
                 </div>
@@ -248,49 +278,83 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                 
                 const parsed = parseStructuredTitle(m.summary);
                 
-                const badgeStyle = {
-                  Visita: { bg: 'rgba(224, 146, 43, 0.08)', color: '#E0922B', icon: 'fa-map-marker-alt' },
-                  Llamada: { bg: 'rgba(16, 185, 129, 0.08)', color: '#10b981', icon: 'fa-phone-alt' },
-                  Reunión: { bg: 'rgba(5, 57, 58, 0.08)', color: '#05393A', icon: 'fa-handshake' }
-                }[parsed.tipo] || { bg: 'rgba(100, 116, 139, 0.08)', color: '#64748b', icon: 'fa-calendar' };
+                // Mapear tipo parseado al catKey del CATEGORIES_CONFIG
+                const tipoToCatKey = {
+                  'Visita': 'visita',
+                  'Llamada': 'llamada',
+                  'Reunión': 'demo',
+                  'Cotización': 'cotizacion'
+                };
+                // El [CAT:] de la descripción tiene prioridad (viene directo de la BD).
+                // Si no hay cat en descripción, usamos el tipo parseado del título.
+                const resolvedCatKey = cat || tipoToCatKey[parsed.tipo] || 'negocios';
+                const catCfg = CATEGORIES_CONFIG[resolvedCatKey] || CATEGORIES_CONFIG['negocios'];
+                const badgeStyle = { bg: catCfg.bg, color: catCfg.color, icon: catCfg.icon };
+                // Sincronizar parsed.tipo con la categoría resuelta para que el badge sea correcto
+                if (cat && !tipoToCatKey[parsed.tipo]) {
+                  const catKeyToTipo = { 'visita': 'Visita', 'llamada': 'Llamada', 'demo': 'Reunión', 'cotizacion': 'Cotización' };
+                  parsed.tipo = catKeyToTipo[cat] || parsed.tipo;
+                }
 
-                const evDateObj = new Date(m.start?.dateTime || m.start?.date || selectedDay);
-                const now = new Date();
-                const isPastEvent = evDateObj < now && !m.isCompleted;
-                const isFutureEvent = evDateObj > now && !m.isCompleted;
-                
-                let extraClasses = m.isCompleted ? 'completed-event' : '';
-                if (m.isDbActivity) extraClasses += ' field-activity';
-                else if (isPastEvent) extraClasses += ' past-event';
-                else if (isFutureEvent) extraClasses += ' future-event';
+                 const evDateObj = new Date(m.start?.dateTime || m.start?.date || selectedDay);
+                 const now = new Date();
+                 const isPastEvent = evDateObj < now && !m.isCompleted;
+                 const isFutureEvent = evDateObj > now && !m.isCompleted;
+                 
+                 let extraClasses = m.isCompleted ? 'completed-event' : '';
+                 if (m.isDbActivity) extraClasses += ' field-activity';
+                 else if (isPastEvent) extraClasses += ' past-event';
+                 else if (isFutureEvent) extraClasses += ' future-event';
 
-                return (
-                  <div 
-                    key={m.id} 
-                    className={`agenda-day-card meeting category-${cat} ${extraClasses}`} 
-                    style={{ 
-                      display: 'flex', flexDirection: 'column', gap: '6px', padding: '10px 12px', cursor: 'pointer',
-                      ...(m.isCompleted || isPastEvent ? { opacity: 0.65, filter: 'grayscale(0.3)' } : {})
-                    }}
-                    onClick={() => setSelectedEventModal({ ...m, parsed, badgeStyle, startTime, isPastEvent, isFutureEvent })}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', paddingBottom: '4px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ 
-                          fontSize: '0.65rem', 
-                          fontWeight: '800', 
-                          padding: '1px 6px', 
-                          borderRadius: '4px', 
-                          backgroundColor: badgeStyle.bg, 
-                          color: badgeStyle.color,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '3px',
-                          textTransform: 'uppercase'
-                        }}>
-                          <i className={`fas ${badgeStyle.icon}`} style={{ fontSize: '0.6rem' }} />
-                          {parsed.tipo}
-                        </span>
+                 const PENDING_COLOR = '#ec4899'; // rosa — solo para visita pendiente
+                 // Solo la visita necesita cambiar de color al estar pendiente, porque su color histórico (naranja)
+                 // es igual al de registro. Los demás tipos ya tienen color único que los distingue.
+                 const activeColor = (!m.isDbActivity && resolvedCatKey === 'visita') 
+                   ? PENDING_COLOR 
+                   : badgeStyle.color;
+
+                 return (
+                   <div 
+                     key={m.id} 
+                     className={`agenda-day-card meeting category-${resolvedCatKey} ${extraClasses}`} 
+                     style={{ 
+                       display: 'flex', 
+                       flexDirection: 'column', 
+                       gap: '6px', 
+                       padding: '10px 12px', 
+                       cursor: 'pointer',
+                       borderRadius: '10px',
+                       borderTop: '1px solid #e2e8f0',
+                       borderRight: '1px solid #e2e8f0',
+                       borderBottom: '1px solid #e2e8f0',
+                       borderLeftColor: activeColor,
+                       // Sólido grueso = registro histórico ✓ | Discontinuo rosa = tarea pendiente ⏳
+                       borderLeftStyle: m.isDbActivity ? 'solid' : 'dashed',
+                       borderLeftWidth: m.isDbActivity ? '5px' : '4px',
+                       backgroundColor: m.isDbActivity ? `${badgeStyle.color}14` : `${PENDING_COLOR}08`,
+                       boxShadow: m.isDbActivity ? 'none' : `0 2px 10px ${PENDING_COLOR}25`,
+                       transition: 'all 0.15s ease',
+                       ...(m.isCompleted || isPastEvent ? { opacity: 0.65, filter: 'grayscale(0.3)' } : {})
+                     }}
+                     onClick={() => setSelectedEventModal({ ...m, parsed, badgeStyle, startTime, isPastEvent, isFutureEvent })}
+                   >
+                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', borderBottom: '1px solid rgba(226, 232, 240, 0.5)', paddingBottom: '4px' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         <span style={{ 
+                           fontSize: '0.625rem', 
+                           fontWeight: '800', 
+                           padding: '2px 6px', 
+                           borderRadius: '4px', 
+                           backgroundColor: m.isDbActivity ? `${badgeStyle.color}18` : `${PENDING_COLOR}18`, 
+                           color: activeColor,
+                           display: 'inline-flex',
+                           alignItems: 'center',
+                           gap: '3px',
+                           textTransform: 'uppercase'
+                         }}>
+                           <i className={`fas ${m.isDbActivity ? 'fa-check-circle' : 'fa-clock'}`} style={{ fontSize: '0.6rem' }} />
+                           {m.isDbActivity ? `✓ REGISTRO: ${parsed.tipo}` : `⏰ ${parsed.tipo} AGENDADA`}
+                         </span>
                         <span style={{ fontSize: '0.7rem', fontWeight: '700', color: '#64748b' }}>
                           <i className="far fa-clock" /> {startTime}
                         </span>
@@ -447,7 +511,7 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                   fontWeight: '800', 
                   padding: '2px 8px', 
                   borderRadius: '6px', 
-                  backgroundColor: selectedEventModal.badgeStyle.bg, 
+                  backgroundColor: selectedEventModal.isDbActivity ? `${selectedEventModal.badgeStyle.color}18` : selectedEventModal.badgeStyle.bg, 
                   color: selectedEventModal.badgeStyle.color,
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -455,8 +519,8 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                   textTransform: 'uppercase',
                   marginBottom: '0.5rem'
                 }}>
-                  <i className={`fas ${selectedEventModal.badgeStyle.icon}`} />
-                  {selectedEventModal.parsed.tipo}
+                  <i className={`fas ${selectedEventModal.isDbActivity ? 'fa-check-circle' : selectedEventModal.badgeStyle.icon}`} />
+                  {selectedEventModal.isDbActivity ? `✓ Registro: ${selectedEventModal.parsed.tipo}` : `⏰ ${selectedEventModal.parsed.tipo} Agendada`}
                 </span>
                 <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#0f172a', lineHeight: '1.3' }}>
                   {selectedEventModal.parsed.texto}
@@ -477,54 +541,178 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
             </div>
 
             {/* Body */}
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
-                  <i className="far fa-calendar-alt" style={{ color: 'var(--color-brand-primary)' }} />
-                  <strong>Fecha:</strong> {new Date(selectedEventModal.start?.dateTime || selectedDay).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
-                  <i className="far fa-clock" style={{ color: 'var(--color-brand-primary)' }} />
-                  <strong>Hora:</strong> {selectedEventModal.startTime}
-                </div>
-              </div>
+            {(() => {
+              const cleanDescription = selectedEventModal.description 
+                ? selectedEventModal.description.replace(/\[CAT:[a-z]+\]\s*/g, '').trim()
+                : '';
 
-              {selectedEventModal.location && (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
-                  <i className="fas fa-map-marker-alt" style={{ color: '#E0922B', marginTop: '3px' }} />
-                  <span><strong>Ubicación:</strong> <br/> {selectedEventModal.location}</span>
-                </div>
-              )}
+              const eventDate = new Date(selectedEventModal.start?.dateTime || selectedEventModal.start?.date || new Date());
+              
+              // Ajustar comparación para considerar solo la fecha (día) si es una tarea de día completo, o comparar timestamp
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              
+              const eventDay = new Date(eventDate);
+              eventDay.setHours(0,0,0,0);
 
-              {selectedEventModal.description && (
-                <div style={{ 
-                  marginTop: '0.5rem',
-                  padding: '1rem', 
-                  backgroundColor: '#f8fafc', 
-                  borderRadius: '8px', 
-                  border: '1px solid #e2e8f0',
-                  color: '#334155',
-                  fontSize: '0.85rem',
-                  whiteSpace: 'pre-wrap',
-                  lineHeight: '1.5'
-                }}>
-                  {selectedEventModal.description.replace(/\[CAT:[a-z]+\]\s*/g, '')}
-                </div>
-              )}
+              const isFuture = eventDay > today;
+              const isPast = eventDay < today;
+              
+              const isEventTask = selectedEventModal.parsed.tipo === 'Visita' || selectedEventModal.parsed.tipo === 'Reunión';
+              const isFutureEventTask = isEventTask && isFuture;
+              const isPastPendingEventTask = isEventTask && isPast && !selectedEventModal.isCompleted;
 
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '0.5rem' }}>
-                {selectedEventModal.parsed.registro && (
-                  <span style={{ fontSize: '0.75rem', color: '#475569', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                    <i className="far fa-calendar-alt" style={{ color: '#64748b' }} /> Reg: {selectedEventModal.parsed.registro}
-                  </span>
-                )}
-                {selectedEventModal.parsed.recordatorio && (
-                  <span style={{ fontSize: '0.75rem', color: '#b45309', backgroundColor: '#fef3c7', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
-                    <i className="far fa-bell" style={{ color: '#d97706' }} /> Alarma: {selectedEventModal.parsed.recordatorio}
-                  </span>
-                )}
-              </div>
-            </div>
+              return (
+                <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  
+                  {/* Banners Informativos / Alertas */}
+                  {isFutureEventTask && (
+                    <div style={{
+                      padding: '0.85rem',
+                      backgroundColor: '#eff6ff',
+                      borderRadius: '12px',
+                      border: '1px solid #bfdbfe',
+                      color: '#1e40af',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: '600'
+                    }}>
+                      <i className="fas fa-info-circle" style={{ fontSize: '1rem', color: '#3b82f6' }} />
+                      <span>Visita/Reunión programada a futuro. Podrás marcarla como completada el día del evento.</span>
+                    </div>
+                  )}
+
+                  {isPastPendingEventTask && (
+                    <div style={{
+                      padding: '0.85rem',
+                      backgroundColor: '#fffbeb',
+                      borderRadius: '12px',
+                      border: '1px solid #fef3c7',
+                      color: '#b45309',
+                      fontSize: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      fontWeight: '600'
+                    }}>
+                      <i className="fas fa-exclamation-triangle" style={{ fontSize: '1rem', color: '#d97706' }} />
+                      <span>Esta visita/reunión ya ocurrió. Por favor, registra el resultado y márcala como completada.</span>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
+                      <i className="far fa-calendar-alt" style={{ color: 'var(--color-brand-primary)' }} />
+                      <strong>Fecha:</strong> {new Date(selectedEventModal.start?.dateTime || selectedDay).toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
+                      <i className="far fa-clock" style={{ color: 'var(--color-brand-primary)' }} />
+                      <strong>Hora:</strong> {selectedEventModal.startTime}
+                    </div>
+                  </div>
+
+                  {selectedEventModal.location && (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', color: '#475569', fontSize: '0.9rem' }}>
+                      <i className="fas fa-map-marker-alt" style={{ color: '#E0922B', marginTop: '3px' }} />
+                      <span>
+                        <strong>Ubicación:</strong> <br/> 
+                        {/^-?\d+(\.\d+)?,\s*-?\d+(\.\d+)?$/.test(selectedEventModal.location) ? (
+                          <a 
+                            href={`https://www.google.com/maps/search/?api=1&query=${selectedEventModal.location}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: '#3b82f6', textDecoration: 'underline', fontWeight: 'bold' }}
+                          >
+                            📍 Ver en Google Maps ({selectedEventModal.location})
+                          </a>
+                        ) : (
+                          selectedEventModal.location
+                        )}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Detalle contextual de Empresa, Contacto y Obra linked */}
+                  {(selectedEventModal.company || selectedEventModal.contact || selectedEventModal.obra) && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.5rem',
+                      padding: '0.9rem 1.1rem',
+                      backgroundColor: 'rgba(5, 57, 58, 0.04)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(5, 57, 58, 0.1)',
+                      fontSize: '0.85rem',
+                      color: '#0f172a',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.02)'
+                    }}>
+                      <h4 style={{ margin: '0 0 4px 0', fontSize: '0.725rem', fontWeight: '850', color: '#05393a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Entidades Relacionadas
+                      </h4>
+                      
+                      {selectedEventModal.company && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <i className="fas fa-building" style={{ width: '14px', color: '#64748b', fontSize: '0.8rem' }} />
+                          <span><strong>Empresa:</strong> {selectedEventModal.company.nombre || selectedEventModal.company.name}</span>
+                        </div>
+                      )}
+                      
+                      {selectedEventModal.contact && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <i className="fas fa-user" style={{ width: '14px', color: '#64748b', fontSize: '0.8rem' }} />
+                          <span>
+                            <strong>Contacto:</strong> {selectedEventModal.contact.nombre || selectedEventModal.contact.name}
+                            {selectedEventModal.contact.phone && <span style={{ color: '#475569', fontSize: '0.8rem', marginLeft: '5px' }}>({selectedEventModal.contact.phone})</span>}
+                          </span>
+                        </div>
+                      )}
+                      
+                      {selectedEventModal.obra && (
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                          <i className="fas fa-map-pin" style={{ width: '14px', color: '#64748b', fontSize: '0.8rem', marginTop: '3px' }} />
+                          <span>
+                            <strong>Obra:</strong> {selectedEventModal.obra.nombre || selectedEventModal.obra.name}
+                            <br/>
+                            <small style={{ color: '#64748b', display: 'block', marginTop: '2px' }}>📍 {selectedEventModal.obra.address || selectedEventModal.obra.direccion}</small>
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {cleanDescription && (
+                    <div style={{ 
+                      marginTop: '0.5rem',
+                      padding: '1rem', 
+                      backgroundColor: '#f8fafc', 
+                      borderRadius: '8px', 
+                      border: '1px solid #e2e8f0',
+                      color: '#334155',
+                      fontSize: '0.85rem',
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: '1.5'
+                    }}>
+                      {cleanDescription}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '0.5rem' }}>
+                    {selectedEventModal.parsed.registro && (
+                      <span style={{ fontSize: '0.75rem', color: '#475569', backgroundColor: '#f1f5f9', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                        <i className="far fa-calendar-alt" style={{ color: '#64748b' }} /> Reg: {selectedEventModal.parsed.registro}
+                      </span>
+                    )}
+                    {selectedEventModal.parsed.recordatorio && (
+                      <span style={{ fontSize: '0.75rem', color: '#b45309', backgroundColor: '#fef3c7', padding: '4px 8px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                        <i className="far fa-bell" style={{ color: '#d97706' }} /> Alarma: {selectedEventModal.parsed.recordatorio}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Footer */}
             <div style={{
@@ -685,50 +873,63 @@ export default function CalendarioGrid({ meetings, coldVisits, reminders, onTogg
                 </button>
               )}
 
-              {!selectedEventModal.isCompleted && !isRescheduling && (
-                <button 
-                  onClick={async () => {
-                    setIsCompleting(true);
-                    const apiId = selectedEventModal.isDbActivity ? selectedEventModal.id : selectedEventModal.crm_appointment_id;
-                    if (!apiId) {
-                      alert('Este evento no tiene ID en el CRM, no se puede completar de esta forma.');
-                      setIsCompleting(false);
-                      return;
-                    }
-                    if (onMarkMeetingCompleted) {
-                      const res = await onMarkMeetingCompleted(selectedEventModal.id, apiId, 'Completado desde vista de Agenda');
-                      if (res.success) {
-                        setSelectedEventModal(null);
-                      } else {
-                        alert(res.message);
+              {(() => {
+                const eventDate = new Date(selectedEventModal.start?.dateTime || selectedEventModal.start?.date || new Date());
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const eventDay = new Date(eventDate);
+                eventDay.setHours(0,0,0,0);
+                const isFuture = eventDay > today;
+                const isEventTask = selectedEventModal.parsed.tipo === 'Visita' || selectedEventModal.parsed.tipo === 'Reunión';
+                const isFutureEventTask = isEventTask && isFuture;
+
+                if (selectedEventModal.isCompleted || isRescheduling || isFutureEventTask) return null;
+
+                return (
+                  <button 
+                    onClick={async () => {
+                      setIsCompleting(true);
+                      const apiId = selectedEventModal.isDbActivity ? selectedEventModal.id : selectedEventModal.crm_appointment_id;
+                      if (!apiId) {
+                        alert('Este evento no tiene ID en el CRM, no se puede completar de esta forma.');
+                        setIsCompleting(false);
+                        return;
                       }
-                    }
-                    setIsCompleting(false);
-                  }}
-                  disabled={isCompleting}
-                  style={{
-                    padding: '0.6rem 1.2rem',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: 'var(--color-brand-primary)',
-                    color: '#fff',
-                    fontWeight: '600',
-                    fontSize: '0.85rem',
-                    cursor: isCompleting ? 'wait' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 4px 6px -1px rgba(5, 57, 58, 0.2)',
-                    opacity: isCompleting ? 0.7 : 1
-                  }}
-                  onMouseEnter={e => { if(!isCompleting){ e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 8px -1px rgba(5, 57, 58, 0.3)'; } }}
-                  onMouseLeave={e => { if(!isCompleting){ e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(5, 57, 58, 0.2)'; } }}
-                >
-                  {isCompleting ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-check" />} 
-                  {isCompleting ? 'Marcando...' : 'Marcar Completado'}
-                </button>
-              )}
+                      if (onMarkMeetingCompleted) {
+                        const res = await onMarkMeetingCompleted(selectedEventModal.id, apiId, 'Completado desde vista de Agenda');
+                        if (res.success) {
+                          setSelectedEventModal(null);
+                        } else {
+                          alert(res.message);
+                        }
+                      }
+                      setIsCompleting(false);
+                    }}
+                    disabled={isCompleting}
+                    style={{
+                      padding: '0.6rem 1.2rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: 'var(--color-brand-primary)',
+                      color: '#fff',
+                      fontWeight: '600',
+                      fontSize: '0.85rem',
+                      cursor: isCompleting ? 'wait' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 4px 6px -1px rgba(5, 57, 58, 0.2)',
+                      opacity: isCompleting ? 0.7 : 1
+                    }}
+                    onMouseEnter={e => { if(!isCompleting){ e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 6px 8px -1px rgba(5, 57, 58, 0.3)'; } }}
+                    onMouseLeave={e => { if(!isCompleting){ e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(5, 57, 58, 0.2)'; } }}
+                  >
+                    {isCompleting ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-check" />} 
+                    {isCompleting ? 'Marcando...' : 'Marcar Completado'}
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>

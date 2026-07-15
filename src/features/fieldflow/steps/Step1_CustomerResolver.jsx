@@ -720,57 +720,77 @@ export default function Step1_CustomerResolver() {
 
             {/* Caso 1: Contacto Seleccionado */}
             {wizardState.contacto && !isCreatingContacto && (
-              <div
-                className="fieldflow-result-card"
-                onClick={handleEditContacto}
-                style={{
-                  border: '1px solid rgba(16, 185, 129, 0.25)',
-                  background: 'rgba(16, 185, 129, 0.01)',
-                  cursor: 'pointer',
-                  margin: 0,
-                  transition: 'all 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(16, 185, 129, 0.01)';
-                  e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.25)';
-                }}
-              >
-                <div className="result-icon-box contacto">
-                  <User />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div
+                  className="fieldflow-result-card"
+                  onClick={handleEditContacto}
+                  style={{
+                    border: '1px solid rgba(16, 185, 129, 0.25)',
+                    background: 'rgba(16, 185, 129, 0.01)',
+                    cursor: 'pointer',
+                    margin: 0,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.04)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'rgba(16, 185, 129, 0.01)';
+                    e.currentTarget.style.borderColor = 'rgba(16, 185, 129, 0.25)';
+                  }}
+                >
+                  <div className="result-icon-box contacto">
+                    <User />
+                  </div>
+                  <div className="result-info">
+                    <h4>{wizardState.contacto.nombre}</h4>
+                    <p>{wizardState.contacto.cargo ? `${wizardState.contacto.cargo}` : 'Contacto Registrado'}</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEditContacto();
+                      }}
+                      className="btn-resolver-back"
+                      style={{ color: '#4f46e5', borderColor: 'transparent' }}
+                      title="Editar Contacto"
+                    >
+                      <Pencil style={{ width: '15px', height: '15px' }} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateEntity('contacto', null);
+                      }}
+                      className="btn-resolver-back"
+                      style={{ color: '#ef4444', borderColor: 'transparent' }}
+                      title="Desvincular Contacto"
+                    >
+                      <X style={{ width: '15px', height: '15px' }} />
+                    </button>
+                  </div>
                 </div>
-                <div className="result-info">
-                  <h4>{wizardState.contacto.nombre}</h4>
-                  <p>{wizardState.contacto.cargo ? `${wizardState.contacto.cargo}` : 'Contacto Registrado'}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleEditContacto();
-                    }}
-                    className="btn-resolver-back"
-                    style={{ color: '#4f46e5', borderColor: 'transparent' }}
-                    title="Editar Contacto"
-                  >
-                    <Pencil style={{ width: '15px', height: '15px' }} />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      updateEntity('contacto', null);
-                    }}
-                    className="btn-resolver-back"
-                    style={{ color: '#ef4444', borderColor: 'transparent' }}
-                    title="Desvincular Contacto"
-                  >
-                    <X style={{ width: '15px', height: '15px' }} />
-                  </button>
+                
+                {/* Texto de ayuda visual para cambio de contacto en visitas recurrentes */}
+                <div style={{ 
+                  fontSize: '0.72rem', 
+                  color: '#64748b', 
+                  background: '#f8fafc', 
+                  padding: '8px 12px', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}>
+                  <i className="fas fa-info-circle" style={{ color: '#3b82f6' }} />
+                  <span>
+                    ¿Hablaste con alguien más hoy? Haz clic en la <strong>X</strong> roja para quitarlo y registrar al nuevo contacto clave de esta visita.
+                  </span>
                 </div>
               </div>
             )}

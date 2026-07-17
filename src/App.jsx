@@ -11,6 +11,7 @@ import LeadPopup from './components/child/LeadPopup';
 import AIChat from './components/child/AIChat';
 import ScrollToTop from './components/utils/ScrollToTop';
 import { CompanyProvider } from './contexts/CompanyContext';
+import { useSessionHeartbeat } from './hooks/useSessionHeartbeat';
 import './styles/Global.css';
 // CRM pages
 import Login from './pages/crm/Login';
@@ -24,12 +25,16 @@ import SA2DashboardPage from './features/superadmin-v2/pages/SA2DashboardPage';
 import SA2PersonalPage from './features/superadmin-v2/pages/SA2PersonalPage';
 import SA2LeadsWebPage from './features/superadmin-v2/pages/SA2LeadsWebPage';
 import SA2QuotesStatsPage from './features/superadmin-v2/pages/SA2QuotesStatsPage';
+import SA2NotificationsPage from './features/superadmin-v2/pages/SA2NotificationsPage';
 
 function AppContent() {
   const location = useLocation();
   const isCrmRoute = location.pathname.startsWith('/crm');
   const isSA2Route = location.pathname.startsWith('/crm/sa2');
   const isHiddenHeader = isCrmRoute || isSA2Route;
+
+  // Heartbeat de presencia — actualiza last_seen_at cada 60s para cualquier usuario logueado
+  useSessionHeartbeat();
 
   return (
     <div className="app-wrapper">
@@ -54,6 +59,7 @@ function AppContent() {
             <Route path="personal" element={<SA2PersonalPage />} />
             <Route path="leads-web" element={<SA2LeadsWebPage />} />
             <Route path="quotes-stats" element={<SA2QuotesStatsPage />} />
+            <Route path="notificaciones" element={<SA2NotificationsPage />} />
           </Route>
         </Routes>
       </main>

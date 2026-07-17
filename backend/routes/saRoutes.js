@@ -1,6 +1,7 @@
 import express from 'express';
 import { getLeadsWebsite, getAnalytics, updateLeadStatus, getSellers, getChatHistory, deleteLead, getQuotesStats } from '../controllers/saController.js';
 import { verifyToken } from '../middleware/authMiddleware.js';
+import { supabase } from '../supabaseClient.js';
 
 const router = express.Router();
 
@@ -37,5 +38,45 @@ router.get('/analytics', getAnalytics);
 
 // Obtener cotizaciones y estadísticas consolidadas para Super Admin
 router.get('/quotes-stats', getQuotesStats);
+
+// Observar notificaciones de cualquier usuario (Super Admin solo lectura - Filtra últimos 7 días)
+router.get('/user-notifications/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const { data, error } = await supabase
+      .from('crm_notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('created_at', sevenDaysAgo.toISOString())
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, notifications: data || [] });
+  } catch (err) {
+    console.error('Error fetching user notifications (SA):', err);
+    res.status(500).json({ success: false, message: 'Error al obtener notificaciones del usuario.' });
+  }
+});
+
+// Observar TODAS las notificaciones históricas de cualquier usuario (para la vista detallada)
+router.get('/user-notifications/:userId/all', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { data, error } = await supabase
+      .from('crm_notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, notifications: data || [] });
+  } catch (err) {
+    console.error('Error fetching all user notifications (SA):', err);
+    res.status(500).json({ success: false, message: 'Error al obtener historial de notificaciones.' });
+  }
+});
 
 export default router;

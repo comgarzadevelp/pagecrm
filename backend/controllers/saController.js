@@ -1,4 +1,5 @@
 import { supabase, saeGdlSupabase } from '../supabaseClient.js';
+import { fetchConsolidatedUsers } from '../services/saUserService.js';
 
 /**
  * GET /api/sa/leads-website
@@ -177,17 +178,7 @@ export const updateLeadStatus = async (req, res) => {
  */
 export const getSellers = async (req, res) => {
   try {
-    const [mtyRes, gdlRes] = await Promise.all([
-      supabase.from('crm_users').select('id, name').in('role', ['sales', 'admin']),
-      saeGdlSupabase.from('crm_users').select('id, name').in('role', ['sales', 'admin'])
-    ]);
-
-    const mtyUsers = (mtyRes.data || []).map(u => ({ ...u, name: `${u.name} (MTY)` }));
-    const gdlUsers = (gdlRes.data || []).map(u => ({ ...u, name: `${u.name} (GDL)` }));
-    
-    // Combine both arrays
-    const allUsers = [...mtyUsers, ...gdlUsers];
-    
+    const allUsers = await fetchConsolidatedUsers();
     res.json({ success: true, sellers: allUsers });
   } catch (error) {
     console.error('Error fetching sellers:', error);

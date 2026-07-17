@@ -34,14 +34,77 @@ router.put('/:id/read', verifyToken, async (req, res) => {
     const userId = req.user?.userId;
     const { id } = req.params;
 
+    // 1. Obtener la notificación antes de marcarla para ver su contenido
+    const { data: originalNotif, error: fetchErr } = await supabase
+      .from('crm_notifications')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
+    // 2. Marcar como leída guardando la fecha/hora actual
     const { data, error } = await supabase
       .from('crm_notifications')
-      .update({ read: true })
+      .update({ 
+        read: true,
+        read_at: new Date().toISOString()
+      })
       .eq('id', id)
       .eq('user_id', userId)
       .select();
 
     if (error) throw error;
+
+    // 3. REBOTE COMERCIAL AL VENDEDOR (Lógica Supervisora del Super Admin)
+    // Si la alerta es de inactividad de supervisión (_sa) o SLA
+    if (originalNotif && (originalNotif.type.includes('sla') || originalNotif.type.includes('inactive'))) {
+      const msg = originalNotif.message || '';
+      
+      // Buscar la referencia UUID [REF: bd3d6a0c-...]
+      const refMatch = msg.match(/\[REF:\s*([a-f0-9\-]+)\]/i);
+      if (refMatch && refMatch[1]) {
+        const entityId = refMatch[1];
+        let sellerId = null;
+        let entityTitle = 'tu cartera';
+
+        // A. Buscar si es una oportunidad (negociación)
+        const { data: opp } = await supabase
+          .from('crm_opportunities')
+          .select('assigned_to, title')
+          .eq('id', entityId)
+          .single();
+
+        if (opp) {
+          sellerId = opp.assigned_to;
+          entityTitle = `tu negociación "${opp.title}"`;
+        } else {
+          // B. Buscar si es un lead / cliente
+          const { data: lead } = await supabase
+            .from('leads')
+            .select('assigned_to, name')
+            .eq('id', entityId)
+            .single();
+
+          if (lead) {
+            sellerId = lead.assigned_to;
+            entityTitle = `tu cliente/prospecto "${lead.name}"`;
+          }
+        }
+
+        // C. Si encontramos al vendedor responsable, le enviamos la alerta de rebote
+        if (sellerId) {
+          await supabase.from('crm_notifications').insert([{
+            user_id: sellerId,
+            title: '⚠️ ATENCIÓN: Supervisión de Inactividad',
+            message: `El Super Administrador observó inactividad en ${entityTitle}. Favor de revisarlo o aclarar la situación con tu supervisor.`,
+            type: 'super_admin_warning',
+            read: false
+          }]);
+          console.log(`[REBOTE COMERCIAL] Alerta de supervisión enviada al vendedor ${sellerId} para entidad ${entityId}`);
+        }
+      }
+    }
 
     res.json({ success: true, notification: data });
   } catch (err) {

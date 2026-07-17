@@ -39,16 +39,42 @@ export const runLeadNotificationCheck = async () => {
         return;
       }
 
-      if (existing && existing.length > 0) return; // Ya se notificó sobre este umbral
+      if (!existing || existing.length === 0) {
+        await supabase.from('crm_notifications').insert([{
+          user_id: targetUserId,
+          title,
+          message: `${message} ${checkPayload}`,
+          type,
+          read: false
+        }]);
+        console.log(`[SLA JOB] SLA notification (${type}) dispatched to user ${targetUserId}`);
+      }
 
-      await supabase.from('crm_notifications').insert([{
-        user_id: targetUserId,
-        title,
-        message: `${message} ${checkPayload}`,
-        type,
-        read: false
-      }]);
-      console.log(`[SLA JOB] SLA notification (${type}) dispatched to user ${targetUserId}`);
+      // VINCULACIÓN AUTOMÁTICA AL SUPER ADMIN:
+      // Cada vez que se crea una alerta de inactividad o SLA para un vendedor, 
+      // le inyectamos una copia exacta al Super Admin (siempre y cuando no sea el propio receptor)
+      for (const saId of superAdminIds) {
+        if (saId === targetUserId) continue;
+
+        const { data: existingSA, error: checkSaErr } = await supabase
+          .from('crm_notifications')
+          .select('id')
+          .eq('user_id', saId)
+          .eq('type', `${type}_sa`)
+          .like('message', `%${checkPayload}%`)
+          .limit(1);
+
+        if (checkSaErr || (existingSA && existingSA.length > 0)) continue;
+
+        await supabase.from('crm_notifications').insert([{
+          user_id: saId,
+          title: `${title} (Supervisión)`,
+          message: `${message} ${checkPayload}`,
+          type: `${type}_sa`,
+          read: false
+        }]);
+        console.log(`[SLA JOB] SLA supervision copy (${type}_sa) dispatched to Super Admin ${saId}`);
+      }
     };
 
     // ==========================================

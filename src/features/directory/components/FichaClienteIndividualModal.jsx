@@ -1106,6 +1106,40 @@ export default function FichaClienteIndividualModal({
   const unifiedTimeline = useMemo(() => {
     const events = [];
 
+    // 0. Parsear notas y la línea de tiempo primero para poder vincular evidencias a las visitas
+    const rawCustomerNotes = currentCustomer.notes;
+    const rawContactNotes = contactNotes;
+
+    const parsedCustomer = (() => {
+      if (!rawCustomerNotes) return null;
+      try {
+        const cleaned = rawCustomerNotes.trim();
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          return JSON.parse(cleaned);
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    const parsedContact = (() => {
+      if (!rawContactNotes) return null;
+      try {
+        const cleaned = rawContactNotes.trim();
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          return JSON.parse(cleaned);
+        }
+      } catch (e) {}
+      return null;
+    })();
+
+    const rawTimelineEntries = [];
+    if (parsedCustomer && parsedCustomer.timeline && Array.isArray(parsedCustomer.timeline)) {
+      rawTimelineEntries.push(...parsedCustomer.timeline);
+    }
+    if (parsedContact && parsedContact.timeline && Array.isArray(parsedContact.timeline)) {
+      rawTimelineEntries.push(...parsedContact.timeline);
+    }
+
     // 1. Oportunidades
     opportunities.forEach(opp => {
       const isLead = opp.isLead;
@@ -1178,40 +1212,6 @@ export default function FichaClienteIndividualModal({
         isChange: false
       });
     });
-
-    // 4. Notas y Cambios de la línea de tiempo (Cliente y Contacto unificados y desduplicados)
-    const rawCustomerNotes = currentCustomer.notes;
-    const rawContactNotes = contactNotes;
-
-    const parsedCustomer = (() => {
-      if (!rawCustomerNotes) return null;
-      try {
-        const cleaned = rawCustomerNotes.trim();
-        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-          return JSON.parse(cleaned);
-        }
-      } catch (e) {}
-      return null;
-    })();
-
-    const parsedContact = (() => {
-      if (!rawContactNotes) return null;
-      try {
-        const cleaned = rawContactNotes.trim();
-        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-          return JSON.parse(cleaned);
-        }
-      } catch (e) {}
-      return null;
-    })();
-
-    const rawTimelineEntries = [];
-    if (parsedCustomer && parsedCustomer.timeline && Array.isArray(parsedCustomer.timeline)) {
-      rawTimelineEntries.push(...parsedCustomer.timeline);
-    }
-    if (parsedContact && parsedContact.timeline && Array.isArray(parsedContact.timeline)) {
-      rawTimelineEntries.push(...parsedContact.timeline);
-    }
 
     // Desduplicar por combinación de fecha y texto
     const seenTimeline = new Set();

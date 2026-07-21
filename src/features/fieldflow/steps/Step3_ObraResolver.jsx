@@ -98,7 +98,8 @@ export default function Step3_ObraResolver() {
         if (a._source === 'company' && b._source === 'contact') return 1;
         return 0;
       });
-      setObrasResults(sortedCustomerObras.length > 0 ? sortedCustomerObras : cache.obras.slice(0, 5));
+      // Solo mostramos obras que pertenezcan a este cliente. NO mostramos obras ajenas al azar para evitar confusiones.
+      setObrasResults(sortedCustomerObras);
       setIsSearching(false);
       return;
     }
@@ -326,7 +327,28 @@ export default function Step3_ObraResolver() {
                 }}
               >
                 <AlertCircle style={{ width: '16px', height: '16px', color: '#d97706', flexShrink: 0 }} />
-                <span>Este cliente tiene varias obras vinculadas. Por favor, selecciona la obra a la que fuiste:</span>
+                <span>Obras registradas para este cliente ({customerObras.length}):</span>
+              </div>
+            )}
+
+            {!loadingCustomerObras && customerObras.length === 0 && query.trim().length < 2 && (
+              <div 
+                style={{
+                  background: '#f8fafc',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  textAlign: 'center',
+                  marginBottom: '1.5rem'
+                }}
+              >
+                <Landmark style={{ width: '28px', height: '28px', color: '#94a3b8', margin: '0 auto 0.5rem auto' }} />
+                <h4 style={{ fontSize: '0.88rem', fontWeight: '700', color: '#334155', margin: '0 0 0.25rem 0' }}>
+                  Este cliente no tiene obras registradas aún
+                </h4>
+                <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
+                  Busca una obra por nombre o dirección abajo, o crea una nueva para vincularla a este cliente.
+                </p>
               </div>
             )}
 

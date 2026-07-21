@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFieldFlow } from '../FieldFlowContext';
 import EntityResolver from '../engine/EntityResolver';
 import Fuse from 'fuse.js';
@@ -12,9 +12,10 @@ export default function Step3_ObraResolver() {
   
   const [customerObras, setCustomerObras] = useState([]);
   const [loadingCustomerObras, setLoadingCustomerObras] = useState(false);
+  const createInlineSubmitRef = useRef(null);
 
-  // Estado para indicar si se ha marcado el check de "Sin obra / Omitir"
-  const [sinObraChecked, setSinObraChecked] = useState(wizardState.obra === null && cache.obras.length > 0);
+  // Estado para indicar si se ha marcado el check de "Sin obra / Omitir" (desactivado por defecto)
+  const [sinObraChecked, setSinObraChecked] = useState(false);
 
   // Buscar obras vinculadas al cliente actual (Empresa y Contacto)
   useEffect(() => {
@@ -177,13 +178,23 @@ export default function Step3_ObraResolver() {
   };
 
   const handleProceed = () => {
-    // Solo avanzamos si hay obra seleccionada/creada, o si el check de Sin Obra está activo
+    // 1. Si ya hay una obra asignada o se marcó explícitamente "Omitir / Sin obra", avanzamos inmediatamente
     if (wizardState.obra || sinObraChecked) {
       paginate(1);
+      return;
+    }
+
+    // 2. Si el usuario escribió datos de la obra pero no le dio a "Confirmar", auto-confirmamos
+    if (createInlineSubmitRef.current) {
+      const isSubmitted = createInlineSubmitRef.current();
+      if (isSubmitted) {
+        setTimeout(() => paginate(1), 100);
+        return;
+      }
     }
   };
 
-  const isProceedDisabled = !wizardState.obra && !sinObraChecked;
+  const isProceedDisabled = false;
 
   return (
     <div className="fieldflow-step-container">
@@ -377,6 +388,7 @@ export default function Step3_ObraResolver() {
                   entityType="obra"
                   searchResults={obrasResults}
                   onResolve={handleResolveObra}
+                  submitRef={createInlineSubmitRef}
                 />
               )}
             </div>

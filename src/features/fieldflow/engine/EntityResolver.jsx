@@ -32,7 +32,8 @@ const getFieldLabel = (field, entityType) => {
 export default function EntityResolver({
   entityType,
   searchResults = [],
-  onResolve
+  onResolve,
+  submitRef
 }) {
   // Si hay resultados, entramos en modo select, si no, directo a create
   const [mode, setMode] = useState(searchResults.length > 0 ? 'select' : 'create');
@@ -82,6 +83,7 @@ export default function EntityResolver({
     >
       <CreateInline
         entityType={entityType}
+        submitRef={submitRef}
         onCancel={searchResults.length > 0 ? () => setMode('select') : null}
         onCreate={(newEntity) => onResolve({ ...newEntity, isNew: true })}
       />
@@ -493,7 +495,7 @@ function CardMatch({ entityType, entity, onSelect }) {
  * Micro-vista: CreateInline
  * Formulario mínimo absoluto para alta rápida en campo.
  */
-function CreateInline({ entityType, onCancel, onCreate }) {
+function CreateInline({ entityType, onCancel, onCreate, submitRef }) {
   const { cache } = useFieldFlow();
   const schema = COMPLETENESS_SCHEMA[entityType]?.required || ['nombre'];
   const [formData, setFormData] = useState({});
@@ -502,6 +504,15 @@ function CreateInline({ entityType, onCancel, onCreate }) {
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   const [isMapsApiLoaded, setIsMapsApiLoaded] = useState(false);
+
+  useEffect(() => {
+    if (submitRef) {
+      submitRef.current = handleSubmit;
+    }
+    return () => {
+      if (submitRef) submitRef.current = null;
+    };
+  }, [formData, errors, isMapsApiLoaded, schema]);
 
   // Cargar Google Maps API dinámicamente
   useEffect(() => {
@@ -644,7 +655,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
     if (newErrors.length > 0) {
       setErrors(newErrors);
       setTimeout(() => setErrors([]), 600);
-      return;
+      return false;
     }
 
     // Limpiar sugerencias flotantes antes de avanzar
@@ -652,7 +663,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
     pacContainers.forEach(container => container.remove());
 
     // Si es obra y no tiene coordenadas lat/lng, intentamos geocodificar la dirección escrita
-    if (entityType === 'obra' && (!formData.lat || !formData.lng) && window.google && window.google.maps) {
+    if (entityType === 'obra' && (!formData.lat || !formData.lng) && window.google && window.google.maps && formData.direccion) {
       const geocoder = new window.google.maps.Geocoder();
       setIsLocating(true);
       geocoder.geocode({ address: formData.direccion }, (results, status) => {
@@ -672,6 +683,7 @@ function CreateInline({ entityType, onCancel, onCreate }) {
     } else {
       onCreate(formData);
     }
+    return true;
   };
 
   return (

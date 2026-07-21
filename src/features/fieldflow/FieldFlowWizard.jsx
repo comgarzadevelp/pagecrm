@@ -42,6 +42,42 @@ const transitionContext = {
   damping: 30,
 };
 
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) return resolve(file);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_DIM) { height = Math.round((height * MAX_DIM) / width); width = MAX_DIM; }
+        } else {
+          if (height > MAX_DIM) { width = Math.round((width * MAX_DIM) / height); height = MAX_DIM; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name || 'photo.jpg', { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.80);
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
 function WizardContent({ onClose, onSuccess }) {
   const { step, direction, paginate, wizardState } = useFieldFlow();
   const [status, setStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
@@ -360,60 +396,20 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 3.4 Subir fotos de evidencia
-      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
-        setCurrentActionText('Subiendo fotos de evidencia fotográfica...');
-        
-        // Preferir subir a empresa si es un ID real, si no al contacto/prospecto
-        const isRealCompanyId = resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-');
-        const targetId = isRealCompanyId ? resolvedCompanyId : resolvedContactId;
-        const endpointType = isRealCompanyId ? 'companies' : 'customers';
-
-        if (targetId) {
-          for (let i = 0; i < wizardState.visita.fotos.length; i++) {
-            const foto = wizardState.visita.fotos[i];
-            const formData = new FormData();
-            formData.append('photo', foto.file);
-            formData.append('latitude', String(wizardState.visita.lat || 25.6866));
-            formData.append('longitude', String(wizardState.visita.lng || -100.3161));
-            formData.append('deviceInfo', 'FieldFlow Wizard');
-
-            try {
-              const uploadRes = await fetch(`${API_BASE}/api/crm/${endpointType}/${targetId}/evidence`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                },
-                body: formData
-              });
-              const uploadData = await uploadRes.json();
-              if (!uploadRes.ok) {
-                console.warn(`Advertencia: Error al subir la foto ${i + 1}:`, uploadData.message);
-              }
-            } catch (uploadErr) {
-              console.warn(`Error de red al subir foto ${i + 1}:`, uploadErr);
-            }
-          }
-        }
-      }
-
-      // 4. Crear la Visita Principal
+      // 4. Crear la Visita Principal (Se ejecuta PRIMERO para garantizar el registro en DB y cambio de estatus)
       setCurrentActionText('Despachando reporte de interacción de campo...');
+      
+      // Construir nota con dirección verificada si existe
+      const visitaNotaText = wizardState.visita.nota || 'Visita comercial de campo registrada.';
+      const visitaAddressText = wizardState.visita.address ? `\nUbicación verificada: ${wizardState.visita.address}` : '';
+
       const visitaPayload = {
-        // Enviamos el company_id real (UUID de Supabase) si está disponible.
-        // Los IDs con prefijo 'company-ref-' son temporales sin registro real: se omiten.
-        // Los IDs SAE ('sae-CLAVE') que no se pudieron resolver también se omiten para
-        // que el backend los resuelva vía su propia lógica de importación SAE.
-        company_id: (
-          resolvedCompanyId &&
-          !String(resolvedCompanyId).startsWith('company-ref-') &&
-          !String(resolvedCompanyId).startsWith('sae-')
-        ) ? resolvedCompanyId : null,
+        company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
         contact_id: resolvedContactId || null,
         obra_id: resolvedObraId || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
-        resultado: wizardState.visita.nota || 'Visita comercial de campo registrada.',
-        notes: 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
+        resultado: `${visitaNotaText}${visitaAddressText}`,
+        notes: wizardState.visita.address ? `Registrado en: ${wizardState.visita.address}` : 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
         gps_lat: wizardState.visita.lat || 25.68661,
         gps_lng: wizardState.visita.lng || -100.31611,
         timestamp_servidor: wizardState.visita.timestamp || new Date().toISOString()
@@ -430,6 +426,39 @@ function WizardContent({ onClose, onSuccess }) {
       const visitaData = await visitaRes.json();
       if (!visitaRes.ok || !visitaData.success) {
         throw new Error(visitaData.message || 'Error al registrar la interacción principal.');
+      }
+
+      // 4.1 Subir fotos de evidencia en segundo plano (con compresión liviana para celular)
+      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
+        setCurrentActionText('Subiendo fotos de evidencia...');
+        const finalCompanyId = visitaData.visita?.company_id || resolvedCompanyId;
+        const isRealCompanyId = finalCompanyId && !String(finalCompanyId).startsWith('company-ref-') && !String(finalCompanyId).startsWith('sae-');
+        const targetId = isRealCompanyId ? finalCompanyId : (resolvedContactId || finalCompanyId);
+        const endpointType = isRealCompanyId ? 'companies' : 'customers';
+
+        if (targetId) {
+          for (let i = 0; i < wizardState.visita.fotos.length; i++) {
+            try {
+              const foto = wizardState.visita.fotos[i];
+              // Compresión ligera en cliente para evitar congelamiento en móviles
+              const compressedFile = await compressImage(foto.file);
+
+              const formData = new FormData();
+              formData.append('photo', compressedFile);
+              formData.append('latitude', String(wizardState.visita.lat || 25.6866));
+              formData.append('longitude', String(wizardState.visita.lng || -100.3161));
+              formData.append('deviceInfo', 'FieldFlow Mobile App');
+
+              await fetch(`${API_BASE}/api/crm/${endpointType}/${targetId}/evidence`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+              }).catch(e => console.warn('Advertencia foto:', e));
+            } catch (imgErr) {
+              console.warn('Error procesando foto:', imgErr);
+            }
+          }
+        }
       }
 
       // 5. Crear las Actividades de Seguimiento (Soporta múltiples recordatorios detectados por NLP)

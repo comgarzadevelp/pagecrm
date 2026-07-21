@@ -1146,6 +1146,7 @@ export default function FichaClienteIndividualModal({
         author: v.vendedor_nombre || 'Asesor Comercial',
         gps_lat: v.gps_lat || v.lat || null,
         gps_lng: v.gps_lng || v.lng || null,
+        photoUrl: v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || null,
         isNote: false,
         isVisita: true,
         isChange: false

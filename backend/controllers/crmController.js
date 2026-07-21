@@ -2866,11 +2866,7 @@ export const getCustomers = async (req, res) => {
           try {
             const parsed = JSON.parse(comp.notes.trim());
             if (parsed && parsed.sae_clave) {
-              const coEmpresa = parsed.sae_empresa || '03';
-              const userEmpresa = req.user?.sae_empresa || '03';
-              if (coEmpresa === userEmpresa) {
-                saeClave = String(parsed.sae_clave).trim();
-              }
+              saeClave = String(parsed.sae_clave).trim();
             }
           } catch (e) {}
         }

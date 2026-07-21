@@ -3056,7 +3056,13 @@ export const getCustomers = async (req, res) => {
         // Buscar contacto y empresa locales correspondientes para enriquecer
         let contactId = null;
         let companyId = null;
-        if (cust.notes) {
+
+        // Prioridad #0: contact_id directo de la columna de la tabla (clientes CRM nativos)
+        if (cust.contact_id) {
+          contactId = cust.contact_id;
+        }
+        // Prioridad #1: Extraer de notes JSON (clientes con registro manual via FieldFlow)
+        if (!contactId && cust.notes) {
           try {
             const parsed = JSON.parse(cust.notes.trim());
             if (parsed && parsed.contact_id) contactId = parsed.contact_id;
@@ -3089,6 +3095,17 @@ export const getCustomers = async (req, res) => {
         }
         if (!company && cust.company) {
           company = (localCompanies || []).find(c => c.name && c.name.toLowerCase().trim() === cust.company.toLowerCase().trim());
+        }
+
+        // Fallback #3: Si resolvimos empresa pero no contacto, buscar el contacto
+        // titular via contact_companies usando el company.id ya resuelto.
+        // Cubre el caso de clientes SAE donde Liseth Ramos está en contact_companies
+        // vinculada a la empresa de Alan Eduardo pero el registro SAE no tiene JSON en notes.
+        if (!contact && company) {
+          const companyLink = (contactLinks || []).find(l => String(l.company_id) === String(company.id));
+          if (companyLink) {
+            contact = (localContacts || []).find(c => String(c.id) === String(companyLink.contact_id));
+          }
         }
 
         // Inyectar datos del contacto

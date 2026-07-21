@@ -581,8 +581,8 @@ export default function FichaClienteIndividualModal({
       if (localContactId) {
         urls.push(`${API_BASE}/api/crm/obras/contact/${localContactId}`);
       }
-      if (!localCompanyId && !localContactId) {
-        // Fallback for leads directly (if backend handles it this way, though unlikely)
+      if (!localCompanyId && !localContactId && id && !String(id).startsWith('sae-')) {
+        // Fallback for leads directly (if backend handles it this way)
         urls.push(`${API_BASE}/api/crm/obras/contact/${id}`);
       }
 

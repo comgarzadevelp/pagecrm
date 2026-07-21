@@ -110,14 +110,38 @@ export default function Step0_SmartSearch() {
       rfc: entity.rfc || ''
     } : null;
 
-    const resolvedContacto = {
-      id: entity.contact_id || entity.id,
-      nombre: entity.nombre,
+    // BUG FIX #1: El nombre del cliente (entity.nombre) puede NO ser el contacto titular real.
+    // En clientes B2B el titular puede ser una persona diferente (ej. "Liseth Ramos" cuando el
+    // cliente es "Alan Eduardo Treviño Fernandez"). Buscamos el contacto real en el caché usando
+    // contact_id para obtener su nombre correcto. Si no lo encontramos, dejamos nombre vacío
+    // para que el vendedor lo identifique manualmente en Step1 (nunca asumimos falsas identidades).
+    let contactNombre = '';
+    let contactCargo = entity.cargo || 'Cliente';
+    let contactTelefono = entity.phone || '';
+    let contactEmail = entity.email || '';
+
+    if (entity.contact_id) {
+      // Buscar en el caché el contacto real por su ID
+      const contactoReal = cache.contactos.find(c => String(c.id) === String(entity.contact_id));
+      if (contactoReal) {
+        // Usamos los datos reales del contacto titular (no el nombre del cliente)
+        contactNombre = contactoReal.nombre || '';
+        contactCargo = contactoReal.cargo || contactCargo;
+        contactTelefono = contactoReal.phone || contactTelefono;
+        contactEmail = contactoReal.email || contactEmail;
+      }
+      // Si no encontramos en caché, lo dejamos vacío para que Step1 lo resuelva
+    }
+    // Si no hay contact_id (cliente sin contacto titular vinculado), dejamos vacío también
+
+    const resolvedContacto = entity.contact_id ? {
+      id: entity.contact_id,
+      nombre: contactNombre,   // Nombre REAL del contacto, no del cliente
       tipo: 'contacto',
-      cargo: entity.cargo || 'Cliente',
-      telefono: entity.phone || '',
-      email: entity.email || ''
-    };
+      cargo: contactCargo,
+      telefono: contactTelefono,
+      email: contactEmail
+    } : null; // Sin contact_id → el vendedor debe elegir el contacto manualmente en Step1
 
     // Actualizamos el estado consolidado en el wizard
     updateEntity('cliente', entity);

@@ -64,6 +64,31 @@ function WizardContent({ onClose, onSuccess }) {
       let resolvedCompanyId = wizardState.empresa?.id;
       let resolvedContactId = wizardState.contacto?.id;
 
+      // BUG FIX #2 — Paso 0: Si el cliente es de SAE (company_id = 'sae-CLAVE'),
+      // necesitamos resolver el UUID real en Supabase para que la visita quede vinculada.
+      // Sin esto, la visita se crea con company_id=null y el sistema nunca resetea el
+      // contador de inactividad (el cliente sigue mostrando "Recontactar Ahora").
+      if (resolvedCompanyId && String(resolvedCompanyId).startsWith('sae-')) {
+        try {
+          setCurrentActionText('Verificando empresa en el directorio...');
+          const saeKey = String(resolvedCompanyId).replace('sae-', '').trim();
+          // Usamos el endpoint /companies/search?sae_clave= que ya soporta búsqueda exacta por clave SAE
+          const companyLookupRes = await fetch(
+            `${API_BASE}/api/crm/companies/search?sae_clave=${encodeURIComponent(saeKey)}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (companyLookupRes.ok) {
+            const companyLookupData = await companyLookupRes.json();
+            if (companyLookupData.success && Array.isArray(companyLookupData.companies) && companyLookupData.companies.length > 0) {
+              resolvedCompanyId = companyLookupData.companies[0].id;
+            }
+          }
+          // Si no existe en Supabase aún, la dejamos como está (el visitaController la creará)
+        } catch (saeLookupErr) {
+          console.warn('[FieldFlow] No se pudo resolver empresa SAE en Supabase, continuando:', saeLookupErr);
+        }
+      }
+
       // 1. Crear Empresa si es nueva
       if (wizardState.empresa?.isNew) {
         setCurrentActionText('Registrando nueva empresa / constructora...');
@@ -375,7 +400,15 @@ function WizardContent({ onClose, onSuccess }) {
       // 4. Crear la Visita Principal
       setCurrentActionText('Despachando reporte de interacción de campo...');
       const visitaPayload = {
-        company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
+        // Enviamos el company_id real (UUID de Supabase) si está disponible.
+        // Los IDs con prefijo 'company-ref-' son temporales sin registro real: se omiten.
+        // Los IDs SAE ('sae-CLAVE') que no se pudieron resolver también se omiten para
+        // que el backend los resuelva vía su propia lógica de importación SAE.
+        company_id: (
+          resolvedCompanyId &&
+          !String(resolvedCompanyId).startsWith('company-ref-') &&
+          !String(resolvedCompanyId).startsWith('sae-')
+        ) ? resolvedCompanyId : null,
         contact_id: resolvedContactId || null,
         obra_id: resolvedObraId || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
@@ -494,7 +527,13 @@ function WizardContent({ onClose, onSuccess }) {
       }
 
       setStatus('success');
+      // Notificar al componente padre para que refresque la lista de clientes
+      // (esto hace que los días de inactividad se recalculen y el nivel cambie correctamente)
       if (typeof onSuccess === 'function') onSuccess();
+      // Auto-cerrar el modal después de 2.5 segundos para asegurar que el refresh ocurra
+      setTimeout(() => {
+        if (typeof onClose === 'function') onClose();
+      }, 2500);
     } catch (err) {
       console.error('Error in FieldFlow dispatch:', err);
       setStatus('error');

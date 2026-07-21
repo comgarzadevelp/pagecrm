@@ -7,6 +7,22 @@ const isValidEmail = (email) => {
   return emailRegex.test(cleaned);
 };
 
+const fetchAllRows = async (table, selectStr, modifyQuery = null) => {
+  let allData = [];
+  let page = 0;
+  const pageSize = 1000;
+  while (true) {
+    let query = supabase.from(table).select(selectStr).range(page * pageSize, (page + 1) * pageSize - 1);
+    if (modifyQuery) query = modifyQuery(query);
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < pageSize) break;
+    page++;
+  }
+  return allData;
+};
+
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
   try {
@@ -2851,10 +2867,10 @@ export const getCustomers = async (req, res) => {
 
     // Enriquecer con conteo de oportunidades, última visita y estado de seguimiento automático de forma ultra-eficiente
     try {
-      // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads
-      const { data: localCompanies } = await supabase.from('companies').select('id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
-      const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email, whatsapp, position, phone_alt, notes');
-      const { data: contactLinks } = await supabase.from('contact_companies').select('contact_id, company_id, status');
+      // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads (paginado para superar límite de 1000 de Supabase)
+      const localCompanies = await fetchAllRows('companies', 'id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
+      const localContacts = await fetchAllRows('contacts', 'id, name, phone, email, whatsapp, position, phone_alt, notes');
+      const contactLinks = await fetchAllRows('contact_companies', 'contact_id, company_id, status');
 
       const companyUuidToSaeClave = {};
       const leadIdByCompanyId = {};
@@ -2892,19 +2908,12 @@ export const getCustomers = async (req, res) => {
         }
       });
 
-      const { data: allOpps } = await supabase
-        .from('crm_opportunities')
-        .select('id, company_id, contact_id, created_at, updated_at, stage');
+      const allOpps = await fetchAllRows('crm_opportunities', 'id, company_id, contact_id, created_at, updated_at, stage');
       
-      // Solo visitas ya ocurridas (timestamp_servidor <= ahora).
-      // Los recordatorios futuros NO cuentan como "última visita".
-      // También se incluyen visitas sin timestamp_servidor (registradas sin fecha explícita).
       const nowIso = new Date().toISOString();
-      const { data: allVisits } = await supabase
-        .from('crm_visitas')
-        .select('id, company_id, contact_id, timestamp_servidor, created_at')
-        .or(`timestamp_servidor.lte.${nowIso},timestamp_servidor.is.null`)
-        .order('timestamp_servidor', { ascending: false });
+      const allVisits = await fetchAllRows('crm_visitas', 'id, company_id, contact_id, timestamp_servidor, created_at', q =>
+        q.or(`timestamp_servidor.lte.${nowIso},timestamp_servidor.is.null`).order('timestamp_servidor', { ascending: false })
+      );
 
       const oppsCountByCompany = {};
       const oppsCountByContact = {};

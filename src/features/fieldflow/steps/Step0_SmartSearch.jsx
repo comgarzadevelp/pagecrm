@@ -140,8 +140,8 @@ export default function Step0_SmartSearch() {
       }
     }
 
-    // 3. Fallback de Red: Si aún no tenemos contacto y la empresa es un UUID real de Supabase, consultar backend
-    if (!contactNombre && resolvedEmpresa && resolvedEmpresa.id && !resolvedEmpresa.id.startsWith('company-ref-') && !resolvedEmpresa.id.startsWith('sae-')) {
+    // 3. Fallback de Red: Si aún no tenemos contacto y la empresa tiene un ID válido, consultar backend (soporta empresas locales y SAE)
+    if (!contactNombre && resolvedEmpresa && resolvedEmpresa.id && !resolvedEmpresa.id.startsWith('company-ref-')) {
       try {
         const token = localStorage.getItem('token');
         const API_BASE = import.meta.env.VITE_API_URL || '';

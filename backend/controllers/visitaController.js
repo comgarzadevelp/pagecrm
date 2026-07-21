@@ -177,8 +177,7 @@ export const createVisita = async (req, res) => {
       resultado,
       gps_lat: isFuture ? null : gps_lat,
       gps_lng: isFuture ? null : gps_lng,
-      notas,
-      photo_url: photo_url || null
+      notas
     };
 
     if (timestamp_servidor) {

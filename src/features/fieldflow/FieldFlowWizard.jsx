@@ -249,23 +249,32 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 4. Vincular contacto principal a la empresa si ambos están resueltos (garantiza vinculación en todos los casos: nuevos y existentes)
+      // 4. Vincular contacto principal a la empresa si ambos están resueltos y son UUIDs reales
       if (resolvedContactId && resolvedCompanyId) {
-        setCurrentActionText('Estableciendo relación empresa-contacto principal...');
-        const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedContactId}/link-company`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            company_id: resolvedCompanyId,
-            role: wizardState.contacto?.cargo || 'Contacto'
-          })
-        });
-        const linkData = await linkRes.json();
-        if (!linkRes.ok || !linkData.success) {
-          console.warn('Advertencia al asociar contacto a empresa:', linkData.message);
+        const isRealContact = !String(resolvedContactId).startsWith('sae-') && !String(resolvedContactId).startsWith('contact-ref-');
+        const isRealCompany = !String(resolvedCompanyId).startsWith('sae-') && !String(resolvedCompanyId).startsWith('company-ref-');
+
+        if (isRealContact && isRealCompany) {
+          try {
+            setCurrentActionText('Estableciendo relación empresa-contacto principal...');
+            const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedContactId}/link-company`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                company_id: resolvedCompanyId,
+                role: wizardState.contacto?.cargo || 'Contacto'
+              })
+            });
+            const linkData = await linkRes.json();
+            if (!linkRes.ok || !linkData.success) {
+              console.warn('Advertencia al asociar contacto a empresa:', linkData.message);
+            }
+          } catch (linkErr) {
+            console.warn('Advertencia capturada al asociar contacto:', linkErr);
+          }
         }
       }
 

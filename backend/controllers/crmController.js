@@ -4015,7 +4015,7 @@ export const getProfile = async (req, res) => {
   }
 };
 
-const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId) => {
+const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId, userSaeEmpresa = '03') => {
   const targetTable = isCompany ? 'companies' : 'leads';
   let realId = customerId;
   let customerData = null;
@@ -4029,7 +4029,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
       .select('id, notes')
       .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-    const targetEmpresa = req.user?.sae_empresa || '03';
+    const targetEmpresa = userSaeEmpresa || '03';
     const exactMatch = (existingRecordsRaw || []).find(co => {
       try {
         const p = JSON.parse(co.notes);
@@ -4269,7 +4269,7 @@ export const uploadCustomerEvidence = async (req, res) => {
         const isCompany = req.originalUrl.includes('/companies/');
         const targetTable = isCompany ? 'companies' : 'leads';
 
-        const { realId, customerData: customer } = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+        const { realId, customerData: customer } = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId, req.user?.sae_empresa);
 
         // Parser manual para no pisar notas
         let notesObj = { general: '', timeline: [] };
@@ -4385,7 +4385,7 @@ export const uploadCustomerInvoice = async (req, res) => {
 
     let resolved;
     try {
-      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId, req.user?.sae_empresa);
     } catch (resolveErr) {
       return res.status(404).json({ success: false, message: resolveErr.message });
     }

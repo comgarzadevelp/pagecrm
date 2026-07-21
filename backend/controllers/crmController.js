@@ -3122,6 +3122,10 @@ export const getCustomers = async (req, res) => {
         if (company) {
           merged[i].company_id = company.id;
           merged[i].company = company.name;
+          merged[i].company_notes = company.notes || null;
+          if (isSae && company.notes) {
+            merged[i].notes = company.notes;
+          }
           merged[i].rfc = company.rfc || cust.rfc || '';
           merged[i].calle = company.address || cust.calle || '';
           merged[i].municipio = company.city || cust.municipio || '';
@@ -3145,12 +3149,12 @@ export const getCustomers = async (req, res) => {
         let lastNoteDate = null;
 
         if (isSae) {
-          oppsCount = oppsCountByCompany[cust.id] || 0;
-          wonCount = wonCountByCompany[cust.id] || 0;
-          activeCount = activeCountByCompany[cust.id] || 0;
-          lastVisit = lastVisitByCompany[cust.id] || null;
-          lastOppDate = lastOppByCompany[cust.id] || null;
-          lastWonOppDate = lastWonOppDateByCompany[cust.id] || null;
+          oppsCount = oppsCountByCompany[cust.id] || (company ? (oppsCountByCompany[company.id] || 0) : 0) || (contact ? (oppsCountByContact[contact.id] || 0) : 0);
+          wonCount = wonCountByCompany[cust.id] || (company ? (wonCountByCompany[company.id] || 0) : 0) || (contact ? (wonCountByContact[contact.id] || 0) : 0);
+          activeCount = activeCountByCompany[cust.id] || (company ? (activeCountByCompany[company.id] || 0) : 0) || (contact ? (activeCountByContact[contact.id] || 0) : 0);
+          lastVisit = lastVisitByCompany[cust.id] || (company ? lastVisitByCompany[company.id] : null) || (contact ? lastVisitByContact[contact.id] : null) || null;
+          lastOppDate = lastOppByCompany[cust.id] || (company ? lastOppByCompany[company.id] : null) || (contact ? lastOppByContact[contact.id] : null) || null;
+          lastWonOppDate = lastWonOppDateByCompany[cust.id] || (company ? lastWonOppDateByCompany[company.id] : null) || (contact ? lastWonOppDateByContact[contact.id] : null) || null;
         } else {
           oppsCount = (contact ? (oppsCountByContact[contact.id] || 0) : 0) || (company ? (oppsCountByCompany[company.id] || 0) : 0) || oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
           wonCount = (contact ? (wonCountByContact[contact.id] || 0) : 0) || (company ? (wonCountByCompany[company.id] || 0) : 0) || wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;

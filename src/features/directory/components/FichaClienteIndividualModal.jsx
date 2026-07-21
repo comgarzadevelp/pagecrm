@@ -1215,12 +1215,14 @@ export default function FichaClienteIndividualModal({
 
     uniqueTimelineEntries.forEach((n, idx) => {
       const isChange = n.type === 'change' || n.type === 'status_change' || n.type === 'archive';
-      const isNote = n.type === 'nota' || n.type === 'evidence' || !n.type;
+      const isEvidence = n.type === 'evidence';
+      const isNote = n.type === 'nota' || isEvidence || !n.type;
+      const isVisita = isEvidence;
       events.push({
         id: `manual-${idx}`,
         date: n.date || currentCustomer.created_at,
         type: n.type || 'nota',
-        title: isChange ? (n.type === 'change' ? 'Cambio de Datos' : 'Cambio de Estatus') : 'Nota Comercial',
+        title: isChange ? (n.type === 'change' ? 'Cambio de Datos' : 'Cambio de Estatus') : (isEvidence ? 'Evidencia Fotográfica de Visita' : 'Nota Comercial'),
         text: n.text,
         author: n.author || 'Ejecutivo',
         created_from: n.created_from || null,
@@ -1228,8 +1230,9 @@ export default function FichaClienteIndividualModal({
         deviceInfo: n.deviceInfo || null,
         gps_lat: n.gps ? n.gps.lat : null,
         gps_lng: n.gps ? n.gps.lng : null,
+        gps_address: n.gps ? n.gps.address : null,
         isNote,
-        isVisita: false,
+        isVisita,
         isChange
       });
     });
@@ -2330,30 +2333,20 @@ export default function FichaClienteIndividualModal({
                               </div>
                             )}
 
-                            {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
+                             {/* Coordenadas transformadas a dirección de Google Maps en texto plano verde (sin mapa) */}
                             {evt.gps_lat && evt.gps_lng && (
-                              <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', marginBottom: '8px' }}>
-                                <iframe
-                                  width="100%"
-                                  height="140"
-                                  frameBorder="0"
-                                  style={{ border: 0, display: 'block' }}
-                                  src={`https://maps.google.com/maps?q=${evt.gps_lat},${evt.gps_lng}&z=16&output=embed`}
-                                  allowFullScreen
-                                ></iframe>
-                                <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                    📍 Ubicación en Campo Verificada
-                                  </span>
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=${evt.gps_lat},${evt.gps_lng}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
-                                  >
-                                    Abrir Maps ↗
-                                  </a>
-                                </div>
+                              <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  📍 Ubicación en Campo Verificada: {evt.gps_address || `Coordenadas ${parseFloat(evt.gps_lat).toFixed(5)}, ${parseFloat(evt.gps_lng).toFixed(5)}`}
+                                </span>
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${evt.gps_lat},${evt.gps_lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '800', textDecoration: 'underline' }}
+                                >
+                                  (Ver en Google Maps ↗)
+                                </a>
                               </div>
                             )}
 

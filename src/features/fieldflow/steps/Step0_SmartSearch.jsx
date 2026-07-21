@@ -151,13 +151,19 @@ export default function Step0_SmartSearch() {
           });
           if (compRes.ok) {
             const compData = await compRes.json();
-            if (compData.success && compData.company && Array.isArray(compData.company.contacts) && compData.company.contacts.length > 0) {
-              const primary = compData.company.contacts[0];
-              contactId = primary.id || primary.contact_id || contactId;
-              contactNombre = primary.name || primary.nombre || contactNombre;
-              contactCargo = primary.position || primary.cargo || contactCargo;
-              contactTelefono = primary.phone || primary.telefono || contactTelefono;
-              contactEmail = primary.email || contactEmail;
+            if (compData.success) {
+              const rawContacts = Array.isArray(compData.linkedContacts) ? compData.linkedContacts.map(lc => lc.contact || lc).filter(Boolean) : [];
+              if (rawContacts.length === 0 && compData.company?.contact_main) {
+                rawContacts.push(compData.company.contact_main);
+              }
+              if (rawContacts.length > 0) {
+                const primary = rawContacts[0];
+                contactId = primary.id || primary.contact_id || contactId;
+                contactNombre = primary.name || primary.nombre || contactNombre;
+                contactCargo = primary.position || primary.cargo || contactCargo;
+                contactTelefono = primary.phone || primary.telefono || contactTelefono;
+                contactEmail = primary.email || contactEmail;
+              }
             }
           }
         }

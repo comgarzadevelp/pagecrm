@@ -99,6 +99,10 @@ export function FieldFlowProvider({ children }) {
             company: c.company || '',
             company_id: c.company_id ? String(c.company_id) : null,
             contact_id: c.contact_id ? String(c.contact_id) : null,
+            contact_name: c.contact_name || '',
+            contact_phone: c.contact_phone || '',
+            contact_email: c.contact_email || '',
+            position: c.position || 'Cliente',
             phone: c.phone || '',
             email: c.email || '',
             entityType: 'prospecto'
@@ -135,12 +139,12 @@ export function FieldFlowProvider({ children }) {
               contactosSeen.add(cid);
               return {
                 id: cid,                   // UUID REAL del contacto (tabla contacts)
-                nombre: '',                // getCustomers no devuelve el nombre real del contacto; Step1 lo resolverá
+                nombre: c.contact_name || '',
                 tipo: 'contacto',
-                cargo: c.position || c.clasific || 'Cliente',
+                cargo: c.position || 'Cliente',
                 company: c.company || '',
-                phone: c.phone || '',
-                email: c.email || '',
+                phone: c.contact_phone || c.phone || '',
+                email: c.contact_email || c.email || '',
                 entityType: 'contacto'
               };
             })

@@ -2854,7 +2854,7 @@ export const getCustomers = async (req, res) => {
       // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads
       const { data: localCompanies } = await supabase.from('companies').select('id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
       const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email, whatsapp, position, phone_alt, notes');
-      const { data: contactLinks } = await supabase.from('contact_companies').select('contact_id, company_id').eq('status', 'activo');
+      const { data: contactLinks } = await supabase.from('contact_companies').select('contact_id, company_id, status');
 
       const companyUuidToSaeClave = {};
       const leadIdByCompanyId = {};
@@ -3110,8 +3110,11 @@ export const getCustomers = async (req, res) => {
 
         // Inyectar datos del contacto
         merged[i].contact_id = contact ? contact.id : null;
+        merged[i].contact_name = contact ? contact.name : null;
+        merged[i].contact_phone = contact ? contact.phone : null;
+        merged[i].contact_email = contact ? contact.email : null;
         merged[i].whatsapp = contact ? contact.whatsapp : (isSae ? cust.phone : null);
-        merged[i].position = contact ? contact.position : (isSae ? 'Representante B2B' : null);
+        merged[i].position = contact ? (contact.position || 'Representante B2B') : (isSae ? 'Representante B2B' : null);
         merged[i].phone_alt = contact ? contact.phone_alt : null;
         merged[i].contact_notes = contact ? contact.notes : null;
 

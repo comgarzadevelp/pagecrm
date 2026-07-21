@@ -101,7 +101,7 @@ export default function Step0_SmartSearch() {
     }
   }, [query, searchIndex]);
 
-  const handleSelectEntity = (entity) => {
+  const handleSelectEntity = async (entity) => {
     // Cuando seleccionamos un cliente existente, mapeamos su empresa y contacto correspondientes
     const resolvedEmpresa = entity.company ? {
       id: entity.company_id || (entity.id.startsWith('sae-') ? entity.id : `company-ref-${entity.id}`),
@@ -110,47 +110,76 @@ export default function Step0_SmartSearch() {
       rfc: entity.rfc || ''
     } : null;
 
-    // BUG FIX #1: El nombre del cliente (entity.nombre) puede NO ser el contacto titular real.
-    // En clientes B2B el titular puede ser una persona diferente (ej. "Liseth Ramos" cuando el
-    // cliente es "Alan Eduardo Treviño Fernandez"). Buscamos el contacto real en el caché usando
-    // contact_id para obtener su nombre correcto. Si no lo encontramos, dejamos nombre vacío
-    // para que el vendedor lo identifique manualmente en Step1 (nunca asumimos falsas identidades).
-    let contactNombre = '';
-    let contactCargo = entity.cargo || 'Cliente';
-    let contactTelefono = entity.phone || '';
-    let contactEmail = entity.email || '';
+    let contactId = entity.contact_id || null;
+    let contactNombre = entity.contact_name || '';
+    let contactCargo = entity.position || entity.cargo || 'Representante B2B';
+    let contactTelefono = entity.contact_phone || entity.phone || '';
+    let contactEmail = entity.contact_email || entity.email || '';
 
-    if (entity.contact_id) {
-      // Buscar en el caché el contacto real por su ID
-      const contactoReal = cache.contactos.find(c => String(c.id) === String(entity.contact_id));
+    // 1. Intentar resolver por contact_id en caché local
+    if (contactId) {
+      const contactoReal = cache.contactos.find(c => String(c.id) === String(contactId));
       if (contactoReal) {
-        // Usamos los datos reales del contacto titular (no el nombre del cliente)
-        contactNombre = contactoReal.nombre || '';
+        contactNombre = contactoReal.nombre || contactNombre;
         contactCargo = contactoReal.cargo || contactCargo;
         contactTelefono = contactoReal.phone || contactTelefono;
         contactEmail = contactoReal.email || contactEmail;
       }
-      // Si no encontramos en caché, lo dejamos vacío para que Step1 lo resuelva
     }
-    // Si no hay contact_id (cliente sin contacto titular vinculado), dejamos vacío también
 
-    const resolvedContacto = entity.contact_id ? {
-      id: entity.contact_id,
-      nombre: contactNombre,   // Nombre REAL del contacto, no del cliente
+    // 2. Si aún no hay contacto titular pero la empresa coincide, buscar en caché por empresa
+    if (!contactId && entity.company) {
+      const compNameClean = entity.company.toLowerCase().trim();
+      const contactoEmp = cache.contactos.find(c => c.company && c.company.toLowerCase().trim() === compNameClean);
+      if (contactoEmp) {
+        contactId = contactoEmp.id;
+        contactNombre = contactoEmp.nombre || contactNombre;
+        contactCargo = contactoEmp.cargo || contactCargo;
+        contactTelefono = contactoEmp.phone || contactTelefono;
+        contactEmail = contactoEmp.email || contactEmail;
+      }
+    }
+
+    // 3. Fallback de Red: Si aún no tenemos contacto y la empresa es un UUID real de Supabase, consultar backend
+    if (!contactNombre && resolvedEmpresa && resolvedEmpresa.id && !resolvedEmpresa.id.startsWith('company-ref-') && !resolvedEmpresa.id.startsWith('sae-')) {
+      try {
+        const token = localStorage.getItem('token');
+        const API_BASE = import.meta.env.VITE_API_URL || '';
+        if (token) {
+          const compRes = await fetch(`${API_BASE}/api/crm/companies/${resolvedEmpresa.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (compRes.ok) {
+            const compData = await compRes.json();
+            if (compData.success && compData.company && Array.isArray(compData.company.contacts) && compData.company.contacts.length > 0) {
+              const primary = compData.company.contacts[0];
+              contactId = primary.id || primary.contact_id || contactId;
+              contactNombre = primary.name || primary.nombre || contactNombre;
+              contactCargo = primary.position || primary.cargo || contactCargo;
+              contactTelefono = primary.phone || primary.telefono || contactTelefono;
+              contactEmail = primary.email || contactEmail;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('No se pudo resolver contacto por empresa:', err);
+      }
+    }
+
+    const resolvedContacto = (contactId || contactNombre) ? {
+      id: contactId || `contact-ref-${entity.id}`,
+      nombre: contactNombre,
       tipo: 'contacto',
       cargo: contactCargo,
       telefono: contactTelefono,
       email: contactEmail
-    } : null; // Sin contact_id → el vendedor debe elegir el contacto manualmente en Step1
+    } : null;
 
     // Actualizamos el estado consolidado en el wizard
     updateEntity('cliente', entity);
     updateEntity('empresa', resolvedEmpresa);
     updateEntity('contacto', resolvedContacto);
 
-    // Forzamos el paso por el Paso 1 (Resolver) para que el vendedor valide visualmente
-    // la información cargada, permitiendo corregirla o desvincularla si el cliente
-    // cambió de empresa o puesto.
     paginate(1);
   };
 

@@ -87,87 +87,79 @@ export default function Step1_CustomerResolver() {
     }
   }, [empresaSearch, cache.empresas]);
 
-  // 2. Buscador local + remoto de Contactos
+  // 2. Buscador de Contactos — siempre usa el API para buscar por nombre real
+  // (cache.contactos guarda contact_id pero no el nombre real del contacto,
+  // por lo que Fuse.js local no sirve para búsqueda por nombre)
   useEffect(() => {
     if (contactoSearch.trim().length < 2) {
-      setContactoResults(cache.contactos.slice(0, 4));
+      // Sin query: mostrar contactos del caché que sí tengan nombre (creados en sesión)
+      setContactoResults(cache.contactos.filter(c => c.nombre && c.nombre.trim()).slice(0, 4));
       return;
     }
 
-    const fuse = new Fuse(cache.contactos, { keys: ['nombre'], threshold: 0.35 });
-    const localRes = fuse.search(contactoSearch).map(r => r.item);
-    setContactoResults(localRes);
-
-    if (localRes.length < 3) {
-      const timer = setTimeout(async () => {
-        if (!token) return;
-        try {
-          const res = await fetch(`${API_BASE}/api/crm/contacts/search?q=${encodeURIComponent(contactoSearch.trim())}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const data = await res.json();
-          if (data.success && Array.isArray(data.contacts)) {
-            const apiRes = data.contacts.map(co => ({
-              id: String(co.id),
-              nombre: co.name || '',
-              tipo: 'contacto',
-              cargo: co.position || 'Contacto'
-            }));
-            setContactoResults(prev => {
-              const combined = [...prev, ...apiRes];
-              const uniqueMap = new Map();
-              combined.forEach(item => uniqueMap.set(item.id, item));
-              return Array.from(uniqueMap.values());
-            });
-          }
-        } catch (err) {
-          console.error('Error searching contacts:', err);
+    // Siempre buscar en API para obtener resultados reales por nombre
+    const timer = setTimeout(async () => {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/crm/contacts/search?q=${encodeURIComponent(contactoSearch.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.contacts)) {
+          const apiRes = data.contacts.map(co => ({
+            id: String(co.id),
+            nombre: co.name || '',
+            tipo: 'contacto',
+            cargo: co.position || 'Contacto',
+            telefono: co.phone || '',
+            email: co.email || ''
+          }));
+          setContactoResults(apiRes);
+        } else {
+          setContactoResults([]);
         }
-      }, 350);
-      return () => clearTimeout(timer);
-    }
-  }, [contactoSearch, cache.contactos]);
+      } catch (err) {
+        console.error('Error searching contacts:', err);
+        setContactoResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactoSearch]);
 
-  // 3. Buscador local + remoto de Contactos Adicionales
+  // 3. Buscador de Contactos Adicionales — mismo enfoque: siempre API
   useEffect(() => {
     if (contactoAdicionalSearch.trim().length < 2) {
-      setContactoAdicionalResults(cache.contactos.slice(0, 4));
+      setContactoAdicionalResults(cache.contactos.filter(c => c.nombre && c.nombre.trim()).slice(0, 4));
       return;
     }
 
-    const fuse = new Fuse(cache.contactos, { keys: ['nombre'], threshold: 0.35 });
-    const localRes = fuse.search(contactoAdicionalSearch).map(r => r.item);
-    setContactoAdicionalResults(localRes);
-
-    if (localRes.length < 3) {
-      const timer = setTimeout(async () => {
-        if (!token) return;
-        try {
-          const res = await fetch(`${API_BASE}/api/crm/contacts/search?q=${encodeURIComponent(contactoAdicionalSearch.trim())}`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const data = await res.json();
-          if (data.success && Array.isArray(data.contacts)) {
-            const apiRes = data.contacts.map(co => ({
-              id: String(co.id),
-              nombre: co.name || '',
-              tipo: 'contacto',
-              cargo: co.position || 'Contacto'
-            }));
-            setContactoAdicionalResults(prev => {
-              const combined = [...prev, ...apiRes];
-              const uniqueMap = new Map();
-              combined.forEach(item => uniqueMap.set(item.id, item));
-              return Array.from(uniqueMap.values());
-            });
-          }
-        } catch (err) {
-          console.error('Error searching contacts:', err);
+    const timer = setTimeout(async () => {
+      if (!token) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/crm/contacts/search?q=${encodeURIComponent(contactoAdicionalSearch.trim())}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && Array.isArray(data.contacts)) {
+          const apiRes = data.contacts.map(co => ({
+            id: String(co.id),
+            nombre: co.name || '',
+            tipo: 'contacto',
+            cargo: co.position || 'Contacto',
+            telefono: co.phone || '',
+            email: co.email || ''
+          }));
+          setContactoAdicionalResults(apiRes);
+        } else {
+          setContactoAdicionalResults([]);
         }
-      }, 350);
-      return () => clearTimeout(timer);
-    }
-  }, [contactoAdicionalSearch, cache.contactos]);
+      } catch (err) {
+        console.error('Error searching contacts:', err);
+        setContactoAdicionalResults([]);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [contactoAdicionalSearch]);
 
   // Manejadores para vincular Empresa
   const handleSelectEmpresa = (empresa) => {

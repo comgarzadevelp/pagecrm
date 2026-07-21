@@ -1137,16 +1137,27 @@ export default function FichaClienteIndividualModal({
           })}`
         : '';
 
+      const vDateStr = v.created_at || v.timestamp_servidor;
+      const vTime = vDateStr ? new Date(vDateStr).getTime() : 0;
+
+      const matchingEvidence = rawTimelineEntries.find(n => {
+        if (!n.photoUrl) return false;
+        const nTime = n.date ? new Date(n.date).getTime() : 0;
+        return Math.abs(nTime - vTime) < 15 * 60 * 1000;
+      }) || rawTimelineEntries.find(n => n.photoUrl);
+
+      const resolvedPhotoUrl = v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || (matchingEvidence ? matchingEvidence.photoUrl : null);
+
       events.push({
         id: `visit-${v.id}`,
-        date: v.created_at || v.timestamp_servidor,
+        date: vDateStr,
         type: tipoReal.includes('llamada') ? 'llamada' : 'visita',
         title: `Visita Presencial / Minuta`,
         text: `Resultado: ${v.resultado || 'Sin minuta'}.${v.obra_nombre ? `\nObra: ${v.obra_nombre}.` : ''}${scheduledDateStr}`,
         author: v.vendedor_nombre || 'Asesor Comercial',
         gps_lat: v.gps_lat || v.lat || null,
         gps_lng: v.gps_lng || v.lng || null,
-        photoUrl: v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || null,
+        photoUrl: resolvedPhotoUrl,
         isNote: false,
         isVisita: true,
         isChange: false

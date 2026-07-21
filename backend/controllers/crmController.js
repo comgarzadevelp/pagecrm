@@ -2861,6 +2861,7 @@ export const getCustomers = async (req, res) => {
       const leadIdByContactId = {};
 
       (localCompanies || []).forEach(comp => {
+        let saeClave = null;
         if (comp.notes) {
           try {
             const parsed = JSON.parse(comp.notes.trim());
@@ -2868,11 +2869,16 @@ export const getCustomers = async (req, res) => {
               const coEmpresa = parsed.sae_empresa || '03';
               const userEmpresa = req.user?.sae_empresa || '03';
               if (coEmpresa === userEmpresa) {
-                const saeClave = String(parsed.sae_clave).trim();
-                companyUuidToSaeClave[comp.id] = saeClave;
+                saeClave = String(parsed.sae_clave).trim();
               }
             }
           } catch (e) {}
+        }
+        if (!saeClave && comp.alias && !isNaN(comp.alias.trim())) {
+          saeClave = comp.alias.trim();
+        }
+        if (saeClave) {
+          companyUuidToSaeClave[comp.id] = saeClave;
         }
       });
 

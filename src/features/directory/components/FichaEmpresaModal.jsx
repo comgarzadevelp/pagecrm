@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { computeDataQuality, getQualityConfig } from '../utils/dataQuality';
+import FichaTimelineItem, { compileTimelineItems } from './FichaTimelineItem';
 import '../styles/FichaContacto.css'; // Reusing the layout styles
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -225,45 +226,8 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
     finally { setArchiving(false); }
   };
 
-  // Compile timeline from notas and visitas
-  const compileTimeline = () => {
-    const list = [];
-    let currentNotes = { timeline: [] };
-    if (company?.notes) {
-      try { currentNotes = JSON.parse(company.notes); } catch { }
-    }
-    (currentNotes.timeline || []).forEach(item => {
-      const isChange = item.type === 'change' || item.type === 'status_change' || item.type === 'archive';
-      const isEvidence = item.type === 'evidence';
-      const isNote = item.type === 'nota' || (!item.type && !isChange); // Default to note if type is not specified
-      list.push({ 
-        ...item, 
-        isNote, 
-        isChange, 
-        isVisita: false,
-        isEvidence,
-        ts: new Date(item.date).getTime() 
-      });
-    });
-    visitas.forEach(v => {
-      list.push({
-        type: 'visita',
-        text: `Resultado: ${v.resultado}`,
-        sub: v.notas,
-        date: v.created_at || v.fecha,
-        author: v.created_by_name || 'Usuario',
-        isNote: false,
-        isChange: false,
-        isVisita: true,
-        gps_lat: v.gps_lat || v.lat || null,
-        gps_lng: v.gps_lng || v.lng || null,
-        ts: new Date(v.created_at || v.fecha).getTime()
-      });
-    });
-    return list.sort((a, b) => b.ts - a.ts);
-  };
-
-  const timelineItems = compileTimeline();
+  // Compile timeline from notas and visitas using shared utility
+  const timelineItems = compileTimelineItems(company?.notes, visitas);
 
   const handleModalClick = (e) => e.stopPropagation();
 
@@ -569,78 +533,9 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
                   );
                 }
 
-                return filteredItems.map((tl, i) => {
-                  let iconClass = 'nota';
-                  let faIcon = 'fa-sticky-note';
-                  if (tl.isEvidence) {
-                    iconClass = 'visita'; // Use visita class for styling consistency
-                    faIcon = 'fa-camera';
-                  } else if (tl.isVisita) {
-                    iconClass = 'visita';
-                    faIcon = tl.type === 'llamada' ? 'fa-phone' : 'fa-map-marker-alt';
-                  } else if (tl.isChange) {
-                    iconClass = tl.type === 'archive' ? 'archive' : 'change';
-                    faIcon = tl.type === 'archive' ? 'fa-archive' : 'fa-history';
-                  }
-
-                  return (
-                    <div key={i} className="fc-timeline-item">
-                      <div className={`fc-tl-icon ${iconClass}`}>
-                        <i className={`fas ${faIcon}`} />
-                      </div>
-                      <div className="fc-tl-content">
-                        <div className="fc-tl-meta">
-                          <span className="fc-tl-type">
-                            {tl.isEvidence ? 'Evidencia Fotográfica' : tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial')}
-                          </span>
-                          <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {tl.author || 'Usuario'}</span>
-                          <span className="fc-tl-date">{formatDate(tl.date)}</span>
-                        </div>
-                        <div className="fc-tl-text" style={{ whiteSpace: 'pre-wrap' }}>{tl.text}</div>
-                        {tl.sub && <div className="fc-tl-sub">{tl.sub}</div>}
-                        
-                        {/* Evidencia Fotográfica */}
-                        {(tl.photoUrl || tl.photo_url) && (
-                          <a href={tl.photoUrl || tl.photo_url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0', marginTop: '10px' }}>
-                            <img src={tl.photoUrl || tl.photo_url} alt="Evidencia fotográfica" style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }} />
-                          </a>
-                        )}
-                        {(tl.deviceInfo || tl.device_info) && (
-                          <p style={{ marginTop: '6px', fontSize: '0.75rem', color: '#64748b', fontStyle: 'italic', background: '#f8fafc', padding: '6px 10px', borderRadius: '6px', borderLeft: '2px solid #cbd5e1' }}>
-                            <strong>Dispositivo:</strong> {tl.deviceInfo || tl.device_info}
-                          </p>
-                        )}
-                        
-                        {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
-                        {tl.gps_lat && tl.gps_lng && (
-                          <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '360px', boxShadow: '0 1px 3px rgba(0,0,0,0.02)' }}>
-                            <iframe
-                              width="100%"
-                              height="140"
-                              frameBorder="0"
-                              style={{ border: 0, display: 'block' }}
-                              src={`https://maps.google.com/maps?q=${tl.gps_lat},${tl.gps_lng}&z=16&output=embed`}
-                              allowFullScreen
-                            ></iframe>
-                            <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                📍 Ubicación en Campo Verificada
-                              </span>
-                              <a 
-                                href={`https://www.google.com/maps/search/?api=1&query=${tl.gps_lat},${tl.gps_lng}`} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
-                              >
-                                Abrir Maps ↗
-                              </a>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                });
+                return filteredItems.map((tl, i) => (
+                  <FichaTimelineItem key={i} tl={tl} formatDate={formatDate} />
+                ));
               })()}
             </div>
           </div>

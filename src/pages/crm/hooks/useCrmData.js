@@ -353,6 +353,15 @@ export function useCrmData(role, enabledModules = []) {
   };
 
   const handleLogout = () => {
+    const API_BASE = import.meta.env.VITE_API_URL || '';
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch(`${API_BASE}/api/auth/logout`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      }).catch(() => {});
+    }
+
     localStorage.removeItem('token');
     localStorage.removeItem('role');
     localStorage.removeItem('companyId');

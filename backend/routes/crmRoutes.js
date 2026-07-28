@@ -173,4 +173,15 @@ router.post('/visitas', createVisita);
 router.get('/visitas/my-activities', getMyActivities);
 router.get('/visitas/:entityType/:entityId', getVisitasByEntity);
 
+// ── DIAGNÓSTICO (temporal - eliminar en producción final) ──────
+router.get('/debug-user', (req, res) => {
+  res.json({
+    success: true,
+    req_user: req.user,
+    env_gdl_url_set: !!process.env.SAE_GDL_SUPABASE_URL,
+    env_gdl_key_set: !!process.env.SAE_GDL_SUPABASE_SERVICE_ROLE_KEY,
+    node_env: process.env.NODE_ENV
+  });
+});
+
 export default router;

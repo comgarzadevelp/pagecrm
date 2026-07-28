@@ -29,15 +29,20 @@ Write-Host "   Assets JS encontrados en servidor: $assetCount" -ForegroundColor 
 
 # 3. Desplegar Backend al VPS
 Write-Host "`n[3/4] Subiendo Backend al VPS..." -ForegroundColor Yellow
-# Subir directorios del backend (AHORA INCLUYE backend/utils que faltaba)
+# Subir directorios del backend
 scp -r backend/config backend/controllers backend/middleware backend/migrations backend/public backend/routes backend/scripts backend/services backend/utils "${ServerDest}:/var/www/garza_crm_page/backend/"
-# Subir archivos raíz del backend (no se sobrescribe el .env de producción a menos que se requiera)
+# Subir archivos raíz del backend
 scp backend/server.js backend/supabaseClient.js backend/ecosystem.config.cjs backend/package.json backend/package-lock.json "${ServerDest}:/var/www/garza_crm_page/backend/"
 
-# 4. Recargar el clúster de PM2 y restablecer permisos
-Write-Host "`n[4/4] Recargando clúster de PM2 y restableciendo permisos en el servidor..." -ForegroundColor Yellow
-ssh $ServerDest "pm2 reload garza-backend && chown -R www-data:www-data /var/www/garza_crm_page && chmod -R 755 /var/www/garza_crm_page"
+# Subir variables de entorno del backend (CRÍTICO: incluye credenciales SAE GDL, MTY, JWT, etc.)
+Write-Host "   Subiendo backend/.env al servidor..." -ForegroundColor Yellow
+scp backend/.env "${ServerDest}:/var/www/garza_crm_page/backend/.env"
+Write-Host "   [OK] backend/.env actualizado en produccion" -ForegroundColor Green
+
+# 4. Recargar el clúster de PM2 con las nuevas variables de entorno y restablecer permisos
+Write-Host "`n[4/4] Recargando clúster de PM2 (con --update-env) y restableciendo permisos..." -ForegroundColor Yellow
+ssh $ServerDest "pm2 reload garza-backend --update-env && chown -R www-data:www-data /var/www/garza_crm_page && chmod -R 755 /var/www/garza_crm_page"
 
 Write-Host "`n=============================================" -ForegroundColor Green
-Write-Host " ¡Despliegue finalizado con éxito! (Zero-Downtime) " -ForegroundColor Green
+Write-Host " ¡Despliegue finalizado con exito! (Zero-Downtime) " -ForegroundColor Green
 Write-Host "=============================================" -ForegroundColor Green

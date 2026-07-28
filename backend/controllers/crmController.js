@@ -61,7 +61,7 @@ const __dirname = path.dirname(__filename);
 export const getPriceLists = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, priceLists: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
@@ -141,7 +141,7 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, products: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
@@ -1464,7 +1464,7 @@ export const createManualLead = async (req, res) => {
         if (exactMatch) {
           localCompanyId = exactMatch.id;
         } else {
-          const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+          const saeObj = getSaeConnection(req.user);
           if (saeObj.saeClient) {
             const { data: client } = await saeObj.saeClient
               .from(`clie${saeObj.suffix}`)
@@ -2548,12 +2548,12 @@ export const getSaeSellersList = async (req, res) => {
     }
 
     const companyCode = req.user?.companyCode;
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, sellers: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
     // Consultar la tabla vend03 en la base de datos espejo de Supabase
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (!saeObj.saeClient) return res.json({ success: true, vendors: [] });
     const { data, error } = await saeObj.saeClient
       .from(`vend${saeObj.suffix}`)
@@ -2615,7 +2615,7 @@ export const getCustomers = async (req, res) => {
 
       // 2. Buscar en Aspel SAE
       const saeCustomers = [];
-      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+      const saeObj = getSaeConnection(req.user);
 
       let userSaeKey = null;
       if (role === 'sales' && userId) {
@@ -2809,7 +2809,7 @@ export const getCustomers = async (req, res) => {
     }
 
     let saeCustomers = [];
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (saeKey && saeObj.saeClient) {
       const { data: saeData, error: saeError } = await saeObj.saeClient
         .from(`clie${saeObj.suffix}`)
@@ -3439,7 +3439,7 @@ export const updateCustomer = async (req, res) => {
       const indexVal = parseInt(indexStr) - 1;
 
       if (saeClave) {
-        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        const saeObj = getSaeConnection(req.user);
         if (!saeObj.saeClient) return;
         const { data: saeConts } = await saeObj.saeClient
           .from(`contac${saeObj.suffix}`)
@@ -3508,7 +3508,7 @@ export const updateCustomer = async (req, res) => {
       if (exactMatch) {
         resolvedCompanyId = exactMatch.id;
       } else {
-        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        const saeObj = getSaeConnection(req.user);
         if (saeObj.saeClient) {
           const { data: client } = await saeObj.saeClient
             .from(`clie${saeObj.suffix}`)
@@ -4055,7 +4055,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
 
     // 2. If not found in our CRM, fetch from SAE mirror
     if (!customerData) {
-      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+      const saeObj = getSaeConnection(req.user);
       if (!saeObj.saeClient) throw new Error('Configuración de SAE no encontrada para el usuario.');
       const { data: client, error: clientError } = await saeObj.saeClient
         .from(`clie${saeObj.suffix}`)
@@ -4638,7 +4638,7 @@ export const getOrphanLeads = async (req, res) => {
 
     // 2. Obtener Clientes Huérfanos de la copia espejo del SAE (cve_vend es null, vacío, o '   ' o similar y status es A)
     let saeOrphans = [];
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (saeObj.saeClient) {
       try {
         const { data: saeData, error: saeError } = await saeObj.saeClient

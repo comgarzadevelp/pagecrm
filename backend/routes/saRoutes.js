@@ -96,7 +96,7 @@ router.get('/user-presence', async (req, res) => {
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
 
     // Promesas paralelas para notificaciones y actividad de negocio
-    const [notifsRes, visitasRes, oppsRes, leadsRes] = await Promise.all([
+    const [notifsRes, visitasRes, oppsRes, leadsRes, eventsRes] = await Promise.all([
       supabase
         .from('crm_notifications')
         .select('user_id, read')
@@ -116,6 +116,11 @@ router.get('/user-presence', async (req, res) => {
         .from('leads')
         .select('assigned_to, updated_at, name')
         .order('updated_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('user_session_events')
+        .select('user_id, created_at, metadata')
+        .order('created_at', { ascending: false })
         .limit(100)
     ]);
 
@@ -139,7 +144,7 @@ router.get('/user-presence', async (req, res) => {
             timestamp,
             iso: timeStr,
             label,
-            detail: item.title || item.name || null
+            detail: item.title || item.name || item.metadata?.action || null
           };
         }
       });
@@ -147,7 +152,22 @@ router.get('/user-presence', async (req, res) => {
 
     processActivity(visitasRes.data, 'user_id', 'timestamp_servidor', 'Visita FieldFlow');
     processActivity(oppsRes.data, 'assigned_to', 'updated_at', 'Cotización/Venta');
-    processActivity(leadsRes.data, 'assigned_to', 'updated_at', 'Lead/Cliente');
+    processActivity(leadsRes.data, 'assigned_to', 'updated_at', 'Nota/Lead');
+
+    // Procesar eventos explícitos de timeline o notas creadas por el usuario
+    (eventsRes?.data || []).forEach(evt => {
+      if (evt.metadata && evt.metadata.action === 'timeline_note') {
+        const uid = evt.user_id;
+        const timestamp = new Date(evt.created_at).getTime();
+        if (!lastDataUpdateMap[uid] || timestamp > lastDataUpdateMap[uid].timestamp) {
+          lastDataUpdateMap[uid] = {
+            timestamp,
+            iso: evt.created_at,
+            label: 'Nota en Lead/Negociación'
+          };
+        }
+      }
+    });
 
     const enriched = (users || []).map(u => ({
       ...u,

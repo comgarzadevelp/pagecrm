@@ -2138,11 +2138,29 @@ export const addLeadTimelineEntry = async (req, res) => {
     const { error: updateError } = await supabase
       .from('leads')
       .update({
-        notes: JSON.stringify(notesData)
+        notes: JSON.stringify(notesData),
+        updated_at: new Date().toISOString()
       })
       .eq('id', id);
 
     if (updateError) throw updateError;
+
+    // Registrar evento de cambio de datos y actualizar last_seen_at del usuario activo
+    if (userId) {
+      Promise.all([
+        supabase
+          .from('crm_users')
+          .update({ last_seen_at: new Date().toISOString() })
+          .eq('id', userId),
+        supabase
+          .from('user_session_events')
+          .insert({
+            user_id: userId,
+            event_type: 'focus_restored',
+            metadata: { action: 'timeline_note', lead_id: id }
+          })
+      ]).catch(() => {});
+    }
 
     // Notify the assigned seller if someone else (e.g. supervisor) leaves a note
     if (lead.assigned_to && lead.assigned_to !== userId) {

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import DirectorioClientesFeature from '../../directory/components/DirectorioClientesFeature';
+import { compileTimelineItems } from '../../directory/components/FichaTimelineItem';
+import SA2UserVisitasTab from './SA2UserVisitasTab';
+import SA2UserSessionsTab from './SA2UserSessionsTab';
 import './SA2UserActivityModal.css';
 
 function formatFullDateTime(isoString) {
@@ -132,9 +135,85 @@ export default function SA2UserActivityModal({ user, userId, onClose }) {
   const currentUser = user || data?.user;
   if (!targetUserId) return null;
 
-  const visitas     = data?.visitas || [];
-  const sessionLogs = data?.sessionLogs || [];
+  const rawVisitas   = data?.visitas || [];
+  const sessionLogs  = data?.sessionLogs || [];
   const rawCustomers = data?.userCustomers || data?.userLeads || [];
+  // Las fotos de evidencia se guardan en companies.notes.timeline, NO en crm_visitas ni en leads
+  const rawCompanies = data?.userCompanies || [];
+
+  const visitas = React.useMemo(() => {
+    // Las fotos de evidencia FieldFlow viven en companies.notes.timeline (type:'evidence')
+    // Las visitas GPS viven en crm_visitas. Ambas son el mismo evento: hay que fusionarlas.
+    const evidencias = [];
+    rawCompanies.forEach(company => {
+      if (!company.notes) return;
+      const timeline = compileTimelineItems(company.notes, []);
+      timeline.forEach((item, idx) => {
+        if (item.isEvidence || item.photoUrl || item.photo_url) {
+          evidencias.push({
+            _evidenceId: item.id || `evidence-${company.id}-${idx}`,
+            _ts: new Date(item.date || item.created_at || company.updated_at).getTime() || 0,
+            photoUrl: item.photoUrl || item.photo_url,
+            photo_url: item.photoUrl || item.photo_url,
+            device_info: item.deviceInfo || item.device_info,
+            gps_lat: item.gps_lat || (item.gps && item.gps.lat),
+            gps_lng: item.gps_lng || (item.gps && item.gps.lng),
+            gps_address: item.gps && item.gps.address,
+            date: item.date || item.created_at || company.updated_at,
+            text: item.text,
+            author: item.author || 'Vendedor',
+            companyName: company.name
+          });
+        }
+      });
+    });
+
+    // Fusionar: a cada visita GPS le buscamos una evidencia fotográfica dentro de 30 min
+    const THIRTY_MIN = 30 * 60 * 1000;
+    const usedEvidenceIds = new Set();
+
+    const merged = rawVisitas
+      .filter(v => v.tipo !== 'recordatorio')
+      .map(v => {
+        const vTs = new Date(v.timestamp_servidor || v.created_at).getTime() || 0;
+        const match = evidencias.find(e =>
+          !usedEvidenceIds.has(e._evidenceId) &&
+          Math.abs(e._ts - vTs) <= THIRTY_MIN
+        );
+        if (match) usedEvidenceIds.add(match._evidenceId);
+        return {
+          ...v,
+          photoUrl: match?.photoUrl || v.photoUrl || v.photo_url || null,
+          photo_url: match?.photoUrl || v.photo_url || null,
+          device_info: match?.device_info || v.device_info || null,
+          gps_address: match?.gps_address || v.gps_address || null
+        };
+      });
+
+    // Evidencias sin visita GPS emparejada (registros solo-foto, sin check-in en crm_visitas)
+    evidencias.forEach(e => {
+      if (!usedEvidenceIds.has(e._evidenceId)) {
+        merged.push({
+          id: e._evidenceId,
+          tipo: 'visita_presencial',
+          resultado: e.text || `Evidencia fotográfica en ${e.companyName || ''}`,
+          notas: null,
+          photoUrl: e.photoUrl,
+          photo_url: e.photoUrl,
+          device_info: e.device_info,
+          gps_lat: e.gps_lat,
+          gps_lng: e.gps_lng,
+          gps_address: e.gps_address,
+          timestamp_servidor: e.date,
+          created_at: e.date,
+          created_by_name: e.author
+        });
+      }
+    });
+
+    return merged.sort((a, b) => new Date(b.timestamp_servidor || b.created_at).getTime() - new Date(a.timestamp_servidor || a.created_at).getTime());
+  }, [rawVisitas, rawCompanies]);
+
   const customers = React.useMemo(() => {
     const getUpdateStatusText = (cust) => {
       const lastDate = getCustomerLatestActivityDate(cust);
@@ -214,90 +293,16 @@ export default function SA2UserActivityModal({ user, userId, onClose }) {
             <>
               {/* TAB 1: VISITAS FIELD FLOW & FOTOS */}
               {activeTab === 'visitas' && (
-                <div className="uam-tab-content">
-                  {visitas.length === 0 ? (
-                    <div className="uam-empty-state">
-                      <i className="fas fa-map-marker-alt"></i>
-                      <p>No hay visitas de FieldFlow registradas para este usuario.</p>
-                    </div>
-                  ) : (
-                    <div className="uam-visitas-grid">
-                      {visitas.map(v => {
-                        const itemIsToday = isToday(v.timestamp_servidor || v.created_at);
-                        return (
-                          <div key={v.id} className={`uam-visita-card ${itemIsToday ? 'is-today' : ''}`}>
-                            <div className="uam-visita-header">
-                              <div className="uam-visita-header-row">
-                                <span className={`uam-badge-tipo ${v.tipo === 'visita_presencial' ? 'presencial' : 'recordatorio'}`}>
-                                  {v.tipo === 'visita_presencial' ? '📍 Presencial' : '📅 Recordatorio'}
-                                </span>
-                                {itemIsToday && <span className="uam-badge-today"><i className="fas fa-bolt"></i> HOY</span>}
-                              </div>
-                              <div className="uam-visita-header-row time">
-                                <i className="far fa-clock"></i> {formatFullDateTime(v.timestamp_servidor || v.created_at)}
-                              </div>
-                            </div>
-
-                            {v.photo_url ? (
-                              <div className="uam-photo-wrapper" onClick={() => setPreviewPhoto(v.photo_url)}>
-                                <img src={v.photo_url.startsWith('http') ? v.photo_url : `${API_BASE}${v.photo_url}`} alt="Evidencia FieldFlow" className="uam-visita-img" />
-                                <div className="uam-photo-overlay"><i className="fas fa-search-plus"></i> Ampliar foto</div>
-                              </div>
-                            ) : (
-                              <div className="uam-no-photo"><i className="fas fa-image"></i> Sin evidencia fotográfica</div>
-                            )}
-
-                            <div className="uam-visita-details">
-                              <p className="uam-visita-res"><strong>Resultado:</strong> {v.resultado || 'Sin especificar'}</p>
-                              {v.notas && <p className="uam-visita-notas">"{v.notas}"</p>}
-                              {v.gps_lat && v.gps_lng && (
-                                <p className="uam-gps-tag">
-                                  <i className="fas fa-compass"></i> GPS: {Number(v.gps_lat).toFixed(4)}, {Number(v.gps_lng).toFixed(4)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <SA2UserVisitasTab
+                  visitas={visitas}
+                  setPreviewPhoto={setPreviewPhoto}
+                  API_BASE={API_BASE}
+                />
               )}
 
               {/* TAB 2: HISTORIAL DE CONEXIONES & SESIONES */}
               {activeTab === 'sessions' && (
-                <div className="uam-tab-content">
-                  {sessionLogs.length === 0 ? (
-                    <div className="uam-empty-state">
-                      <i className="fas fa-shield-alt"></i>
-                      <p>No se registraron eventos de login/logout recientes.</p>
-                    </div>
-                  ) : (
-                    <div className="uam-timeline">
-                      {sessionLogs.map(s => {
-                        const itemIsToday = isToday(s.created_at);
-                        return (
-                          <div key={s.id} className={`uam-timeline-item ${s.event_type} ${itemIsToday ? 'is-today' : ''}`}>
-                            <div className="uam-timeline-icon">
-                              <i className={`fas ${s.event_type === 'login' ? 'fa-sign-in-alt' : 'fa-power-off'}`}></i>
-                            </div>
-                            <div className="uam-timeline-content">
-                              <div className="uam-timeline-header">
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                  <strong>{s.event_type === 'login' ? '🔑 Inicio de Sesión' : '🔌 Cierre de Sesión / Salida'}</strong>
-                                  {itemIsToday && <span className="uam-badge-today"><i className="fas fa-bolt"></i> HOY</span>}
-                                </div>
-                                <span>{formatFullDateTime(s.created_at)} ({timeAgo(s.created_at)})</span>
-                              </div>
-                              {s.user_agent && <p className="uam-meta-text"><i className="fas fa-laptop"></i> {s.user_agent.substring(0, 75)}...</p>}
-                              {s.client_ip && <p className="uam-meta-text"><i className="fas fa-network-wired"></i> IP: {s.client_ip}</p>}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                <SA2UserSessionsTab sessionLogs={sessionLogs} />
               )}
 
               {/* TAB 3: REGISTRO DE CLIENTES (REUTILIZANDO COMPONENTE OFICIAL DirectorioClientesFeature) */}

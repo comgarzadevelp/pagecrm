@@ -37,7 +37,7 @@ export const getExtendedProfile = async (req, res) => {
     }
 
     const companyCode = company?.company_code || 'N/A';
-    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA');
+    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA' || companyCode === 'CGG');
 
     const userWithDb = {
       ...user,
@@ -116,7 +116,7 @@ export const updateProfile = async (req, res) => {
     }
 
     const companyCode = company?.company_code || 'N/A';
-    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA');
+    const hasSae = company?.sae_connection ? true : (companyCode === 'GARZA' || companyCode === 'CGG');
 
     const userWithDb = {
       ...updatedUser,

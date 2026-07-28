@@ -38,6 +38,9 @@ export const searchObras = async (req, res) => {
 export const getObrasByCompany = async (req, res) => {
   try {
     const { companyId } = req.params;
+    if (!companyId || String(companyId).startsWith('sae-') || String(companyId).startsWith('company-ref-')) {
+      return res.json({ success: true, obras: [] });
+    }
     
     const { data: oc, error: ocError } = await supabase
       .from('obra_companies')
@@ -47,7 +50,7 @@ export const getObrasByCompany = async (req, res) => {
     if (ocError) throw ocError;
     
     // Flatten the result
-    const obras = oc.map(item => ({
+    const obras = (oc || []).map(item => ({
       ...item.obras,
       role: item.role
     }));
@@ -180,6 +183,9 @@ export const getObraLeads = async (req, res) => {
 export const getObrasByContact = async (req, res) => {
   try {
     const { contactId } = req.params;
+    if (!contactId || String(contactId).startsWith('sae-') || String(contactId).startsWith('contact-ref-')) {
+      return res.json({ success: true, obras: [] });
+    }
     
     const { data: oc, error: ocError } = await supabase
       .from('obra_contacts')

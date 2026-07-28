@@ -581,8 +581,8 @@ export default function FichaClienteIndividualModal({
       if (localContactId) {
         urls.push(`${API_BASE}/api/crm/obras/contact/${localContactId}`);
       }
-      if (!localCompanyId && !localContactId) {
-        // Fallback for leads directly (if backend handles it this way, though unlikely)
+      if (!localCompanyId && !localContactId && id && !String(id).startsWith('sae-')) {
+        // Fallback for leads directly (if backend handles it this way)
         urls.push(`${API_BASE}/api/crm/obras/contact/${id}`);
       }
 
@@ -1106,68 +1106,7 @@ export default function FichaClienteIndividualModal({
   const unifiedTimeline = useMemo(() => {
     const events = [];
 
-    // 1. Oportunidades
-    opportunities.forEach(opp => {
-      const isLead = opp.isLead;
-      events.push({
-        id: `opp-${opp.id}`,
-        date: opp.updated_at || opp.created_at,
-        type: 'opportunity',
-        title: isLead ? 'Negociación (Bandeja)' : 'Oportunidad de Venta',
-        text: isLead 
-          ? `Trato registrado en bandeja de entrada. Estado actual: "${opp.stage?.toUpperCase()}". ${opp.description ? `Detalles: "${opp.description}"` : ''}`
-          : `Negocio registrado. Etapa actual: "${opp.stage?.toUpperCase()}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
-        author: 'Sistema de Ventas',
-        isNote: false,
-        isVisita: false,
-        isChange: true
-      });
-    });
-
-    // 2. Visitas y Minutas
-    visitas.forEach(v => {
-      const tipoReal = v.visit_type || v.tipo || 'visita';
-      const scheduledDateStr = v.timestamp_servidor && new Date(v.timestamp_servidor).getTime() !== new Date(v.created_at).getTime()
-        ? `\nFecha Programada: ${new Date(v.timestamp_servidor).toLocaleDateString('es-MX', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          })}`
-        : '';
-
-      events.push({
-        id: `visit-${v.id}`,
-        date: v.created_at || v.timestamp_servidor,
-        type: tipoReal.includes('llamada') ? 'llamada' : 'visita',
-        title: `Visita Presencial / Minuta`,
-        text: `Resultado: ${v.resultado || 'Sin minuta'}.${v.obra_nombre ? `\nObra: ${v.obra_nombre}.` : ''}${scheduledDateStr}`,
-        author: v.vendedor_nombre || 'Asesor Comercial',
-        gps_lat: v.gps_lat || v.lat || null,
-        gps_lng: v.gps_lng || v.lng || null,
-        isNote: false,
-        isVisita: true,
-        isChange: false
-      });
-    });
-
-    // 3. Citas de Calendario
-    appointments.forEach(evt => {
-      events.push({
-        id: `appt-${evt.id || evt.google_event_id}`,
-        date: evt.start_time,
-        type: 'appointment',
-        title: 'Cita en Calendario',
-        text: `Evento agendado: "${evt.summary || evt.title}". Ubicación: ${evt.location || 'N/A'}. Estado: ${evt.status || 'Activo'}`,
-        author: 'Google Calendar',
-        isNote: false,
-        isVisita: true,
-        isChange: false
-      });
-    });
-
-    // 4. Notas y Cambios de la línea de tiempo (Cliente y Contacto unificados y desduplicados)
+    // 0. Parsear notas y la línea de tiempo primero para poder vincular evidencias a las visitas
     const rawCustomerNotes = currentCustomer.notes;
     const rawContactNotes = contactNotes;
 
@@ -1201,6 +1140,79 @@ export default function FichaClienteIndividualModal({
       rawTimelineEntries.push(...parsedContact.timeline);
     }
 
+    // 1. Oportunidades
+    opportunities.forEach(opp => {
+      const isLead = opp.isLead;
+      events.push({
+        id: `opp-${opp.id}`,
+        date: opp.updated_at || opp.created_at,
+        type: 'opportunity',
+        title: isLead ? 'Negociación (Bandeja)' : 'Oportunidad de Venta',
+        text: isLead 
+          ? `Trato registrado en bandeja de entrada. Estado actual: "${opp.stage?.toUpperCase()}". ${opp.description ? `Detalles: "${opp.description}"` : ''}`
+          : `Negocio registrado. Etapa actual: "${opp.stage?.toUpperCase()}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
+        author: 'Sistema de Ventas',
+        isNote: false,
+        isVisita: false,
+        isChange: true
+      });
+    });
+
+    // 2. Visitas y Minutas
+    visitas.forEach(v => {
+      const tipoReal = v.visit_type || v.tipo || 'visita';
+      const scheduledDateStr = v.timestamp_servidor && new Date(v.timestamp_servidor).getTime() !== new Date(v.created_at).getTime()
+        ? `\nFecha Programada: ${new Date(v.timestamp_servidor).toLocaleDateString('es-MX', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })}`
+        : '';
+
+      const vDateStr = v.created_at || v.timestamp_servidor;
+      const vTime = vDateStr ? new Date(vDateStr).getTime() : 0;
+
+      const matchingEvidence = rawTimelineEntries.find(n => {
+        if (!n.photoUrl) return false;
+        const nTime = n.date ? new Date(n.date).getTime() : 0;
+        return Math.abs(nTime - vTime) < 15 * 60 * 1000;
+      }) || rawTimelineEntries.find(n => n.photoUrl);
+
+      const resolvedPhotoUrl = v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || (matchingEvidence ? matchingEvidence.photoUrl : null);
+
+      events.push({
+        id: `visit-${v.id}`,
+        date: vDateStr,
+        type: tipoReal.includes('llamada') ? 'llamada' : 'visita',
+        title: `Visita Presencial / Minuta`,
+        text: `Resultado: ${v.resultado || 'Sin minuta'}.${v.obra_nombre ? `\nObra: ${v.obra_nombre}.` : ''}${scheduledDateStr}`,
+        author: v.vendedor_nombre || 'Asesor Comercial',
+        gps_lat: v.gps_lat || v.lat || null,
+        gps_lng: v.gps_lng || v.lng || null,
+        photoUrl: resolvedPhotoUrl,
+        isNote: false,
+        isVisita: true,
+        isChange: false
+      });
+    });
+
+    // 3. Citas de Calendario
+    appointments.forEach(evt => {
+      events.push({
+        id: `appt-${evt.id || evt.google_event_id}`,
+        date: evt.start_time,
+        type: 'appointment',
+        title: 'Cita en Calendario',
+        text: `Evento agendado: "${evt.summary || evt.title}". Ubicación: ${evt.location || 'N/A'}. Estado: ${evt.status || 'Activo'}`,
+        author: 'Google Calendar',
+        isNote: false,
+        isVisita: true,
+        isChange: false
+      });
+    });
+
     // Desduplicar por combinación de fecha y texto
     const seenTimeline = new Set();
     const uniqueTimelineEntries = [];
@@ -1214,12 +1226,14 @@ export default function FichaClienteIndividualModal({
 
     uniqueTimelineEntries.forEach((n, idx) => {
       const isChange = n.type === 'change' || n.type === 'status_change' || n.type === 'archive';
-      const isNote = n.type === 'nota' || n.type === 'evidence' || !n.type;
+      const isEvidence = n.type === 'evidence';
+      const isNote = n.type === 'nota' || isEvidence || !n.type;
+      const isVisita = isEvidence;
       events.push({
         id: `manual-${idx}`,
         date: n.date || currentCustomer.created_at,
         type: n.type || 'nota',
-        title: isChange ? (n.type === 'change' ? 'Cambio de Datos' : 'Cambio de Estatus') : 'Nota Comercial',
+        title: isChange ? (n.type === 'change' ? 'Cambio de Datos' : 'Cambio de Estatus') : (isEvidence ? 'Evidencia Fotográfica de Visita' : 'Nota Comercial'),
         text: n.text,
         author: n.author || 'Ejecutivo',
         created_from: n.created_from || null,
@@ -1227,8 +1241,9 @@ export default function FichaClienteIndividualModal({
         deviceInfo: n.deviceInfo || null,
         gps_lat: n.gps ? n.gps.lat : null,
         gps_lng: n.gps ? n.gps.lng : null,
+        gps_address: n.gps ? n.gps.address : null,
         isNote,
-        isVisita: false,
+        isVisita,
         isChange
       });
     });
@@ -2329,30 +2344,20 @@ export default function FichaClienteIndividualModal({
                               </div>
                             )}
 
-                            {/* Mini-mapa interactivo para visitas con coordenadas GPS */}
+                             {/* Coordenadas transformadas a dirección de Google Maps en texto plano verde (sin mapa) */}
                             {evt.gps_lat && evt.gps_lng && (
-                              <div style={{ marginTop: '10px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #e2e8f0', maxWidth: '100%', boxShadow: '0 1px 3px rgba(0,0,0,0.02)', marginBottom: '8px' }}>
-                                <iframe
-                                  width="100%"
-                                  height="140"
-                                  frameBorder="0"
-                                  style={{ border: 0, display: 'block' }}
-                                  src={`https://maps.google.com/maps?q=${evt.gps_lat},${evt.gps_lng}&z=16&output=embed`}
-                                  allowFullScreen
-                                ></iframe>
-                                <div style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.65rem', color: '#10b981', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                                    📍 Ubicación en Campo Verificada
-                                  </span>
-                                  <a
-                                    href={`https://www.google.com/maps/search/?api=1&query=${evt.gps_lat},${evt.gps_lng}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    style={{ fontSize: '0.65rem', color: '#2563eb', fontWeight: '800', textDecoration: 'none' }}
-                                  >
-                                    Abrir Maps ↗
-                                  </a>
-                                </div>
+                              <div style={{ marginTop: '8px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: '800', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  📍 Ubicación en Campo Verificada: {evt.gps_address || `Coordenadas ${parseFloat(evt.gps_lat).toFixed(5)}, ${parseFloat(evt.gps_lng).toFixed(5)}`}
+                                </span>
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${evt.gps_lat},${evt.gps_lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ fontSize: '0.72rem', color: '#10b981', fontWeight: '800', textDecoration: 'underline' }}
+                                >
+                                  (Ver en Google Maps ↗)
+                                </a>
                               </div>
                             )}
 

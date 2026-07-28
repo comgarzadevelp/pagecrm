@@ -42,6 +42,42 @@ const transitionContext = {
   damping: 30,
 };
 
+const compressImage = (file) => {
+  return new Promise((resolve) => {
+    if (!file || !file.type || !file.type.startsWith('image/')) return resolve(file);
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_DIM = 1200;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > MAX_DIM) { height = Math.round((height * MAX_DIM) / width); width = MAX_DIM; }
+        } else {
+          if (height > MAX_DIM) { width = Math.round((width * MAX_DIM) / height); height = MAX_DIM; }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name || 'photo.jpg', { type: 'image/jpeg' }));
+          } else {
+            resolve(file);
+          }
+        }, 'image/jpeg', 0.80);
+      };
+      img.onerror = () => resolve(file);
+    };
+    reader.onerror = () => resolve(file);
+  });
+};
+
 function WizardContent({ onClose, onSuccess }) {
   const { step, direction, paginate, wizardState } = useFieldFlow();
   const [status, setStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
@@ -63,6 +99,31 @@ function WizardContent({ onClose, onSuccess }) {
     try {
       let resolvedCompanyId = wizardState.empresa?.id;
       let resolvedContactId = wizardState.contacto?.id;
+
+      // BUG FIX #2 — Paso 0: Si el cliente es de SAE (company_id = 'sae-CLAVE'),
+      // necesitamos resolver el UUID real en Supabase para que la visita quede vinculada.
+      // Sin esto, la visita se crea con company_id=null y el sistema nunca resetea el
+      // contador de inactividad (el cliente sigue mostrando "Recontactar Ahora").
+      if (resolvedCompanyId && String(resolvedCompanyId).startsWith('sae-')) {
+        try {
+          setCurrentActionText('Verificando empresa en el directorio...');
+          const saeKey = String(resolvedCompanyId).replace('sae-', '').trim();
+          // Usamos el endpoint /companies/search?sae_clave= que ya soporta búsqueda exacta por clave SAE
+          const companyLookupRes = await fetch(
+            `${API_BASE}/api/crm/companies/search?sae_clave=${encodeURIComponent(saeKey)}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+          );
+          if (companyLookupRes.ok) {
+            const companyLookupData = await companyLookupRes.json();
+            if (companyLookupData.success && Array.isArray(companyLookupData.companies) && companyLookupData.companies.length > 0) {
+              resolvedCompanyId = companyLookupData.companies[0].id;
+            }
+          }
+          // Si no existe en Supabase aún, la dejamos como está (el visitaController la creará)
+        } catch (saeLookupErr) {
+          console.warn('[FieldFlow] No se pudo resolver empresa SAE en Supabase, continuando:', saeLookupErr);
+        }
+      }
 
       // 1. Crear Empresa si es nueva
       if (wizardState.empresa?.isNew) {
@@ -188,23 +249,32 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 4. Vincular contacto principal a la empresa si ambos están resueltos (garantiza vinculación en todos los casos: nuevos y existentes)
+      // 4. Vincular contacto principal a la empresa si ambos están resueltos y son UUIDs reales
       if (resolvedContactId && resolvedCompanyId) {
-        setCurrentActionText('Estableciendo relación empresa-contacto principal...');
-        const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedContactId}/link-company`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            company_id: resolvedCompanyId,
-            role: wizardState.contacto?.cargo || 'Contacto'
-          })
-        });
-        const linkData = await linkRes.json();
-        if (!linkRes.ok || !linkData.success) {
-          console.warn('Advertencia al asociar contacto a empresa:', linkData.message);
+        const isRealContact = !String(resolvedContactId).startsWith('sae-') && !String(resolvedContactId).startsWith('contact-ref-');
+        const isRealCompany = !String(resolvedCompanyId).startsWith('sae-') && !String(resolvedCompanyId).startsWith('company-ref-');
+
+        if (isRealContact && isRealCompany) {
+          try {
+            setCurrentActionText('Estableciendo relación empresa-contacto principal...');
+            const linkRes = await fetch(`${API_BASE}/api/crm/contacts/${resolvedContactId}/link-company`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                company_id: resolvedCompanyId,
+                role: wizardState.contacto?.cargo || 'Contacto'
+              })
+            });
+            const linkData = await linkRes.json();
+            if (!linkRes.ok || !linkData.success) {
+              console.warn('Advertencia al asociar contacto a empresa:', linkData.message);
+            }
+          } catch (linkErr) {
+            console.warn('Advertencia capturada al asociar contacto:', linkErr);
+          }
         }
       }
 
@@ -335,52 +405,20 @@ function WizardContent({ onClose, onSuccess }) {
         }
       }
 
-      // 3.4 Subir fotos de evidencia
-      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
-        setCurrentActionText('Subiendo fotos de evidencia fotográfica...');
-        
-        // Preferir subir a empresa si es un ID real, si no al contacto/prospecto
-        const isRealCompanyId = resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-');
-        const targetId = isRealCompanyId ? resolvedCompanyId : resolvedContactId;
-        const endpointType = isRealCompanyId ? 'companies' : 'customers';
-
-        if (targetId) {
-          for (let i = 0; i < wizardState.visita.fotos.length; i++) {
-            const foto = wizardState.visita.fotos[i];
-            const formData = new FormData();
-            formData.append('photo', foto.file);
-            formData.append('latitude', String(wizardState.visita.lat || 25.6866));
-            formData.append('longitude', String(wizardState.visita.lng || -100.3161));
-            formData.append('deviceInfo', 'FieldFlow Wizard');
-
-            try {
-              const uploadRes = await fetch(`${API_BASE}/api/crm/${endpointType}/${targetId}/evidence`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                },
-                body: formData
-              });
-              const uploadData = await uploadRes.json();
-              if (!uploadRes.ok) {
-                console.warn(`Advertencia: Error al subir la foto ${i + 1}:`, uploadData.message);
-              }
-            } catch (uploadErr) {
-              console.warn(`Error de red al subir foto ${i + 1}:`, uploadErr);
-            }
-          }
-        }
-      }
-
-      // 4. Crear la Visita Principal
+      // 4. Crear la Visita Principal (Se ejecuta PRIMERO para garantizar el registro en DB y cambio de estatus)
       setCurrentActionText('Despachando reporte de interacción de campo...');
+      
+      // Construir nota con dirección verificada si existe
+      const visitaNotaText = wizardState.visita.nota || 'Visita comercial de campo registrada.';
+      const visitaAddressText = wizardState.visita.address ? `\nUbicación verificada: ${wizardState.visita.address}` : '';
+
       const visitaPayload = {
         company_id: (resolvedCompanyId && !String(resolvedCompanyId).startsWith('company-ref-')) ? resolvedCompanyId : null,
         contact_id: resolvedContactId || null,
         obra_id: resolvedObraId || null,
         tipo: wizardState.visita.tipo === 'field_visit' ? 'visita_presencial' : (wizardState.visita.tipo === 'call' ? 'llamada' : 'reunion_virtual'),
-        resultado: wizardState.visita.nota || 'Visita comercial de campo registrada.',
-        notes: 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
+        resultado: `${visitaNotaText}${visitaAddressText}`,
+        notes: wizardState.visita.address ? `Registrado en: ${wizardState.visita.address}` : 'Registrado con coordenadas GPS verificadas vía FieldFlow.',
         gps_lat: wizardState.visita.lat || 25.68661,
         gps_lng: wizardState.visita.lng || -100.31611,
         timestamp_servidor: wizardState.visita.timestamp || new Date().toISOString()
@@ -397,6 +435,39 @@ function WizardContent({ onClose, onSuccess }) {
       const visitaData = await visitaRes.json();
       if (!visitaRes.ok || !visitaData.success) {
         throw new Error(visitaData.message || 'Error al registrar la interacción principal.');
+      }
+
+      // 4.1 Subir fotos de evidencia en segundo plano (con compresión liviana para celular)
+      if (wizardState.visita?.fotos && wizardState.visita.fotos.length > 0) {
+        setCurrentActionText('Subiendo fotos de evidencia...');
+        const finalCompanyId = visitaData.visita?.company_id || resolvedCompanyId;
+        const isRealCompanyId = finalCompanyId && !String(finalCompanyId).startsWith('company-ref-') && !String(finalCompanyId).startsWith('sae-');
+        const targetId = isRealCompanyId ? finalCompanyId : (resolvedContactId || finalCompanyId);
+        const endpointType = isRealCompanyId ? 'companies' : 'customers';
+
+        if (targetId) {
+          for (let i = 0; i < wizardState.visita.fotos.length; i++) {
+            try {
+              const foto = wizardState.visita.fotos[i];
+              // Compresión ligera en cliente para evitar congelamiento en móviles
+              const compressedFile = await compressImage(foto.file);
+
+              const formData = new FormData();
+              formData.append('photo', compressedFile);
+              formData.append('latitude', String(wizardState.visita.lat || 25.6866));
+              formData.append('longitude', String(wizardState.visita.lng || -100.3161));
+              formData.append('deviceInfo', 'FieldFlow Mobile App');
+
+              await fetch(`${API_BASE}/api/crm/${endpointType}/${targetId}/evidence`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+              }).catch(e => console.warn('Advertencia foto:', e));
+            } catch (imgErr) {
+              console.warn('Error procesando foto:', imgErr);
+            }
+          }
+        }
       }
 
       // 5. Crear las Actividades de Seguimiento (Soporta múltiples recordatorios detectados por NLP)
@@ -494,7 +565,13 @@ function WizardContent({ onClose, onSuccess }) {
       }
 
       setStatus('success');
+      // Notificar al componente padre para que refresque la lista de clientes
+      // (esto hace que los días de inactividad se recalculen y el nivel cambie correctamente)
       if (typeof onSuccess === 'function') onSuccess();
+      // Auto-cerrar el modal después de 2.5 segundos para asegurar que el refresh ocurra
+      setTimeout(() => {
+        if (typeof onClose === 'function') onClose();
+      }, 2500);
     } catch (err) {
       console.error('Error in FieldFlow dispatch:', err);
       setStatus('error');

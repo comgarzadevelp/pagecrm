@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useFieldFlow } from '../FieldFlowContext';
 import EntityResolver from '../engine/EntityResolver';
 import Fuse from 'fuse.js';
@@ -12,9 +12,10 @@ export default function Step3_ObraResolver() {
   
   const [customerObras, setCustomerObras] = useState([]);
   const [loadingCustomerObras, setLoadingCustomerObras] = useState(false);
+  const createInlineSubmitRef = useRef(null);
 
-  // Estado para indicar si se ha marcado el check de "Sin obra / Omitir"
-  const [sinObraChecked, setSinObraChecked] = useState(wizardState.obra === null && cache.obras.length > 0);
+  // Estado para indicar si se ha marcado el check de "Sin obra / Omitir" (desactivado por defecto)
+  const [sinObraChecked, setSinObraChecked] = useState(false);
 
   // Buscar obras vinculadas al cliente actual (Empresa y Contacto)
   useEffect(() => {
@@ -98,7 +99,8 @@ export default function Step3_ObraResolver() {
         if (a._source === 'company' && b._source === 'contact') return 1;
         return 0;
       });
-      setObrasResults(sortedCustomerObras.length > 0 ? sortedCustomerObras : cache.obras.slice(0, 5));
+      // Solo mostramos obras que pertenezcan a este cliente. NO mostramos obras ajenas al azar para evitar confusiones.
+      setObrasResults(sortedCustomerObras);
       setIsSearching(false);
       return;
     }
@@ -176,13 +178,23 @@ export default function Step3_ObraResolver() {
   };
 
   const handleProceed = () => {
-    // Solo avanzamos si hay obra seleccionada/creada, o si el check de Sin Obra está activo
+    // 1. Si ya hay una obra asignada o se marcó explícitamente "Omitir / Sin obra", avanzamos inmediatamente
     if (wizardState.obra || sinObraChecked) {
       paginate(1);
+      return;
+    }
+
+    // 2. Si el usuario escribió datos de la obra pero no le dio a "Confirmar", auto-confirmamos
+    if (createInlineSubmitRef.current) {
+      const isSubmitted = createInlineSubmitRef.current();
+      if (isSubmitted) {
+        setTimeout(() => paginate(1), 100);
+        return;
+      }
     }
   };
 
-  const isProceedDisabled = !wizardState.obra && !sinObraChecked;
+  const isProceedDisabled = false;
 
   return (
     <div className="fieldflow-step-container">
@@ -326,7 +338,28 @@ export default function Step3_ObraResolver() {
                 }}
               >
                 <AlertCircle style={{ width: '16px', height: '16px', color: '#d97706', flexShrink: 0 }} />
-                <span>Este cliente tiene varias obras vinculadas. Por favor, selecciona la obra a la que fuiste:</span>
+                <span>Obras registradas para este cliente ({customerObras.length}):</span>
+              </div>
+            )}
+
+            {!loadingCustomerObras && customerObras.length === 0 && query.trim().length < 2 && (
+              <div 
+                style={{
+                  background: '#f8fafc',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  textAlign: 'center',
+                  marginBottom: '1.5rem'
+                }}
+              >
+                <Landmark style={{ width: '28px', height: '28px', color: '#94a3b8', margin: '0 auto 0.5rem auto' }} />
+                <h4 style={{ fontSize: '0.88rem', fontWeight: '700', color: '#334155', margin: '0 0 0.25rem 0' }}>
+                  Este cliente no tiene obras registradas aún
+                </h4>
+                <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
+                  Busca una obra por nombre o dirección abajo, o crea una nueva para vincularla a este cliente.
+                </p>
               </div>
             )}
 
@@ -355,6 +388,7 @@ export default function Step3_ObraResolver() {
                   entityType="obra"
                   searchResults={obrasResults}
                   onResolve={handleResolveObra}
+                  submitRef={createInlineSubmitRef}
                 />
               )}
             </div>

@@ -99,6 +99,10 @@ export function FieldFlowProvider({ children }) {
             company: c.company || '',
             company_id: c.company_id ? String(c.company_id) : null,
             contact_id: c.contact_id ? String(c.contact_id) : null,
+            contact_name: c.contact_name || '',
+            contact_phone: c.contact_phone || '',
+            contact_email: c.contact_email || '',
+            position: c.position || 'Cliente',
             phone: c.phone || '',
             email: c.email || '',
             entityType: 'prospecto'
@@ -123,17 +127,28 @@ export function FieldFlowProvider({ children }) {
           });
           newCache.empresas = Array.from(uniqueCompanies.values());
 
-          // Mapeamos contactos de estos clientes
-          newCache.contactos = customersRes.customers.map(c => ({
-            id: String(c.id),
-            nombre: c.name || '',
-            tipo: 'contacto',
-            cargo: c.clasific || 'Cliente',
-            company: c.company || '',
-            phone: c.phone || '',
-            email: c.email || '',
-            entityType: 'contacto'
-          }));
+          // Mapeamos contactos REALES de estos clientes (solo los que tienen un contact_id real).
+          // IMPORTANTE: contact_id es el UUID del contacto en la tabla 'contacts', no el ID del lead.
+          // Esto permite que Step0_SmartSearch encuentre el contacto titular por su ID real.
+          const contactosSeen = new Set();
+          newCache.contactos = customersRes.customers
+            .filter(c => c.contact_id) // Solo clientes con contacto titular real vinculado
+            .map(c => {
+              const cid = String(c.contact_id);
+              if (contactosSeen.has(cid)) return null; // Evitar duplicados
+              contactosSeen.add(cid);
+              return {
+                id: cid,                   // UUID REAL del contacto (tabla contacts)
+                nombre: c.contact_name || '',
+                tipo: 'contacto',
+                cargo: c.position || 'Cliente',
+                company: c.company || '',
+                phone: c.contact_phone || c.phone || '',
+                email: c.contact_email || c.email || '',
+                entityType: 'contacto'
+              };
+            })
+            .filter(Boolean);
         }
 
         if (obrasRes.success && Array.isArray(obrasRes.obras)) {
@@ -181,6 +196,7 @@ export function FieldFlowProvider({ children }) {
     direction,
     paginate,
     wizardState,
+    setWizardState,
     updateEntity,
     cache,
     setCache,

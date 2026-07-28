@@ -7,6 +7,22 @@ const isValidEmail = (email) => {
   return emailRegex.test(cleaned);
 };
 
+const fetchAllRows = async (table, selectStr, modifyQuery = null) => {
+  let allData = [];
+  let page = 0;
+  const pageSize = 1000;
+  while (true) {
+    let query = supabase.from(table).select(selectStr).range(page * pageSize, (page + 1) * pageSize - 1);
+    if (modifyQuery) query = modifyQuery(query);
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) break;
+    allData.push(...data);
+    if (data.length < pageSize) break;
+    page++;
+  }
+  return allData;
+};
+
 // Helper to audit commercial activity to all super admins
 const notifySuperAdmins = async (companyId, title, message, type = 'info') => {
   try {
@@ -45,7 +61,7 @@ const __dirname = path.dirname(__filename);
 export const getPriceLists = async (req, res) => {
   try {
     const companyCode = req.user?.companyCode;
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, priceLists: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
@@ -125,7 +141,7 @@ export const getProducts = async (req, res) => {
       });
     }
 
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, products: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
@@ -1448,7 +1464,7 @@ export const createManualLead = async (req, res) => {
         if (exactMatch) {
           localCompanyId = exactMatch.id;
         } else {
-          const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+          const saeObj = getSaeConnection(req.user);
           if (saeObj.saeClient) {
             const { data: client } = await saeObj.saeClient
               .from(`clie${saeObj.suffix}`)
@@ -2532,12 +2548,12 @@ export const getSaeSellersList = async (req, res) => {
     }
 
     const companyCode = req.user?.companyCode;
-    if (companyCode !== 'GARZA') {
+    if (!['GARZA', 'CGG'].includes(companyCode)) {
       return res.json({ success: true, sellers: [], isDbNotConnected: true, message: 'La Base de Datos SAE de esta empresa no está conectada.' });
     }
 
     // Consultar la tabla vend03 en la base de datos espejo de Supabase
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (!saeObj.saeClient) return res.json({ success: true, vendors: [] });
     const { data, error } = await saeObj.saeClient
       .from(`vend${saeObj.suffix}`)
@@ -2599,7 +2615,7 @@ export const getCustomers = async (req, res) => {
 
       // 2. Buscar en Aspel SAE
       const saeCustomers = [];
-      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+      const saeObj = getSaeConnection(req.user);
 
       let userSaeKey = null;
       if (role === 'sales' && userId) {
@@ -2793,7 +2809,7 @@ export const getCustomers = async (req, res) => {
     }
 
     let saeCustomers = [];
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (saeKey && saeObj.saeClient) {
       const { data: saeData, error: saeError } = await saeObj.saeClient
         .from(`clie${saeObj.suffix}`)
@@ -2851,28 +2867,30 @@ export const getCustomers = async (req, res) => {
 
     // Enriquecer con conteo de oportunidades, última visita y estado de seguimiento automático de forma ultra-eficiente
     try {
-      // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads
-      const { data: localCompanies } = await supabase.from('companies').select('id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
-      const { data: localContacts } = await supabase.from('contacts').select('id, name, phone, email, whatsapp, position, phone_alt, notes');
-      const { data: contactLinks } = await supabase.from('contact_companies').select('contact_id, company_id').eq('status', 'activo');
+      // Obtener diccionarios de mapeo entre empresas locales y claves SAE/Leads (paginado para superar límite de 1000 de Supabase)
+      const localCompanies = await fetchAllRows('companies', 'id, name, alias, type, rfc, address, city, state, phone_main, email_main, status, notes');
+      const localContacts = await fetchAllRows('contacts', 'id, name, phone, email, whatsapp, position, phone_alt, notes');
+      const contactLinks = await fetchAllRows('contact_companies', 'contact_id, company_id, status');
 
       const companyUuidToSaeClave = {};
       const leadIdByCompanyId = {};
       const leadIdByContactId = {};
 
       (localCompanies || []).forEach(comp => {
+        let saeClave = null;
         if (comp.notes) {
           try {
             const parsed = JSON.parse(comp.notes.trim());
             if (parsed && parsed.sae_clave) {
-              const coEmpresa = parsed.sae_empresa || '03';
-              const userEmpresa = req.user?.sae_empresa || '03';
-              if (coEmpresa === userEmpresa) {
-                const saeClave = String(parsed.sae_clave).trim();
-                companyUuidToSaeClave[comp.id] = saeClave;
-              }
+              saeClave = String(parsed.sae_clave).trim();
             }
           } catch (e) {}
+        }
+        if (!saeClave && comp.alias && !isNaN(comp.alias.trim())) {
+          saeClave = comp.alias.trim();
+        }
+        if (saeClave) {
+          companyUuidToSaeClave[comp.id] = saeClave;
         }
       });
 
@@ -2890,19 +2908,12 @@ export const getCustomers = async (req, res) => {
         }
       });
 
-      const { data: allOpps } = await supabase
-        .from('crm_opportunities')
-        .select('id, company_id, contact_id, created_at, updated_at, stage');
+      const allOpps = await fetchAllRows('crm_opportunities', 'id, company_id, contact_id, created_at, updated_at, stage');
       
-      // Solo visitas ya ocurridas (timestamp_servidor <= ahora).
-      // Los recordatorios futuros NO cuentan como "última visita".
-      // También se incluyen visitas sin timestamp_servidor (registradas sin fecha explícita).
       const nowIso = new Date().toISOString();
-      const { data: allVisits } = await supabase
-        .from('crm_visitas')
-        .select('id, company_id, contact_id, timestamp_servidor, created_at')
-        .or(`timestamp_servidor.lte.${nowIso},timestamp_servidor.is.null`)
-        .order('timestamp_servidor', { ascending: false });
+      const allVisits = await fetchAllRows('crm_visitas', 'id, company_id, contact_id, timestamp_servidor, created_at', q =>
+        q.or(`timestamp_servidor.lte.${nowIso},timestamp_servidor.is.null`).order('timestamp_servidor', { ascending: false })
+      );
 
       const oppsCountByCompany = {};
       const oppsCountByContact = {};
@@ -3056,7 +3067,13 @@ export const getCustomers = async (req, res) => {
         // Buscar contacto y empresa locales correspondientes para enriquecer
         let contactId = null;
         let companyId = null;
-        if (cust.notes) {
+
+        // Prioridad #0: contact_id directo de la columna de la tabla (clientes CRM nativos)
+        if (cust.contact_id) {
+          contactId = cust.contact_id;
+        }
+        // Prioridad #1: Extraer de notes JSON (clientes con registro manual via FieldFlow)
+        if (!contactId && cust.notes) {
           try {
             const parsed = JSON.parse(cust.notes.trim());
             if (parsed && parsed.contact_id) contactId = parsed.contact_id;
@@ -3091,10 +3108,24 @@ export const getCustomers = async (req, res) => {
           company = (localCompanies || []).find(c => c.name && c.name.toLowerCase().trim() === cust.company.toLowerCase().trim());
         }
 
+        // Fallback #3: Si resolvimos empresa pero no contacto, buscar el contacto
+        // titular via contact_companies usando el company.id ya resuelto.
+        // Cubre el caso de clientes SAE donde Liseth Ramos está en contact_companies
+        // vinculada a la empresa de Alan Eduardo pero el registro SAE no tiene JSON en notes.
+        if (!contact && company) {
+          const companyLink = (contactLinks || []).find(l => String(l.company_id) === String(company.id));
+          if (companyLink) {
+            contact = (localContacts || []).find(c => String(c.id) === String(companyLink.contact_id));
+          }
+        }
+
         // Inyectar datos del contacto
         merged[i].contact_id = contact ? contact.id : null;
+        merged[i].contact_name = contact ? contact.name : null;
+        merged[i].contact_phone = contact ? contact.phone : null;
+        merged[i].contact_email = contact ? contact.email : null;
         merged[i].whatsapp = contact ? contact.whatsapp : (isSae ? cust.phone : null);
-        merged[i].position = contact ? contact.position : (isSae ? 'Representante B2B' : null);
+        merged[i].position = contact ? (contact.position || 'Representante B2B') : (isSae ? 'Representante B2B' : null);
         merged[i].phone_alt = contact ? contact.phone_alt : null;
         merged[i].contact_notes = contact ? contact.notes : null;
 
@@ -3102,6 +3133,10 @@ export const getCustomers = async (req, res) => {
         if (company) {
           merged[i].company_id = company.id;
           merged[i].company = company.name;
+          merged[i].company_notes = company.notes || null;
+          if (isSae && company.notes) {
+            merged[i].notes = company.notes;
+          }
           merged[i].rfc = company.rfc || cust.rfc || '';
           merged[i].calle = company.address || cust.calle || '';
           merged[i].municipio = company.city || cust.municipio || '';
@@ -3125,12 +3160,12 @@ export const getCustomers = async (req, res) => {
         let lastNoteDate = null;
 
         if (isSae) {
-          oppsCount = oppsCountByCompany[cust.id] || 0;
-          wonCount = wonCountByCompany[cust.id] || 0;
-          activeCount = activeCountByCompany[cust.id] || 0;
-          lastVisit = lastVisitByCompany[cust.id] || null;
-          lastOppDate = lastOppByCompany[cust.id] || null;
-          lastWonOppDate = lastWonOppDateByCompany[cust.id] || null;
+          oppsCount = oppsCountByCompany[cust.id] || (company ? (oppsCountByCompany[company.id] || 0) : 0) || (contact ? (oppsCountByContact[contact.id] || 0) : 0);
+          wonCount = wonCountByCompany[cust.id] || (company ? (wonCountByCompany[company.id] || 0) : 0) || (contact ? (wonCountByContact[contact.id] || 0) : 0);
+          activeCount = activeCountByCompany[cust.id] || (company ? (activeCountByCompany[company.id] || 0) : 0) || (contact ? (activeCountByContact[contact.id] || 0) : 0);
+          lastVisit = lastVisitByCompany[cust.id] || (company ? lastVisitByCompany[company.id] : null) || (contact ? lastVisitByContact[contact.id] : null) || null;
+          lastOppDate = lastOppByCompany[cust.id] || (company ? lastOppByCompany[company.id] : null) || (contact ? lastOppByContact[contact.id] : null) || null;
+          lastWonOppDate = lastWonOppDateByCompany[cust.id] || (company ? lastWonOppDateByCompany[company.id] : null) || (contact ? lastWonOppDateByContact[contact.id] : null) || null;
         } else {
           oppsCount = (contact ? (oppsCountByContact[contact.id] || 0) : 0) || (company ? (oppsCountByCompany[company.id] || 0) : 0) || oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
           wonCount = (contact ? (wonCountByContact[contact.id] || 0) : 0) || (company ? (wonCountByCompany[company.id] || 0) : 0) || wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
@@ -3404,7 +3439,7 @@ export const updateCustomer = async (req, res) => {
       const indexVal = parseInt(indexStr) - 1;
 
       if (saeClave) {
-        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        const saeObj = getSaeConnection(req.user);
         if (!saeObj.saeClient) return;
         const { data: saeConts } = await saeObj.saeClient
           .from(`contac${saeObj.suffix}`)
@@ -3473,7 +3508,7 @@ export const updateCustomer = async (req, res) => {
       if (exactMatch) {
         resolvedCompanyId = exactMatch.id;
       } else {
-        const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+        const saeObj = getSaeConnection(req.user);
         if (saeObj.saeClient) {
           const { data: client } = await saeObj.saeClient
             .from(`clie${saeObj.suffix}`)
@@ -3991,7 +4026,7 @@ export const getProfile = async (req, res) => {
   }
 };
 
-const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId) => {
+const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId, userSaeEmpresa = '03') => {
   const targetTable = isCompany ? 'companies' : 'leads';
   let realId = customerId;
   let customerData = null;
@@ -4005,7 +4040,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
       .select('id, notes')
       .like('notes', `%"sae_clave":"${saeClave}"%`);
 
-    const targetEmpresa = req.user?.sae_empresa || '03';
+    const targetEmpresa = userSaeEmpresa || '03';
     const exactMatch = (existingRecordsRaw || []).find(co => {
       try {
         const p = JSON.parse(co.notes);
@@ -4020,7 +4055,7 @@ const resolveTargetIdAndRecord = async (isCompany, customerId, userId, companyId
 
     // 2. If not found in our CRM, fetch from SAE mirror
     if (!customerData) {
-      const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+      const saeObj = getSaeConnection(req.user);
       if (!saeObj.saeClient) throw new Error('Configuración de SAE no encontrada para el usuario.');
       const { data: client, error: clientError } = await saeObj.saeClient
         .from(`clie${saeObj.suffix}`)
@@ -4245,7 +4280,7 @@ export const uploadCustomerEvidence = async (req, res) => {
         const isCompany = req.originalUrl.includes('/companies/');
         const targetTable = isCompany ? 'companies' : 'leads';
 
-        const { realId, customerData: customer } = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+        const { realId, customerData: customer } = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId, req.user?.sae_empresa);
 
         // Parser manual para no pisar notas
         let notesObj = { general: '', timeline: [] };
@@ -4361,7 +4396,7 @@ export const uploadCustomerInvoice = async (req, res) => {
 
     let resolved;
     try {
-      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId);
+      resolved = await resolveTargetIdAndRecord(isCompany, customerId, userId, req.user?.companyId, req.user?.sae_empresa);
     } catch (resolveErr) {
       return res.status(404).json({ success: false, message: resolveErr.message });
     }
@@ -4603,7 +4638,7 @@ export const getOrphanLeads = async (req, res) => {
 
     // 2. Obtener Clientes Huérfanos de la copia espejo del SAE (cve_vend es null, vacío, o '   ' o similar y status es A)
     let saeOrphans = [];
-    const saeObj = getSaeConnection({ sae_empresa: req.user?.sae_empresa });
+    const saeObj = getSaeConnection(req.user);
     if (saeObj.saeClient) {
       try {
         const { data: saeData, error: saeError } = await saeObj.saeClient

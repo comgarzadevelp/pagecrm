@@ -6,7 +6,7 @@ export const createVisita = async (req, res) => {
     const userId = req.user?.userId;
     const userCompanyId = req.user?.companyId;
     const userCompanyCode = req.user?.companyCode;
-    const { contact_id, company_id, obra_id, tipo, resultado, gps_lat, gps_lng, notas, timestamp_servidor } = req.body;
+    const { contact_id, company_id, obra_id, tipo, resultado, gps_lat, gps_lng, notas, timestamp_servidor, photo_url } = req.body;
 
     if (!tipo || !resultado) {
       return res.status(400).json({ success: false, message: 'Faltan campos obligatorios: tipo y resultado.' });

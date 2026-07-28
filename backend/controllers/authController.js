@@ -96,6 +96,12 @@ export const login = async (req, res) => {
 
     // Fallback company if tables do not exist or are not migrated
     if (!company) {
+      // Detectar si el usuario pertenece a Guadalajara desde campos adicionales del usuario
+      const userBranch = users.sucursal || users.branch || users.company_code || '';
+      const isGdlUser = selectedCompany === 'CGG' ||
+        String(userBranch).toUpperCase() === 'GDL' ||
+        String(userBranch).toUpperCase() === 'CGG';
+
       if (selectedCompany === 'RAV') {
         company = {
           id: 'company-rav-id-123456789',
@@ -103,6 +109,15 @@ export const login = async (req, res) => {
           company_code: 'RAV',
           color_primary: '#CC3333',
           color_accent: '#0087BE'
+        };
+      } else if (isGdlUser) {
+        company = {
+          id: '19d0d4a2-6c83-4059-99a9-0430ed6d27df',
+          name: 'Comercializadora Garza Guadalajara',
+          company_code: 'CGG',
+          color_primary: '#05393A',
+          color_accent: '#E0922B',
+          sae_connection: '05'
         };
       } else {
         company = {
@@ -244,4 +259,57 @@ export const loginSuperAdmin = async (req, res) => {
   }
 };
 
+// ── DIAGNÓSTICO TEMPORAL ──────────────────────────────────────────────────────
+// GET /api/auth/debug-user-info?email=xxx
+// Muestra qué datos tiene la BD para un usuario sin verificar contraseña.
+// ELIMINAR DESPUÉS DEL DIAGNÓSTICO EN PRODUCCIÓN.
+export const debugUserInfo = async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) return res.status(400).json({ error: 'email param required' });
 
+    // 1. Buscar usuario
+    const { data: user, error: userErr } = await supabase
+      .from('crm_users')
+      .select('id, name, role, company_id, additional_companies, supervisor_id')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (userErr) return res.json({ error: 'crm_users query error', detail: userErr.message });
+    if (!user) return res.json({ error: 'User not found', email });
+
+    // 2. Buscar empresa
+    let company = null;
+    let companyErr = null;
+    if (user.company_id) {
+      const { data: co, error: coErr } = await supabase
+        .from('enterprise_companies')
+        .select('id, name, company_code, sae_connection')
+        .eq('id', user.company_id)
+        .maybeSingle();
+      company = co;
+      companyErr = coErr?.message || null;
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        name: user.name,
+        role: user.role,
+        company_id: user.company_id,
+        additional_companies: user.additional_companies
+      },
+      company,
+      company_query_error: companyErr,
+      env_check: {
+        SAE_GDL_URL_set: !!process.env.SAE_GDL_SUPABASE_URL,
+        SAE_GDL_KEY_set: !!process.env.SAE_GDL_SUPABASE_SERVICE_ROLE_KEY,
+        SAE_URL_set: !!process.env.SAE_SUPABASE_URL,
+        NODE_ENV: process.env.NODE_ENV
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err.message });
+  }
+};

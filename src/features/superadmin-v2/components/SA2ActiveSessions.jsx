@@ -320,10 +320,14 @@ export default function SA2ActiveSessions() {
   useEffect(() => {
     fetchPresence();
 
-    // 1. Refetch automático cada 10 segundos para respuesta ultra-rápida
-    const timer = setInterval(fetchPresence, 10_000);
+    // 1. Polling de respaldo cada 30s solo si la pestaña está activa
+    const timer = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchPresence();
+      }
+    }, 30_000);
 
-    // 2. Refrescar instantáneamente al enfocar la pestaña del navegador
+    // 2. Refrescar al enfocar la pestaña
     const onFocus = () => fetchPresence();
     window.addEventListener('focus', onFocus);
     const onVisibilityChange = () => {
@@ -331,8 +335,10 @@ export default function SA2ActiveSessions() {
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
-    // 3. Suscripción Supabase Realtime instantánea a cambios en crm_users
+    // 3. Suscripción Supabase Realtime con Debounce de 2s para evitar ráfagas
     let channel = null;
+    let debounceTimer = null;
+
     try {
       if (supabaseMTY) {
         channel = supabaseMTY
@@ -341,7 +347,10 @@ export default function SA2ActiveSessions() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'crm_users' },
             () => {
-              fetchPresence();
+              if (debounceTimer) clearTimeout(debounceTimer);
+              debounceTimer = setTimeout(() => {
+                if (document.visibilityState === 'visible') fetchPresence();
+              }, 2000);
             }
           )
           .subscribe();
@@ -352,6 +361,7 @@ export default function SA2ActiveSessions() {
 
     return () => {
       clearInterval(timer);
+      if (debounceTimer) clearTimeout(debounceTimer);
       window.removeEventListener('focus', onFocus);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       if (channel && supabaseMTY) {
@@ -360,7 +370,7 @@ export default function SA2ActiveSessions() {
     };
   }, [fetchPresence]);
 
-  // Filtrar y ordenar
+  // Filtrar y ordenar con criterio ESTABLE (evita que las tarjetas salten/se muevan)
   const filteredAndSorted = users
     .filter(u => !u.isSelf) // Omitir el Super Admin
     .filter(u => {
@@ -369,11 +379,12 @@ export default function SA2ActiveSessions() {
       return mf && ms;
     })
     .sort((a, b) => {
+      // 1. Usuarios en línea primero
       if (a.online && !b.online) return -1;
       if (!a.online && b.online) return 1;
-      const timeA = a.lastSeenAt ? new Date(a.lastSeenAt).getTime() : 0;
-      const timeB = b.lastSeenAt ? new Date(b.lastSeenAt).getTime() : 0;
-      return timeB - timeA;
+
+      // 2. Ordenamiento estable alfabético por nombre (evita layout shift por latencias de heartbeat)
+      return (a.name || '').localeCompare(b.name || '');
     });
 
   const activeCount = users.filter(u => u.online && !u.isSelf).length;

@@ -1,4 +1,5 @@
 import { supabase, getSaeConnection } from '../supabaseClient.js';
+import { logDataMutation } from '../utils/activityLogger.js';
 
 // POST /api/crm/visitas
 export const createVisita = async (req, res) => {
@@ -190,6 +191,10 @@ export const createVisita = async (req, res) => {
       .select();
 
     if (error) throw error;
+
+    if (userId) {
+      logDataMutation(userId, 'Visita FieldFlow', tipo === 'visita_presencial' ? 'Presencial' : 'Recordatorio');
+    }
 
     res.status(201).json({ success: true, visita: data[0] });
   } catch (err) {

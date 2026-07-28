@@ -1,4 +1,5 @@
 import { supabase, getSaeConnection, cleanCompanyId } from '../supabaseClient.js';
+import { logDataMutation } from '../utils/activityLogger.js';
 
 const isValidEmail = (email) => {
   if (!email) return false;
@@ -2145,21 +2146,9 @@ export const addLeadTimelineEntry = async (req, res) => {
 
     if (updateError) throw updateError;
 
-    // Registrar evento de cambio de datos y actualizar last_seen_at del usuario activo
+    // Registrar evento de cambio de datos asignado al usuario activo que escribió la nota
     if (userId) {
-      Promise.all([
-        supabase
-          .from('crm_users')
-          .update({ last_seen_at: new Date().toISOString() })
-          .eq('id', userId),
-        supabase
-          .from('user_session_events')
-          .insert({
-            user_id: userId,
-            event_type: 'focus_restored',
-            metadata: { action: 'timeline_note', lead_id: id }
-          })
-      ]).catch(() => {});
+      logDataMutation(userId, 'Nota en Lead/Negociación', lead.name || text.trim().substring(0, 30));
     }
 
     // Notify the assigned seller if someone else (e.g. supervisor) leaves a note
@@ -2588,6 +2577,31 @@ export const getSaeSellersList = async (req, res) => {
 };
 
 // ---------- CUSTOMERS (CLIENTES DE VENDEDORES) ----------
+export const getCustomersForUserLogic = async (targetUser) => {
+  return new Promise((resolve) => {
+    const fakeReq = {
+      user: {
+        userId: targetUser.id || targetUser.userId,
+        role: 'sales',
+        companyId: targetUser.company_id || targetUser.companyId || '19d0d4a2-6c83-4059-99a9-0430ed6d27df',
+        sae_vendor_key: targetUser.sae_vendor_key,
+        name: targetUser.name
+      },
+      query: {}
+    };
+
+    const fakeRes = {
+      json: (data) => resolve(data?.customers || []),
+      status: () => fakeRes
+    };
+
+    getCustomers(fakeReq, fakeRes).catch((err) => {
+      console.error('Error delegando getCustomers:', err);
+      resolve([]);
+    });
+  });
+};
+
 export const getCustomers = async (req, res) => {
   try {
     const userId = req.user?.userId;
@@ -3223,11 +3237,10 @@ export const getCustomers = async (req, res) => {
         const activityDates = [
           lastVisit,
           lastOppDate,
-          lastNoteDate,
-          cust.created_at
+          lastNoteDate
         ].filter(Boolean).map(d => new Date(d));
 
-        const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : cust.created_at;
+        const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : null;
 
         // Calcular días de inactividad usando la fecha local de México (CST/CDT).
         // Usamos Intl.DateTimeFormat para obtener la fecha calendario correcta

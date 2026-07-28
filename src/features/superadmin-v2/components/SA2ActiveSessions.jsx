@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabaseMTY } from '../core/supabaseClient';
+import SA2UserActivityModal from './SA2UserActivityModal';
 import './SA2ActiveSessions.css';
 
 const ROLE_LABELS = {
@@ -172,7 +173,7 @@ function NotifPanel({ user, apiBase, token, onClose }) {
 }
 
 /* ── Tarjeta de usuario ────────────────────────────────────── */
-function UserCard({ user, onBell }) {
+function UserCard({ user, onBell, onSelectUser }) {
   const online     = user.online;
   const alertCount = user.unreadCount;
 
@@ -182,7 +183,12 @@ function UserCard({ user, onBell }) {
     : calculateSessionDuration(user.lastLoginAt, user.lastSeenAt);
 
   return (
-    <div className={`sas-card ${online ? 'sas-card--online' : ''}`}>
+    <div
+      className={`sas-card ${online ? 'sas-card--online' : ''}`}
+      onClick={() => onSelectUser && onSelectUser(user)}
+      style={{ cursor: 'pointer' }}
+      title="Clic para ver detalle de actividad del usuario"
+    >
       {/* Fila superior: avatar + info + campana */}
       <div className="sas-card-top">
         <div className="sas-card-avatar-wrap">
@@ -197,7 +203,10 @@ function UserCard({ user, onBell }) {
 
         <button
           className={`sas-bell-btn ${alertCount > 0 ? 'has-alerts' : ''}`}
-          onClick={() => onBell(user)}
+          onClick={(e) => {
+            e.stopPropagation();
+            onBell(user);
+          }}
           title={`Notificaciones de ${user.name}`}
         >
           <i className="fas fa-bell"></i>
@@ -284,12 +293,13 @@ function UserCard({ user, onBell }) {
 
 /* ── Componente principal ──────────────────────────────────── */
 export default function SA2ActiveSessions() {
-  const [users,     setUsers]     = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [error,     setError]     = useState(null);
-  const [filter,    setFilter]    = useState('all');
-  const [search,    setSearch]    = useState('');
-  const [openPanel, setOpenPanel] = useState(null);
+  const [users,                setUsers]                = useState([]);
+  const [loading,              setLoading]              = useState(true);
+  const [error,                setError]                = useState(null);
+  const [filter,               setFilter]               = useState('all');
+  const [search,               setSearch]               = useState('');
+  const [openPanel,            setOpenPanel]            = useState(null);
+  const [selectedUserForModal, setSelectedUserForModal] = useState(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || '';
   const token    = localStorage.getItem('token');
@@ -490,7 +500,7 @@ export default function SA2ActiveSessions() {
         {filteredAndSorted.length === 0
           ? <div className="sas-empty">Sin resultados para la búsqueda</div>
           : filteredAndSorted.map(u => (
-              <UserCard key={u.id} user={u} onBell={setOpenPanel} />
+              <UserCard key={u.id} user={u} onBell={setOpenPanel} onSelectUser={setSelectedUserForModal} />
             ))
         }
       </div>
@@ -502,6 +512,14 @@ export default function SA2ActiveSessions() {
           apiBase={API_BASE}
           token={token}
           onClose={() => setOpenPanel(null)}
+        />
+      )}
+
+      {/* Modal de Detalle de Actividad de Usuario */}
+      {selectedUserForModal && (
+        <SA2UserActivityModal
+          user={selectedUserForModal}
+          onClose={() => setSelectedUserForModal(null)}
         />
       )}
     </div>

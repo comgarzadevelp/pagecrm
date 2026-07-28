@@ -60,10 +60,28 @@ export default function CustomerTable({
             : 'Sin actividad registrada';
         }
 
+        const lastDate = cust.updated_at || cust.last_activity_date || cust.created_at;
+        const isUpdatedToday = (() => {
+          if (!lastDate) return false;
+          try {
+            const d = new Date(lastDate);
+            const today = new Date();
+            return d.getDate() === today.getDate() &&
+                   d.getMonth() === today.getMonth() &&
+                   d.getFullYear() === today.getFullYear();
+          } catch {
+            return false;
+          }
+        })();
+
         // Agregar animación de borde intermitente para tarjetas críticas de Nivel 4
-        const cardClass = nivelInfo.isAlert
+        let cardClass = nivelInfo.isAlert
           ? `${styles.card} ${styles.pulseWarning}`
           : styles.card;
+
+        if (isUpdatedToday) {
+          cardClass += ` ${styles.isTodayCard}`;
+        }
 
         const badgeClass = nivelInfo.isAlert
           ? `${styles.statusPill} ${styles.badgePulse}`

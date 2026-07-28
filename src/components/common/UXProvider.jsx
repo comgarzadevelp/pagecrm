@@ -7,7 +7,13 @@ const UXContext = createContext(null);
 export const useUX = () => {
   const context = useContext(UXContext);
   if (!context) {
-    throw new Error('useUX must be used within a UXProvider');
+    return {
+      showToast: (msg, type) => console.log(`[UX Toast ${type || 'info'}]:`, msg),
+      confirmModal: () => Promise.resolve(false),
+      promptModal: () => Promise.resolve(null),
+      loadingState: { isLoading: false },
+      setLoading: () => {}
+    };
   }
   return context;
 };

@@ -1,5 +1,6 @@
 import React from 'react';
 import SA2ActiveSessions from '../components/SA2ActiveSessions';
+import SA2AdoptionMetrics from '../components/SA2AdoptionMetrics';
 
 export default function SA2DashboardPage() {
   return (
@@ -17,6 +18,7 @@ export default function SA2DashboardPage() {
       {/* Lego Blocks container */}
       <div className="sa2-dashboard-grid-layout" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <SA2ActiveSessions />
+        <SA2AdoptionMetrics />
       </div>
     </div>
   );

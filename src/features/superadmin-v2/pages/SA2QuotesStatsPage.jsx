@@ -849,7 +849,6 @@ export default function SA2QuotesStatsPage() {
               setSelectedLead(updatedLead);
               queryClient.invalidateQueries({ queryKey: ['sa2-quotes-stats'] });
             }}
-            role="super_admin"
             sellers={uniqueSellers}
             customStages={customStages}
             API_BASE={API_BASE}

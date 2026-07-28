@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { supabaseMTY } from '../core/supabaseClient';
 import './SA2ActiveSessions.css';
 
 const ROLE_LABELS = {
@@ -16,7 +17,8 @@ const NOTIF_ICONS = {
   default:       { icon: 'fa-bell',           color: '#64748b' },
 };
 
-const ONLINE_THRESHOLD_MS = 3 * 60 * 1000; // 3 minutos
+// Threshold: 2.5 minutos de inactividad antes de considerar offline (heartbeat corre cada 60s)
+const ONLINE_THRESHOLD_MS = 2.5 * 60 * 1000;
 
 function isOnline(lastSeenAt) {
   if (!lastSeenAt) return false;
@@ -89,7 +91,7 @@ function NotifPanel({ user, apiBase, token, onClose }) {
       } catch { setNotifs([]); }
       finally   { setLoading(false); }
     })();
-  }, [user.id]);
+  }, [user.id, apiBase, token]);
 
   useEffect(() => {
     const h = (e) => { if (panelRef.current && !panelRef.current.contains(e.target)) onClose(); };
@@ -147,7 +149,7 @@ function NotifPanel({ user, apiBase, token, onClose }) {
 
 /* ── Tarjeta de usuario ────────────────────────────────────── */
 function UserCard({ user, onBell }) {
-  const online    = user.online;
+  const online     = user.online;
   const alertCount = user.unreadCount;
 
   return (
@@ -191,6 +193,8 @@ function UserCard({ user, onBell }) {
       {/* Sección sesión */}
       <div className="sas-card-session">
         <p className="sas-session-label">Sesión Actual</p>
+
+        {/* Fila 1: Sesión activa / Último acceso */}
         <div className="sas-session-row">
           <i className="far fa-calendar"></i>
           <span>
@@ -201,6 +205,18 @@ function UserCard({ user, onBell }) {
               : 'Sin sesión registrada'}
           </span>
         </div>
+
+        {/* Fila 2: Último Inicio de Sesión explícito */}
+        {user.lastLoginAt && (
+          <div className="sas-session-row">
+            <i className="fas fa-sign-in-alt"></i>
+            <span>
+              Login: {formatTime(user.lastLoginAt)} ({timeAgo(user.lastLoginAt)})
+            </span>
+          </div>
+        )}
+
+        {/* Fila 3: Actualización / Actividad */}
         <div className="sas-session-row">
           <i className="far fa-clock"></i>
           <span>
@@ -226,67 +242,123 @@ export default function SA2ActiveSessions() {
   const API_BASE = import.meta.env.VITE_API_URL || '';
   const token    = localStorage.getItem('token');
 
-  // Re-render cada minuto para actualizar estado online
-  useEffect(() => {
-    const t = setInterval(() => setUsers(u => [...u]), 60_000);
-    return () => clearInterval(t);
-  }, []);
+  // Carga consolidada utilizando el endpoint /api/sa/user-presence (resuelve antipatrón N+1)
+  const fetchPresence = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/sa/user-presence`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/sa/sellers`, {
+      // Fallback a /api/sa/sellers si la migración aún no ha sido aplicada en Supabase
+      if (!res.ok) {
+        const fallbackRes = await fetch(`${API_BASE}/api/sa/sellers`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        if (!res.ok) throw new Error('Error al cargar usuarios');
-        const data = await res.json();
-
-        // Decodificar el ID de Super Admin actual desde el token
+        if (!fallbackRes.ok) throw new Error('Error al cargar presencia de usuarios');
+        const fallbackData = await fallbackRes.json();
+        
         let currentUserId = null;
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
           currentUserId = payload.userId || null;
         } catch {}
 
-        const enriched = await Promise.all(
-          (data.sellers || []).map(async (u) => {
-            let unreadCount = 0;
-            try {
-              const nr = await fetch(`${API_BASE}/api/sa/user-notifications/${u.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-              });
-              if (nr.ok) {
-                const nd = await nr.json();
-                unreadCount = (nd.notifications || []).filter(n => !n.read).length;
-              }
-            } catch { /* silencioso */ }
-
-            return {
-              id:          u.id,
-              name:        u.name,
-              email:       u.email,
-              role:        ROLE_LABELS[u.role] || u.role,
-              rawRole:     u.role,
-              position:    u.position || null,
-              avatarUrl:   buildAvatarUrl(u.avatar_url, API_BASE),
-              online:      isOnline(u.last_seen_at),
-              lastSeenAt:  u.last_seen_at,
-              createdAt:   u.created_at,
-              lastUpdated: u.updated_at,
-              unreadCount,
-              isSelf:      u.id === currentUserId || u.role === 'super_admin'
-            };
-          })
-        );
-
-        setUsers(enriched);
-      } catch (e) {
-        setError(e.message);
-      } finally {
-        setLoading(false);
+        const fallbackEnriched = (fallbackData.sellers || []).map(u => ({
+          id:          u.id,
+          name:        u.name,
+          email:       u.email,
+          role:        ROLE_LABELS[u.role] || u.role,
+          rawRole:     u.role,
+          position:    u.position || null,
+          avatarUrl:   buildAvatarUrl(u.avatar_url, API_BASE),
+          online:      isOnline(u.last_seen_at),
+          lastSeenAt:  u.last_seen_at,
+          lastLoginAt: u.last_login_at || null,
+          lastLogoutAt:u.last_logout_at || null,
+          createdAt:   u.created_at,
+          unreadCount: 0,
+          isSelf:      u.id === currentUserId || u.role === 'super_admin'
+        }));
+        setUsers(fallbackEnriched);
+        return;
       }
-    })();
+
+      const data = await res.json();
+
+      let currentUserId = null;
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        currentUserId = payload.userId || null;
+      } catch {}
+
+      const enriched = (data.users || []).map(u => ({
+        id:          u.id,
+        name:        u.name,
+        email:       u.email,
+        role:        ROLE_LABELS[u.role] || u.role,
+        rawRole:     u.role,
+        position:    u.position || null,
+        avatarUrl:   buildAvatarUrl(u.avatar_url, API_BASE),
+        online:      isOnline(u.last_seen_at),
+        lastSeenAt:  u.last_seen_at,
+        lastLoginAt: u.last_login_at || null,
+        lastLogoutAt:u.last_logout_at || null,
+        createdAt:   u.created_at,
+        unreadCount: u.unreadCount || 0,
+        isSelf:      u.id === currentUserId || u.role === 'super_admin'
+      }));
+
+      setUsers(enriched);
+      setError(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   }, [API_BASE, token]);
+
+  useEffect(() => {
+    fetchPresence();
+
+    // 1. Refetch automático cada 10 segundos para respuesta ultra-rápida
+    const timer = setInterval(fetchPresence, 10_000);
+
+    // 2. Refrescar instantáneamente al enfocar la pestaña del navegador
+    const onFocus = () => fetchPresence();
+    window.addEventListener('focus', onFocus);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') fetchPresence();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    // 3. Suscripción Supabase Realtime instantánea a cambios en crm_users
+    let channel = null;
+    try {
+      if (supabaseMTY) {
+        channel = supabaseMTY
+          .channel('sa2-presence-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'crm_users' },
+            () => {
+              fetchPresence();
+            }
+          )
+          .subscribe();
+      }
+    } catch (e) {
+      console.warn('Realtime subscription warning:', e.message);
+    }
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      if (channel && supabaseMTY) {
+        supabaseMTY.removeChannel(channel);
+      }
+    };
+  }, [fetchPresence]);
 
   // Filtrar y ordenar
   const filteredAndSorted = users

@@ -145,6 +145,27 @@ export const login = async (req, res) => {
       JWT_SECRET, 
       { expiresIn: '8h' }
     );
+
+    // Fire-and-forget: Registrar inicio de sesión y evento sin bloquear respuesta
+    Promise.all([
+      supabase
+        .from('crm_users')
+        .update({
+          last_login_at: new Date().toISOString(),
+          last_seen_at:  new Date().toISOString(),
+        })
+        .eq('id', users.id),
+
+      supabase
+        .from('user_session_events')
+        .insert({
+          user_id:    users.id,
+          event_type: 'login',
+          client_ip:  req.ip || null,
+          user_agent: req.headers['user-agent'] || null,
+          metadata:   { company_code: company.company_code }
+        })
+    ]).catch(err => console.warn('[SessionTracking] Login event insert failed:', err.message));
     
     return res.json({ 
       success: true, 
@@ -241,6 +262,27 @@ export const loginSuperAdmin = async (req, res) => {
       JWT_SECRET, 
       { expiresIn: '8h' }
     );
+
+    // Fire-and-forget: Registrar inicio de sesión y evento para Super Admin
+    Promise.all([
+      supabase
+        .from('crm_users')
+        .update({
+          last_login_at: new Date().toISOString(),
+          last_seen_at:  new Date().toISOString(),
+        })
+        .eq('id', users.id),
+
+      supabase
+        .from('user_session_events')
+        .insert({
+          user_id:    users.id,
+          event_type: 'login',
+          client_ip:  req.ip || null,
+          user_agent: req.headers['user-agent'] || null,
+          metadata:   { company_code: company.company_code, is_superadmin: true }
+        })
+    ]).catch(err => console.warn('[SessionTracking] SuperAdmin login event insert failed:', err.message));
     
     return res.json({ 
       success: true, 

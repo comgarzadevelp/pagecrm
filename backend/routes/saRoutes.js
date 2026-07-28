@@ -79,4 +79,58 @@ router.get('/user-notifications/:userId/all', async (req, res) => {
   }
 });
 
+// GET /api/sa/user-presence – Devuelve usuarios con estado de presencia y contador de notificaciones (consolida N+1)
+router.get('/user-presence', async (req, res) => {
+  try {
+    const { data: users, error: usersErr } = await supabase
+      .from('crm_users')
+      .select(`
+        id, name, email, role, position, avatar_url,
+        last_seen_at, last_login_at, last_logout_at,
+        session_count, created_at
+      `)
+      .order('created_at', { ascending: false });
+
+    if (usersErr) throw usersErr;
+
+    // Notificaciones no leídas de los últimos 7 días
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+    const { data: notifs, error: notifsErr } = await supabase
+      .from('crm_notifications')
+      .select('user_id, read')
+      .eq('read', false)
+      .gte('created_at', sevenDaysAgo);
+
+    const unreadMap = {};
+    (notifs || []).forEach(n => {
+      unreadMap[n.user_id] = (unreadMap[n.user_id] || 0) + 1;
+    });
+
+    const enriched = (users || []).map(u => ({
+      ...u,
+      unreadCount: unreadMap[u.id] || 0
+    }));
+
+    res.json({ success: true, users: enriched, fetchedAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('[user-presence] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/sa/adoption-metrics – Devuelve métricas de adopción por usuario desde la vista user_adoption_metrics
+router.get('/adoption-metrics', async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_adoption_metrics')
+      .select('*');
+
+    if (error) throw error;
+    res.json({ success: true, metrics: data || [] });
+  } catch (err) {
+    console.error('[adoption-metrics] Error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 export default router;

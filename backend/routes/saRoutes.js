@@ -403,7 +403,8 @@ router.get('/user-activity-detail/:userId', async (req, res) => {
       sessionLogs: sessionEventsRes.data || [],
       auditLogs: sortedAuditLogs,
       userLeads: userCustomers,
-      userCustomers: userCustomers
+      userCustomers: userCustomers,
+      userCompanies: companiesRes.data || []   // ← empresas con notas y fotos de evidencia
     });
   } catch (err) {
     console.error('[user-activity-detail] Error:', err.message);

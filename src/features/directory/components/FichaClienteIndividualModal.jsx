@@ -4,6 +4,7 @@ import { useUX } from '../../../components/common/UXProvider';
 import B2BContactManager from './B2BContactManager';
 import FichaContactoModal from './FichaContactoModal';
 import FichaEmpresaModal from './FichaEmpresaModal';
+import FotoEvidencia from './FotoEvidencia';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import '../styles/FichaClienteIndividualModal.css';
@@ -95,6 +96,8 @@ export default function FichaClienteIndividualModal({
   const [quickNoteText, setQuickNoteText] = useState('');
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [contactNotes, setContactNotes] = useState(null);
+  // Notas (timeline) de la empresa vinculada — donde viven las fotos de evidencia FieldFlow
+  const [companyNotes, setCompanyNotes] = useState(null);
 
   // Modal de descarte
   const [showDiscardModal, setShowDiscardModal] = useState(false);
@@ -537,6 +540,9 @@ export default function FichaClienteIndividualModal({
       
       if (profileValue === 'b2b' && targetCompanyId) {
         fetchCompanyContacts(targetCompanyId);
+      } else if (targetCompanyId && !String(targetCompanyId).startsWith('sae-') && !String(targetCompanyId).startsWith('company-')) {
+        // Para b2c con empresa vinculada: cargar notes para obtener evidencias fotogr\u00e1ficas
+        fetchCompanyContacts(targetCompanyId);
       }
 
       if (targetContactId) {
@@ -631,6 +637,10 @@ export default function FichaClienteIndividualModal({
       const data = await res.json();
       if (res.ok && data.success) {
         setCompanyContacts(data.linkedContacts || []);
+        // Guardar notas de la empresa para acceder al timeline de evidencias fotográficas
+        if (data.company?.notes) {
+          setCompanyNotes(data.company.notes);
+        }
       }
     } catch (err) {
       console.error('Error fetching company details:', err);
@@ -1139,6 +1149,15 @@ export default function FichaClienteIndividualModal({
     if (parsedContact && parsedContact.timeline && Array.isArray(parsedContact.timeline)) {
       rawTimelineEntries.push(...parsedContact.timeline);
     }
+    // Incluir timeline de la empresa vinculada (donde FieldFlow guarda las fotos de evidencia)
+    if (companyNotes) {
+      try {
+        const parsedCompany = typeof companyNotes === 'string' ? JSON.parse(companyNotes) : companyNotes;
+        if (parsedCompany?.timeline && Array.isArray(parsedCompany.timeline)) {
+          rawTimelineEntries.push(...parsedCompany.timeline);
+        }
+      } catch {}
+    }
 
     // 1. Oportunidades
     opportunities.forEach(opp => {
@@ -1174,13 +1193,9 @@ export default function FichaClienteIndividualModal({
       const vDateStr = v.created_at || v.timestamp_servidor;
       const vTime = vDateStr ? new Date(vDateStr).getTime() : 0;
 
-      const matchingEvidence = rawTimelineEntries.find(n => {
-        if (!n.photoUrl) return false;
-        const nTime = n.date ? new Date(n.date).getTime() : 0;
-        return Math.abs(nTime - vTime) < 15 * 60 * 1000;
-      }) || rawTimelineEntries.find(n => n.photoUrl);
-
-      const resolvedPhotoUrl = v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || (matchingEvidence ? matchingEvidence.photoUrl : null);
+      const resolvedPhotoUrl = v.photo_url || v.photoUrl || (v.fotos && v.fotos[0]) || null;
+      // Nota: las evidencias fotogr\u00e1ficas de FieldFlow viven en rawTimelineEntries como tipo 'evidence'
+      // y se renderizan como eventos propios m\u00e1s abajo. No las vinculamos a la visita para evitar duplicados.
 
       events.push({
         id: `visit-${v.id}`,
@@ -1292,7 +1307,7 @@ export default function FichaClienteIndividualModal({
 
     // Ordenar cronológicamente (más reciente primero)
     return events.sort((a, b) => new Date(b.date) - new Date(a.date));
-  }, [opportunities, visitas, appointments, currentCustomer.notes, currentCustomer.created_at, contactNotes]);
+  }, [opportunities, visitas, appointments, currentCustomer.notes, currentCustomer.created_at, contactNotes, companyNotes]);
 
   // --- RENDERIZADO ---
 
@@ -2298,6 +2313,17 @@ export default function FichaClienteIndividualModal({
                 return (
                   <div className="timeline-track" style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '4px' }}>
                     {filteredItems.map((evt, idx) => {
+                      // Visitas con foto o evidencias fotográficas → usar FotoEvidencia
+                      if (evt.isEvidence || evt.photoUrl || evt.photo_url) {
+                        return (
+                          <FotoEvidencia
+                            key={evt.id || idx}
+                            evidence={evt}
+                            onPhotoClick={(url) => window.open(url, '_blank')}
+                          />
+                        );
+                      }
+
                       const nodeClass = `timeline-node timeline-node-${evt.isVisita ? 'visit' : (evt.isChange ? 'manual' : 'manual')}`;
                       
                       let iconName = 'fa-comment-alt';
@@ -2331,18 +2357,6 @@ export default function FichaClienteIndividualModal({
                               </span>
                             </div>
                             <p className="timeline-node-text" style={{ whiteSpace: 'pre-wrap' }}>{evt.text}</p>
-
-                            {/* Evidencia fotográfica */}
-                            {evt.photoUrl && (
-                              <div style={{ marginTop: '10px', marginBottom: '10px' }}>
-                                <img src={evt.photoUrl} alt="Evidencia de visita" style={{ maxWidth: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }} />
-                                {evt.deviceInfo && (
-                                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '6px', fontStyle: 'italic' }}>
-                                    <i className="fas fa-camera" /> Capturado desde: {evt.deviceInfo}
-                                  </div>
-                                )}
-                              </div>
-                            )}
 
                              {/* Coordenadas transformadas a dirección de Google Maps en texto plano verde (sin mapa) */}
                             {evt.gps_lat && evt.gps_lng && (

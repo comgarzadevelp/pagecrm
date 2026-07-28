@@ -79,7 +79,7 @@ router.get('/user-notifications/:userId/all', async (req, res) => {
   }
 });
 
-// GET /api/sa/user-presence – Devuelve usuarios con estado de presencia y contador de notificaciones (consolida N+1)
+// GET /api/sa/user-presence – Devuelve usuarios con estado de presencia, contador de notificaciones y última actividad relevante de negocio
 router.get('/user-presence', async (req, res) => {
   try {
     const { data: users, error: usersErr } = await supabase
@@ -93,22 +93,66 @@ router.get('/user-presence', async (req, res) => {
 
     if (usersErr) throw usersErr;
 
-    // Notificaciones no leídas de los últimos 7 días
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-    const { data: notifs, error: notifsErr } = await supabase
-      .from('crm_notifications')
-      .select('user_id, read')
-      .eq('read', false)
-      .gte('created_at', sevenDaysAgo);
 
+    // Promesas paralelas para notificaciones y actividad de negocio
+    const [notifsRes, visitasRes, oppsRes, leadsRes] = await Promise.all([
+      supabase
+        .from('crm_notifications')
+        .select('user_id, read')
+        .eq('read', false)
+        .gte('created_at', sevenDaysAgo),
+      supabase
+        .from('crm_visitas')
+        .select('user_id, timestamp_servidor')
+        .order('timestamp_servidor', { ascending: false })
+        .limit(100),
+      supabase
+        .from('crm_opportunities')
+        .select('assigned_to, updated_at, title')
+        .order('updated_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('leads')
+        .select('assigned_to, updated_at, name')
+        .order('updated_at', { ascending: false })
+        .limit(100)
+    ]);
+
+    // Mapa de notificaciones unread
     const unreadMap = {};
-    (notifs || []).forEach(n => {
+    (notifsRes.data || []).forEach(n => {
       unreadMap[n.user_id] = (unreadMap[n.user_id] || 0) + 1;
     });
 
+    // Mapa de última actividad de datos relevante por usuario
+    const lastDataUpdateMap = {};
+
+    const processActivity = (items, userIdKey, timeKey, label) => {
+      (items || []).forEach(item => {
+        const uid = item[userIdKey];
+        const timeStr = item[timeKey];
+        if (!uid || !timeStr) return;
+        const timestamp = new Date(timeStr).getTime();
+        if (!lastDataUpdateMap[uid] || timestamp > lastDataUpdateMap[uid].timestamp) {
+          lastDataUpdateMap[uid] = {
+            timestamp,
+            iso: timeStr,
+            label,
+            detail: item.title || item.name || null
+          };
+        }
+      });
+    };
+
+    processActivity(visitasRes.data, 'user_id', 'timestamp_servidor', 'Visita FieldFlow');
+    processActivity(oppsRes.data, 'assigned_to', 'updated_at', 'Cotización/Venta');
+    processActivity(leadsRes.data, 'assigned_to', 'updated_at', 'Lead/Cliente');
+
     const enriched = (users || []).map(u => ({
       ...u,
-      unreadCount: unreadMap[u.id] || 0
+      unreadCount: unreadMap[u.id] || 0,
+      lastDataUpdate: lastDataUpdateMap[u.id] || null
     }));
 
     res.json({ success: true, users: enriched, fetchedAt: new Date().toISOString() });

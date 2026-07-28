@@ -40,6 +40,16 @@ function formatTime(isoString) {
   } catch { return null; }
 }
 
+function formatFullDateTime(isoString) {
+  if (!isoString) return null;
+  try {
+    const d = new Date(isoString);
+    const dateStr = d.toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const timeStr = d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+    return `${dateStr} ${timeStr}`;
+  } catch { return null; }
+}
+
 function timeAgo(isoString) {
   if (!isoString) return null;
   const diff  = Date.now() - new Date(isoString).getTime();
@@ -50,6 +60,20 @@ function timeAgo(isoString) {
   if (mins < 60)  return `Hace ${mins}m`;
   if (hours < 24) return `Hace ${hours}h`;
   return `Hace ${days}d`;
+}
+
+function calculateSessionDuration(startIso, endIso) {
+  if (!startIso || !endIso) return null;
+  const startTime = new Date(startIso).getTime();
+  const endTime = new Date(endIso).getTime();
+  const diffMs = Math.max(0, endTime - startTime);
+  const mins = Math.floor(diffMs / 60000);
+  const hours = Math.floor(mins / 60);
+
+  if (mins < 1) return 'Menos de 1 min';
+  if (hours < 1) return `${mins} min`;
+  const remainingMins = mins % 60;
+  return `${hours}h ${remainingMins}m`;
 }
 
 /* ── Avatar con fallback robusto ──────────────────────────── */
@@ -152,6 +176,11 @@ function UserCard({ user, onBell }) {
   const online     = user.online;
   const alertCount = user.unreadCount;
 
+  // Duración estimada de la sesión
+  const sessionDuration = online
+    ? calculateSessionDuration(user.lastLoginAt || user.lastSeenAt, new Date().toISOString())
+    : calculateSessionDuration(user.lastLoginAt, user.lastSeenAt);
+
   return (
     <div className={`sas-card ${online ? 'sas-card--online' : ''}`}>
       {/* Fila superior: avatar + info + campana */}
@@ -190,41 +219,64 @@ function UserCard({ user, onBell }) {
         </span>
       </div>
 
-      {/* Sección sesión */}
+      {/* Sección información de sesión descriptiva, literal y relevante */}
       <div className="sas-card-session">
-        <p className="sas-session-label">Sesión Actual</p>
+        <p className="sas-session-label">{online ? 'Sesión En Curso' : 'Última Sesión'}</p>
 
-        {/* Fila 1: Sesión activa / Último acceso */}
+        {/* Fila 1: Última Conexión con Fecha y Hora completa */}
         <div className="sas-session-row">
-          <i className="far fa-calendar"></i>
+          <i className="far fa-calendar-alt" style={{ color: '#0284c7' }}></i>
           <span>
             {user.lastSeenAt
               ? online
-                ? `Sesión activa: ${formatTime(user.lastSeenAt)}`
-                : `Último acceso: ${formatTime(user.lastSeenAt)} (${timeAgo(user.lastSeenAt)})`
-              : 'Sin sesión registrada'}
+                ? `Última conexión: ${formatFullDateTime(user.lastSeenAt)} (${timeAgo(user.lastSeenAt)})`
+                : `Se desconectó: ${formatFullDateTime(user.lastSeenAt)} (${timeAgo(user.lastSeenAt)})`
+              : 'Sin conexión registrada'}
           </span>
         </div>
 
-        {/* Fila 2: Último Inicio de Sesión explícito */}
+        {/* Fila 2: Hora de Login (Entró a la App) */}
         {user.lastLoginAt && (
           <div className="sas-session-row">
-            <i className="fas fa-sign-in-alt"></i>
+            <i className="fas fa-sign-in-alt" style={{ color: '#6366f1' }}></i>
             <span>
-              Login: {formatTime(user.lastLoginAt)} ({timeAgo(user.lastLoginAt)})
+              Ingresó: <strong>{formatFullDateTime(user.lastLoginAt)}</strong> ({timeAgo(user.lastLoginAt)})
             </span>
           </div>
         )}
 
-        {/* Fila 3: Actualización / Actividad */}
+        {/* Fila 3: Uso activo / Estado de uso */}
+        {online && (
+          <div className="sas-session-row">
+            <i className="fas fa-desktop" style={{ color: '#22c55e' }}></i>
+            <span>Uso activo: <strong>En tiempo real</strong></span>
+          </div>
+        )}
+
+        {/* Fila 4: Última actualización de datos relevante (Ventas, FieldFlow, Leads) */}
         <div className="sas-session-row">
-          <i className="far fa-clock"></i>
+          <i className="fas fa-database" style={{ color: '#ec4899' }}></i>
           <span>
-            {user.lastSeenAt
-              ? `Actualización: ${timeAgo(user.lastSeenAt)}`
-              : 'Sin actividad registrada'}
+            {user.lastDataUpdate ? (
+              <>
+                Último cambio de datos: <strong>{user.lastDataUpdate.label}</strong> ({timeAgo(user.lastDataUpdate.iso)})
+              </>
+            ) : (
+              <>Último cambio de datos: <span style={{ color: '#94a3b8' }}>Sin cambios hoy</span></>
+            )}
           </span>
         </div>
+
+        {/* Fila 5: Duración / Permanencia acumulada */}
+        {sessionDuration && (
+          <div className="sas-session-row">
+            <i className="far fa-clock" style={{ color: '#f59e0b' }}></i>
+            <span>
+              {online ? 'Tiempo activo: ' : 'Duración sesión: '}
+              <strong>{sessionDuration}</strong>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

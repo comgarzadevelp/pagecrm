@@ -39,8 +39,12 @@ Write-Host "   Subiendo backend/.env al servidor..." -ForegroundColor Yellow
 scp backend/.env "${ServerDest}:/var/www/garza_crm_page/backend/.env"
 Write-Host "   [OK] backend/.env actualizado en produccion" -ForegroundColor Green
 
-# 4. Recargar el clúster de PM2 con las nuevas variables de entorno y restablecer permisos
-Write-Host "`n[4/4] Recargando clúster de PM2 (con --update-env) y restableciendo permisos..." -ForegroundColor Yellow
+# 4. Instalar nuevas dependencias en el servidor
+Write-Host "`n[4/5] Instalando dependencias nuevas en el Backend..." -ForegroundColor Yellow
+ssh $ServerDest "cd /var/www/garza_crm_page/backend && npm install"
+
+# 5. Recargar el clúster de PM2 con las nuevas variables de entorno y restablecer permisos
+Write-Host "`n[5/5] Recargando clúster de PM2 (con --update-env) y restableciendo permisos..." -ForegroundColor Yellow
 ssh $ServerDest "pm2 reload garza-backend --update-env && chown -R www-data:www-data /var/www/garza_crm_page && chmod -R 755 /var/www/garza_crm_page"
 
 Write-Host "`n=============================================" -ForegroundColor Green

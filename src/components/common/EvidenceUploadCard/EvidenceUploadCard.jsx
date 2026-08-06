@@ -35,11 +35,11 @@ export default function EvidenceUploadCard({
         }
 
         navigator.geolocation.getCurrentPosition(
-          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }),
           (err) => {
             console.warn('High accuracy GPS failed, trying low accuracy...', err);
             navigator.geolocation.getCurrentPosition(
-              (pos2) => resolve({ lat: pos2.coords.latitude, lng: pos2.coords.longitude }),
+              (pos2) => resolve({ lat: pos2.coords.latitude, lng: pos2.coords.longitude, accuracy: pos2.coords.accuracy }),
               (err2) => reject(err),
               { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 }
             );
@@ -185,6 +185,9 @@ export default function EvidenceUploadCard({
     formData.append('text', evidenceText.trim() || 'Evidencia fotográfica de visita en sitio.');
     formData.append('latitude', acquiredCoords.lat.toString());
     formData.append('longitude', acquiredCoords.lng.toString());
+    if (acquiredCoords.accuracy) {
+      formData.append('accuracy', acquiredCoords.accuracy.toString());
+    }
     formData.append('deviceInfo', deviceName);
 
     // If using real async upload, we append URLs. Otherwise we append the actual files to support backward compatibility.
@@ -254,6 +257,7 @@ export default function EvidenceUploadCard({
   const allFilesSuccess = evidenceFiles.length > 0 && evidenceFiles.every(f => f.status === 'success');
   const anyUploading = evidenceFiles.some(f => f.status === 'uploading' || f.status === 'pending');
   const isSubmitDisabled = submittingEvidence || !acquiredCoords || evidenceFiles.length === 0 || anyUploading;
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
   return (
     <div className="evidence-upload-card">
@@ -273,6 +277,7 @@ export default function EvidenceUploadCard({
               type="file" 
               multiple 
               accept="image/*" 
+              {...(isMobile ? { capture: "environment" } : {})}
               onChange={handleFilesSelected} 
               style={{ display: 'none' }} 
             />

@@ -6,7 +6,7 @@ import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociaci
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function ArchivoContactos() {
-  const [activeSubTab, setActiveSubTab] = useState('contacts'); // 'contacts' | 'companies' | 'opportunities'
+  const [activeSubTab, setActiveSubTab] = useState('customers'); // 'customers' | 'contacts' | 'companies' | 'opportunities'
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +63,13 @@ export default function ArchivoContactos() {
           l => l.status?.toLowerCase() === 'descartado' || l.status?.toLowerCase() === 'descartada'
         );
         setItems(discarded);
+      } else if (activeSubTab === 'customers') {
+        const res = await fetch(`${API_BASE}/api/crm/customers/archived`, {
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message);
+        setItems(data.customers || []);
       }
     } catch (err) {
       setError(err.message);
@@ -131,6 +138,25 @@ export default function ArchivoContactos() {
     }
   };
 
+  const handleRestoreCustomer = async (customerId) => {
+    if (!window.confirm('¿Deseas restaurar este cliente y sus entidades vinculadas (empresa, contacto) al flujo activo? (Las negociaciones descartadas permanecerán descartadas por seguridad).')) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/customers/${customerId}/restore`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token()}` }
+      });
+      const resJson = await res.json();
+      if (res.ok && resJson.success) {
+        fetchArchivedItems();
+      } else {
+        alert('Error al restaurar: ' + resJson.message);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error de red al restaurar.');
+    }
+  };
+
   return (
     <section className="crm-table-container glass animate-fade-in">
       {/* HEADER */}
@@ -150,7 +176,14 @@ export default function ArchivoContactos() {
       </div>
 
       {/* SUB-TABS SELECTOR */}
-      <div className="modal-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
+      <div className="modal-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
+        <button 
+          className={`modal-tab-btn ${activeSubTab === 'customers' ? 'active' : ''}`} 
+          onClick={() => { setActiveSubTab('customers'); setSearch(''); }}
+          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
+        >
+          🧾 Clientes Archivados
+        </button>
         <button 
           className={`modal-tab-btn ${activeSubTab === 'contacts' ? 'active' : ''}`} 
           onClick={() => { setActiveSubTab('contacts'); setSearch(''); }}
@@ -181,7 +214,9 @@ export default function ArchivoContactos() {
           <input 
             type="text" 
             placeholder={
-              activeSubTab === 'contacts' 
+              activeSubTab === 'customers'
+                ? "Buscar en clientes archivados..."
+                : activeSubTab === 'contacts' 
                 ? "Buscar en contactos archivados..." 
                 : activeSubTab === 'companies' 
                 ? "Buscar en empresas archivadas..." 
@@ -204,10 +239,62 @@ export default function ArchivoContactos() {
       ) : filtered.length === 0 ? (
         <div className="crm-empty-placeholder">
           <i className="fas fa-archive" style={{ fontSize: '3rem', opacity: 0.3, marginBottom: '1rem' }} />
-          <p>El archivo histórico de {activeSubTab === 'contacts' ? 'contactos' : activeSubTab === 'companies' ? 'empresas' : 'negociaciones'} está vacío.</p>
+          <p>El archivo histórico de {activeSubTab === 'customers' ? 'clientes' : activeSubTab === 'contacts' ? 'contactos' : activeSubTab === 'companies' ? 'empresas' : 'negociaciones'} está vacío.</p>
           <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
             Los registros del SAE que decidas depurar aparecerán aquí.
           </span>
+        </div>
+      ) : activeSubTab === 'customers' ? (
+        <div className="contacts-cards-grid">
+          {filtered.map(c => (
+            <div className="contact-card glass archived-card" key={c.id} style={{ opacity: 0.9, borderLeft: '4px solid #f59e0b', cursor: 'default' }}>
+              <div className="contact-card-avatar" style={{ background: '#fef3c7', color: '#d97706' }}>
+                <i className="fas fa-users" />
+              </div>
+              <div className="contact-card-body" style={{ width: '100%' }}>
+                <h4 className="contact-card-name" style={{ color: '#475569', marginBottom: '4px' }}>
+                  {c.company ? `${c.company} - ${c.name || 'Cliente'}` : (c.name || 'Cliente')}
+                </h4>
+                {c.email && <span className="contact-card-position">{c.email}</span>}
+                {c.phone && <span className="contact-card-position" style={{ display: 'block', marginTop: '2px' }}><i className="fas fa-phone-alt" style={{ marginRight: '4px' }} /> {c.phone}</span>}
+                
+                <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.8rem' }}>
+                  <div style={{ marginBottom: '6px', color: '#92400e', display: 'flex', justifyContent: 'space-between' }}>
+                    <span><i className="fas fa-archive" style={{ marginRight: '6px' }} />Descartado</span>
+                    {c.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{c.assigned_to.name}</span>}
+                  </div>
+                  <div style={{ borderTop: '1px dashed #fcd34d', paddingTop: '8px', color: '#b45309', fontStyle: 'italic', wordBreak: 'break-word' }}>
+                    <strong>Justificación:</strong> {getLeadDiscardReason(c)}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="btn-primary-golden"
+                  style={{
+                    marginTop: '12px',
+                    width: '100%',
+                    padding: '8px',
+                    fontSize: '0.8rem',
+                    borderRadius: '8px',
+                    background: 'var(--color-brand-accent)',
+                    color: '#fff',
+                    border: 'none',
+                    fontWeight: '700',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s'
+                  }}
+                  onClick={() => handleRestoreCustomer(c.id)}
+                >
+                  <i className="fas fa-undo"></i> Restaurar Cliente
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       ) : activeSubTab === 'contacts' ? (
         <div className="contacts-cards-grid">

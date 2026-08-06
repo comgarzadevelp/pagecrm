@@ -13,6 +13,7 @@ export default function Step3_ObraResolver() {
   const [customerObras, setCustomerObras] = useState([]);
   const [loadingCustomerObras, setLoadingCustomerObras] = useState(false);
   const createInlineSubmitRef = useRef(null);
+  const hasAutoSelectedRef = useRef(false);
 
   // Estado para indicar si se ha marcado el check de "Sin obra / Omitir" (desactivado por defecto)
   const [sinObraChecked, setSinObraChecked] = useState(false);
@@ -80,13 +81,15 @@ export default function Step3_ObraResolver() {
       }
     };
 
+    hasAutoSelectedRef.current = false;
     fetchCustomerObras();
   }, [wizardState.empresa, wizardState.contacto]);
 
   // Auto-seleccionar la obra si el cliente tiene EXACTAMENTE UNA obra vinculada en total y ninguna seleccionada en el wizard
   useEffect(() => {
-    if (customerObras.length === 1 && !wizardState.obra) {
+    if (customerObras.length === 1 && !wizardState.obra && !hasAutoSelectedRef.current) {
       updateEntity('obra', customerObras[0]);
+      hasAutoSelectedRef.current = true;
     }
   }, [customerObras, wizardState.obra]);
 

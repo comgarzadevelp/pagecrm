@@ -103,6 +103,7 @@ export default function FichaClienteIndividualModal({
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [discardReason, setDiscardReason] = useState('');
   const [isDiscarding, setIsDiscarding] = useState(false);
+  const [discardError, setDiscardError] = useState('');
 
   const customerId = currentCustomer?.id;
   const isSae = customerId?.startsWith('sae-');
@@ -1042,74 +1043,48 @@ export default function FichaClienteIndividualModal({
 
   const confirmArchiveCustomer = async () => {
     if (discardReason.trim() === '') {
-      showToast('Debe ingresar un motivo para poder descartar al cliente.', 'error');
+      setDiscardError('Debes ingresar un motivo antes de continuar.');
       return;
     }
 
+    setDiscardError('');
     setIsDiscarding(true);
 
-    let timeline = [];
-    let generalNotes = '';
-    let saeClave = '';
-
-    if (currentCustomer.notes) {
-      try {
-        const parsed = JSON.parse(currentCustomer.notes.trim());
-        timeline = parsed.timeline || [];
-        generalNotes = parsed.general || '';
-        saeClave = parsed.sae_clave || '';
-      } catch (e) {
-        generalNotes = currentCustomer.notes;
-      }
-    }
-
-    timeline.push({
-      date: new Date().toISOString(),
-      text: `Cliente descartado. Motivo: "${discardReason.trim()}"`,
-      author: 'Sistema',
-      type: 'status_change'
-    });
-
-    const notesPayload = JSON.stringify({
-      general: generalNotes,
-      sae_clave: saeClave,
-      timeline
-    });
-
-    const updateUrl = `${API_BASE}/api/crm/customers/${customerId}`;
-    const payload = {
-      name: currentCustomer.name || 'Sin nombre',
-      email: currentCustomer.email || '',
-      phone: currentCustomer.phone || '',
-      company: currentCustomer.company || '',
-      notes: notesPayload,
-      status: 'descartado'
-    };
-
     try {
-      const res = await fetch(updateUrl, {
-        method: 'PUT',
+      const discardUrl = `${API_BASE}/api/crm/customers/${customerId}/discard`;
+      const res = await fetch(discardUrl, {
+        method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ reason: discardReason.trim(), customerName: currentCustomer?.name || '' })
       });
-      if (res.ok) {
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
         showToast('Cliente descartado correctamente', 'success');
         setShowDiscardModal(false);
+        setDiscardReason('');
+        setDiscardError('');
         if (fetchCustomers) fetchCustomers();
         onClose();
       } else {
-        showToast('Error al descartar cliente', 'error');
+        const msg = data.message || `Error del servidor (${res.status})`;
+        setDiscardError(msg);
+        showToast(msg, 'error');
       }
     } catch (err) {
-      console.error('Error archiving:', err);
-      showToast('Error de conexión', 'error');
+      console.error('Error archiving customer:', err);
+      const msg = 'Sin conexión con el servidor. Verifica tu red e inténtalo de nuevo.';
+      setDiscardError(msg);
+      showToast(msg, 'error');
     } finally {
       setIsDiscarding(false);
     }
   };
+
 
   // --- AGREGACIÓN DE BITÁCORA (UNIFICACIÓN CRONOLÓGICA) ---
 
@@ -2819,7 +2794,7 @@ export default function FichaClienteIndividualModal({
               <button 
                 type="button" 
                 className="submodal-close" 
-                onClick={() => setShowDiscardModal(false)}
+                onClick={() => { setShowDiscardModal(false); setDiscardError(''); }}
                 disabled={isDiscarding}
                 style={{ color: '#991b1b' }}
               >
@@ -2839,27 +2814,67 @@ export default function FichaClienteIndividualModal({
                     autoFocus
                     placeholder="Ej. Compró con la competencia, proyecto cancelado, etc."
                     value={discardReason}
-                    onChange={(e) => setDiscardReason(e.target.value)}
+                    onChange={(e) => { setDiscardReason(e.target.value); if (discardError) setDiscardError(''); }}
                     rows="3"
+                    disabled={isDiscarding}
                     style={{ 
                       width: '100%', 
                       padding: '10px', 
                       borderRadius: '8px', 
-                      border: '1px solid #cbd5e1',
+                      border: `1px solid ${discardError ? '#ef4444' : '#cbd5e1'}`,
                       outline: 'none',
                       resize: 'vertical',
-                      fontSize: '0.9rem'
+                      fontSize: '0.9rem',
+                      opacity: isDiscarding ? 0.6 : 1
                     }}
                     onFocus={(e) => e.target.style.borderColor = '#991b1b'}
-                    onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
+                    onBlur={(e) => e.target.style.borderColor = discardError ? '#ef4444' : '#cbd5e1'}
                   />
                 </div>
+
+                {/* ALERTA DE ERROR INLINE — visible aunque el toast no se vea */}
+                {discardError && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px 14px',
+                    background: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    color: '#991b1b',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '8px'
+                  }}>
+                    <i className="fas fa-times-circle" style={{ marginTop: '2px', flexShrink: 0 }} />
+                    <span>{discardError}</span>
+                  </div>
+                )}
+
+                {/* INDICADOR DE CARGA */}
+                {isDiscarding && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px 14px',
+                    background: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '8px',
+                    color: '#92400e',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <i className="fas fa-spinner fa-spin" />
+                    <span>Procesando descarte, por favor espera...</span>
+                  </div>
+                )}
               </div>
               <footer className="submodal-footer" style={{ background: '#f8fafc', padding: '16px 20px' }}>
                 <button 
                   type="button" 
                   className="submodal-btn secondary" 
-                  onClick={() => setShowDiscardModal(false)}
+                  onClick={() => { setShowDiscardModal(false); setDiscardError(''); }}
                   disabled={isDiscarding}
                 >
                   Cancelar
@@ -2867,7 +2882,12 @@ export default function FichaClienteIndividualModal({
                 <button 
                   type="button" 
                   className="submodal-btn primary" 
-                  style={{ background: '#ef4444', borderColor: '#dc2626' }}
+                  style={{ 
+                    background: isDiscarding ? '#9ca3af' : '#ef4444', 
+                    borderColor: isDiscarding ? '#6b7280' : '#dc2626',
+                    cursor: isDiscarding ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s'
+                  }}
                   onClick={confirmArchiveCustomer}
                   disabled={isDiscarding || discardReason.trim() === ''}
                 >

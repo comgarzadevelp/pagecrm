@@ -2711,7 +2711,9 @@ export const getCustomers = async (req, res) => {
 
             const clientVendorKey = client.cve_vend ? client.cve_vend.trim() : null;
             // Si es vendedor, y el cliente tiene vendedor asignado diferente, es ajeno
-            const isForeign = role === 'sales' && userSaeKey && clientVendorKey && clientVendorKey !== userSaeKey;
+            // EXCEPCIÓN GDL: Si es CGG, todos los clientes son propios (Cristy es única vendedora)
+            const isGdl = req.user?.companyCode === 'CGG';
+            const isForeign = !isGdl && role === 'sales' && userSaeKey && clientVendorKey && clientVendorKey !== userSaeKey;
             const assignedToName = vendorMap[clientVendorKey] || `Vendedor SAE ${clientVendorKey || ''}`;
 
             const name = client.nombre ? client.nombre.trim() : 'Cliente SAE Sin Nombre';
@@ -2753,16 +2755,19 @@ export const getCustomers = async (req, res) => {
         }
       }
 
-      // Mapear clientes CRM locales
-      const mappedLocalCustomers = (results || []).map(cust => {
-        const ownerId = cust.assigned_to?.id || cust.assigned_to;
-        const isForeign = role === 'sales' && ownerId && String(ownerId) !== String(userId);
-        return {
-          ...cust,
-          is_foreign: isForeign,
-          assigned_to_name: cust.assigned_to?.name || 'Otro ejecutivo'
-        };
-      });
+      // Mapear clientes CRM locales — excluir descartados
+      const mappedLocalCustomers = (results || [])
+        .filter(cust => cust.status !== 'descartado')
+        .map(cust => {
+          const ownerId = cust.assigned_to?.id || cust.assigned_to;
+          const isGdl = req.user?.companyCode === 'CGG';
+          const isForeign = !isGdl && role === 'sales' && ownerId && String(ownerId) !== String(userId);
+          return {
+            ...cust,
+            is_foreign: isForeign,
+            assigned_to_name: cust.assigned_to?.name || 'Otro ejecutivo'
+          };
+        });
 
       // Combinar listas
       const combined = [...mappedLocalCustomers, ...saeCustomers];
@@ -2800,6 +2805,7 @@ export const getCustomers = async (req, res) => {
     if (crmError) throw crmError;
 
     // Parse crmCustomers to find any that are linked to SAE
+    // saeLinkedMap incluye TODOS (incluyendo descartados) para que el filtro SAE funcione
     const saeLinkedMap = {};
     const nativeCustomers = [];
 
@@ -2821,8 +2827,10 @@ export const getCustomers = async (req, res) => {
       }
 
       if (saeClave) {
+        // Guardar en mapa (incluyendo descartados) para que el filter SAE los excluya
         saeLinkedMap[saeClave] = cust;
-      } else {
+      } else if (cust.status !== 'descartado') {
+        // Solo agregar clientes CRM nativos que NO estén descartados
         nativeCustomers.push(cust);
       }
     });
@@ -2842,15 +2850,29 @@ export const getCustomers = async (req, res) => {
 
     let saeCustomers = [];
     const saeObj = getSaeConnection(req.user);
-    if (saeKey && saeObj.saeClient) {
-      const { data: saeData, error: saeError } = await saeObj.saeClient
+    const isGdl = req.user?.companyCode === 'CGG';
+    
+    if ((saeKey || isGdl) && saeObj.saeClient) {
+      let saeQuery = saeObj.saeClient
         .from(`clie${saeObj.suffix}`)
         .select('clave, nombre, nombrecomercial, rfc, telefono, mail, cve_vend, status, fch_ultcom, ventas, municipio, estado, limcred, saldo, lista_prec, clasific, pag_web, calle, colonia, codigo')
-        .eq('cve_vend', saeKey)
         .eq('status', 'A'); // A = Activo
+        
+      if (!isGdl) {
+        saeQuery = saeQuery.eq('cve_vend', saeKey);
+      }
+
+      const { data: saeData, error: saeError } = await saeQuery;
 
       if (!saeError && saeData) {
-        saeCustomers = saeData.map(client => {
+        saeCustomers = saeData
+          .filter(client => {
+            // Excluir clientes SAE que ya tienen un registro local descartado
+            const clave = client.clave.trim();
+            const linkedCust = saeLinkedMap[clave];
+            return !(linkedCust && linkedCust.status === 'descartado');
+          })
+          .map(client => {
           const clave = client.clave.trim();
           const linkedCust = saeLinkedMap[clave];
 
@@ -2865,6 +2887,7 @@ export const getCustomers = async (req, res) => {
           const notes = linkedCust ? linkedCust.notes : JSON.stringify({
             general: `Cliente de Aspel SAE. Clave: ${clave}. RFC: ${client.rfc ? client.rfc.trim() : 'N/A'}. Municipio: ${client.municipio ? client.municipio.trim() : 'N/A'}. Ventas acumuladas: $${parseFloat(client.ventas || 0).toFixed(2)}.`,
             sae_clave: clave,
+            sae_empresa: req.user?.sae_empresa || '03',
             timeline: []
           });
 
@@ -2926,21 +2949,93 @@ export const getCustomers = async (req, res) => {
         }
       });
 
-      (crmCustomers || []).forEach(lead => {
-        if (lead.company_id) {
-          leadIdByCompanyId[lead.company_id] = lead.id;
+      // FIX #1: También construir companyUuidToSaeClave desde saeLinkedMap
+      // cubre clientes SAE cuya empresa en companies no tiene sae_clave en notes
+      Object.entries(saeLinkedMap).forEach(([saeClave, custLead]) => {
+        // Intentar desde notes.company_id (si fue guardado por FieldFlow)
+        if (custLead.notes) {
+          try {
+            const parsed = JSON.parse(custLead.notes.trim());
+            if (parsed?.company_id && !companyUuidToSaeClave[parsed.company_id]) {
+              companyUuidToSaeClave[parsed.company_id] = saeClave;
+            }
+          } catch (e) {}
         }
-        
-        const matchingContact = (localContacts || []).find(c => 
-          (c.phone && lead.phone && c.phone.trim() === lead.phone.trim()) ||
-          (c.email && lead.email && c.email.toLowerCase().trim() === lead.email.toLowerCase().trim())
-        );
-        if (matchingContact) {
-          leadIdByContactId[matchingContact.id] = lead.id;
+        // Intentar por coincidencia de nombre de empresa
+        if (custLead.company) {
+          const cleanCo = custLead.company.trim().toLowerCase();
+          if (!['particular', 'cliente sae', 's', 'n/a', 'sin empresa'].includes(cleanCo)) {
+            const matchComp = (localCompanies || []).find(c =>
+              c.name && c.name.toLowerCase().trim() === cleanCo
+            );
+            if (matchComp && !companyUuidToSaeClave[matchComp.id]) {
+              companyUuidToSaeClave[matchComp.id] = saeClave;
+            }
+          }
         }
       });
 
-      const allOpps = await fetchAllRows('crm_opportunities', 'id, company_id, contact_id, created_at, updated_at, stage');
+      // FIX #1b: También construir desde saeCustomers directamente
+      // cubre clientes SAE que NO tienen registro CRM en saeLinkedMap
+      saeCustomers.forEach(saeCust => {
+        const clave = saeCust.id.replace('sae-', '');
+        if (saeCust.company) {
+          const cleanCo = saeCust.company.trim().toLowerCase();
+          if (!['particular', 'cliente sae', 's', 'n/a', 'sin empresa'].includes(cleanCo)) {
+            const matchComp = (localCompanies || []).find(c =>
+              c.name && c.name.toLowerCase().trim() === cleanCo
+            );
+            if (matchComp && !companyUuidToSaeClave[matchComp.id]) {
+              companyUuidToSaeClave[matchComp.id] = clave;
+            }
+          }
+        }
+      });
+
+      (crmCustomers || []).forEach(lead => {
+        const isValidPhoneToMatch = lead.phone && lead.phone.trim().length > 5 && !['sin telefono', 'n/a', '0', '1234567890'].includes(lead.phone.trim().toLowerCase());
+        const isValidEmailToMatch = lead.email && lead.email.includes('@') && !['n/a', 's', 'no@no.com', 'sin@correo.com'].includes(lead.email.trim().toLowerCase());
+
+        if (isValidPhoneToMatch || isValidEmailToMatch) {
+          const matchingContact = (localContacts || []).find(c => 
+            (isValidPhoneToMatch && c.phone && c.phone.trim() === lead.phone.trim()) ||
+            (isValidEmailToMatch && c.email && c.email.toLowerCase().trim() === lead.email.toLowerCase().trim())
+          );
+          if (matchingContact) {
+            leadIdByContactId[matchingContact.id] = lead.id;
+          }
+        }
+      });
+
+      // FIX #2: Construir leadIdByCompanyId para clientes NATIVOS (no-SAE) por nombre de empresa
+      // El lead.company_id es el tenant ID, no el UUID real del cliente → lo construimos por nombre
+      (nativeCustomers || []).forEach(cust => {
+        // Intentar desde notes.company_id
+        if (cust.notes) {
+          try {
+            const parsed = JSON.parse(cust.notes.trim());
+            if (parsed?.company_id && !leadIdByCompanyId[parsed.company_id]) {
+              leadIdByCompanyId[parsed.company_id] = cust.id;
+            }
+          } catch (e) {}
+        }
+        // Intentar por coincidencia de nombre de empresa
+        if (cust.company) {
+          const cleanCo = cust.company.trim().toLowerCase();
+          if (!['particular', 'cliente sae', 's', 'n/a', 'sin empresa'].includes(cleanCo)) {
+            const matchComp = (localCompanies || []).find(c =>
+              c.name && c.name.toLowerCase().trim() === cleanCo
+            );
+            if (matchComp && !leadIdByCompanyId[matchComp.id]) {
+              leadIdByCompanyId[matchComp.id] = cust.id;
+            }
+          }
+        }
+      });
+
+      const allOpps = await fetchAllRows('crm_opportunities', 'id, company_id, contact_id, created_at, updated_at, stage_updated_at, stage');
+      const allKanbanLeads = await fetchAllRows('leads', 'id, company_id, contact_id, phone, email, notes, created_at, updated_at, status, type', q => q.neq('type', 'crm_customer'));
+      const allQuotes = await fetchAllRows('quotes', 'id, client_id, opportunity_id, company_id, created_at, total');
       
       const nowIso = new Date().toISOString();
       const allVisits = await fetchAllRows('crm_visitas', 'id, company_id, contact_id, timestamp_servidor, created_at', q =>
@@ -2949,107 +3044,178 @@ export const getCustomers = async (req, res) => {
 
       const oppsCountByCompany = {};
       const oppsCountByContact = {};
+      const oppsCountByClient = {};
       const lastOppByCompany = {};
       const lastOppByContact = {};
+      const lastOppByClient = {};
 
       const wonCountByCompany = {};
       const wonCountByContact = {};
+      const wonCountByClient = {};
       const activeCountByCompany = {};
       const activeCountByContact = {};
+      const activeCountByClient = {};
       const lastWonOppDateByCompany = {};
       const lastWonOppDateByContact = {};
+      const lastWonOppDateByClient = {};
 
+      const quotesCountByCompany = {};
+      const quotesCountByContact = {};
+      const quotesCountByClient = {};
+      const lastQuoteByCompany = {};
+      const lastQuoteByContact = {};
+      const lastQuoteByClient = {};
+
+      // 1. Procesar crm_opportunities
       (allOpps || []).forEach(opp => {
-        const oppDate = opp.updated_at || opp.created_at;
+        const oppDate = opp.stage_updated_at || opp.updated_at || opp.created_at;
         const stageLower = opp.stage ? opp.stage.toLowerCase().trim() : '';
-        const isWon = stageLower === 'ganado' || stageLower === 'venta_ganada';
-        const isActive = ['nuevo', 'negociando', 'cotizando'].includes(stageLower);
+        const isWon = stageLower === 'ganado' || stageLower === 'venta_ganada' || stageLower === 'cierre_ganado';
+        const isDiscarded = stageLower === 'descartado' || stageLower === 'perdido' || stageLower === 'cierre_perdido';
+        const isActive = !isWon && !isDiscarded;
 
-        if (opp.company_id) {
-          oppsCountByCompany[opp.company_id] = (oppsCountByCompany[opp.company_id] || 0) + 1;
-          if (oppDate && (!lastOppByCompany[opp.company_id] || new Date(oppDate) > new Date(lastOppByCompany[opp.company_id]))) {
-            lastOppByCompany[opp.company_id] = oppDate;
+        const updateOppDicts = (key, countDict, lastDateDict, wonCountDict, wonDateDict, activeCountDict) => {
+          countDict[key] = (countDict[key] || 0) + 1;
+          if (oppDate && (!lastDateDict[key] || new Date(oppDate) > new Date(lastDateDict[key]))) {
+            lastDateDict[key] = oppDate;
           }
           if (isWon) {
-            wonCountByCompany[opp.company_id] = (wonCountByCompany[opp.company_id] || 0) + 1;
-            if (oppDate && (!lastWonOppDateByCompany[opp.company_id] || new Date(oppDate) > new Date(lastWonOppDateByCompany[opp.company_id]))) {
-              lastWonOppDateByCompany[opp.company_id] = oppDate;
+            wonCountDict[key] = (wonCountDict[key] || 0) + 1;
+            if (oppDate && (!wonDateDict[key] || new Date(oppDate) > new Date(wonDateDict[key]))) {
+              wonDateDict[key] = oppDate;
             }
           }
           if (isActive) {
-            activeCountByCompany[opp.company_id] = (activeCountByCompany[opp.company_id] || 0) + 1;
+            activeCountDict[key] = (activeCountDict[key] || 0) + 1;
           }
+        };
+
+        if (opp.company_id) {
+          updateOppDicts(opp.company_id, oppsCountByCompany, lastOppByCompany, wonCountByCompany, lastWonOppDateByCompany, activeCountByCompany);
 
           // Mapeo a SAE
           const saeClave = companyUuidToSaeClave[opp.company_id];
           if (saeClave) {
-            const saeKey = `sae-${saeClave}`;
-            oppsCountByCompany[saeKey] = (oppsCountByCompany[saeKey] || 0) + 1;
-            if (oppDate && (!lastOppByCompany[saeKey] || new Date(oppDate) > new Date(lastOppByCompany[saeKey]))) {
-              lastOppByCompany[saeKey] = oppDate;
-            }
-            if (isWon) {
-              wonCountByCompany[saeKey] = (wonCountByCompany[saeKey] || 0) + 1;
-              if (oppDate && (!lastWonOppDateByCompany[saeKey] || new Date(oppDate) > new Date(lastWonOppDateByCompany[saeKey]))) {
-                lastWonOppDateByCompany[saeKey] = oppDate;
-              }
-            }
-            if (isActive) {
-              activeCountByCompany[saeKey] = (activeCountByCompany[saeKey] || 0) + 1;
-            }
+            updateOppDicts(`sae-${saeClave}`, oppsCountByCompany, lastOppByCompany, wonCountByCompany, lastWonOppDateByCompany, activeCountByCompany);
           }
 
           // Mapeo a Lead Nativo
           const leadId = leadIdByCompanyId[opp.company_id];
           if (leadId) {
-            oppsCountByCompany[leadId] = (oppsCountByCompany[leadId] || 0) + 1;
-            if (oppDate && (!lastOppByCompany[leadId] || new Date(oppDate) > new Date(lastOppByCompany[leadId]))) {
-              lastOppByCompany[leadId] = oppDate;
-            }
-            if (isWon) {
-              wonCountByCompany[leadId] = (wonCountByCompany[leadId] || 0) + 1;
-              if (oppDate && (!lastWonOppDateByCompany[leadId] || new Date(oppDate) > new Date(lastWonOppDateByCompany[leadId]))) {
-                lastWonOppDateByCompany[leadId] = oppDate;
-              }
-            }
-            if (isActive) {
-              activeCountByCompany[leadId] = (activeCountByCompany[leadId] || 0) + 1;
-            }
+            updateOppDicts(leadId, oppsCountByClient, lastOppByClient, wonCountByClient, lastWonOppDateByClient, activeCountByClient);
           }
         }
 
         if (opp.contact_id) {
-          oppsCountByContact[opp.contact_id] = (oppsCountByContact[opp.contact_id] || 0) + 1;
-          if (oppDate && (!lastOppByContact[opp.contact_id] || new Date(oppDate) > new Date(lastOppByContact[opp.contact_id]))) {
-            lastOppByContact[opp.contact_id] = oppDate;
-          }
-          if (isWon) {
-            wonCountByContact[opp.contact_id] = (wonCountByContact[opp.contact_id] || 0) + 1;
-            if (oppDate && (!lastWonOppDateByContact[opp.contact_id] || new Date(oppDate) > new Date(lastWonOppDateByContact[opp.contact_id]))) {
-              lastWonOppDateByContact[opp.contact_id] = oppDate;
-            }
-          }
-          if (isActive) {
-            activeCountByContact[opp.contact_id] = (activeCountByContact[opp.contact_id] || 0) + 1;
-          }
+          updateOppDicts(opp.contact_id, oppsCountByContact, lastOppByContact, wonCountByContact, lastWonOppDateByContact, activeCountByContact);
 
           // Mapeo a Lead Nativo
           const leadId = leadIdByContactId[opp.contact_id];
           if (leadId) {
-            oppsCountByContact[leadId] = (oppsCountByContact[leadId] || 0) + 1;
-            if (oppDate && (!lastOppByContact[leadId] || new Date(oppDate) > new Date(lastOppByContact[leadId]))) {
-              lastOppByContact[leadId] = oppDate;
-            }
-            if (isWon) {
-              wonCountByContact[leadId] = (wonCountByContact[leadId] || 0) + 1;
-              if (oppDate && (!lastWonOppDateByContact[leadId] || new Date(oppDate) > new Date(lastWonOppDateByContact[leadId]))) {
-                lastWonOppDateByContact[leadId] = oppDate;
-              }
-            }
-            if (isActive) {
-              activeCountByContact[leadId] = (activeCountByContact[leadId] || 0) + 1;
+            updateOppDicts(leadId, oppsCountByClient, lastOppByClient, wonCountByClient, lastWonOppDateByClient, activeCountByClient);
+          }
+        }
+      });
+
+      // 2. Procesar leads en el Panel de Ventas (Kanban)
+      (allKanbanLeads || []).forEach(lead => {
+        const leadDate = lead.updated_at || lead.created_at;
+        const statusLower = lead.status ? lead.status.toLowerCase().trim() : '';
+        const isWon = statusLower === 'cierre_ganado' || statusLower === 'ganado';
+        const isDiscarded = statusLower === 'descartado' || statusLower === 'cierre_perdido' || statusLower === 'perdido';
+        const isActive = !isWon && !isDiscarded;
+
+        const updateLeadDicts = (key, countDict, lastDateDict, wonCountDict, wonDateDict, activeCountDict) => {
+          countDict[key] = (countDict[key] || 0) + 1;
+          if (leadDate && (!lastDateDict[key] || new Date(leadDate) > new Date(lastDateDict[key]))) {
+            lastDateDict[key] = leadDate;
+          }
+          if (isWon) {
+            wonCountDict[key] = (wonCountDict[key] || 0) + 1;
+            if (leadDate && (!wonDateDict[key] || new Date(leadDate) > new Date(wonDateDict[key]))) {
+              wonDateDict[key] = leadDate;
             }
           }
+          if (isActive) {
+            activeCountDict[key] = (activeCountDict[key] || 0) + 1;
+          }
+        };
+
+        if (lead.company_id) {
+          updateLeadDicts(lead.company_id, oppsCountByCompany, lastOppByCompany, wonCountByCompany, lastWonOppDateByCompany, activeCountByCompany);
+          const saeClave = companyUuidToSaeClave[lead.company_id];
+          if (saeClave) {
+            updateLeadDicts(`sae-${saeClave}`, oppsCountByCompany, lastOppByCompany, wonCountByCompany, lastWonOppDateByCompany, activeCountByCompany);
+          }
+        }
+
+        if (lead.contact_id) {
+          updateLeadDicts(lead.contact_id, oppsCountByContact, lastOppByContact, wonCountByContact, lastWonOppDateByContact, activeCountByContact);
+        }
+
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed && parsed.sae_clave) {
+              updateLeadDicts(`sae-${parsed.sae_clave.trim()}`, oppsCountByCompany, lastOppByCompany, wonCountByCompany, lastWonOppDateByCompany, activeCountByCompany);
+            }
+          } catch(e) {}
+        }
+      });
+
+      // 3. Procesar quotes (cotizaciones)
+      (allQuotes || []).forEach(q => {
+        const quoteDate = q.created_at;
+        if (!quoteDate) return;
+
+        const updateQuoteDicts = (key, countDict, lastDateDict) => {
+          countDict[key] = (countDict[key] || 0) + 1;
+          if (!lastDateDict[key] || new Date(quoteDate) > new Date(lastDateDict[key])) {
+            lastDateDict[key] = quoteDate;
+          }
+          if (!lastOppByCompany[key] || new Date(quoteDate) > new Date(lastOppByCompany[key])) {
+            lastOppByCompany[key] = quoteDate;
+          }
+          if (!lastOppByContact[key] || new Date(quoteDate) > new Date(lastOppByContact[key])) {
+            lastOppByContact[key] = quoteDate;
+          }
+          if (!lastOppByClient[key] || new Date(quoteDate) > new Date(lastOppByClient[key])) {
+            lastOppByClient[key] = quoteDate;
+          }
+        };
+
+        if (q.opportunity_id) {
+          const opp = (allOpps || []).find(o => String(o.id) === String(q.opportunity_id));
+          if (opp) {
+            if (opp.company_id) {
+              updateQuoteDicts(opp.company_id, quotesCountByCompany, lastQuoteByCompany);
+              const saeClave = companyUuidToSaeClave[opp.company_id];
+              if (saeClave) updateQuoteDicts(`sae-${saeClave}`, quotesCountByCompany, lastQuoteByCompany);
+              const leadId = leadIdByCompanyId[opp.company_id];
+              if (leadId) updateQuoteDicts(leadId, quotesCountByClient, lastQuoteByClient);
+            }
+            if (opp.contact_id) {
+              updateQuoteDicts(opp.contact_id, quotesCountByContact, lastQuoteByContact);
+              const leadId = leadIdByContactId[opp.contact_id];
+              if (leadId) updateQuoteDicts(leadId, quotesCountByClient, lastQuoteByClient);
+            }
+          }
+        }
+
+        if (q.client_id) {
+          const cid = String(q.client_id);
+          updateQuoteDicts(cid, quotesCountByClient, lastQuoteByClient);
+          updateQuoteDicts(cid, quotesCountByCompany, lastQuoteByCompany);
+          updateQuoteDicts(cid, quotesCountByContact, lastQuoteByContact);
+        }
+
+        if (q.company_id) {
+          const coId = String(q.company_id);
+          updateQuoteDicts(coId, quotesCountByCompany, lastQuoteByCompany);
+          const saeClave = companyUuidToSaeClave[coId];
+          if (saeClave) updateQuoteDicts(`sae-${saeClave}`, quotesCountByCompany, lastQuoteByCompany);
+          const leadId = leadIdByCompanyId[coId];
+          if (leadId) updateQuoteDicts(leadId, quotesCountByClient, lastQuoteByClient);
         }
       });
 
@@ -3118,10 +3284,15 @@ export const getCustomers = async (req, res) => {
           contact = (localContacts || []).find(c => String(c.id) === String(contactId));
         }
         if (!contact) {
-          contact = (localContacts || []).find(c => 
-            (c.phone && cust.phone && c.phone.trim() === cust.phone.trim()) ||
-            (c.email && cust.email && c.email.toLowerCase().trim() === cust.email.toLowerCase().trim())
-          );
+          const isValidPhoneToMatch = cust.phone && cust.phone.trim().length > 5 && !['sin telefono', 'n/a', '0', '1234567890'].includes(cust.phone.trim().toLowerCase());
+          const isValidEmailToMatch = cust.email && cust.email.includes('@') && !['n/a', 's', 'no@no.com', 'sin@correo.com'].includes(cust.email.trim().toLowerCase());
+
+          if (isValidPhoneToMatch || isValidEmailToMatch) {
+            contact = (localContacts || []).find(c => 
+              (isValidPhoneToMatch && c.phone && c.phone.trim() === cust.phone.trim()) ||
+              (isValidEmailToMatch && c.email && c.email.toLowerCase().trim() === cust.email.toLowerCase().trim())
+            );
+          }
         }
 
         // Fallback: Si el contacto tiene una empresa vinculada en contact_companies
@@ -3137,7 +3308,10 @@ export const getCustomers = async (req, res) => {
           company = (localCompanies || []).find(c => String(c.id) === String(companyId));
         }
         if (!company && cust.company) {
-          company = (localCompanies || []).find(c => c.name && c.name.toLowerCase().trim() === cust.company.toLowerCase().trim());
+          const cleanCoName = cust.company.trim().toLowerCase();
+          if (!['particular', 'cliente sae', 's', 'n/a', 'sin empresa'].includes(cleanCoName)) {
+            company = (localCompanies || []).find(c => c.name && c.name.toLowerCase().trim() === cleanCoName);
+          }
         }
 
         // Fallback #3: Si resolvimos empresa pero no contacto, buscar el contacto
@@ -3186,25 +3360,49 @@ export const getCustomers = async (req, res) => {
         let oppsCount = 0;
         let wonCount = 0;
         let activeCount = 0;
+        let quotesCount = 0;
         let lastVisit = null;
         let lastOppDate = null;
         let lastWonOppDate = null;
+        let lastQuoteDate = null;
         let lastNoteDate = null;
 
         if (isSae) {
-          oppsCount = oppsCountByCompany[cust.id] || (company ? (oppsCountByCompany[company.id] || 0) : 0) || (contact ? (oppsCountByContact[contact.id] || 0) : 0);
-          wonCount = wonCountByCompany[cust.id] || (company ? (wonCountByCompany[company.id] || 0) : 0) || (contact ? (wonCountByContact[contact.id] || 0) : 0);
-          activeCount = activeCountByCompany[cust.id] || (company ? (activeCountByCompany[company.id] || 0) : 0) || (contact ? (activeCountByContact[contact.id] || 0) : 0);
+          oppsCount = oppsCountByClient[cust.id] || oppsCountByCompany[cust.id] || (company ? (oppsCountByCompany[company.id] || 0) : 0) || (contact ? (oppsCountByContact[contact.id] || 0) : 0);
+          wonCount = wonCountByClient[cust.id] || wonCountByCompany[cust.id] || (company ? (wonCountByCompany[company.id] || 0) : 0) || (contact ? (wonCountByContact[contact.id] || 0) : 0);
+          activeCount = activeCountByClient[cust.id] || activeCountByCompany[cust.id] || (company ? (activeCountByCompany[company.id] || 0) : 0) || (contact ? (activeCountByContact[contact.id] || 0) : 0);
+          quotesCount = quotesCountByClient[cust.id] || quotesCountByCompany[cust.id] || (company ? (quotesCountByCompany[company.id] || 0) : 0) || (contact ? (quotesCountByContact[contact.id] || 0) : 0);
+
           lastVisit = lastVisitByCompany[cust.id] || (company ? lastVisitByCompany[company.id] : null) || (contact ? lastVisitByContact[contact.id] : null) || null;
-          lastOppDate = lastOppByCompany[cust.id] || (company ? lastOppByCompany[company.id] : null) || (contact ? lastOppByContact[contact.id] : null) || null;
-          lastWonOppDate = lastWonOppDateByCompany[cust.id] || (company ? lastWonOppDateByCompany[company.id] : null) || (contact ? lastWonOppDateByContact[contact.id] : null) || null;
+          lastOppDate = lastOppByClient[cust.id] || lastOppByCompany[cust.id] || (company ? lastOppByCompany[company.id] : null) || (contact ? lastOppByContact[contact.id] : null) || null;
+          lastWonOppDate = lastWonOppDateByClient[cust.id] || lastWonOppDateByCompany[cust.id] || (company ? lastWonOppDateByCompany[company.id] : null) || (contact ? lastWonOppDateByContact[contact.id] : null) || null;
+          lastQuoteDate = lastQuoteByClient[cust.id] || lastQuoteByCompany[cust.id] || (company ? lastQuoteByCompany[company.id] : null) || (contact ? lastQuoteByContact[contact.id] : null) || null;
+
+          // FIX #5: Parsear timeline para clientes SAE (lastNoteDate para actividad reciente en notes)
+          if (cust.notes) {
+            try {
+              const parsed = JSON.parse(cust.notes.trim());
+              if (parsed && parsed.timeline && parsed.timeline.length > 0) {
+                const dates = parsed.timeline
+                  .map(t => t.date)
+                  .filter(Boolean)
+                  .map(d => new Date(d));
+                if (dates.length > 0) {
+                  lastNoteDate = new Date(Math.max(...dates)).toISOString();
+                }
+              }
+            } catch (e) {}
+          }
         } else {
-          oppsCount = (contact ? (oppsCountByContact[contact.id] || 0) : 0) || (company ? (oppsCountByCompany[company.id] || 0) : 0) || oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
-          wonCount = (contact ? (wonCountByContact[contact.id] || 0) : 0) || (company ? (wonCountByCompany[company.id] || 0) : 0) || wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
-          activeCount = (contact ? (activeCountByContact[contact.id] || 0) : 0) || (company ? (activeCountByCompany[company.id] || 0) : 0) || activeCountByContact[cust.id] || activeCountByCompany[cust.id] || 0;
+          oppsCount = oppsCountByClient[cust.id] || (contact ? (oppsCountByContact[contact.id] || 0) : 0) || (company ? (oppsCountByCompany[company.id] || 0) : 0) || oppsCountByContact[cust.id] || oppsCountByCompany[cust.id] || 0;
+          wonCount = wonCountByClient[cust.id] || (contact ? (wonCountByContact[contact.id] || 0) : 0) || (company ? (wonCountByCompany[company.id] || 0) : 0) || wonCountByContact[cust.id] || wonCountByCompany[cust.id] || 0;
+          activeCount = activeCountByClient[cust.id] || (contact ? (activeCountByContact[contact.id] || 0) : 0) || (company ? (activeCountByCompany[company.id] || 0) : 0) || activeCountByContact[cust.id] || activeCountByCompany[cust.id] || 0;
+          quotesCount = quotesCountByClient[cust.id] || (contact ? (quotesCountByContact[contact.id] || 0) : 0) || (company ? (quotesCountByCompany[company.id] || 0) : 0) || quotesCountByContact[cust.id] || quotesCountByCompany[cust.id] || 0;
+
           lastVisit = (contact ? lastVisitByContact[contact.id] : null) || (company ? lastVisitByCompany[company.id] : null) || lastVisitByContact[cust.id] || lastVisitByCompany[cust.id] || null;
-          lastOppDate = (contact ? lastOppByContact[contact.id] : null) || (company ? lastOppByCompany[company.id] : null) || lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
-          lastWonOppDate = (contact ? lastWonOppDateByContact[contact.id] : null) || (company ? lastWonOppDateByCompany[company.id] : null) || lastWonOppDateByContact[cust.id] || lastWonOppDateByCompany[cust.id] || null;
+          lastOppDate = lastOppByClient[cust.id] || (contact ? lastOppByContact[contact.id] : null) || (company ? lastOppByCompany[company.id] : null) || lastOppByContact[cust.id] || lastOppByCompany[cust.id] || null;
+          lastWonOppDate = lastWonOppDateByClient[cust.id] || (contact ? lastWonOppDateByContact[contact.id] : null) || (company ? lastWonOppDateByCompany[company.id] : null) || lastWonOppDateByContact[cust.id] || lastWonOppDateByCompany[cust.id] || null;
+          lastQuoteDate = lastQuoteByClient[cust.id] || (contact ? lastQuoteByContact[contact.id] : null) || (company ? lastQuoteByCompany[company.id] : null) || lastQuoteByContact[cust.id] || lastQuoteByCompany[cust.id] || null;
 
           if (isWonLead) {
             wonCount += 1;
@@ -3233,14 +3431,28 @@ export const getCustomers = async (req, res) => {
           }
         }
 
+        // Si el cliente SAE o nativo tiene cotizaciones emitidas, sumar a oportunidades y activas
+        if (quotesCount > 0) {
+          oppsCount = Math.max(oppsCount, quotesCount);
+          if (wonCount === 0) {
+            activeCount = Math.max(activeCount, quotesCount);
+          }
+        }
+
+        // Para clientes SAE con compras acumuladas en Aspel SAE (ventas > 0)
+        if (isSae && parseFloat(cust.ventas || 0) > 0 && wonCount === 0) {
+          wonCount = 1;
+        }
+
         // Consolidar fechas de actividad para obtener la última fecha de interacción real
         const activityDates = [
           lastVisit,
           lastOppDate,
+          lastQuoteDate,
           lastNoteDate
         ].filter(Boolean).map(d => new Date(d));
 
-        const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : null;
+        const lastActivityDate = activityDates.length > 0 ? new Date(Math.max(...activityDates)).toISOString() : (cust.created_at || null);
 
         // Calcular días de inactividad usando la fecha local de México (CST/CDT).
         // Usamos Intl.DateTimeFormat para obtener la fecha calendario correcta
@@ -3268,7 +3480,10 @@ export const getCustomers = async (req, res) => {
         }
 
         // Calcular días desde la última compra ganada usando días calendario
-        const purchaseAnchor = lastWonOppDate || cust.created_at;
+        // FIX #4: Usar lastActivityDate como fallback en lugar de cust.created_at
+        // Para clientes SAE, cust.created_at = fch_ultcom (fecha última compra SAE)
+        // que puede ser meses atrás y causa daysSinceLastPurchase >= 30 siempre
+        const purchaseAnchor = lastWonOppDate || lastActivityDate || cust.created_at;
         const purchaseStr = toDateStr(purchaseAnchor);
         const daysSinceLastPurchase = Math.max(0, Math.floor(
           (new Date(todayStr) - new Date(purchaseStr)) / msPerDay
@@ -3293,8 +3508,15 @@ export const getCustomers = async (req, res) => {
           }
 
           // Evaluar umbral de inactividad para migración al Nivel 4
+          // FIX #3: Si hay negociaciones activas o cotizaciones en el Panel de Ventas,
+          // el cliente NO se considera inactivo (no pasa a "Recontactar ahora")
+          const hasActiveNegotiation = activeCount > 0 || quotesCount > 0;
+
           let isInactive = false;
-          if (baseNivel === 3 && diffDays >= 3) {
+          if (hasActiveNegotiation) {
+            // Con negociaciones/cotizaciones activas nunca se considera inactivo
+            isInactive = false;
+          } else if (baseNivel === 3 && diffDays >= 3) {
             isInactive = true;
           } else if (baseNivel === 2 && (diffDays >= 3 || daysSinceLastPurchase >= 30)) {
             isInactive = true;
@@ -3314,6 +3536,8 @@ export const getCustomers = async (req, res) => {
         }
 
         merged[i].opportunities_count = oppsCount;
+        merged[i].quotes_count = quotesCount;
+        merged[i].last_quote_date = lastQuoteDate;
         merged[i].last_visit_date = lastVisit;
         merged[i].last_activity_date = lastActivityDate;
         merged[i].followup_status = followupStatus;
@@ -3348,9 +3572,10 @@ export const createCustomer = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre del cliente es obligatorio.' });
     }
 
-    if (email && !isValidEmail(email)) {
-      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
-    }
+    // Se remueve la validación estricta de correo para permitir importar clientes SAE con correos como "N/A" o múltiples correos
+    // if (email && email.trim() !== '' && !isValidEmail(email)) {
+    //   return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    // }
     if (!companyId) {
       return res.status(401).json({ success: false, message: 'Company ID required' });
     }
@@ -3367,13 +3592,11 @@ export const createCustomer = async (req, res) => {
       assigned_to: userId
     };
 
-    // Priorizar company_id del body (UUID real de la empresa del cliente);
-    // como fallback usar el company_id del tenant (para multi-tenant isolation)
-    if (bodyCompanyId && !String(bodyCompanyId).startsWith('company-')) {
-      insertPayload.company_id = companyId; // tenant ID (multi-tenant)
-      insertPayload.notes = insertPayload.notes; // preservar notas
-      // Guardar el company UUID real del cliente en las notas para referencia futura
-    } else if (companyId && !String(companyId).startsWith('company-')) {
+    // Priorizar company_id del body si no empieza con sae- ni company-;
+    // como fallback usar el company_id del tenant (enterprise_companies)
+    if (bodyCompanyId && !String(bodyCompanyId).startsWith('company-') && !String(bodyCompanyId).startsWith('sae-')) {
+      insertPayload.company_id = bodyCompanyId;
+    } else if (companyId && !String(companyId).startsWith('company-') && !String(bodyCompanyId).startsWith('sae-')) {
       insertPayload.company_id = companyId;
     }
 
@@ -3400,9 +3623,10 @@ export const updateCustomer = async (req, res) => {
     } = req.body;
     const userId = req.user?.userId;
 
-    if (email && !isValidEmail(email)) {
-      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
-    }
+    // Se remueve la validación estricta de correo para no bloquear la adición de notas en clientes SAE con correos inválidos
+    // if (email && email.trim() !== '' && !isValidEmail(email)) {
+    //   return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    // }
 
     // 1. Obtener prospecto/cliente (lead) existente
     let matchedLead = null;
@@ -3591,11 +3815,11 @@ export const updateCustomer = async (req, res) => {
       const { data: cData } = await supabase.from('contacts').select('*').eq('id', contactId).maybeSingle();
       existingContact = cData;
     }
-    if (!existingContact && phone) {
+    if (!existingContact && phone && phone.trim().length > 5 && !['sin telefono', 'n/a', '0', '1234567890'].includes(phone.trim().toLowerCase())) {
       const { data: cData } = await supabase.from('contacts').select('*').eq('phone', phone.trim()).maybeSingle();
       existingContact = cData;
     }
-    if (!existingContact && email) {
+    if (!existingContact && email && email.includes('@') && !['n/a', 's', 'no@no.com', 'sin@correo.com'].includes(email.trim().toLowerCase())) {
       const { data: cData } = await supabase.from('contacts').select('*').ilike('email', email.trim()).maybeSingle();
       existingContact = cData;
     }
@@ -3826,7 +4050,7 @@ export const updateCustomer = async (req, res) => {
             email: email || '',
             phone: phone || '',
             company: company || '',
-            company_id: req.user?.companyId && !String(req.user.companyId).startsWith('company-') ? req.user.companyId : null,
+            company_id: (req.user?.companyId && !String(req.user.companyId).startsWith('company-')) ? req.user.companyId : null,
             notes: notesPayload,
             status: status || 'calificado',
             type: 'crm_customer',
@@ -3857,6 +4081,335 @@ export const updateCustomer = async (req, res) => {
   } catch (err) {
     console.error('updateCustomer error:', err);
     res.status(500).json({ success: false, message: 'Error al actualizar cliente.' });
+  }
+};
+
+// POST /api/crm/customers/:id/discard
+export const discardCustomer = async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  const userId = req.user?.userId;
+  const authorName = req.user?.name || 'Sistema';
+  const companyId = req.user?.companyId && !String(req.user.companyId).startsWith('company-')
+    ? req.user.companyId
+    : null;
+
+  if (!reason || reason.trim() === '') {
+    return res.status(400).json({ success: false, message: 'El motivo de descarte es obligatorio.' });
+  }
+
+  try {
+    let matchedLead = null;
+
+    if (id.startsWith('sae-')) {
+      // Cliente SAE: buscar por sae_clave en notes
+      const saeClave = id.replace('sae-', '').trim();
+      const targetEmpresa = req.user?.sae_empresa || '03';
+
+      const { data: allLeads } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('type', 'crm_customer');
+
+      for (const lead of allLeads || []) {
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed?.sae_clave?.trim() === saeClave) {
+              const coEmpresa = parsed.sae_empresa || '03';
+              if (coEmpresa === targetEmpresa) {
+                matchedLead = lead;
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+      }
+
+      // Si no existe registro local para este cliente SAE → crearlo como descartado
+      if (!matchedLead) {
+        const notesPayload = JSON.stringify({
+          general: `Cliente SAE descartado desde el CRM. Clave SAE: ${saeClave}.`,
+          sae_clave: saeClave,
+          sae_empresa: targetEmpresa,
+          timeline: [{
+            date: new Date().toISOString(),
+            text: `Cliente descartado. Motivo: "${reason.trim()}"`,
+            author: authorName,
+            type: 'status_change'
+          }],
+          discard_reason: reason.trim(),
+          discarded_by: userId,
+          discarded_at: new Date().toISOString()
+        });
+
+        const { data: newLead, error: insertErr } = await supabase
+          .from('leads')
+          .insert([{
+            name: req.body.customerName || `Cliente SAE ${saeClave}`,
+            email: '',
+            phone: '',
+            company: '',
+            company_id: companyId,
+            notes: notesPayload,
+            status: 'descartado',
+            type: 'crm_customer',
+            assigned_to: userId
+          }])
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+
+        matchedLead = newLead;
+        // Continuamos para aplicar la lógica en cascada
+      }
+    } else {
+      // Cliente CRM local: buscar directamente por ID
+      const { data: leadData, error: fetchErr } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      matchedLead = leadData;
+    }
+
+    if (!matchedLead) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado. Puede ser un cliente SAE sin registro local — intente de nuevo.' });
+    }
+
+    // Parsear notas existentes y añadir evento al timeline
+    let notesObj = { general: '', timeline: [] };
+    if (matchedLead.notes) {
+      try {
+        const trimmed = matchedLead.notes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          notesObj = JSON.parse(trimmed);
+        } else {
+          notesObj.general = matchedLead.notes;
+        }
+      } catch (e) {
+        notesObj.general = matchedLead.notes;
+      }
+    }
+
+    // --- LOGICA EN CASCADA ---
+    const snapshot = {
+      previous_status: matchedLead.status,
+      archived_company_id: null,
+      archived_contacts: [],
+      archived_opportunities: []
+    };
+
+    // 1. Identificar Empresa Real (UUID o clave)
+    let realCompanyId = null;
+    if (id.startsWith('sae-')) {
+      realCompanyId = id;
+    } else if (notesObj.company_id && !String(notesObj.company_id).startsWith('sae-')) {
+      realCompanyId = notesObj.company_id;
+    } else if (matchedLead.company_id && !String(matchedLead.company_id).startsWith('company-')) {
+      realCompanyId = matchedLead.company_id;
+    }
+
+    // 2. Identificar Oportunidades vinculadas
+    // Buscamos leads (que no sean type crm_customer) asignados a este contacto o empresa
+    let oppsQuery = supabase.from('leads').select('id, status').neq('type', 'crm_customer').neq('status', 'descartado');
+    if (realCompanyId || matchedLead.contact_id) {
+      let orConds = [];
+      if (realCompanyId) orConds.push(`company_id.eq.${realCompanyId}`, `notes.ilike.%${realCompanyId}%`);
+      if (matchedLead.contact_id) orConds.push(`contact_id.eq.${matchedLead.contact_id}`);
+      
+      if (orConds.length > 0) {
+        oppsQuery = oppsQuery.or(orConds.join(','));
+        const { data: linkedOpps } = await oppsQuery;
+        
+        if (linkedOpps && linkedOpps.length > 0) {
+          const oppIds = linkedOpps.map(o => o.id);
+          snapshot.archived_opportunities = linkedOpps.map(o => ({ id: o.id, prev_status: o.status }));
+          
+          // Archivar oportunidades
+          await supabase.from('leads')
+            .update({ status: 'descartado' })
+            .in('id', oppIds);
+        }
+      }
+    }
+
+    // 3. Archivar Empresa (Si no tiene otros clientes activos vinculados)
+    if (realCompanyId) {
+      const { count: activeClientsWithCompany } = await supabase.from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('type', 'crm_customer')
+        .neq('status', 'descartado')
+        .neq('id', matchedLead.id)
+        .ilike('notes', `%${realCompanyId}%`);
+        
+      if (activeClientsWithCompany === 0) {
+        // Nadie más la usa, archivamos la empresa
+        if (realCompanyId.startsWith('sae-')) {
+          await supabase.from('archived_companies').upsert([{
+            sae_id: realCompanyId,
+            clave: realCompanyId.replace('sae-', ''),
+            name: matchedLead.name || 'Empresa SAE',
+            alias: '',
+            rfc: '',
+            address: '',
+            city: '',
+            state: '',
+            phone_main: '',
+            email_main: '',
+            status: 'archivado',
+            notes: 'Empresa SAE archivada en cascada',
+            archived_by: userId,
+            archived_at: new Date().toISOString()
+          }], { onConflict: 'sae_id' });
+        } else {
+          const { data: compData } = await supabase.from('companies').select('*').eq('id', realCompanyId).maybeSingle();
+          if (compData) {
+            await supabase.from('companies').update({ status: 'archivado' }).eq('id', realCompanyId);
+            await supabase.from('archived_companies').upsert([{
+              sae_id: realCompanyId,
+              clave: realCompanyId,
+              name: compData.name || 'Empresa CRM',
+              alias: compData.alias || '',
+              rfc: compData.rfc || '',
+              address: compData.address || '',
+              city: compData.city || '',
+              state: compData.state || '',
+              phone_main: compData.phone_main || '',
+              email_main: compData.email_main || '',
+              status: 'archivado',
+              notes: compData.notes || '',
+              archived_by: userId,
+              archived_at: new Date().toISOString()
+            }], { onConflict: 'sae_id' });
+          }
+        }
+        snapshot.archived_company_id = realCompanyId;
+      }
+    }
+
+    // 4. Archivar Contactos vinculados (Si no tienen otros clientes activos vinculados)
+    const contactsToArchive = [];
+    if (matchedLead.contact_id) contactsToArchive.push({ id: matchedLead.contact_id, isSae: false });
+    
+    if (realCompanyId) {
+      // Contactos nativos vinculados por contact_companies
+      const { data: linkedContacts } = await supabase.from('contact_companies').select('contact_id').eq('company_id', realCompanyId);
+      if (linkedContacts) {
+        linkedContacts.forEach(lc => {
+          if (!contactsToArchive.find(c => c.id === lc.contact_id)) contactsToArchive.push({ id: lc.contact_id, isSae: false });
+        });
+      }
+      
+      // Si la empresa es SAE, buscamos también los contactos SAE dinámicos
+      if (realCompanyId.startsWith('sae-')) {
+        const saeClave = realCompanyId.replace('sae-', '');
+        const saeObj = getSaeConnection(req.user);
+        if (saeObj.saeClient) {
+          const { data: saeConts } = await saeObj.saeClient
+            .from(`contac${saeObj.suffix}`)
+            .select('*')
+            .eq('cve_clie', saeClave)
+            .eq('status', 'A');
+            
+          if (saeConts) {
+            saeConts.forEach((contact, idx) => {
+              const saeContactId = `sae-contact-${saeClave.trim()}-${idx + 1}`;
+              contactsToArchive.push({ 
+                id: saeContactId, 
+                isSae: true,
+                data: {
+                  name: contact.nombre ? contact.nombre.trim() : 'Contacto SAE',
+                  email: contact.email ? contact.email.trim() : '',
+                  phone: contact.telefono ? contact.telefono.trim() : ''
+                }
+              });
+            });
+          }
+        }
+      }
+    }
+
+    for (const contactObj of contactsToArchive) {
+      const contactId = contactObj.id;
+      const { count: activeClientsWithContact } = await supabase.from('leads')
+        .select('*', { count: 'exact', head: true })
+        .eq('type', 'crm_customer')
+        .neq('status', 'descartado')
+        .neq('id', matchedLead.id)
+        .or(`contact_id.eq.${contactId},notes.ilike.%${contactId}%`);
+        
+      if (activeClientsWithContact === 0) {
+        if (contactObj.isSae) {
+          await supabase.from('archived_contacts').upsert([{
+            sae_id: contactId,
+            cve_clie: realCompanyId.replace('sae-', ''),
+            name: contactObj.data.name,
+            position: 'Representante Autorizado / Compras',
+            email: contactObj.data.email,
+            phone: contactObj.data.phone,
+            whatsapp: contactObj.data.phone,
+            notes: 'Contacto importado del SAE. Archivado con su cliente.',
+            archived_by: userId,
+            archived_at: new Date().toISOString()
+          }], { onConflict: 'sae_id' });
+          snapshot.archived_contacts.push(contactId);
+        } else {
+          // Nadie más lo usa, archivamos el contacto nativo
+          const { data: contData } = await supabase.from('contacts').select('*').eq('id', contactId).maybeSingle();
+          if (contData) {
+            await supabase.from('archived_contacts').upsert([{
+              sae_id: contactId,
+              cve_clie: 'N/A',
+              name: contData.name || 'Contacto CRM',
+              position: contData.position || '',
+              email: contData.email || '',
+              phone: contData.phone || '',
+              whatsapp: contData.whatsapp || '',
+              notes: contData.notes || '',
+              archived_by: userId,
+              archived_at: new Date().toISOString()
+            }], { onConflict: 'sae_id' });
+            snapshot.archived_contacts.push(contactId);
+          }
+        }
+      }
+    }
+    
+    notesObj.archived_snapshot = snapshot;
+    // -------------------------
+
+    if (!notesObj.timeline) notesObj.timeline = [];
+    notesObj.timeline.push({
+      date: new Date().toISOString(),
+      text: `Cliente descartado. Motivo: "${reason.trim()}"`,
+      author: authorName,
+      type: 'status_change'
+    });
+    notesObj.discard_reason = reason.trim();
+    notesObj.discarded_by = userId;
+    notesObj.discarded_at = new Date().toISOString();
+
+    // Actualizar status a 'descartado'
+    const { data: updatedLead, error: updateErr } = await supabase
+      .from('leads')
+      .update({
+        status: 'descartado',
+        notes: JSON.stringify(notesObj)
+      })
+      .eq('id', matchedLead.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    res.json({ success: true, message: 'Cliente descartado correctamente.', customer: updatedLead });
+  } catch (err) {
+    console.error('discardCustomer error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al descartar el cliente.' });
   }
 };
 
@@ -4214,6 +4767,7 @@ export const uploadCustomerEvidence = async (req, res) => {
     // Validar coordenadas tempranamente (obligatorias desde el frontend)
     const bodyLat = parseFloat(req.body.latitude);
     const bodyLng = parseFloat(req.body.longitude);
+    const bodyAccuracy = parseFloat(req.body.accuracy);
     if (isNaN(bodyLat) || isNaN(bodyLng)) {
       return res.status(400).json({ 
         success: false, 
@@ -4255,7 +4809,9 @@ export const uploadCustomerEvidence = async (req, res) => {
           });
 
           if (exif) {
-            captureDate = exif.DateTimeOriginal || exif.CreateDate || null;
+            // Ignoramos la fecha del EXIF para evitar bugs de zona horaria (ej. UTC vs CST)
+            // y forzamos a que use la fecha del servidor en el momento de la subida.
+            // captureDate = exif.DateTimeOriginal || exif.CreateDate || null; 
             deviceMake = exif.Make || '';
             deviceModel = exif.Model || '';
           }
@@ -4346,6 +4902,7 @@ export const uploadCustomerEvidence = async (req, res) => {
           gps: {
             lat: bodyLat,
             lng: bodyLng,
+            accuracy: isNaN(bodyAccuracy) ? null : bodyAccuracy,
             address
           }
         };
@@ -4903,6 +5460,97 @@ export const updateCustomerB2BConfig = async (req, res) => {
   } catch (error) {
     console.error('updateCustomerB2BConfig error:', error);
     res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  }
+};
+
+// GET /api/crm/customers/archived
+export const getArchivedCustomers = async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .select('id, name, company, email, phone, notes, status, created_at, assigned_to (id, name)')
+      .eq('type', 'crm_customer')
+      .eq('status', 'descartado')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    res.json({ success: true, customers: data || [] });
+  } catch (err) {
+    console.error('getArchivedCustomers error:', err);
+    res.status(500).json({ success: false, message: 'Error al obtener clientes archivados.' });
+  }
+};
+
+// POST /api/crm/customers/:id/restore
+export const restoreCustomer = async (req, res) => {
+  const { id } = req.params;
+  const authorName = req.user?.name || 'Sistema';
+
+  try {
+    const { data: leadData, error: fetchErr } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('id', id)
+      .eq('type', 'crm_customer')
+      .maybeSingle();
+
+    if (fetchErr) throw fetchErr;
+    if (!leadData) return res.status(404).json({ success: false, message: 'Cliente no encontrado o no está archivado.' });
+
+    let notesObj = { general: '', timeline: [] };
+    if (leadData.notes) {
+      try { notesObj = JSON.parse(leadData.notes.trim()); } catch(e) {}
+    }
+
+    const snapshot = notesObj.archived_snapshot || {};
+    
+    // Restaurar Empresa
+    if (snapshot.archived_company_id) {
+      await supabase.from('companies')
+        .update({ status: 'pendiente_revision' }) // Volvemos a un status activo normal
+        .eq('id', snapshot.archived_company_id);
+        
+      await supabase.from('archived_companies').delete().eq('sae_id', snapshot.archived_company_id);
+    }
+    
+    // Restaurar Contactos
+    if (snapshot.archived_contacts && snapshot.archived_contacts.length > 0) {
+      await supabase.from('archived_contacts').delete().in('sae_id', snapshot.archived_contacts);
+    }
+    
+    // OJO: Las negociaciones NO se restauran automáticamente por petición del usuario.
+    // "no, se mantienen, esas se restaruan de forma manual"
+
+    // Limpiar notas
+    delete notesObj.archived_snapshot;
+    delete notesObj.discard_reason;
+    delete notesObj.discarded_by;
+    delete notesObj.discarded_at;
+    
+    if (!notesObj.timeline) notesObj.timeline = [];
+    notesObj.timeline.push({
+      date: new Date().toISOString(),
+      text: 'Cliente restaurado al flujo activo.',
+      author: authorName,
+      type: 'status_change'
+    });
+
+    const { data: restored, error: updateErr } = await supabase
+      .from('leads')
+      .update({
+        status: 'prospecto', // El status definido para clientes restaurados
+        notes: JSON.stringify(notesObj)
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    res.json({ success: true, message: 'Cliente restaurado correctamente.', customer: restored });
+  } catch (err) {
+    console.error('restoreCustomer error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al restaurar cliente.' });
   }
 };
 

@@ -55,7 +55,7 @@ BEGIN
 END $$;
 
 -- 4. VISTA: user_adoption_metrics
-CREATE OR REPLACE VIEW user_adoption_metrics AS
+CREATE OR REPLACE VIEW user_adoption_metrics WITH (security_invoker = true) AS
 SELECT
   u.id                                          AS user_id,
   u.name,

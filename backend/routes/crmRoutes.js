@@ -8,7 +8,7 @@ import {
   getLeads, getLeadById, updateLeadStage, updateLead,
   getSellers, createSeller, updateSeller, getSaeSellersList, assignLead, resetSellerPassword,
   deleteSeller, getOrphanLeads,
-  getCustomers, createCustomer, updateCustomer, deleteCustomer,
+  getCustomers, createCustomer, updateCustomer, deleteCustomer, discardCustomer, getArchivedCustomers, restoreCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
   updateCustomerB2BConfig,
   getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest, deleteQuote,
@@ -75,8 +75,11 @@ router.get('/chat-history/:sessionId', getChatHistory);
 
 // ── CLIENTES (Customers Directory) ───────────────────────────
 router.get('/customers', getCustomers);
+router.get('/customers/archived', getArchivedCustomers);
 router.post('/customers', createCustomer);
 router.put('/customers/:id', updateCustomer);
+router.post('/customers/:id/discard', discardCustomer);
+router.post('/customers/:id/restore', restoreCustomer);
 router.delete('/customers/:id', deleteCustomer);
 router.post('/customers/:id/evidence', upload.single('photo'), uploadCustomerEvidence);
 router.post('/customers/:id/invoices', upload.single('invoice'), uploadCustomerInvoice);

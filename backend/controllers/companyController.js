@@ -723,9 +723,10 @@ export const createCompany = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre de la empresa es obligatorio.' });
     }
 
-    if (email_main && !isValidEmail(email_main)) {
-      return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
-    }
+    // Se comenta la validación estricta para permitir actualización y notas en empresas SAE con correos inválidos
+    // if (email_main && !isValidEmail(email_main)) {
+    //   return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
+    // }
 
     let finalStatus = status || 'pendiente_revision';
     if (!CRM_STATUSES.includes(finalStatus)) {
@@ -889,9 +890,10 @@ export const updateCompany = async (req, res) => {
         res.json({ success: true, company: { ...data[0], id } });
       }
     } else {
-      if (email_main && !isValidEmail(email_main)) {
-        return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
-      }
+      // Se comenta la validación estricta para permitir actualización y notas en empresas SAE con correos inválidos
+      // if (email_main && !isValidEmail(email_main)) {
+      //   return res.status(400).json({ success: false, message: 'El correo electrónico principal no es válido (ejemplo@dominio.com).' });
+      // }
 
       let finalStatus = status;
       if (finalStatus && !CRM_STATUSES.includes(finalStatus)) {

@@ -632,6 +632,11 @@ function CreateInline({ entityType, onCancel, onCreate, submitRef }) {
           setIsLocating(false);
         }
       },
+      (error) => {
+        console.error("GPS Error:", error);
+        setIsLocating(false);
+        alert('No se pudo obtener tu ubicación actual.');
+      },
       {
         enableHighAccuracy: true,
         timeout: 10000,

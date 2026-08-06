@@ -154,7 +154,8 @@ export default function SA2QuotesStatsPage() {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const oneWeekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
-    const oneMonthAgo = now.getTime() - (30 * 24 * 60 * 60 * 1000);
+    // Primer día del mes calendario actual (maneja feb 28/29, meses de 30/31 automáticamente)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
     return parsedQuotes.filter(q => {
       // Filtro Vendedor
@@ -163,7 +164,7 @@ export default function SA2QuotesStatsPage() {
       // Filtro Período
       if (filterPeriod === 'today' && q.createdTime < todayStart) return false;
       if (filterPeriod === 'week' && q.createdTime < oneWeekAgo) return false;
-      if (filterPeriod === 'month' && q.createdTime < oneMonthAgo) return false;
+      if (filterPeriod === 'month' && q.createdTime < startOfMonth) return false;
 
       return true;
     });
@@ -174,14 +175,15 @@ export default function SA2QuotesStatsPage() {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
     const oneWeekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
-    const oneMonthAgo = now.getTime() - (30 * 24 * 60 * 60 * 1000);
+    // Primer día del mes calendario actual (maneja feb 28/29, meses de 30/31 automáticamente)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
 
     return parsedQuotes.filter(q => {
       if (filterSeller !== 'all' && q.sellerId !== filterSeller) return false;
       
       if (tablePeriod === 'today' && q.createdTime < todayStart) return false;
       if (tablePeriod === 'week' && q.createdTime < oneWeekAgo) return false;
-      if (tablePeriod === 'month' && q.createdTime < oneMonthAgo) return false;
+      if (tablePeriod === 'month' && q.createdTime < startOfMonth) return false;
 
       return true;
     });

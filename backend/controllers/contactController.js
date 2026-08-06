@@ -294,9 +294,10 @@ export const createContact = async (req, res) => {
       return res.status(400).json({ success: false, message: 'El nombre del contacto es obligatorio.' });
     }
 
-    if (email && !isValidEmail(email)) {
-      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
-    }
+    // Se comenta la validación estricta para permitir actualización y notas en contactos SAE con correos inválidos
+    // if (email && !isValidEmail(email)) {
+    //   return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+    // }
 
     const insertPayload = { name, position, contact_type: contact_type || 'oficina', email, phone, phone_alt, whatsapp, notes, created_by: userId };
 
@@ -335,9 +336,10 @@ export const updateContact = async (req, res) => {
   try {
     const { name, position, contact_type, email, phone, phone_alt, whatsapp, notes, original_sae_id, sae_company_id } = req.body;
 
-    if (email && !isValidEmail(email)) {
-      return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
-    }
+      // Se comenta la validación estricta para permitir actualización y notas en contactos SAE con correos inválidos
+      // if (email && !isValidEmail(email)) {
+      //   return res.status(400).json({ success: false, message: 'El correo electrónico no es válido (ejemplo@dominio.com).' });
+      // }
 
     const isSae = id.startsWith('sae-contact-') || original_sae_id;
 

@@ -73,9 +73,9 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
     if (!headers) return;
     try {
       const urls = [
-        fetch(`${API_BASE}/api/crm/leads`, { headers }),
-        fetch(`${API_BASE}/api/crm/leads/custom-stages`, { headers }),
-        fetch(`${API_BASE}/api/crm/leads/kanban-column-order`, { headers })
+        fetch(`${API_BASE}/api/crm/opportunities`, { headers }),
+        fetch(`${API_BASE}/api/crm/opportunities/custom-stages`, { headers }),
+        fetch(`${API_BASE}/api/crm/opportunities/kanban-column-order`, { headers })
       ];
 
       const isAdminOrSupervisor = role === 'admin' || role === 'supervisor' || role === 'super_admin';
@@ -92,7 +92,8 @@ export function useKanbanBoard({ API_BASE, role, fetchLeads, showToast, debounce
       const [resLeads, resStages, resOrder, resSellers] = await Promise.all(responses.map(r => r.json()));
 
       if (resLeads?.success) {
-        const mappedLeads = (resLeads.leads || []).map(l => ({ ...l, status: mapLeadStatus(l.status) }));
+        const dataList = resLeads.opportunities || resLeads.leads || [];
+        const mappedLeads = dataList.map(l => ({ ...l, status: mapLeadStatus(l.status || l.stage) }));
         setLeads(mappedLeads);
         if (!silent && fetchLeadsRef.current) {
           fetchLeadsRef.current(true);

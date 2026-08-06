@@ -548,7 +548,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       return;
     }
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities/${leadId}/stage`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ stage: targetStage, ...extraFields })
@@ -793,7 +793,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       const headers = getAuthHeaders();
       if (!headers) return;
       try {
-        const res = await fetch(`${API_BASE}/api/crm/leads/kanban-column-order`, {
+        const res = await fetch(`${API_BASE}/api/crm/opportunities/kanban-column-order`, {
           method: 'PUT',
           headers,
           body: JSON.stringify({ columnOrder: orderToSave })
@@ -821,7 +821,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     const headers = getAuthHeaders();
     if (!headers) return;
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/custom-stages`, {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities/custom-stages`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
@@ -862,7 +862,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     const headers = getAuthHeaders();
     if (!headers) return;
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/custom-stages/${stageId}`, {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities/custom-stages/${stageId}`, {
         method: 'DELETE',
         headers,
         body: JSON.stringify({ transferTo: transferToStage })
@@ -886,7 +886,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     const headers = getAuthHeaders();
     if (!headers) return;
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadToDiscard.id}/discard`, {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities/${leadToDiscard.id}/discard`, {
         method: 'POST',
         headers,
         body: JSON.stringify(discardForm)
@@ -930,7 +930,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
     const headers = getAuthHeaders();
     if (!headers) return;
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/assign`, {
+      const res = await fetch(`${API_BASE}/api/crm/opportunities/${leadId}/assign`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ sellerId })

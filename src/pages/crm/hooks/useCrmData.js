@@ -224,8 +224,10 @@ export function useCrmData(role, enabledModules = []) {
   // 7. Handle status update
   const handleStatusChange = async (leadId, newStatus, extraFields = {}) => {
     const token = localStorage.getItem('token');
+    const isOpp = allOpportunities.some(o => o.id === leadId);
+    const endpoint = isOpp ? 'opportunities' : 'leads';
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
+      const res = await fetch(`${API_BASE}/api/crm/${endpoint}/${leadId}/stage`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ stage: newStatus, ...extraFields })
@@ -236,8 +238,12 @@ export function useCrmData(role, enabledModules = []) {
         throw new Error(data.message || 'Error al actualizar el estado.');
       }
 
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
-      showToast('¡El prospecto ha sido calificado exitosamente y permanece en tu embudo!', 'success');
+      if (isOpp) {
+        setAllOpportunities(prev => prev.map(o => o.id === leadId ? { ...o, status: newStatus } : o));
+      } else {
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, status: newStatus } : l));
+      }
+      showToast(isOpp ? '¡La negociación ha sido actualizada exitosamente!' : '¡El prospecto ha sido calificado exitosamente y permanece en tu embudo!', 'success');
     } catch (err) {
       console.error('Status change error:', err);
       showToast('Error: ' + err.message, 'error');
@@ -247,8 +253,10 @@ export function useCrmData(role, enabledModules = []) {
   // 8. Handle seller assignment
   const handleAssignSeller = async (leadId, sellerId) => {
     const token = localStorage.getItem('token');
+    const isOpp = allOpportunities.some(o => o.id === leadId);
+    const endpoint = isOpp ? 'opportunities' : 'leads';
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/assign`, {
+      const res = await fetch(`${API_BASE}/api/crm/${endpoint}/${leadId}/assign`, {
         method: 'PUT',
         headers: getAuthHeaders(),
         body: JSON.stringify({ sellerId })
@@ -261,17 +269,29 @@ export function useCrmData(role, enabledModules = []) {
 
       const selectedSeller = sellers.find(s => s.id === sellerId);
 
-      setLeads(prev => prev.map(l => {
-        if (l.id === leadId) {
-          return {
-            ...l,
-            assigned_to: selectedSeller ? { id: selectedSeller.id, name: selectedSeller.name } : null
-          };
-        }
-        return l;
-      }));
+      if (isOpp) {
+        setAllOpportunities(prev => prev.map(o => {
+          if (o.id === leadId) {
+            return {
+              ...o,
+              assigned_to: selectedSeller ? { id: selectedSeller.id, name: selectedSeller.name } : null
+            };
+          }
+          return o;
+        }));
+      } else {
+        setLeads(prev => prev.map(l => {
+          if (l.id === leadId) {
+            return {
+              ...l,
+              assigned_to: selectedSeller ? { id: selectedSeller.id, name: selectedSeller.name } : null
+            };
+          }
+          return l;
+        }));
+      }
 
-      showToast('¡Vendedor asignado correctamente a este prospecto!', 'success');
+      showToast(isOpp ? '¡Vendedor asignado correctamente a esta negociación!' : '¡Vendedor asignado correctamente a este prospecto!', 'success');
     } catch (err) {
       console.error('Assign seller error:', err);
       showToast('Error: ' + err.message, 'error');

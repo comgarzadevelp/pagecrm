@@ -1,14 +1,14 @@
 /**
  * @file leadController.js
  * 
- * ES: Controlador del Módulo de Leads y Prospección. Gestiona la recepción,
- *     asignación, actualización de etapas, notas de seguimiento, descarte y conversión a contactos.
- * EN: Leads & Prospecting Module Controller. Manages lead ingestion, assignment,
- *     stage progression, timeline notes, discarding, and contact promotion.
+ * ES: Controlador del Módulo de Leads y Prospección Temprana. Gestiona la recepción,
+ *     asignación, actualización de etapas, notas de seguimiento y descarte de leads.
+ * EN: Leads & Early Prospecting Module Controller. Manages lead ingestion, assignment,
+ *     stage progression, timeline notes, and discarding.
  */
 
 import { supabase, getSaeConnection, cleanCompanyId } from '../../supabaseClient.js';
-import { isValidEmail, fetchAllRows, notifySuperAdmins, parseOpportunityDescription } from '../helpers/crmHelpers.js';
+import { isValidEmail, notifySuperAdmins } from '../helpers/crmHelpers.js';
 import { logDataMutation } from '../../utils/activityLogger.js';
 
 /**
@@ -25,7 +25,7 @@ export const getLeads = async (req, res) => {
       return res.status(401).json({ success: false, message: 'Company ID required' });
     }
 
-    // ── 1. Leads nativos (tabla leads, excluyendo crm_customer) ──────────────
+    // ── Leads nativos (tabla leads, excluyendo crm_customer) ──────────────
     let query = supabase
       .from('leads')
       .select(`
@@ -48,79 +48,17 @@ export const getLeads = async (req, res) => {
       query = query.or(`company_id.eq.${companyId},company_id.is.null`);
     }
 
+    // Privacidad por Vendedor
     if (role === 'sales' && userId) {
       query = query.eq('assigned_to', userId);
     }
 
-    const { data, error } = await query;
+    const { data: leads, error } = await query;
     if (error) throw error;
-
-    // ── 2. Negociaciones (tabla crm_opportunities) ───────────────────────────
-    let oppQuery = supabase
-      .from('crm_opportunities')
-      .select(`
-        id,
-        title,
-        description,
-        type,
-        stage,
-        created_at,
-        stage_updated_at,
-        updated_at,
-        value,
-        assigned_to (id, name),
-        company_id,
-        contact_id,
-        companies (id, name),
-        contacts (id, name, email, phone)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (role === 'sales' && userId) {
-      oppQuery = oppQuery.eq('assigned_to', userId);
-    }
-
-    const { data: oppsData, error: oppsError } = await oppQuery;
-    if (oppsError) {
-      console.warn('[getLeads] Error al consultar crm_opportunities:', oppsError.message);
-    }
-
-    const mappedOpps = (oppsData || []).map(opp => {
-      const parsed = parseOpportunityDescription(opp.title, opp.description, opp);
-      return {
-        id: opp.id,
-        name: opp.title || 'Negociación',
-        email: opp.contacts?.email || '',
-        phone: opp.contacts?.phone || '',
-        status: opp.stage || 'nuevo',
-        type: opp.type || 'proyecto',
-        company: opp.companies?.name || opp.contacts?.name || '',
-        notes: JSON.stringify({
-          general: parsed.cleanDescription,
-          project_name: parsed.project_name,
-          timeline: parsed.timelineEntries,
-          amount: opp.value || 0,
-          requirement_title: opp.title || '',
-          contact_id: opp.contact_id || null,
-          company_id: opp.company_id || null
-        }),
-        created_at: opp.created_at,
-        source_session_id: null,
-        assigned_to: opp.assigned_to,
-        is_opportunity: true,
-        opportunity_id: opp.id,
-        stage_updated_at: opp.stage_updated_at || opp.created_at
-      };
-    });
-
-    // ── 3. Combinar y adjuntar citas activas ─────────────────────────────────
-    const combinedData = [...(data || []), ...mappedOpps].sort(
-      (a, b) => new Date(b.created_at) - new Date(a.created_at)
-    );
 
     // Cruce con crm_appointments para adjuntar active_appointment
     try {
-      const clientNames = combinedData
+      const clientNames = (leads || [])
         .map(l => l.name)
         .filter(Boolean);
 
@@ -136,7 +74,7 @@ export const getLeads = async (req, res) => {
           appts.forEach(a => {
             if (!apptByName[a.client_name]) apptByName[a.client_name] = a;
           });
-          combinedData.forEach(lead => {
+          leads.forEach(lead => {
             if (lead.name && apptByName[lead.name]) {
               lead.active_appointment = apptByName[lead.name];
             }
@@ -147,7 +85,7 @@ export const getLeads = async (req, res) => {
       console.warn('[getLeads] Error al cruzar citas activas:', apptErr.message);
     }
 
-    res.json({ success: true, leads: combinedData });
+    res.json({ success: true, leads: leads || [] });
   } catch (err) {
     console.error('getLeads error:', err);
     res.status(500).json({ success: false, message: 'Error interno al obtener prospectos.' });
@@ -155,8 +93,8 @@ export const getLeads = async (req, res) => {
 };
 
 /**
- * ES: Obtiene los detalles de un prospecto específico por su ID.
- * EN: Retrieves details of a specific lead by its ID.
+ * ES: Obtiene los detalles de un prospecto específico por su ID sin fallbacks.
+ * EN: Retrieves details of a specific lead by its ID without fallbacks.
  */
 export const getLeadById = async (req, res) => {
   try {
@@ -181,55 +119,19 @@ export const getLeadById = async (req, res) => {
       .eq('id', id)
       .neq('type', 'crm_customer');
 
+    // Privacidad por Vendedor
     if (role === 'sales') {
       query = query.eq('assigned_to', userId);
     }
 
-    const { data, error } = await query.maybeSingle();
-
-    if (!data) {
-      // Fallback: buscar en crm_opportunities
-      const { data: opp, error: oppErr } = await supabase
-        .from('crm_opportunities')
-        .select(`
-          id, title, description, type, stage, created_at, stage_updated_at, updated_at, value,
-          assigned_to (id, name), company_id, contact_id,
-          companies (id, name), contacts (id, name, email, phone)
-        `)
-        .eq('id', id)
-        .maybeSingle();
-
-      if (oppErr || !opp) {
-        return res.status(404).json({ success: false, message: 'Prospecto/Negociación no encontrado o no autorizado.' });
-      }
-
-      const parsed = parseOpportunityDescription(opp.title, opp.description, opp);
-      return res.json({
-        success: true,
-        lead: {
-          id: opp.id,
-          name: opp.title || 'Negociación',
-          email: opp.contacts?.email || '',
-          phone: opp.contacts?.phone || '',
-          status: opp.stage || 'nuevo',
-          type: opp.type || 'proyecto',
-          company: opp.companies?.name || opp.contacts?.name || '',
-          notes: JSON.stringify({
-            general: parsed.cleanDescription,
-            project_name: parsed.project_name,
-            timeline: parsed.timelineEntries,
-            amount: opp.value || 0,
-            requirement_title: opp.title || ''
-          }),
-          created_at: opp.created_at,
-          assigned_to: opp.assigned_to,
-          is_opportunity: true
-        }
-      });
-    }
+    const { data: lead, error } = await query.maybeSingle();
 
     if (error) throw error;
-    res.json({ success: true, lead: data });
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado o no autorizado.' });
+    }
+
+    res.json({ success: true, lead });
   } catch (err) {
     console.error('getLeadById error:', err);
     res.status(500).json({ success: false, message: 'Error interno al obtener el prospecto.' });
@@ -237,8 +139,8 @@ export const getLeadById = async (req, res) => {
 };
 
 /**
- * ES: Actualiza la etapa o estatus de un prospecto en el embudo comercial.
- * EN: Updates a lead's stage or status in the sales funnel.
+ * ES: Actualiza la etapa o estatus de un prospecto en el embudo comercial sin fallbacks.
+ * EN: Updates a lead's stage or status in the sales funnel without fallbacks.
  */
 export const updateLeadStage = async (req, res) => {
   const { id } = req.params;
@@ -257,31 +159,16 @@ export const updateLeadStage = async (req, res) => {
       .select('id, status, notes, name, assigned_to')
       .eq('id', id);
 
+    // Privacidad por Vendedor
     if (role === 'sales') {
       query = query.eq('assigned_to', userId);
     }
 
-    let lead;
-    const { data: leadData, error: fetchError } = await query.maybeSingle();
+    const { data: lead, error: fetchError } = await query.maybeSingle();
 
-    if (!leadData) {
-      // Fallback: actualizar etapa en crm_opportunities
-      const newStage = stage.toLowerCase().trim();
-      const { data: updatedOpp, error: oppUpdateErr } = await supabase
-        .from('crm_opportunities')
-        .update({ stage: newStage, stage_updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .maybeSingle();
-
-      if (oppUpdateErr || !updatedOpp) {
-        return res.status(404).json({ success: false, message: 'Prospecto/Negociación no encontrado o no autorizado.' });
-      }
-
-      return res.json({ success: true, lead: { id: updatedOpp.id, status: updatedOpp.stage, is_opportunity: true } });
+    if (fetchError || !lead) {
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado o no autorizado.' });
     }
-
-    lead = leadData;
 
     const oldStatus = lead.status || 'nuevo';
     const newStatus = stage.toLowerCase().trim();
@@ -373,11 +260,12 @@ export const updateLead = async (req, res) => {
       .select('id, name, email, phone, company, notes, assigned_to')
       .eq('id', id);
 
+    // Privacidad por Vendedor
     if (role === 'sales') {
       query = query.eq('assigned_to', userId);
     }
 
-    const { data: lead, error: fetchError } = await query.single();
+    const { data: lead, error: fetchError } = await query.maybeSingle();
 
     if (fetchError || !lead) {
       return res.status(404).json({ success: false, message: 'Prospecto no encontrado o no autorizado.' });
@@ -632,11 +520,12 @@ export const discardLead = async (req, res) => {
       .select('id, notes, status')
       .eq('id', id);
 
+    // Privacidad por Vendedor
     if (role === 'sales') {
       query = query.eq('assigned_to', userId);
     }
 
-    const { data: lead, error: fetchError } = await query.single();
+    const { data: lead, error: fetchError } = await query.maybeSingle();
 
     if (fetchError || !lead) {
       return res.status(404).json({ success: false, message: 'Prospecto no encontrado o no autorizado.' });
@@ -680,8 +569,8 @@ export const discardLead = async (req, res) => {
 };
 
 /**
- * ES: Registra manualmente un nuevo prospecto o negociación desde el CRM o FieldFlow.
- * EN: Manually registers a new lead or negotiation from CRM or FieldFlow.
+ * ES: Registra manualmente un nuevo prospecto en la tabla leads.
+ * EN: Manually registers a new lead in the leads table.
  */
 export const createManualLead = async (req, res) => {
   const userId = req.user?.userId;
@@ -689,7 +578,7 @@ export const createManualLead = async (req, res) => {
 
   try {
     const {
-      contact_name, company_name, email, phone, notes, requirement_title, obra_id, is_negotiation, initial_stage, amount,
+      contact_name, company_name, email, phone, notes, requirement_title, obra_id,
       evidence_photo_url, evidence_text, latitude, longitude, maps_url
     } = req.body;
 
@@ -723,128 +612,47 @@ export const createManualLead = async (req, res) => {
       };
     }
 
-    if (is_negotiation) {
-      let resolvedContactId = null;
-      let resolvedCompanyId = null;
+    const notesPayload = {
+      general: notes || 'Prospecto registrado manualmente.',
+      project_name: leadObraName,
+      requirement_title: requirement_title?.trim() || '',
+      obra_id: finalObraId || null,
+      company_id: null,
+      contact_id: null,
+      timeline: [{
+        date: new Date().toISOString(),
+        text: 'Prospecto registrado manualmente en el CRM.',
+        author: req.user?.name || 'Vendedor',
+        type: 'status_change'
+      }]
+    };
 
-      if (leadContactPhone || leadContactEmail) {
-        const { data: existingContact } = await supabase
-          .from('contacts')
-          .select('id')
-          .or(`phone.eq.${leadContactPhone || 'N/A'},email.eq.${leadContactEmail || 'N/A'}`)
-          .maybeSingle();
+    if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
 
-        if (existingContact) {
-          resolvedContactId = existingContact.id;
-        } else {
-          const { data: newContact } = await supabase
-            .from('contacts')
-            .insert([{
-              name: leadContactName,
-              phone: leadContactPhone,
-              email: leadContactEmail,
-              position: 'Prospecto',
-              created_by: userId,
-              company_id: reqCompanyId && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null
-            }])
-            .select('id')
-            .single();
+    const insertPayload = {
+      name: leadContactName.trim(),
+      email: leadContactEmail ? leadContactEmail.trim() : null,
+      phone: leadContactPhone.trim(),
+      company: leadCompanyName.trim(),
+      notes: JSON.stringify(notesPayload),
+      assigned_to: userId,
+      status: 'nuevo',
+      type: 'vendedor_manual'
+    };
 
-          if (newContact) resolvedContactId = newContact.id;
-        }
-      }
-
-      if (leadCompanyName) {
-        const { data: existingCompany } = await supabase
-          .from('companies')
-          .select('id')
-          .ilike('name', leadCompanyName)
-          .maybeSingle();
-
-        if (existingCompany) {
-          resolvedCompanyId = existingCompany.id;
-        } else {
-          const { data: newCompany } = await supabase
-            .from('companies')
-            .insert([{
-              name: leadCompanyName,
-              alias: leadCompanyName,
-              type: 'prospecto',
-              created_by: userId,
-              company_id: reqCompanyId && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null
-            }])
-            .select('id')
-            .single();
-
-          if (newCompany) resolvedCompanyId = newCompany.id;
-        }
-      }
-
-      const oppTitle = requirement_title?.trim() || `Negociación - ${leadContactName}`;
-      const opportunityPayload = {
-        title: oppTitle,
-        stage: initial_stage || 'nuevo',
-        type: 'proyecto',
-        company_id: reqCompanyId && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null,
-        contact_id: resolvedContactId,
-        assigned_to: userId,
-        description: notes || 'Negociación registrada manualmente.',
-        value: amount ? parseFloat(amount) : 0,
-        stage_updated_at: new Date().toISOString()
-      };
-
-      const { data: oppData, error: oppError } = await supabase
-        .from('crm_opportunities')
-        .insert([opportunityPayload])
-        .select()
-        .single();
-
-      if (oppError) throw oppError;
-
-      return res.status(201).json({ success: true, opportunity: oppData, isNegotiation: true });
-    } else {
-      const notesPayload = {
-        general: notes || 'Prospecto registrado manualmente.',
-        project_name: leadObraName,
-        requirement_title: requirement_title?.trim() || '',
-        obra_id: finalObraId || null,
-        company_id: null,
-        contact_id: null,
-        timeline: [{
-          date: new Date().toISOString(),
-          text: 'Prospecto registrado manualmente en el CRM.',
-          author: req.user?.name || 'Vendedor',
-          type: 'status_change'
-        }]
-      };
-
-      if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
-
-      const insertPayload = {
-        name: leadContactName.trim(),
-        email: leadContactEmail ? leadContactEmail.trim() : null,
-        phone: leadContactPhone.trim(),
-        company: leadCompanyName.trim(),
-        notes: JSON.stringify(notesPayload),
-        assigned_to: userId,
-        status: 'nuevo',
-        type: 'vendedor_manual'
-      };
-
-      if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
-        insertPayload.company_id = reqCompanyId;
-      }
-
-      const { data: leadData, error: leadError } = await supabase
-        .from('leads')
-        .insert([insertPayload])
-        .select()
-        .single();
-
-      if (leadError) throw leadError;
-
-      return res.status(201).json({ success: true, lead: leadData, isNegotiation: false });
+    if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
+      insertPayload.company_id = reqCompanyId;
     }
+
+    const { data: leadData, error: leadError } = await supabase
+      .from('leads')
+      .insert([insertPayload])
+      .select()
+      .single();
+
+    if (leadError) throw leadError;
+
+    return res.status(201).json({ success: true, lead: leadData, isNegotiation: false });
   } catch (err) {
     console.error('createManualLead error:', err);
     res.status(500).json({ success: false, message: 'Error interno al registrar el prospecto.' });
@@ -898,8 +706,8 @@ export const checkDuplicatePhone = async (req, res) => {
 };
 
 /**
- * ES: Agrega una nota o entrada al historial cronológico (timeline) de un prospecto u oportunidad.
- * EN: Adds a note or entry to the chronological timeline of a lead or opportunity.
+ * ES: Agrega una nota o entrada al historial cronológico (timeline) de un prospecto.
+ * EN: Adds a note or entry to the chronological timeline of a lead.
  */
 export const addLeadTimelineEntry = async (req, res) => {
   const { id } = req.params;
@@ -919,33 +727,7 @@ export const addLeadTimelineEntry = async (req, res) => {
       .maybeSingle();
 
     if (!lead) {
-      const { data: opp } = await supabase
-        .from('crm_opportunities')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (opp) {
-        const textToAppend = `\n[${new Date().toISOString()} - ${userName}] ${text.trim()}`;
-        const newDesc = (opp.description || '') + textToAppend;
-
-        const { error: oppUpdateError } = await supabase
-          .from('crm_opportunities')
-          .update({ 
-            description: newDesc,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', id);
-
-        if (oppUpdateError) throw oppUpdateError;
-
-        return res.json({ 
-          success: true, 
-          timeline: [{ date: new Date().toISOString(), text: text.trim(), author: userName, type: type || 'note' }] 
-        });
-      }
-
-      return res.status(404).json({ success: false, message: 'Prospecto/Oportunidad no encontrado.' });
+      return res.status(404).json({ success: false, message: 'Prospecto no encontrado.' });
     }
 
     let notesData = { general: '', timeline: [] };
@@ -978,7 +760,7 @@ export const addLeadTimelineEntry = async (req, res) => {
     if (updateError) throw updateError;
 
     if (userId) {
-      logDataMutation(userId, 'Nota en Lead/Negociación', lead.name || text.trim().substring(0, 30));
+      logDataMutation(userId, 'Nota en Lead', lead.name || text.trim().substring(0, 30));
     }
 
     if (lead.assigned_to && lead.assigned_to !== userId) {
@@ -1055,8 +837,8 @@ export const assignLead = async (req, res) => {
 };
 
 /**
- * ES: Obtiene los prospectos huérfanos sin vendedor asignado (tanto de Supabase como de la copia espejo del SAE).
- * EN: Retrieves unassigned orphan leads (from both Supabase and SAE mirror DB).
+ * ES: Obtiene los prospectos huérfanos sin vendedor asignado.
+ * EN: Retrieves unassigned orphan leads.
  */
 export const getOrphanLeads = async (req, res) => {
   try {

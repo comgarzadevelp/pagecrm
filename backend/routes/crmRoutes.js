@@ -12,7 +12,7 @@ import {
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
   updateCustomerB2BConfig,
   getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest, deleteQuote,
-  promoteLeadToContact, discardLead, createManualLead, checkDuplicatePhone,
+  promoteLeadToOpportunity, discardLead, createManualLead, checkDuplicatePhone,
   getCustomStages, createCustomStage, deleteCustomStage, addLeadTimelineEntry,
   getKanbanColumnOrder, saveKanbanColumnOrder
 } from '../controllers/crmController.js';
@@ -37,8 +37,9 @@ import {
 } from '../controllers/profileController.js';
 
 import {
-  getOpportunities, createOpportunity, updateOpportunity, updateOpportunityStage, deleteOpportunity
-} from '../controllers/opportunitiesController.js';
+  getOpportunities, getOpportunityById, createOpportunity, updateOpportunity, updateOpportunityStage, deleteOpportunity,
+  discardOpportunity, assignOpportunity
+} from '../controllers/opportunities/opportunityController.js';
 
 import {
   getModuleConfig, getModuleConfigForCompany, updateModuleConfig, createEnterpriseCompany, updateEnterpriseCompany
@@ -69,7 +70,7 @@ router.get('/leads/:id', getLeadById);
 router.put('/leads/:id', updateLead);
 router.put('/leads/:id/stage', updateLeadStage);
 router.put('/leads/:id/assign', assignLead);
-router.post('/leads/:id/promote', promoteLeadToContact);
+router.post('/leads/:id/promote', promoteLeadToOpportunity);
 router.post('/leads/:id/discard', discardLead);
 router.get('/chat-history/:sessionId', getChatHistory);
 
@@ -158,8 +159,16 @@ router.get('/leads/orphans/all', getOrphanLeads);
 
 // ── OPORTUNIDADES (Pipeline / Proyectos / Pedidos) ────────────
 router.get('/opportunities', getOpportunities);
+router.get('/opportunities/custom-stages', getCustomStages);
+router.post('/opportunities/custom-stages', createCustomStage);
+router.delete('/opportunities/custom-stages/:id', deleteCustomStage);
+router.get('/opportunities/kanban-column-order', getKanbanColumnOrder);
+router.put('/opportunities/kanban-column-order', saveKanbanColumnOrder);
+router.get('/opportunities/:id', getOpportunityById);
 router.post('/opportunities', createOpportunity);
 router.put('/opportunities/:id', updateOpportunity);
+router.put('/opportunities/:id/assign', assignOpportunity);
+router.post('/opportunities/:id/discard', discardOpportunity);
 router.put('/opportunities/:opId/stage', updateOpportunityStage);
 router.delete('/opportunities/:opId', deleteOpportunity);
 

@@ -29,6 +29,7 @@ export * from './negotiations/negotiationController.js';
 
 // 6. PROSPECTOS / LEADS
 export * from './leads/leadController.js';
+export * from './leads/leadPromotionService.js';
 
 // 7. CLIENTES Y B2B / CUSTOMERS & B2B
 export * from './customers/customerController.js';

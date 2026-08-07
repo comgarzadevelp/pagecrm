@@ -1,0 +1,41 @@
+/* NotasMovilesPanel.css */
+/* Las clases internas (.notes-wrapper, .notes-header-row, .notes-card-grid, etc.)
+   provienen de AgendaPanel.css. Solo wrapper aquí. */
+
+.notas-moviles-wrapper {
+  width: 100%;
+}
+
+.notes-header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn-agenda-create-note {
+  background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%);
+  color: var(--color-white);
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(139, 92, 246, 0.2);
+  outline: none;
+}
+
+.btn-agenda-create-note:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.35);
+  filter: brightness(1.05);
+}
+
+.btn-agenda-create-note:active {
+  transform: translateY(0);
+}
+

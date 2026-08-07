@@ -1,0 +1,276 @@
+/* EventCard.css */
+/* Premium, High-Ticket Redesign - Anti-Gigantism */
+
+.event-card-root {
+  display: flex;
+  background: #ffffff;
+  border-radius: 14px; /* More rounded, premium feel */
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.02);
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  padding: 0.85rem 1rem; /* Compact padding */
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.event-card-root:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.04);
+  border-color: rgba(203, 213, 225, 0.8);
+}
+
+.event-card-root .event-date-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-right: 0.85rem;
+  border-right: 1px solid #f1f5f9;
+  width: 42px; /* Thinner column */
+  flex-shrink: 0;
+}
+
+.event-card-root .event-mini-calendar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  border-radius: 8px;
+  overflow: hidden;
+  width: 100%;
+  border: 1px solid #e2e8f0;
+}
+
+.event-card-root .mini-month {
+  width: 100%;
+  text-align: center;
+  font-size: 0.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  padding: 2px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.event-card-root .mini-day {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1;
+  padding: 4px 0;
+}
+
+.event-card-root .event-mini-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+}
+
+.event-card-root .event-details-column {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.event-card-root .event-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.event-card-root .event-header-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.event-card-root .event-header-info h5 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.2px;
+}
+
+.event-card-root .event-category-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 100px;
+  width: fit-content;
+  letter-spacing: 0.3px;
+}
+
+.event-card-root .event-actions-group {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.event-card-root:hover .event-actions-group {
+  opacity: 1;
+}
+
+.event-card-root .btn-event-reschedule,
+.event-card-root .btn-event-delete {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  transition: all 0.2s ease;
+}
+
+.event-card-root .btn-event-reschedule {
+  color: #3b82f6;
+}
+
+.event-card-root .btn-event-reschedule:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  transform: scale(1.05);
+}
+
+.event-card-root .btn-event-delete {
+  color: #ef4444;
+}
+
+.event-card-root .btn-event-delete:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  transform: scale(1.05);
+}
+
+.event-card-root .event-time-badge {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.event-card-root .time-date-sep {
+  color: #cbd5e1;
+}
+
+.event-card-root .event-secondary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.event-card-root .event-card-client-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.event-card-root .event-client-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(13, 148, 136, 0.08);
+  color: #0f766e;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 100px;
+  border: 1px solid rgba(13, 148, 136, 0.15);
+}
+
+.event-card-root .event-meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 100px;
+  border: 1px solid #e2e8f0;
+}
+
+.event-card-root .event-desc-text {
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+  margin: 4px 0 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.event-card-root .event-card-location {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-top: 4px;
+}
+
+.event-card-root .event-card-location i {
+  margin-top: 2px;
+  color: #94a3b8;
+}
+
+.event-card-root .event-attendees-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.event-card-root .attendee-chip {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  border: 1px solid #e2e8f0;
+}
+
+@media (max-width: 480px) {
+  .event-card-root {
+    padding: 0.75rem 0.85rem;
+    gap: 0.6rem;
+  }
+  .event-card-root .event-date-column {
+    padding-right: 0.6rem;
+    width: 38px;
+  }
+  .event-card-root .event-actions-group {
+    opacity: 1; /* Always visible on mobile since no hover */
+  }
+}

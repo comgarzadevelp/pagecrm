@@ -1,0 +1,619 @@
+/* src/pages/crm/panelssuperadmin/SuperAdminStats.css */
+/* Scoped styles for SuperAdminStats.jsx to prevent global class collisions */
+
+/* ── Dark Theme Token System for SuperAdmin panels ── */
+.sa-stats-root {
+  --sa-accent: #00f2fe;
+  --sa-accent-10: rgba(0, 242, 254, 0.1);
+  --sa-accent-15: rgba(0, 242, 254, 0.15);
+  --sa-accent-20: rgba(0, 242, 254, 0.2);
+  --sa-accent-25: rgba(0, 242, 254, 0.25);
+  --sa-accent-40: rgba(0, 242, 254, 0.4);
+  --sa-bg-card: rgba(10, 20, 22, 0.6);
+  --sa-border-subtle: rgba(255, 255, 255, 0.03);
+  --sa-border-light: rgba(255, 255, 255, 0.05);
+  --sa-border-medium: rgba(255, 255, 255, 0.08);
+  --sa-border-accent: var(--sa-accent-10);
+  --sa-text-primary: #fff;
+  --sa-text-muted: rgba(255, 255, 255, 0.6);
+  --sa-success: #10b981;
+  --sa-danger: #ef4444;
+}
+.sa-stats-root {
+  color: var(--sa-text-primary);
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Glass Panels (Overrides CRM .glass) */
+.sa-glass-panel {
+  background: var(--sa-bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--sa-border-medium);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  padding: 25px;
+  margin-bottom: 20px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa-glass-panel:hover {
+  border: 1px solid var(--sa-accent-25);
+  box-shadow: 0 12px 40px 0 var(--sa-accent-15);
+  transform: translateY(-4px);
+}
+
+/* Placeholders & Buttons */
+.sa-stats-loading-placeholder,
+.sa-stats-error-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: var(--sa-text-muted);
+  font-family: 'Outfit', sans-serif;
+  background: var(--sa-bg-card);
+  border-radius: 16px;
+  border: 1px dashed var(--sa-border-medium);
+  margin-top: 20px;
+}
+
+.sa-stats-loading-placeholder .spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 242, 254, 0.1);
+  border-top-color: var(--sa-accent);
+  border-radius: 50%;
+  animation: sa-spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes sa-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sa-stats-error-placeholder i {
+  font-size: 3rem;
+  color: var(--sa-danger);
+  margin-bottom: 15px;
+}
+
+.sa-btn-primary {
+  background: linear-gradient(135deg, #0575e6 0%, #00f2fe 100%);
+  color: #fff;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  margin-top: 15px;
+  transition: opacity 0.3s ease;
+}
+
+.sa-btn-primary:hover {
+  opacity: 0.9;
+}
+
+.sa-stats-top-bar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 15px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  gap: 15px;
+}
+
+.sa-stats-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.sa-stats-filters-wrapper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sa-stats-filter-item {
+  display: flex;
+  flex-direction: column;
+  min-width: 130px;
+}
+
+.sa-stats-filter-item.company {
+  min-width: 150px;
+}
+
+.sa-stats-filter-item.seller {
+  min-width: 160px;
+}
+
+.sa-stats-filter-label {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.sa-stats-filter-select {
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  outline: none;
+  font-size: 0.9rem;
+  transition: border-color 0.3s ease;
+}
+
+.sa-stats-filter-select:focus {
+  border-color: var(--sa-accent-40);
+  box-shadow: 0 0 10px var(--sa-accent-20);
+}
+
+.sa-stats-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.sa-stats-kpi-card-custom {
+  display: flex;
+  justify-content: space-between;
+  padding: 20px;
+  background: var(--sa-bg-card);
+  border: 1px solid var(--sa-accent-10);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(16px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa-stats-kpi-card-custom:hover {
+  border-color: var(--sa-accent-25);
+  box-shadow: 0 12px 40px 0 rgba(0, 242, 254, 0.12);
+  transform: translateY(-4px);
+}
+
+.sa-stats-kpi-card-title {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  display: block;
+}
+
+.sa-stats-kpi-num {
+  font-size: 1.8rem;
+  margin: 8px 0;
+  font-weight: bold;
+}
+
+.sa-stats-kpi-trend {
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+
+.sa-stats-kpi-trend.up {
+  color: var(--sa-success);
+}
+
+.sa-stats-kpi-trend.down {
+  color: var(--sa-danger);
+}
+
+.sa-stats-kpi-icon-container {
+  width: 60px;
+  height: 60px;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sa-stats-kpi-icon-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.sa-stats-kpi-icon-inner i {
+  font-size: 1rem;
+}
+
+.sa-stats-double-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.sa-stats-card-funnel {
+  padding: 25px;
+  border-radius: 15px;
+}
+
+.sa-stats-card-funnel h3, 
+.sa-stats-card-trend h3 {
+  margin: 0 0 20px 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sa-stats-funnel-container {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sa-stats-funnel-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.sa-stats-funnel-label {
+  width: 100px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+.sa-stats-funnel-bar-wrapper {
+  flex: 1;
+  position: relative;
+  height: 36px;
+  background: rgba(255, 255, 255, 0.01);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.sa-stats-funnel-bar-fill {
+  height: 100%;
+  border-radius: 0 6px 6px 0;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sa-stats-funnel-bar-text {
+  position: absolute;
+  top: 0;
+  left: 15px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.sa-stats-funnel-bar-text span {
+  opacity: 0.6;
+  font-weight: normal;
+  font-size: 0.75rem;
+  margin-left: 6px;
+}
+
+.sa-stats-funnel-amount {
+  width: 110px;
+  text-align: right;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sa-stats-card-trend {
+  padding: 25px;
+  border-radius: 15px;
+}
+
+.sa-stats-trend-chart-wrapper {
+  height: 220px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.sa-stats-trend-svg {
+  width: 100%;
+  height: 180px;
+  overflow: visible;
+}
+
+.sa-stats-trend-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 15px;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.sa-stats-card-heatmap {
+  padding: 25px;
+  border-radius: 15px;
+}
+
+.sa-stats-card-heatmap h3 {
+  margin: 0 0 20px 0;
+  font-size: 1.2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sa-stats-heatmap-table-wrapper {
+  overflow-x: auto;
+}
+
+.sa-stats-heatmap-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.sa-stats-heatmap-table tr.header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sa-stats-heatmap-table th {
+  padding: 12px;
+  font-size: 0.85rem;
+  opacity: 0.7;
+}
+
+.sa-stats-heatmap-table tr.row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.005);
+}
+
+.sa-stats-heatmap-table td.team-name {
+  padding: 15px 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sa-stats-heatmap-table td.cell {
+  padding: 10px 12px;
+  text-align: center;
+}
+
+.sa-stats-heatmap-badge {
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: inline-block;
+  min-width: 35px;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   📊 NUEVOS BLOQUES DE CONTROL CORPORATIVO (SAE & USO CRM)
+   ───────────────────────────────────────────────────────────── */
+.sa-stats-sae-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.sa-stats-sae-table th {
+  padding: 12px;
+  text-align: left;
+  font-size: 0.8rem;
+  opacity: 0.6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sa-stats-sae-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 0.85rem;
+  vertical-align: middle;
+}
+
+.sa-stats-sae-name {
+  font-weight: 700;
+  color: #fff;
+  display: block;
+}
+
+.sa-stats-sae-role {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  display: block;
+  margin-top: 2px;
+}
+
+.sa-stats-sae-badge {
+  background: var(--sa-accent-10);
+  color: var(--sa-accent);
+  border: 1px solid var(--sa-accent-20);
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: inline-block;
+}
+
+.sa-stats-sae-badge.na {
+  background: var(--sa-border-light);
+  color: var(--sa-text-muted);
+  border-color: var(--sa-border-medium);
+}
+
+.sa-stats-sae-amount {
+  font-family: monospace;
+  font-weight: 700;
+  color: var(--sa-success);
+  font-size: 0.95rem;
+}
+
+.sa-stats-sae-amount.na {
+  color: var(--sa-text-muted);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+/* CRM Usage Component Styling */
+.sa-stats-crm-use-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.sa-stats-crm-use-header h3 {
+  margin: 0 !important;
+}
+
+.sa-stats-crm-period-selectors {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(0, 242, 254, 0.15);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.sa-stats-crm-period-btn {
+  background: transparent !important;
+  border: none !important;
+  color: rgba(226, 241, 242, 0.6) !important;
+  padding: 6px 14px !important;
+  font-size: 0.75rem !important;
+  font-weight: 800 !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  outline: none;
+}
+
+.sa-stats-crm-period-btn:hover {
+  color: #fff !important;
+  background: rgba(255, 255, 255, 0.03) !important;
+}
+
+.sa-stats-crm-period-btn.active {
+  background: var(--sa-accent-15);
+  color: var(--sa-accent);
+  box-shadow: inset 0 0 6px var(--sa-accent-10);
+}
+
+.sa-stats-crm-use-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.sa-stats-crm-use-metric-card {
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  padding: 20px 15px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+}
+
+.sa-stats-crm-use-metric-card:hover {
+  border-color: var(--sa-accent-20);
+  background: rgba(0, 242, 254, 0.02);
+  transform: translateY(-2px);
+}
+
+.sa-stats-crm-use-icon {
+  font-size: 1.5rem;
+  color: var(--sa-accent);
+  margin-bottom: 4px;
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
+}
+
+.sa-stats-crm-use-val {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.sa-stats-crm-use-lbl {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  font-weight: 500;
+}
+
+/* Empty overlay on chart cards when N/A is active */
+.sa-stats-chart-empty-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(4, 9, 10, 0.75);
+  border-radius: 12px;
+  gap: 12px;
+  color: rgba(226, 241, 242, 0.5);
+  font-size: 0.85rem;
+  font-weight: 600;
+  backdrop-filter: blur(4px);
+  border: 1px dashed rgba(0, 242, 254, 0.15);
+}
+
+.sa-stats-chart-empty-overlay i {
+  font-size: 2rem;
+  color: var(--sa-accent-40);
+  text-shadow: 0 0 10px var(--sa-accent-20);
+}
+
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 2: SUPER ADMIN STATS RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .sa-stats-double-row {
+    grid-template-columns: 1fr;
+  }
+  .sa-stats-heatmap-table-wrapper,
+  .sa-stats-sae-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sa-stats-heatmap-table,
+  .sa-stats-sae-table {
+    min-width: 650px;
+  }
+}
+@media (max-width: 768px) {
+  .sa-stats-top-bar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .sa-stats-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}

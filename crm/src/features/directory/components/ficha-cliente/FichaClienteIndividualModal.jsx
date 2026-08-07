@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import B2BContactManager from './B2BContactManager';
-import FichaContactoModal from './FichaContactoModal';
-import FichaEmpresaModal from './FichaEmpresaModal';
-import FotoEvidencia from './FotoEvidencia';
-import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
-import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
-import '../styles/FichaClienteIndividualModal.css';
+import { useUX } from '../../../../components/common/UXProvider';
+import B2BContactManager from '../contactos/B2BContactManager';
+import FichaContactoModal from '../ficha-contacto/FichaContactoModal';
+import FichaEmpresaModal from '../empresas/FichaEmpresaModal';
+import FotoEvidencia from '../directorio-clientes/FotoEvidencia';
+import RegistrarVisitaModal from '../../../../pages/crm/components/RegistrarVisitaModal';
+import CrearProspectoModal from '../../../../pages/crm/components/CrearProspectoModal';
+import './FichaClienteIndividualModal.css';
 
 const isValidEmail = (email) => {
   if (!email) return false;

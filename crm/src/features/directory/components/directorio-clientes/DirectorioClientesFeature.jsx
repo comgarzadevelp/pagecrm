@@ -1,16 +1,16 @@
 import React from 'react';
-import { useDirectorioClientes } from '../hooks/useDirectorioClientes';
+import { useDirectorioClientes } from '../../hooks/useDirectorioClientes';
 import CustomerTable from './CustomerTable';
-import styles from '../styles/DirectorioClientes.module.css';
+import styles from './DirectorioClientes.module.css';
 
-import RegistrarClienteModal from '../../../pages/crm/components/RegistrarClienteModal';
-import FichaClienteIndividualModal from './FichaClienteIndividualModal';
-import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
-import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
-import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
-import useDirectorio from '../../../hooks/useDirectorio';
-import { useDateFilter } from '../../../hooks/useDateFilter';
-import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import RegistrarClienteModal from '../../../../pages/crm/components/RegistrarClienteModal';
+import FichaClienteIndividualModal from '../ficha-cliente/FichaClienteIndividualModal';
+import CrearProspectoModal from '../../../../pages/crm/components/CrearProspectoModal';
+import RegistrarVisitaModal from '../../../../pages/crm/components/RegistrarVisitaModal';
+import EventCreatorModal from '../../../calendar/components/EventCreatorModalFeature';
+import useDirectorio from '../../../../hooks/useDirectorio';
+import { useDateFilter } from '../../../../hooks/useDateFilter';
+import DateFilter from '../../../../components/common/DateFilter/DateFilter';
 
 /**
  * DirectorioClientesFeature

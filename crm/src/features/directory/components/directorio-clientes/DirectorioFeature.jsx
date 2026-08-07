@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import MisContactosFeature from './MisContactosFeature';
-import SuperAdminContactos from '../../superadmin/components/SuperAdminContactos';
-import EmpresasFeature from './EmpresasFeature';
-import DirectorioObrasFeature from './DirectorioObrasFeature';
+import MisContactosFeature from '../contactos/MisContactosFeature';
+import SuperAdminContactos from '../../../superadmin/components/SuperAdminContactos';
+import EmpresasFeature from '../empresas/EmpresasFeature';
+import DirectorioObrasFeature from '../obras/DirectorioObrasFeature';
 import DirectorioClientesFeature from './DirectorioClientesFeature';
-import '../styles/Directorio.css';
+import './Directorio.css';
 
 export default function Directorio({
   onViewCompanyDetails,

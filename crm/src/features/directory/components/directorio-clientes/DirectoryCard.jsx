@@ -1,6 +1,6 @@
 import React from 'react';
-import '../../../features/directory/styles/Directorio.css';
-import { computeDataQuality, getQualityConfig, isValidPhone } from '../utils/dataQuality.js';
+import './Directorio.css';
+import { computeDataQuality, getQualityConfig, isValidPhone } from '../../utils/dataQuality.js';
 
 const isValidEmail = (email) => {
   if (!email) return false;

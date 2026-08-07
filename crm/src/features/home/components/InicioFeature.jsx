@@ -10,8 +10,8 @@ import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaM
 
 // Drawer y Modales para notificaciones
 import NotificacionesDrawer from './NotificacionesDrawer';
-import FichaEmpresaModal from '../../directory/components/FichaEmpresaModal';
-import FichaContactoModal from '../../directory/components/FichaContactoModal';
+import FichaEmpresaModal from '../../directory/components/empresas/FichaEmpresaModal';
+import FichaContactoModal from '../../directory/components/ficha-contacto/FichaContactoModal';
 import DetallesNegociacionFeature from '../../leads/components/DetallesNegociacionFeature';
 
 export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpportunitiesList }) {

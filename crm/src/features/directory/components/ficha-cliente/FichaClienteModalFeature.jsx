@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import TabPerfil from '../../../pages/crm/components/FichaCliente/TabPerfil';
-import TabCotizaciones from '../../../pages/crm/components/FichaCliente/TabCotizaciones';
-import TabActualizaciones from '../../../pages/crm/components/FichaCliente/TabActualizaciones';
-import TabHistorialUnificado from '../../../pages/crm/components/FichaCliente/TabHistorialUnificado';
-import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
-import { computeDataQuality, getQualityConfig } from '../utils/dataQuality.js';
-import '../../../pages/crm/components/FichaCliente/FichaCliente.css';
+import { useUX } from '../../../../components/common/UXProvider';
+import TabPerfil from '../../../../pages/crm/components/FichaCliente/TabPerfil';
+import TabCotizaciones from '../../../../pages/crm/components/FichaCliente/TabCotizaciones';
+import TabActualizaciones from '../../../../pages/crm/components/FichaCliente/TabActualizaciones';
+import TabHistorialUnificado from '../../../../pages/crm/components/FichaCliente/TabHistorialUnificado';
+import RegistrarVisitaModal from '../../../../pages/crm/components/RegistrarVisitaModal';
+import { computeDataQuality, getQualityConfig } from '../../utils/dataQuality.js';
+import '../../../../pages/crm/components/FichaCliente/FichaCliente.css';
 
 export default function FichaClienteModal({
   selectedCustomer,

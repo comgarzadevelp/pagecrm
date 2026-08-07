@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import FotoEvidencia from '../../directory/components/FotoEvidencia';
-import '../../directory/styles/FichaContacto.css';
+import FotoEvidencia from '../../directory/components/directorio-clientes/FotoEvidencia';
+import '../../directory/components/ficha-contacto/FichaContacto.css';
 
 function formatFullDateTime(isoString) {
   if (!isoString) return 'N/A';

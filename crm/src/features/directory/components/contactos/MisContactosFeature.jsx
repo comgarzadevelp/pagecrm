@@ -1,14 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import { useMisContactos } from '../hooks/useMisContactos';
-import { computeDataQuality } from '../utils/dataQuality';
-import DirectoryCard from './DirectoryCard';
+import { useUX } from '../../../../components/common/UXProvider';
+import { useMisContactos } from '../../hooks/useMisContactos';
+import { computeDataQuality } from '../../utils/dataQuality';
+import DirectoryCard from '../directorio-clientes/DirectoryCard';
 import ContactoFormModal from './ContactoFormModal';
-import FichaContactoModal from './FichaContactoModal';
-import styles from '../styles/MisContactos.module.css';
-import { useDateFilter } from '../../../hooks/useDateFilter';
-import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import FichaContactoModal from '../ficha-contacto/FichaContactoModal';
+import styles from './MisContactos.module.css';
+import { useDateFilter } from '../../../../hooks/useDateFilter';
+import DateFilter from '../../../../components/common/DateFilter/DateFilter';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

@@ -11,19 +11,19 @@ import CotizadorRAVFeature from '../features/quotes/components/CotizadorRAVFeatu
 import AgendaPanelFeature from '../features/calendar/components/AgendaPanelFeature';
 
 // Features (FSD Migrated)
-import DirectorioFeature from '../features/directory/components/DirectorioFeature';
+import DirectorioFeature from '../features/directory/components/directorio-clientes/DirectorioFeature';
 import StatsDashboardFeature from '../features/dashboard/components/StatsDashboardFeature';
 import DocumentosFeature from '../features/files/components/DocumentosFeature';
-import ArchivoContactosFeature from '../features/directory/components/ArchivoContactosFeature';
+import ArchivoContactosFeature from '../features/directory/components/archivo/ArchivoContactosFeature';
 import NotificationsPanelFeature from '../features/system/components/NotificationsPanelFeature';
 import MiPerfilFeature from '../features/system/components/MiPerfilFeature';
 import ProspectosHuerfanosFeature from '../features/leads/components/ProspectosHuerfanosFeature';
 import EquipoVentasFeature from '../features/system/components/EquipoVentasFeature';
-import DirectorioClientesFeature from '../features/directory/components/DirectorioClientesFeature';
-import FichaEmpresaModal from '../features/directory/components/FichaEmpresaModal';
-import FichaContactoModal from '../features/directory/components/FichaContactoModal';
-import FichaClienteIndividualModal from '../features/directory/components/FichaClienteIndividualModal';
-import DirectorioObrasFeature from '../features/directory/components/DirectorioObrasFeature';
+import DirectorioClientesFeature from '../features/directory/components/directorio-clientes/DirectorioClientesFeature';
+import FichaEmpresaModal from '../features/directory/components/empresas/FichaEmpresaModal';
+import FichaContactoModal from '../features/directory/components/ficha-contacto/FichaContactoModal';
+import FichaClienteIndividualModal from '../features/directory/components/ficha-cliente/FichaClienteIndividualModal';
+import DirectorioObrasFeature from '../features/directory/components/obras/DirectorioObrasFeature';
 import ModuleConfigPanel from '../features/superadmin/components/ModuleConfigPanel';
 import ChatbotConfigPanel from '../features/superadmin/components/ChatbotConfigPanel';
 import ConjuntoEmpresarial from '../features/superadmin/components/EnterpriseGroupPanel';

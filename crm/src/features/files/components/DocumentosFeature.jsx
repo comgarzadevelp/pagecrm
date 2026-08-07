@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import ContenedorFeature from './ContenedorFeature';
 import GestorCotizacionesFeature from '../../quotes/components/GestorCotizacionesFeature';
-import '../../directory/styles/Directorio.css'; // Reutilizamos estilos del switch
+import '../../directory/components/directorio-clientes/Directorio.css'; // Reutilizamos estilos del switch
 
 export default function DocumentosFeature(props) {
   const [activeSubTab, setActiveSubTab] = useState('recursos'); // 'recursos' | 'cotizaciones'

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
+import { useUX } from '../../../../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

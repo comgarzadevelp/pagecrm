@@ -1,5 +1,5 @@
 import React from 'react';
-import styles from '../styles/DirectorioClientes.module.css';
+import styles from './DirectorioClientes.module.css';
 
 /**
  * Componente visual que renderiza el directorio de clientes en forma de tarjetas (cards) premium.

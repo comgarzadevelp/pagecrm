@@ -1,7 +1,6 @@
-// src/pages/crm/panels/ArchivoContactos.jsx
 import React, { useEffect, useState } from 'react';
 import FichaArchivadoModal from './FichaArchivadoModal';
-import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
+import DetallesNegociacion from '../../../../pages/crm/components/DetallesNegociacion';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import { useDirectorioObras } from '../hooks/useDirectorioObras';
+import { useUX } from '../../../../components/common/UXProvider';
+import { useDirectorioObras } from '../../hooks/useDirectorioObras';
 import FichaObraModal from "./FichaObraModalFeature";
-import styles from '../styles/DirectorioObras.module.css';
+import styles from './DirectorioObras.module.css';
 
 /**
  * DirectorioObrasFeature

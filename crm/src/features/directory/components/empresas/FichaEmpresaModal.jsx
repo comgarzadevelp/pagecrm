@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import { computeDataQuality, getQualityConfig } from '../utils/dataQuality';
-import FichaTimelineItem, { compileTimelineItems } from './FichaTimelineItem';
-import '../styles/FichaContacto.css'; // Reusing the layout styles
+import { useUX } from '../../../../components/common/UXProvider';
+import { computeDataQuality, getQualityConfig } from '../../utils/dataQuality';
+import FichaTimelineItem, { compileTimelineItems } from '../directorio-clientes/FichaTimelineItem';
+import '../ficha-contacto/FichaContacto.css'; // Reusing the layout styles
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const getToken = () => localStorage.getItem('token');

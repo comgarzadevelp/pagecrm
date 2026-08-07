@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import useEmpresas from '../../../hooks/useEmpresas'; // Hook legacy de data fetching
-import { useEmpresasFeature } from '../hooks/useEmpresasFeature';
-import DirectoryCard from './DirectoryCard';
-import styles from '../styles/Empresas.module.css';
-import { computeDataQuality } from '../utils/dataQuality.js';
+import { useUX } from '../../../../components/common/UXProvider';
+import useEmpresas from '../../../../hooks/useEmpresas'; // Hook legacy de data fetching
+import { useEmpresasFeature } from '../../hooks/useEmpresasFeature';
+import DirectoryCard from '../directorio-clientes/DirectoryCard';
+import styles from './Empresas.module.css';
+import { computeDataQuality } from '../../utils/dataQuality.js';
 
 // Importamos el código original gigante del formulario temporalmente (refactorizable en futuro)
 // Por ahora mantendremos el formulario dentro de este wrapper o podemos delegar.
 import EmpresaFormModal from './EmpresaFormModal';
-import { useDateFilter } from '../../../hooks/useDateFilter';
-import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import { useDateFilter } from '../../../../hooks/useDateFilter';
+import DateFilter from '../../../../components/common/DateFilter/DateFilter';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

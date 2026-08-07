@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useUX } from '../../../components/common/UXProvider';
-import '../styles/MisContactos.module.css';
+import { useUX } from '../../../../components/common/UXProvider';
+import './MisContactos.module.css';
 
 const isValidEmail = (email) => {
   if (!email) return false;

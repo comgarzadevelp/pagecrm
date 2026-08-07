@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useUX } from '../../../components/common/UXProvider';
-import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
+import { useUX } from '../../../../components/common/UXProvider';
+import RegistrarVisitaModal from '../../../../pages/crm/components/RegistrarVisitaModal';
 
 export default function FichaObraModal({ obra, onClose, API_BASE, onObraUpdated }) {
   const { showToast } = useUX();

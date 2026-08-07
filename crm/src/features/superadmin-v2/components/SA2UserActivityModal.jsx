@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import DirectorioClientesFeature from '../../directory/components/DirectorioClientesFeature';
-import { compileTimelineItems } from '../../directory/components/FichaTimelineItem';
+import DirectorioClientesFeature from '../../directory/components/directorio-clientes/DirectorioClientesFeature';
+import { compileTimelineItems } from '../../directory/components/directorio-clientes/FichaTimelineItem';
 import SA2UserVisitasTab from './SA2UserVisitasTab';
 import SA2UserSessionsTab from './SA2UserSessionsTab';
 import './SA2UserActivityModal.css';

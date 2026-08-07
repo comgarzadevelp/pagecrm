@@ -3,7 +3,7 @@ import LeadsBandejaFeature from './LeadsBandejaFeature';
 import ProspectosKanbanFeature from './ProspectosKanbanFeature';
 import CotizadorB2BFeature from '../../quotes/components/CotizadorB2BFeature';
 import CotizadorRAVFeature from '../../quotes/components/CotizadorRAVFeature';
-import '../../directory/styles/Directorio.css'; // Reutilizamos estilos del switch
+import '../../directory/components/directorio-clientes/Directorio.css'; // Reutilizamos estilos del switch
 
 export default function VentasFeature(props) {
   const [activeSubTab, setActiveSubTab] = useState('bandeja'); // 'bandeja' | 'kanban'

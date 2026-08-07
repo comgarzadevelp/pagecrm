@@ -12,8 +12,8 @@ import MobileNavigation from '../components/layout/MobileNavigation';
 
 
 // Modals
-import FichaEmpresaModal from '../features/directory/components/FichaEmpresaModal';
-import FichaContactoModal from '../features/directory/components/FichaContactoModal';
+import FichaEmpresaModal from '../features/directory/components/empresas/FichaEmpresaModal';
+import FichaContactoModal from '../features/directory/components/ficha-contacto/FichaContactoModal';
 import DetallesNegociacionFeature from '../features/leads/components/DetallesNegociacionFeature';
 
 const DashboardShell = ({

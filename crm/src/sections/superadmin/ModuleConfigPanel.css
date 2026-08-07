@@ -1,0 +1,347 @@
+/* src/pages/crm/panelssuperadmin/ModuleConfigPanel.css */
+/* Scoped styles for ModuleConfigPanel.jsx to prevent global class collisions */
+
+.sa-config-root {
+  padding: 25px;
+  border-radius: 15px;
+  color: #fff;
+}
+
+.sa-config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.sa-config-title-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.sa-config-title {
+  margin: 0;
+  font-size: 1.8rem;
+  letter-spacing: 0.5px;
+}
+
+.sa-config-desc {
+  margin: 5px 0 0 0;
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.sa-config-btn-new {
+  padding: 10px 16px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  background: var(--color-brand-accent, #e0922b) !important;
+  color: #fff !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  transition: all 0.3s ease !important;
+}
+
+.sa-config-btn-new:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(224, 146, 43, 0.3) !important;
+}
+
+.sa-config-msg-success {
+  background: #16a34a;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sa-config-msg-error {
+  background: #dc2626;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sa-config-create-form {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 25px;
+}
+
+.sa-config-form-title {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+}
+
+.sa-config-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.sa-config-form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.sa-config-form-label {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 5px;
+  opacity: 0.9;
+}
+
+.sa-config-form-input {
+  width: 100%;
+  padding: 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: #fff !important;
+  outline: none;
+}
+
+.sa-config-form-input.color {
+  height: 42px;
+  padding: 2px !important;
+  cursor: pointer;
+}
+
+.sa-config-form-textarea {
+  width: 100%;
+  padding: 10px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  background: rgba(0, 0, 0, 0.2) !important;
+  color: #fff !important;
+  resize: vertical;
+  outline: none;
+}
+
+.sa-config-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.sa-config-company-select-panel {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  margin-bottom: 25px;
+  background: rgba(255, 255, 255, 0.02);
+  padding: 15px;
+  border-radius: 10px;
+}
+
+.sa-config-company-select-label {
+  font-size: 1rem;
+  font-weight: bold;
+  min-width: 150px;
+}
+
+.sa-config-company-select-dropdown {
+  flex: 1;
+  padding: 12px !important;
+  border-radius: 8px !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: 1rem !important;
+  outline: none;
+  cursor: pointer;
+}
+
+.sa-config-grid-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.sa-config-category-card {
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.sa-config-category-title {
+  margin: 0 0 15px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 8px;
+  font-size: 1.1rem;
+  letter-spacing: 0.5px;
+}
+
+.sa-config-category-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sa-config-module-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.sa-config-module-row.active {
+  background: rgba(22, 163, 74, 0.05);
+  border: 1px solid rgba(22, 163, 74, 0.15);
+}
+
+.sa-config-module-row.inactive {
+  background: rgba(220, 38, 38, 0.05);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+}
+
+.sa-config-module-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sa-config-module-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sa-config-module-row.active .sa-config-module-icon {
+  color: var(--color-brand-accent);
+}
+
+.sa-config-module-row.inactive .sa-config-module-icon {
+  color: #999;
+}
+
+.sa-config-module-label {
+  font-weight: 500;
+  display: block;
+  font-size: 0.95rem;
+}
+
+.sa-config-module-key {
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+.sa-config-switch-label {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+}
+
+.sa-config-switch-input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.sa-config-switch-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.sa-config-module-row.active .sa-config-switch-slider {
+  background-color: var(--color-brand-accent, #e0922b);
+}
+
+.sa-config-module-row.inactive .sa-config-switch-slider {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.sa-config-switch-slider-knob {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+.sa-config-module-row.active .sa-config-switch-slider-knob {
+  transform: translateX(22px);
+}
+
+.sa-config-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 20px;
+}
+
+.sa-config-btn-save {
+  padding: 12px 30px !important;
+  border-radius: 8px !important;
+  border: none !important;
+  background: var(--color-brand-accent, #e0922b) !important;
+  color: #fff !important;
+  font-size: 1rem !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: 0 4px 12px rgba(224, 146, 43, 0.2) !important;
+  transition: all 0.3s ease !important;
+}
+
+.sa-config-btn-save:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 6px 20px rgba(224, 146, 43, 0.4) !important;
+}
+
+/* -------------------------------------------------------------
+   CORRECCIONES FASE 2: MODULE CONFIG PANEL RESPONSIVE
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .sa-config-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  .sa-config-company-select-panel {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+@media (max-width: 768px) {
+  .sa-config-form-grid,
+  .sa-config-grid-categories {
+    grid-template-columns: 1fr;
+  }
+}

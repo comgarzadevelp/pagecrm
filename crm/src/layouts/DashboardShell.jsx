@@ -1,20 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY } from './moduleRegistry';
-import QuickCreateFab from '../pages/crm/components/QuickCreate/QuickCreateFab';
+import QuickCreateFab from './QuickCreateFab';
 import { useCompany } from '../contexts/CompanyContext';
 import '../styles/Dashboard.css';
 import '../styles/MobileApp.css';
-import '../pages/crm/dashboards/DashboardSuperAdmin.css';
+import '../styles/DashboardSuperAdmin.css';
 
-import Sidebar from '../components/layout/Sidebar';
-import GlobalBellNotifications from '../components/layout/GlobalBellNotifications';
-import MobileNavigation from '../components/layout/MobileNavigation';
+import Sidebar from './Sidebar';
+import GlobalBellNotifications from './GlobalBellNotifications';
+import MobileNavigation from './MobileNavigation';
 
 
 // Modals
-import FichaEmpresaModal from '../features/directory/components/empresas/FichaEmpresaModal';
-import FichaContactoModal from '../features/directory/components/ficha-contacto/FichaContactoModal';
-import DetallesNegociacionFeature from '../features/leads/components/DetallesNegociacionFeature';
+import FichaEmpresaModal from '../components/directorio/ficha-empresa/FichaEmpresaModal';
+import FichaContactoModal from '../components/directorio/ficha-contacto/FichaContactoModal';
+import DetallesNegociacionFeature from '../sections/ventas/detalles/DetallesNegociacionFeature';
 
 const DashboardShell = ({
   activeTab,

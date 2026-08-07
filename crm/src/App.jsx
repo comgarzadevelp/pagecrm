@@ -11,12 +11,12 @@ import LoginSuperAdmin from './pages/LoginSuperAdmin';
 import DashboardRouter from './layouts/DashboardRouter';
 
 // SuperAdmin V2
-import SA2Layout from './features/superadmin-v2/layouts/SA2Layout';
-import SA2DashboardPage from './features/superadmin-v2/pages/SA2DashboardPage';
-import SA2PersonalPage from './features/superadmin-v2/pages/SA2PersonalPage';
-import SA2LeadsWebPage from './features/superadmin-v2/pages/SA2LeadsWebPage';
-import SA2QuotesStatsPage from './features/superadmin-v2/pages/SA2QuotesStatsPage';
-import SA2NotificationsPage from './features/superadmin-v2/pages/SA2NotificationsPage';
+import SA2Layout from './sections/superadmin-v2/layouts/SA2Layout';
+import SA2DashboardPage from './sections/superadmin-v2/pages/SA2DashboardPage';
+import SA2PersonalPage from './sections/superadmin-v2/pages/SA2PersonalPage';
+import SA2LeadsWebPage from './sections/superadmin-v2/pages/SA2LeadsWebPage';
+import SA2QuotesStatsPage from './sections/superadmin-v2/pages/SA2QuotesStatsPage';
+import SA2NotificationsPage from './sections/superadmin-v2/pages/SA2NotificationsPage';
 
 function AppContent() {
   // Heartbeat de presencia — actualiza last_seen_at cada 60s para cualquier usuario logueado

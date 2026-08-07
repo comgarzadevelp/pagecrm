@@ -1,0 +1,174 @@
+/* VisitasEnFrioPanel.css */
+
+.visitas-frio-wrapper {
+  width: 100%;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Form inputs & grid */
+.form-row-visitas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  width: 100%;
+}
+
+/* Input with icon styling */
+.input-with-icon {
+  position: relative;
+  width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-icon input,
+.input-with-icon textarea {
+  width: 100%;
+  padding: 11px 12px 11px 38px !important;
+  border-radius: 10px !important;
+  border: 1px solid rgba(5, 57, 58, 0.15) !important;
+  font-size: 0.88rem !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  outline: none !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  color: var(--color-text-dark) !important;
+  box-sizing: border-box;
+}
+
+.input-with-icon input:focus,
+.input-with-icon textarea:focus {
+  border-color: var(--color-brand-primary) !important;
+  background: var(--color-white) !important;
+  box-shadow: 0 0 0 4px rgba(5, 57, 58, 0.08) !important;
+}
+
+.icon-field {
+  position: absolute;
+  left: 14px;
+  color: rgba(5, 57, 58, 0.45);
+  font-size: 0.95rem;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+.input-with-icon input:focus + .icon-field,
+.input-with-icon textarea:focus + .icon-field {
+  color: var(--color-brand-primary);
+}
+
+/* GPS input group */
+.input-with-icon-button {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.flex-grow {
+  flex: 1;
+}
+
+/* GPS Button styling */
+.btn-gps-locator {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 10px;
+  border: 1px solid rgba(5, 57, 58, 0.15);
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--color-brand-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.05rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.btn-gps-locator:hover {
+  background: var(--color-brand-primary);
+  color: var(--color-white);
+  border-color: var(--color-brand-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(5, 57, 58, 0.12);
+}
+
+.btn-gps-locator:active {
+  transform: translateY(0);
+}
+
+.btn-gps-locator.loading {
+  background: rgba(5, 57, 58, 0.05);
+  color: rgba(5, 57, 58, 0.4);
+  cursor: not-allowed;
+}
+
+/* GPS Error */
+.gps-error-text {
+  font-size: 0.75rem;
+  color: #ef4444;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: -2px;
+  animation: fadeIn 0.2s ease;
+}
+
+/* Textarea Icon Adjustment */
+.textarea-container {
+  align-items: flex-start;
+}
+
+.textarea-icon {
+  top: 14px;
+}
+
+/* Save button styling */
+.btn-agenda-action {
+  background: linear-gradient(135deg, var(--color-brand-primary), #0c4d4f);
+  color: var(--color-white);
+  border: none;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(5, 57, 58, 0.12);
+}
+
+.btn-agenda-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(5, 57, 58, 0.2);
+}
+
+.btn-agenda-action:active {
+  transform: translateY(-1px);
+}
+
+/* Keyframes */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .form-row-visitas {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+}
+

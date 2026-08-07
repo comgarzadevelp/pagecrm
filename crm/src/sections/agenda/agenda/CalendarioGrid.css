@@ -1,0 +1,19 @@
+/* CalendarioGrid.css */
+/* Todas las clases internas provienen de AgendaPanel.css.
+   Este archivo actúa como declaración de existencia del módulo CSS
+   para que el import no falle, y puede añadir overrides futuros. */
+
+.calendario-grid-root {
+  width: 100%;
+}
+
+.agenda-day-card.completed-event {
+  background-color: #f8fafc;
+  border-color: #e2e8f0;
+  box-shadow: none;
+}
+
+.agenda-day-card.completed-event:hover {
+  transform: none;
+  box-shadow: none;
+}

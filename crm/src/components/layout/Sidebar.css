@@ -1,0 +1,469 @@
+/* ─────────────────────────────────────────────────────────────
+   📂 SIDEBAR DESIGN SYSTEM (SaaS Modern Style)
+   ───────────────────────────────────────────────────────────── */
+
+/* Main Glassmorphic Sidebar Container */
+.crm-sidebar,
+.crm-sidebar.glass {
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(15, 23, 42, 0.08);
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1.25rem;
+  box-sizing: border-box;
+  z-index: 1000;
+  box-shadow: 4px 0 25px rgba(0, 0, 0, 0.03);
+  overflow: visible;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Responsive sidebar width adjustments */
+@media (max-width: 1440px) {
+  .crm-sidebar,
+  .crm-sidebar.glass {
+    width: 240px;
+    padding: 1.25rem 0.9rem;
+  }
+}
+
+/* Header Container */
+.crm-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  min-height: 48px;
+  width: 100%;
+}
+
+.crm-sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.crm-sidebar-brand .crm-logo-img {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+.crm-sidebar-brand-rav {
+  color: #CC3333;
+  font-weight: 900;
+  font-size: 1.35rem;
+  margin: 0;
+  letter-spacing: -0.5px;
+  font-family: 'Outfit', sans-serif;
+  white-space: nowrap;
+}
+
+.crm-sidebar-brand-rav span {
+  color: #0087BE;
+  font-weight: 300;
+}
+
+.crm-sidebar-brand-rav-mini {
+  color: #CC3333;
+  font-weight: 900;
+  font-size: 1.5rem;
+  margin: 0;
+  font-family: 'Outfit', sans-serif;
+}
+
+/* Integrated Toggle Button */
+.btn-toggle-sidebar {
+  background: transparent;
+  border: none;
+  color: #64748b;
+  font-size: 1.1rem;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-toggle-sidebar:hover {
+  color: #05393a;
+  background: rgba(5, 57, 58, 0.08);
+}
+
+/* Company Selector */
+.crm-sidebar-company-selector {
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.crm-sidebar-company-select {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(5, 57, 58, 0.04);
+  border: 1px solid rgba(5, 57, 58, 0.12);
+  color: #1e293b;
+  font-size: 0.85rem;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.crm-sidebar-company-select:focus {
+  border-color: #05393a;
+  box-shadow: 0 0 0 3px rgba(5, 57, 58, 0.1);
+}
+
+/* Nav Menu Container */
+.crm-sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+  margin-top: 0.5rem;
+}
+
+.crm-sidebar-nav::-webkit-scrollbar {
+  width: 5px;
+}
+
+.crm-sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(5, 57, 58, 0.12);
+  border-radius: 10px;
+}
+
+/* Modern SaaS Nav Button */
+.nav-item-btn {
+  position: relative;
+  background: transparent;
+  border: none;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #475569;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  text-align: left;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item-btn i {
+  font-size: 1.1rem;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
+/* Hover Effect: Smooth rightward glide & background tint */
+.nav-item-btn:hover {
+  color: #05393a;
+  background: rgba(5, 57, 58, 0.06);
+  transform: translateX(4px);
+}
+
+/* Clean Active State with Animated Left Indicator Bar */
+.nav-item-btn.active {
+  color: #05393a;
+  background: rgba(5, 57, 58, 0.1);
+  font-weight: 700;
+}
+
+.nav-item-btn.active i {
+  color: #05393a;
+}
+
+.nav-item-btn.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 4px;
+  background-color: #05393a;
+  border-radius: 0 4px 4px 0;
+  animation: slideInBar 0.25s ease forwards;
+}
+
+@keyframes slideInBar {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+/* Zero Layout Shift Smooth Collapse Rules */
+.nav-item-label,
+.user-details,
+.logout-text {
+  max-width: 200px;
+  opacity: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: max-width 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease,
+              margin 0.3s ease;
+}
+
+.user-details h3 {
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #05393a;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.user-role-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #e0922b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sidebar Footer & User Profile */
+.crm-sidebar-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding-top: 1rem;
+}
+
+.crm-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.crm-sidebar-user:hover {
+  background: rgba(5, 57, 58, 0.05);
+}
+
+.user-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #05393a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.btn-sidebar-logout {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  transition: all 0.25s ease;
+  width: 100%;
+}
+
+.btn-sidebar-logout:hover {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+/* Collapsed Sidebar Styles */
+.crm-sidebar.collapsed,
+.crm-sidebar.collapsed.glass {
+  width: 70px !important;
+  padding: 1.25rem 0.4rem !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-header {
+  justify-content: center !important;
+  margin-bottom: 1.25rem !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-brand {
+  display: none !important;
+}
+
+.crm-sidebar.collapsed .btn-toggle-sidebar {
+  margin: 0 auto !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-company-selector {
+  display: none !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-nav {
+  align-items: center !important;
+  overflow: visible !important;
+  padding-right: 0 !important;
+  scrollbar-width: none !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-nav::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+}
+
+.crm-sidebar.collapsed .nav-item-label,
+.crm-sidebar.collapsed .user-details,
+.crm-sidebar.collapsed .logout-text {
+  max-width: 0 !important;
+  opacity: 0 !important;
+  margin-left: 0 !important;
+  pointer-events: none;
+}
+
+.crm-sidebar.collapsed .nav-item-btn {
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0 !important;
+  padding: 0 !important;
+  width: 44px !important;
+  height: 44px !important;
+  margin: 0.2rem auto !important;
+  border-radius: 10px !important;
+}
+
+.crm-sidebar.collapsed .nav-item-btn i {
+  margin: 0 !important;
+  width: auto !important;
+}
+
+.crm-sidebar.collapsed .nav-item-btn:hover {
+  transform: none !important;
+}
+
+.crm-sidebar.collapsed .nav-item-btn.active::before {
+  display: none !important;
+}
+
+.crm-sidebar.collapsed .crm-sidebar-user {
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0 !important;
+  padding: 0.4rem !important;
+  margin: 0 auto !important;
+}
+
+.crm-sidebar.collapsed .btn-sidebar-logout {
+  justify-content: center !important;
+  align-items: center !important;
+  gap: 0 !important;
+  width: 44px !important;
+  height: 44px !important;
+  margin: 0.2rem auto !important;
+  padding: 0 !important;
+  border-radius: 10px !important;
+}
+
+.crm-sidebar.collapsed .btn-sidebar-logout i {
+  margin: 0 !important;
+}
+
+/* Tooltip Positioning for Collapsed Sidebar */
+.crm-sidebar.collapsed .nav-item-btn,
+.crm-sidebar.collapsed .crm-sidebar-user,
+.crm-sidebar.collapsed .btn-sidebar-logout {
+  position: relative;
+}
+
+.crm-sidebar.collapsed [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 65px;
+  top: 50%;
+  transform: translateY(-50%) scale(0.9);
+  background: #05393a !important;
+  color: #ffffff !important;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s cubic-bezier(0.4, 0, 0.2, 1), transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 15px rgba(5, 57, 58, 0.25);
+  z-index: 999999 !important;
+}
+
+.crm-sidebar.collapsed [data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   📐 MAIN CONTENT ADAPTATION (SMOOTH TRANSITION & MOBILE SAFE)
+   ───────────────────────────────────────────────────────────── */
+@media (min-width: 769px) {
+  .crm-main-content {
+    margin-left: 280px;
+    width: calc(100% - 280px);
+    transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1), width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  @media (max-width: 1440px) {
+    .crm-main-content {
+      margin-left: 240px;
+      width: calc(100% - 240px);
+    }
+  }
+
+  .crm-main-content.sidebar-collapsed {
+    margin-left: 70px !important;
+    width: calc(100% - 70px) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .crm-main-content,
+  .crm-main-content.sidebar-collapsed {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+}

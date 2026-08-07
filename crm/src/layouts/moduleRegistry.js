@@ -74,8 +74,6 @@ export const MODULE_REGISTRY = {
     label: 'Agenda',
     icon: 'fa-calendar-check',
     category: 'productivity',
-    badge: 'LIVE',
-    badgeColor: '#16a34a',
     needsData: [],
   },
 
@@ -150,8 +148,6 @@ export const MODULE_REGISTRY = {
     label: 'Agenda',
     icon: 'fa-calendar-check',
     category: 'superadmin',
-    badge: 'en vivo',
-    badgeColor: '#98ca3f',
     needsData: [],
   },
   'chatbot-config': {

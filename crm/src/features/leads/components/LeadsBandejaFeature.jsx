@@ -1,17 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import useDebounce from '../../../pages/crm/hooks/useDebounce';
+import useDebounce from '../../../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
 import '../styles/LeadsBandeja.css';
 import '../styles/ProspectosKanban.css';
-import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../../../pages/crm/utils/leadHelpers';
+import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../pages/crm/components/StatusDropdown';
 import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import CierreGanadoModal from '../../../pages/crm/components/CierreGanadoModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
-import { validateQuotePDF } from '../../../pages/crm/utils/pdfValidator';
+import { validateQuotePDF } from '../../../utils/pdfValidator';
 
 // Sleek Custom Dropdown for general Filters
 function CustomFilterDropdown({ value, options, onChange, placeholder, fullWidth = false }) {

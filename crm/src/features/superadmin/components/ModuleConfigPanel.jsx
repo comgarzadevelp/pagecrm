@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUX } from '../../../components/common/UXProvider';
-import { MODULE_REGISTRY, CATEGORY_LABELS } from '../../../pages/crm/moduleRegistry';
+import { MODULE_REGISTRY, CATEGORY_LABELS } from '../../../layouts/moduleRegistry';
 import './ModuleConfigPanel.css';
 import '../../system/styles/AdminPanels.css';
 const API_BASE = import.meta.env.VITE_API_URL || '';

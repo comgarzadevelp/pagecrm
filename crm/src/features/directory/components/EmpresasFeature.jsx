@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
-import useEmpresas from '../../../pages/crm/hooks/useEmpresas'; // Hook legacy de data fetching
+import useEmpresas from '../../../hooks/useEmpresas'; // Hook legacy de data fetching
 import { useEmpresasFeature } from '../hooks/useEmpresasFeature';
 import DirectoryCard from './DirectoryCard';
 import styles from '../styles/Empresas.module.css';

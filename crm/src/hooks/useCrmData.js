@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCompany } from '../../../contexts/CompanyContext';
-import { applyTheme } from '../../../styles/companyThemes';
-import { useUX } from '../../../components/common/UXProvider';
+import { useCompany } from '../contexts/CompanyContext';
+import { applyTheme } from '../styles/companyThemes';
+import { useUX } from '../components/common/UXProvider';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

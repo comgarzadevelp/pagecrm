@@ -8,7 +8,7 @@ import FichaClienteIndividualModal from './FichaClienteIndividualModal';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';
 import RegistrarVisitaModal from '../../../pages/crm/components/RegistrarVisitaModal';
 import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
-import useDirectorio from '../../../pages/crm/hooks/useDirectorio';
+import useDirectorio from '../../../hooks/useDirectorio';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
 

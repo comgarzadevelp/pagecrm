@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { getEnabledModules } from './moduleRegistry';
-import { UXProvider } from '../../components/common/UXProvider';
-import DashboardLayout from './layouts/DashboardLayout';
-import './ErrorBoundary.css';
+import { UXProvider } from '../components/common/UXProvider';
+import DashboardLayout from './DashboardLayout';
+import '../styles/ErrorBoundary.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 

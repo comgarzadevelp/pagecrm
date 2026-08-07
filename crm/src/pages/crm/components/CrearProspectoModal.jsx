@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
-import useDebounce from '../hooks/useDebounce';
+import useDebounce from '../../../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
 import {
   User,

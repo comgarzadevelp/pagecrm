@@ -6,10 +6,9 @@ import { useSessionHeartbeat } from './hooks/useSessionHeartbeat';
 import './styles/Global.css';
 
 // CRM pages
-import Login from './pages/crm/Login';
-import LoginSuperAdmin from './pages/crm/LoginSuperAdmin';
-import DashboardRouter from './pages/crm/DashboardRouter';
-import LabComponent from './pages/crm/LabComponent';
+import Login from './pages/Login';
+import LoginSuperAdmin from './pages/LoginSuperAdmin';
+import DashboardRouter from './layouts/DashboardRouter';
 
 // SuperAdmin V2
 import SA2Layout from './features/superadmin-v2/layouts/SA2Layout';
@@ -35,7 +34,6 @@ function AppContent() {
           <Route path="/crm/login-superadmin" element={<LoginSuperAdmin />} />
           <Route path="/crm/dashboard" element={<DashboardRouter />} />
           <Route path="/crm/dashboard/:tab" element={<DashboardRouter />} />
-          <Route path="/crm/lab" element={<LabComponent />} />
 
           {/* SuperAdmin V2 Isolated Route */}
           <Route path="/crm/sa2" element={<SA2Layout />}>

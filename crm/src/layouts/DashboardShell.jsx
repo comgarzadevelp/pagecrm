@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY, ROLE_LABELS, ROLE_ICONS } from './moduleRegistry';
-import QuickCreateFab from './components/QuickCreate/QuickCreateFab';
-import { useUX } from '../../components/common/UXProvider';
-import { useCompany } from '../../contexts/CompanyContext';
-import './Dashboard.css';
-import './MobileApp.css';
-import './dashboards/DashboardSuperAdmin.css';
+import QuickCreateFab from '../pages/crm/components/QuickCreate/QuickCreateFab';
+import { useUX } from '../components/common/UXProvider';
+import { useCompany } from '../contexts/CompanyContext';
+import '../styles/Dashboard.css';
+import '../styles/MobileApp.css';
+import '../pages/crm/dashboards/DashboardSuperAdmin.css';
 
 // Notificaciones Drawer y Modales
-import NotificacionesDrawer from '../../features/home/components/NotificacionesDrawer';
-import FichaEmpresaModal from '../../features/directory/components/FichaEmpresaModal';
-import FichaContactoModal from '../../features/directory/components/FichaContactoModal';
-import DetallesNegociacionFeature from '../../features/leads/components/DetallesNegociacionFeature';
+import NotificacionesDrawer from '../features/home/components/NotificacionesDrawer';
+import FichaEmpresaModal from '../features/directory/components/FichaEmpresaModal';
+import FichaContactoModal from '../features/directory/components/FichaContactoModal';
+import DetallesNegociacionFeature from '../features/leads/components/DetallesNegociacionFeature';
 
 // Sleek Global Bell Notifications Component (Fixed in top-right, solid high-contrast neon styling)
 const GlobalBellNotifications = ({ setActiveTab, role, activeTab, onOpenEntity }) => {

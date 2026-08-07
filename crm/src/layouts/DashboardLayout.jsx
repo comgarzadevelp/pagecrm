@@ -1,36 +1,36 @@
 import React, { useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import DashboardShell from '../DashboardShell';
+import { useParams, useNavigate, Navigate } from 'react-router-dom';
+import DashboardShell from './DashboardShell';
 import { useCrmData } from '../hooks/useCrmData';
 
 // Features (FSD Migrated)
-import InicioFeature from '../../../features/home/components/InicioFeature';
-import VentasFeature from '../../../features/leads/components/VentasFeature';
-import CotizadorB2BFeature from '../../../features/quotes/components/CotizadorB2BFeature';
-import CotizadorRAVFeature from '../../../features/quotes/components/CotizadorRAVFeature';
-import AgendaPanelFeature from '../../../features/calendar/components/AgendaPanelFeature';
+import InicioFeature from '../features/home/components/InicioFeature';
+import VentasFeature from '../features/leads/components/VentasFeature';
+import CotizadorB2BFeature from '../features/quotes/components/CotizadorB2BFeature';
+import CotizadorRAVFeature from '../features/quotes/components/CotizadorRAVFeature';
+import AgendaPanelFeature from '../features/calendar/components/AgendaPanelFeature';
 
 // Features (FSD Migrated)
-import DirectorioFeature from '../../../features/directory/components/DirectorioFeature';
-import StatsDashboardFeature from '../../../features/dashboard/components/StatsDashboardFeature';
-import DocumentosFeature from '../../../features/files/components/DocumentosFeature';
-import ArchivoContactosFeature from '../../../features/directory/components/ArchivoContactosFeature';
-import NotificationsPanelFeature from '../../../features/system/components/NotificationsPanelFeature';
-import MiPerfilFeature from '../../../features/system/components/MiPerfilFeature';
-import ProspectosHuerfanosFeature from '../../../features/leads/components/ProspectosHuerfanosFeature';
-import EquipoVentasFeature from '../../../features/system/components/EquipoVentasFeature';
-import DirectorioClientesFeature from '../../../features/directory/components/DirectorioClientesFeature';
-import FichaEmpresaModal from '../../../features/directory/components/FichaEmpresaModal';
-import FichaContactoModal from '../../../features/directory/components/FichaContactoModal';
-import FichaClienteIndividualModal from '../../../features/directory/components/FichaClienteIndividualModal';
-import DirectorioObrasFeature from '../../../features/directory/components/DirectorioObrasFeature';
-import ModuleConfigPanel from '../../../features/superadmin/components/ModuleConfigPanel';
-import ChatbotConfigPanel from '../../../features/superadmin/components/ChatbotConfigPanel';
-import ConjuntoEmpresarial from '../../../features/superadmin/components/EnterpriseGroupPanel';
-import PersonalGarza from '../../../features/superadmin/components/SuperAdminPersonnel';
-import AdminAgendaPanel from '../../../features/superadmin/components/SuperAdminAgenda';
-import SuperAdminStats from '../../../features/superadmin/components/SuperAdminStats';
-import SuperAdminContactos from '../../../features/superadmin/components/SuperAdminContactos';
+import DirectorioFeature from '../features/directory/components/DirectorioFeature';
+import StatsDashboardFeature from '../features/dashboard/components/StatsDashboardFeature';
+import DocumentosFeature from '../features/files/components/DocumentosFeature';
+import ArchivoContactosFeature from '../features/directory/components/ArchivoContactosFeature';
+import NotificationsPanelFeature from '../features/system/components/NotificationsPanelFeature';
+import MiPerfilFeature from '../features/system/components/MiPerfilFeature';
+import ProspectosHuerfanosFeature from '../features/leads/components/ProspectosHuerfanosFeature';
+import EquipoVentasFeature from '../features/system/components/EquipoVentasFeature';
+import DirectorioClientesFeature from '../features/directory/components/DirectorioClientesFeature';
+import FichaEmpresaModal from '../features/directory/components/FichaEmpresaModal';
+import FichaContactoModal from '../features/directory/components/FichaContactoModal';
+import FichaClienteIndividualModal from '../features/directory/components/FichaClienteIndividualModal';
+import DirectorioObrasFeature from '../features/directory/components/DirectorioObrasFeature';
+import ModuleConfigPanel from '../features/superadmin/components/ModuleConfigPanel';
+import ChatbotConfigPanel from '../features/superadmin/components/ChatbotConfigPanel';
+import ConjuntoEmpresarial from '../features/superadmin/components/EnterpriseGroupPanel';
+import PersonalGarza from '../features/superadmin/components/SuperAdminPersonnel';
+import AdminAgendaPanel from '../features/superadmin/components/SuperAdminAgenda';
+import SuperAdminStats from '../features/superadmin/components/SuperAdminStats';
+import SuperAdminContactos from '../features/superadmin/components/SuperAdminContactos';
 
 export default function DashboardLayout({ role, enabledModules }) {
   const {
@@ -92,9 +92,8 @@ export default function DashboardLayout({ role, enabledModules }) {
 
   // Protect against manually navigating to disabled modules
   if (!enabledModules.includes(activeTab) && enabledModules.length > 0) {
-    // If invalid tab, navigate to the first enabled module
-    navigate(`/crm/dashboard/${enabledModules[0]}`, { replace: true });
-    return null;
+    // If invalid tab, redirect to the first enabled module declaratively
+    return <Navigate to={`/crm/dashboard/${enabledModules[0]}`} replace />;
   }
 
   return (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCompany } from '../../contexts/CompanyContext';
-import { applyTheme } from '../../styles/companyThemes';
+import { useCompany } from '../contexts/CompanyContext';
+import { applyTheme } from '../styles/companyThemes';
 import './Login.css';
 
 const Login = () => {

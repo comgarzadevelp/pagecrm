@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
-import useDebounce from '../../../pages/crm/hooks/useDebounce';
-import { getLeadAgeInfo, getChannelBadgeInfo } from '../../../pages/crm/utils/leadHelpers';
+import useDebounce from '../../../hooks/useDebounce';
+import { getLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import '../styles/ProspectosKanban.css';
-import { validateQuotePDF } from '../../../pages/crm/utils/pdfValidator';
+import { validateQuotePDF } from '../../../utils/pdfValidator';
 import EventCreatorModal from '../../calendar/components/EventCreatorModalFeature';
 import DetallesNegociacion from '../../../pages/crm/components/DetallesNegociacion';
 import CrearProspectoModal from '../../../pages/crm/components/CrearProspectoModal';

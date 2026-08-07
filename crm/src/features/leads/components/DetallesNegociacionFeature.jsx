@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
-import { getChannelBadgeInfo } from '../../../pages/crm/utils/leadHelpers';
+import { getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../pages/crm/components/StatusDropdown';
 import '../styles/DetallesNegociacion.css';
 

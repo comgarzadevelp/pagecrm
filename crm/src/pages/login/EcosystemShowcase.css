@@ -1,0 +1,247 @@
+/* ==========================================================================
+   CONTENEDOR PRINCIPAL DEL ECOSISTEMA
+   ========================================================================== */
+.crm-showcase-graphic {
+  position: relative;
+  width: 240px;
+  height: 240px;
+  margin: 1.5rem auto 4rem auto; /* 4rem abajo da espacio para la tarjeta flotante */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Posicionamiento del SVG detrás de los nodos */
+.crm-nodes-svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Líneas base estáticas */
+.crm-edge {
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4; /* Línea punteada técnica */
+}
+
+/* Líneas animadas (simulación de transferencia de datos) */
+.crm-edge-flow {
+  stroke: var(--garza-naranja);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 15 100;
+  stroke-dashoffset: 115;
+  opacity: 0.85;
+  animation: dataTransfer 3s infinite linear;
+}
+
+.flow-1 { animation-delay: 0s; }
+.flow-2 { animation-delay: 0.75s; }
+.flow-3 { animation-delay: 1.5s; }
+.flow-4 { animation-delay: 2.25s; }
+
+/* 1. Respiración del Nodo Central (Hub) */
+.crm-node-main {
+  z-index: 3;
+  animation: hubPulse 4s ease-in-out infinite;
+}
+
+/* 2. Flotación de Nodos Satélite (Z-index superior a las líneas) */
+.crm-node-1 {
+  z-index: 2;
+  animation: satelliteFloat1 5s ease-in-out infinite alternate;
+}
+.crm-node-2 {
+  z-index: 2;
+  animation: satelliteFloat2 5s ease-in-out infinite alternate;
+  animation-delay: -1.2s;
+}
+.crm-node-3 {
+  z-index: 2;
+  animation: satelliteFloat3 5s ease-in-out infinite alternate;
+  animation-delay: -2.5s;
+}
+.crm-node-4 {
+  z-index: 2;
+  animation: satelliteFloat4 5s ease-in-out infinite alternate;
+  animation-delay: -3.7s;
+}
+
+.crm-node {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: #FFFFFF;
+  position: absolute;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* ==========================================================================
+   1. CORRECCIÓN DEL HOVER (Evita el temblor y congela la flotación)
+   ========================================================================== */
+.crm-node:hover {
+  background-color: var(--garza-naranja);
+  border-color: #FFFFFF;
+  /* Mantiene el centrado (-50%, -50%) y aplica el escalado sin saltos */
+  transform: translate(-50%, -50%) scale(1.15) !important;
+  box-shadow: 0 0 20px rgba(224, 146, 43, 0.6);
+  z-index: 10;
+  /* Pausa el movimiento orbital mientras el usuario lee el nodo */
+  animation-play-state: paused;
+}
+
+.crm-node-main {
+  width: 78px;
+  height: 78px;
+  background-color: var(--garza-naranja);
+  border: 2px solid #FFFFFF;
+  font-size: 1.75rem;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.crm-node-main:hover {
+  background-color: #FFFFFF;
+  color: var(--garza-verde);
+  transform: translate(-50%, -50%) scale(1.08) !important;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.8);
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   2. CORRECCIÓN DE LA TARJETA FLOTANTE (Posición estable y centrada abajo)
+   ========================================================================== */
+.crm-floating-node-card {
+  position: absolute;
+  bottom: -45px; /* Se ubica justo debajo del gráfico sin tapar los nodos */
+  left: 50%;
+  transform: translateX(-50%); /* Centrado horizontal geométrico exacto */
+  width: 240px;
+  background-color: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.35);
+  color: var(--garza-text-dark);
+  text-align: left;
+  z-index: 30;
+  animation: crmFadeInUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  pointer-events: none; /* Crucial: evita interferencias con el mouse */
+}
+
+.crm-floating-node-card h4 {
+  font-family: var(--font-primary), sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--garza-verde);
+  margin: 0 0 0.35rem 0;
+}
+
+.crm-floating-node-card p {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  margin: 0;
+  color: #475569;
+}
+
+/* ==========================================================================
+   KEYFRAMES (100% GPU ACCELERATED)
+   ========================================================================== */
+
+@keyframes hubPulse {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+    box-shadow: 0 0 0 0 rgba(224, 146, 43, 0.4);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+    box-shadow: 0 0 22px 6px rgba(224, 146, 43, 0.25);
+  }
+}
+
+@keyframes satelliteFloat1 {
+  0% { transform: translate(-50%, -50%); }
+  33% { transform: translate(calc(-50% - 3px), calc(-50% - 4px)); }
+  66% { transform: translate(calc(-50% + 3px), calc(-50% + 2px)); }
+  100% { transform: translate(calc(-50% - 2px), calc(-50% + 3px)); }
+}
+
+@keyframes satelliteFloat2 {
+  0% { transform: translate(-50%, -50%); }
+  33% { transform: translate(calc(-50% + 4px), calc(-50% - 3px)); }
+  66% { transform: translate(calc(-50% - 2px), calc(-50% + 4px)); }
+  100% { transform: translate(calc(-50% + 3px), calc(-50% - 2px)); }
+}
+
+@keyframes satelliteFloat3 {
+  0% { transform: translate(-50%, -50%); }
+  33% { transform: translate(calc(-50% - 4px), calc(-50% + 3px)); }
+  66% { transform: translate(calc(-50% + 3px), calc(-50% - 2px)); }
+  100% { transform: translate(calc(-50% - 2px), calc(-50% - 4px)); }
+}
+
+@keyframes satelliteFloat4 {
+  0% { transform: translate(-50%, -50%); }
+  33% { transform: translate(calc(-50% + 3px), calc(-50% + 4px)); }
+  66% { transform: translate(calc(-50% - 4px), calc(-50% - 2px)); }
+  100% { transform: translate(calc(-50% + 2px), calc(-50% + 3px)); }
+}
+
+@keyframes dataTransfer {
+  0% {
+    stroke-dashoffset: 115;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: -20;
+    opacity: 0;
+  }
+}
+
+/* ==========================================================================
+   3. CORRECCIÓN DEL KEYFRAME (Mantiene el eje X intacto al animar)
+   ========================================================================== */
+@keyframes crmFadeInUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px); /* Conserva el -50% del eje X */
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0); /* Conserva el -50% del eje X */
+  }
+}
+
+/* ==========================================================================
+   OPTIMIZACIÓN DEL ECOSISTEMA CON ESCALADO FLUIDO (Zoom & 4K)
+   ========================================================================== */
+@media (min-width: 1400px) {
+  .crm-showcase-graphic {
+    /* El escalado vectorial aumenta el SVG, nodos y tooltip de forma fluida */
+    transform: scale(clamp(1, 0.07vw, 1.4));
+    transform-origin: center center;
+    margin: clamp(1.5rem, 2vw, 3.5rem) auto clamp(3.5rem, 4vw, 6rem) auto;
+  }
+}

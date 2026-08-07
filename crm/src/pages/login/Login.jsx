@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCompany } from '../../contexts/CompanyContext';
 import { applyTheme } from '../../styles/companyThemes';
+import EcosystemShowcase from './EcosystemShowcase';
 import './Login.css';
 
 const Login = () => {
@@ -10,16 +11,13 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const navigate = useNavigate();
   const { switchCompany } = useCompany();
   const abortControllerRef = useRef(null);
 
   useEffect(() => {
-    // Aplicar el tema cromático Garza al montar el componente
     applyTheme('GARZA');
-
-    // Limpieza de AbortController al desmontar
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -32,7 +30,6 @@ const Login = () => {
     setError('');
     setIsLoading(true);
 
-    // Cancelar cualquier llamada concurrent en vuelo antes de iniciar una nueva
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -56,7 +53,6 @@ const Login = () => {
         return;
       }
 
-      // Verificar empresa asociada, asignando por defecto la estructura GARZA si no retorna nada
       const userCompanies = data.companies || [];
       const garzaCompany = userCompanies.find(c => c.company_code === 'GARZA') || userCompanies[0] || {
         id: 'company-garza-id-123456789',
@@ -67,10 +63,7 @@ const Login = () => {
       completeLogin(data, garzaCompany);
       setIsLoading(false);
     } catch (err) {
-      if (err.name === 'AbortError') {
-        // Petición cancelada intencionalmente, ignorar actualización de estado
-        return;
-      }
+      if (err.name === 'AbortError') return;
       console.error('Error de red en Login CRM:', err);
       setError('Error de conexión. Asegúrate de que el servidor esté activo.');
       setIsLoading(false);
@@ -108,10 +101,8 @@ const Login = () => {
               alt="Logo Comercializadora Garza"
               className="crm-login-logo"
             />
-            <h2>Acceso CRM</h2>
-            <p className="crm-login-subtitle">
-              Comercializadora Garza
-            </p>
+            <h2>Bienvenido</h2>
+
           </header>
 
           <form onSubmit={handleSubmit} className="crm-login-form">
@@ -124,7 +115,7 @@ const Login = () => {
                 <input
                   id="email-input"
                   type="email"
-                  placeholder="tu@correo.com"
+                  placeholder="usuario@garza.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -144,7 +135,7 @@ const Login = () => {
                 <input
                   id="password-input"
                   type={showPassword ? 'text' : 'password'}
-                  placeholder="••••••••••••"
+                  placeholder="********"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -191,27 +182,20 @@ const Login = () => {
         </div>
       </div>
 
-      {/* PANEL DERECHO: BRANDING & ECOSISTEMA (Accesible semánticamente excepto los gráficos/iconos decorativos) */}
+      {/* PANEL DERECHO: BRANDING & ECOSISTEMA */}
       <aside className="crm-login-showcase-section">
         <div className="crm-showcase-content">
           <div className="crm-showcase-badge">
             <i className="fas fa-project-diagram" aria-hidden="true"></i>
-            <span>Plataforma CRM Centralizada</span>
+            <span>Plataforma CRM Garza</span>
           </div>
-          <div className="crm-showcase-graphic" aria-hidden="true">
-            <div className="crm-node crm-node-main">
-              <i className="fas fa-database"></i>
-            </div>
-            <div className="crm-node crm-node-1"><i className="fas fa-users"></i></div>
-            <div className="crm-node crm-node-2"><i className="fas fa-box"></i></div>
-            <div className="crm-node crm-node-3"><i className="fas fa-chart-line"></i></div>
-            <div className="crm-node crm-node-4"><i className="fas fa-envelope"></i></div>
-          </div>
+
+          <EcosystemShowcase />
+
           <div className="crm-showcase-text">
-            <h3>Gestión unificada para Comercializadora Garza</h3>
+            <h3>Gestión unificada </h3>
             <p>
-              Control integral de clientes, inventario operativo, kpi comerciales
-              y seguimiento estratégico en un entorno optimizado y seguro.
+              Control integral de clientes y seguimiento estratégico en un entorno optimizado y seguro.
             </p>
           </div>
         </div>

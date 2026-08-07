@@ -63,7 +63,7 @@
 
 .crm-login-header h2 {
   font-family: var(--font-primary), sans-serif;
-  color: var(--garza-verde);
+  color: var(--garza-naranja);
   font-size: 1.875rem;
   font-weight: 700;
   margin: 0 0 0.35rem 0;
@@ -334,62 +334,6 @@
   color: var(--garza-naranja);
 }
 
-/* GRÁFICO NODAL DEL ECOSISTEMA CRM */
-.crm-showcase-graphic {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  margin-bottom: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.crm-node {
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.1rem;
-  color: #FFFFFF;
-  position: absolute;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.crm-node-main {
-  width: 76px;
-  height: 76px;
-  background-color: var(--garza-naranja);
-  border: 2px solid #FFFFFF;
-  font-size: 1.6rem;
-  z-index: 3;
-}
-
-.crm-node-1 {
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-}
-
-.crm-node-2 {
-  bottom: 20px;
-  right: 10px;
-}
-
-.crm-node-3 {
-  bottom: 20px;
-  left: 10px;
-}
-
-.crm-node-4 {
-  top: 45px;
-  right: 5px;
-}
-
 .crm-showcase-text h3 {
   font-size: 1.6rem;
   font-weight: 700;
@@ -458,5 +402,74 @@
   .crm-superadmin-login-link-container {
     margin-top: 2rem;
     padding-top: 1.25rem;
+  }
+}
+
+/* ==========================================================================
+   DISEÑO ADAPTATIVO FLUIDO (Zoom y resoluciones ultra-anchas/4K)
+   ========================================================================== */
+@media (min-width: 1400px) {
+  /* 1. Expansión proporcional de la tarjeta de Login */
+  .crm-login-card {
+    max-width: clamp(420px, 25vw, 580px);
+  }
+
+  .crm-login-logo {
+    height: clamp(64px, 4vw, 84px);
+    margin-bottom: clamp(1.25rem, 2vw, 1.75rem);
+  }
+
+  .crm-login-header h2 {
+    font-size: clamp(1.875rem, 2.2vw, 2.5rem);
+  }
+
+  .crm-login-subtitle {
+    font-size: clamp(0.95rem, 1vw, 1.2rem);
+  }
+
+  /* 2. Escalado fluido de Inputs y Botones */
+  .crm-login-input {
+    height: clamp(50px, 3.2vw, 64px);
+    font-size: clamp(1rem, 1vw, 1.15rem);
+    padding-left: clamp(2.75rem, 3vw, 3.25rem);
+  }
+
+  .crm-input-icon {
+    font-size: clamp(0.95rem, 1vw, 1.25rem);
+    left: clamp(1rem, 1.1vw, 1.25rem);
+  }
+
+  .crm-input-label {
+    font-size: clamp(0.8rem, 0.8vw, 0.95rem);
+  }
+
+  .crm-btn-login {
+    height: clamp(50px, 3.2vw, 64px);
+    font-size: clamp(1rem, 1vw, 1.2rem);
+  }
+
+  .crm-superadmin-login-link-btn {
+    font-size: clamp(0.85rem, 0.85vw, 1rem);
+  }
+
+  /* 3. Escalado del panel institucional derecho */
+  .crm-showcase-content {
+    max-width: clamp(480px, 32vw, 680px);
+  }
+
+  .crm-showcase-badge {
+    font-size: clamp(0.8rem, 0.85vw, 1rem);
+    padding: clamp(0.4rem, 0.5vw, 0.6rem) clamp(1rem, 1.2vw, 1.4rem);
+    margin-bottom: clamp(2.5rem, 3vw, 3.5rem);
+  }
+
+  .crm-showcase-text h3 {
+    font-size: clamp(1.6rem, 2vw, 2.2rem);
+    margin-bottom: clamp(1rem, 1.1vw, 1.25rem);
+  }
+
+  .crm-showcase-text p {
+    font-size: clamp(0.95rem, 1vw, 1.2rem);
+    line-height: 1.7;
   }
 }

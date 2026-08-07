@@ -144,4 +144,13 @@ backend/standardizeDates.js
 # Ignorar archivos locales subidos en uploads, mantener estructura
 backend/public/uploads/**/*
 !backend/public/uploads/**/.gitkeep
+
+# Rules for split packages (Fase 0)
+crm/node_modules/
+crm/dist/
+crm/.env*
+frontend_page/node_modules/
+frontend_page/dist/
+frontend_page/.env*
+
 

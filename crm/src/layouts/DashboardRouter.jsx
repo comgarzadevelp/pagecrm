@@ -64,7 +64,7 @@ const DashboardRouter = () => {
 
     if (!token || !userRole) {
       localStorage.clear();
-      navigate('/crm/login');
+      navigate('/');
       return;
     }
 
@@ -82,7 +82,7 @@ const DashboardRouter = () => {
 
         if (res.status === 401 || res.status === 403) {
           localStorage.clear();
-          navigate('/crm/login');
+          navigate('/');
           return;
         }
 
@@ -145,13 +145,13 @@ const DashboardRouter = () => {
 
   // Si el usuario es super_admin, redirigir automáticamente al panel V2
   if (role === 'super_admin') {
-    return <Navigate to="/crm/sa2" replace />;
+    return <Navigate to="/sa2" replace />;
   }
 
   // Si el usuario no tiene rol válido, sacarlo al login
   if (!['admin', 'supervisor', 'sales', 'sistemas'].includes(role)) {
     localStorage.clear();
-    return <Navigate to="/crm/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return (

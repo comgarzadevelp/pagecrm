@@ -48,7 +48,7 @@ const LoginSuperAdmin = () => {
       sessionStorage.clear();
 
       // Navigate to dashboard V2 for Super Admin
-      navigate('/crm/sa2');
+      navigate('/sa2');
       setIsLoading(false);
     } catch (err) {
       console.error('Error de red en Login Super Admin:', err);
@@ -105,7 +105,7 @@ const LoginSuperAdmin = () => {
             </div>
           </div>
 
-          <button type="submit" className="sa-platzi-btn-submit" disabled={isLoading}>
+          <button type="submit" className="sa-platzi-btn-login" disabled={isLoading}>
             {isLoading ? (
               <>
                 <i className="fas fa-circle-notch fa-spin" style={{ marginRight: '8px' }} />
@@ -131,7 +131,7 @@ const LoginSuperAdmin = () => {
           <button 
             type="button" 
             className="sa-platzi-btn-back" 
-            onClick={() => navigate('/crm/login')}
+            onClick={() => navigate('/')}
             disabled={isLoading}
           >
             <i className="fas fa-arrow-left" /> Volver al portal estándar

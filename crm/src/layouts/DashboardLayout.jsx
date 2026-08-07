@@ -80,7 +80,7 @@ export default function DashboardLayout({ role, enabledModules }) {
   const { tab } = useParams();
   const navigate = useNavigate();
   const activeTab = tab || 'dashboard';
-  const setActiveTab = (newTab) => navigate(`/crm/dashboard/${newTab}`);
+  const setActiveTab = (newTab) => navigate(`/dashboard/${newTab}`);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState('');
@@ -93,7 +93,7 @@ export default function DashboardLayout({ role, enabledModules }) {
   // Protect against manually navigating to disabled modules
   if (!enabledModules.includes(activeTab) && enabledModules.length > 0) {
     // If invalid tab, redirect to the first enabled module declaratively
-    return <Navigate to={`/crm/dashboard/${enabledModules[0]}`} replace />;
+    return <Navigate to={`/dashboard/${enabledModules[0]}`} replace />;
   }
 
   return (

@@ -6,7 +6,7 @@ import { useSessionHeartbeat } from './hooks/useSessionHeartbeat';
 import './styles/Global.css';
 
 // CRM pages
-import Login from './pages/Login';
+import Login from './pages/login/Login';
 import LoginSuperAdmin from './pages/LoginSuperAdmin';
 import DashboardRouter from './layouts/DashboardRouter';
 
@@ -26,17 +26,16 @@ function AppContent() {
     <div className="app-wrapper">
       <main className="content-wrapper">
         <Routes>
-          {/* Redirect root to crm login */}
-          <Route path="/" element={<Navigate to="/crm/login" replace />} />
+          {/* Root renders login directly */}
+          <Route path="/" element={<Login />} />
+          <Route path="/login-superadmin" element={<LoginSuperAdmin />} />
           
           {/* CRM routes */}
-          <Route path="/crm/login" element={<Login />} />
-          <Route path="/crm/login-superadmin" element={<LoginSuperAdmin />} />
-          <Route path="/crm/dashboard" element={<DashboardRouter />} />
-          <Route path="/crm/dashboard/:tab" element={<DashboardRouter />} />
+          <Route path="/dashboard" element={<DashboardRouter />} />
+          <Route path="/dashboard/:tab" element={<DashboardRouter />} />
 
           {/* SuperAdmin V2 Isolated Route */}
-          <Route path="/crm/sa2" element={<SA2Layout />}>
+          <Route path="/sa2" element={<SA2Layout />}>
             <Route index element={<SA2DashboardPage />} />
             <Route path="personal" element={<SA2PersonalPage />} />
             <Route path="leads-web" element={<SA2LeadsWebPage />} />

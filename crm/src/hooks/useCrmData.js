@@ -84,7 +84,7 @@ export function useCrmData(role, enabledModules = []) {
     setError('');
     const token = localStorage.getItem('token');
     if (!token) {
-      navigate('/crm/login');
+      navigate('/');
       return;
     }
 
@@ -97,7 +97,7 @@ export function useCrmData(role, enabledModules = []) {
       if (res.status === 401 || res.status === 403) {
         localStorage.removeItem('token');
         localStorage.removeItem('role');
-        navigate('/crm/login');
+        navigate('/');
         return;
       }
 
@@ -386,7 +386,7 @@ export function useCrmData(role, enabledModules = []) {
     localStorage.removeItem('role');
     localStorage.removeItem('companyId');
     localStorage.removeItem('companyCode');
-    navigate('/crm/login');
+    navigate('/');
   };
 
   // Format dates consistently
@@ -406,7 +406,7 @@ export function useCrmData(role, enabledModules = []) {
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) {
-      navigate('/crm/login');
+      navigate('/');
       return;
     }
 

@@ -1,0 +1,462 @@
+/* ==========================================================================
+   PALETA CROMÁTICA INSTITUCIONAL GARZA
+   ========================================================================== */
+:root {
+  --garza-verde: #05393A;
+  --garza-naranja: #E0922B;
+  --garza-naranja-hover: #c97f1f;
+  --garza-gris-acero: #738787;
+  --garza-blanco-interfaz: #FFFCEB;
+  --garza-blanco-offset: #F7F7F7;
+  --garza-text-dark: #1E293B;
+  --garza-text-muted: #64748B;
+  --garza-border: #E2E8F0;
+}
+
+/* ==========================================================================
+   ESTRUCTURA PRINCIPAL (SPLIT-SCREEN)
+   ========================================================================== */
+.crm-login-page {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  /* Evita saltos por barra del navegador en móvil */
+  width: 100%;
+  background-color: var(--garza-blanco-interfaz);
+  font-family: var(--font-secondary), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+/* SECCIÓN IZQUIERDA: FORMULARIO */
+.crm-login-form-section {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  background-color: var(--garza-blanco-interfaz);
+  z-index: 2;
+}
+
+.crm-login-card {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ENCABEZADO Y LOGO */
+.crm-login-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.crm-login-logo {
+  height: 64px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 1.25rem;
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.crm-login-header h2 {
+  font-family: var(--font-primary), sans-serif;
+  color: var(--garza-verde);
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin: 0 0 0.35rem 0;
+  letter-spacing: -0.5px;
+}
+
+.crm-login-subtitle {
+  color: var(--garza-text-muted);
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* FORMULARIO E INPUTS */
+.crm-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+  width: 100%;
+}
+
+.crm-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: 100%;
+}
+
+.crm-input-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--garza-verde);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.crm-input-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.crm-input-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--garza-gris-acero);
+  font-size: 0.95rem;
+  pointer-events: none;
+  transition: color 0.2s ease;
+}
+
+/* INPUTS: Optimizado 16px min para prevenir iOS Zoom */
+.crm-login-input {
+  width: 100%;
+  height: 50px;
+  padding: 0.75rem 1rem 0.75rem 2.75rem;
+  border-radius: 10px;
+  border: 1.5px solid var(--garza-border);
+  background-color: #FFFFFF;
+  font-size: 1rem;
+  /* 16px previene el zoom en Safari iPhone */
+  color: var(--garza-text-dark);
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.crm-login-input.crm-input-password {
+  padding-right: 2.75rem;
+}
+
+.crm-login-input:focus {
+  outline: none;
+  border-color: var(--garza-verde);
+  background-color: #FFFFFF;
+  box-shadow: 0 0 0 4px rgba(5, 57, 58, 0.08);
+}
+
+.crm-login-input:focus~.crm-input-icon,
+.crm-input-wrapper:focus-within .crm-input-icon {
+  color: var(--garza-verde);
+}
+
+.crm-login-input::placeholder {
+  color: #94A3B8;
+  font-size: 0.95rem;
+}
+
+/* BOTÓN TOGGLE VER CONTRASEÑA */
+.crm-password-toggle-btn {
+  position: absolute;
+  right: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--garza-gris-acero);
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.2s;
+}
+
+.crm-password-toggle-btn:hover {
+  color: var(--garza-verde);
+}
+
+/* BOTÓN DE LOGIN CTA */
+.crm-btn-login {
+  width: 100%;
+  height: 50px;
+  margin-top: 0.5rem;
+  padding: 0 1.5rem;
+  background-color: var(--garza-verde);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  box-shadow: 0 4px 14px rgba(5, 57, 58, 0.2);
+  font-family: var(--font-primary), sans-serif;
+}
+
+.crm-btn-login:hover:not(:disabled) {
+  background-color: var(--garza-naranja);
+  box-shadow: 0 6px 18px rgba(224, 146, 43, 0.3);
+  transform: translateY(-1px);
+}
+
+.crm-btn-login:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.crm-btn-login:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* MENSAJE DE ERROR */
+.crm-login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  background-color: #FEF2F2;
+  border: 1px solid #FCA5A5;
+  color: #B91C1C;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  margin-top: 1.25rem;
+  animation: crmShake 0.4s ease-in-out;
+}
+
+@keyframes crmShake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-6px);
+  }
+
+  75% {
+    transform: translateX(6px);
+  }
+}
+
+/* PIE Y ACCESO SUPERADMIN */
+.crm-superadmin-login-link-container {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--garza-border);
+  padding-top: 1.5rem;
+  text-align: center;
+}
+
+.crm-superadmin-login-link-btn {
+  background: none;
+  border: none;
+  color: var(--garza-text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  min-height: 40px;
+}
+
+.crm-superadmin-login-link-btn:hover {
+  color: var(--garza-verde);
+  background-color: rgba(5, 57, 58, 0.04);
+}
+
+.crm-sa-lock-icon {
+  font-size: 0.75rem;
+  color: var(--garza-naranja);
+}
+
+/* ==========================================================================
+   SECCIÓN DERECHA: SHOWCASE E INSTITUCIONAL (GARZA VERDE PETRÓLEO)
+   ========================================================================== */
+.crm-login-showcase-section {
+  flex: 1.15;
+  background: linear-gradient(135deg, var(--garza-verde) 0%, #032425 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  position: relative;
+  overflow: hidden;
+  color: #FFFFFF;
+}
+
+/* Efecto de resplandor en el fondo del panel institucional */
+.crm-login-showcase-section::before {
+  content: '';
+  position: absolute;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(224, 146, 43, 0.15) 0%, rgba(224, 146, 43, 0) 70%);
+  top: 10%;
+  right: -10%;
+  pointer-events: none;
+}
+
+.crm-showcase-content {
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 2;
+}
+
+.crm-showcase-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 0.4rem 1rem;
+  border-radius: 99px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #FFFFFF;
+  margin-bottom: 2.5rem;
+}
+
+.crm-showcase-badge i {
+  color: var(--garza-naranja);
+}
+
+/* GRÁFICO NODAL DEL ECOSISTEMA CRM */
+.crm-showcase-graphic {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin-bottom: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-node {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  color: #FFFFFF;
+  position: absolute;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.crm-node-main {
+  width: 76px;
+  height: 76px;
+  background-color: var(--garza-naranja);
+  border: 2px solid #FFFFFF;
+  font-size: 1.6rem;
+  z-index: 3;
+}
+
+.crm-node-1 {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.crm-node-2 {
+  bottom: 20px;
+  right: 10px;
+}
+
+.crm-node-3 {
+  bottom: 20px;
+  left: 10px;
+}
+
+.crm-node-4 {
+  top: 45px;
+  right: 5px;
+}
+
+.crm-showcase-text h3 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0 0 1rem 0;
+  color: #FFFFFF;
+}
+
+.crm-showcase-text p {
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.8);
+  margin: 0;
+}
+
+/* ==========================================================================
+   MEDIA QUERIES - OPTIMIZACIÓN 100% PARA MÓVIL Y TABLET
+   ========================================================================== */
+
+/* En tablets pequeñas y móviles se colapsa el panel decorativo para no obstaculizar el login */
+@media (max-width: 960px) {
+  .crm-login-showcase-section {
+    display: none;
+    /* Oculta bloque derecho y deja 100% el foco al form */
+  }
+
+  .crm-login-form-section {
+    padding: 2rem 1.25rem;
+    min-height: 100dvh;
+    align-items: center;
+    background: linear-gradient(180deg, var(--garza-blanco-interfaz) 0%, #F8FAF6 100%);
+  }
+
+  .crm-login-card {
+    max-width: 100%;
+    padding: 1.5rem 0.5rem;
+  }
+}
+
+/* Ajustes específicos para smartphones de tamaño reducido (< 480px) */
+@media (max-width: 480px) {
+  .crm-login-header {
+    margin-bottom: 1.75rem;
+  }
+
+  .crm-login-logo {
+    height: 54px;
+    margin-bottom: 1rem;
+  }
+
+  .crm-login-header h2 {
+    font-size: 1.6rem;
+  }
+
+  .crm-login-input {
+    height: 48px;
+    font-size: 16px;
+    /* Blindaje estricto contra autozoom en iOS */
+  }
+
+  .crm-btn-login {
+    height: 48px;
+    font-size: 0.95rem;
+  }
+
+  .crm-superadmin-login-link-container {
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+  }
+}

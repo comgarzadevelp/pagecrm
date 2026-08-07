@@ -164,7 +164,7 @@ function LayoutNotifPanel({ userId, apiBase, token, onClose, onRefreshCount }) {
           className="sa2-layout-notif-view-all-btn" 
           onClick={() => {
             onClose();
-            navigate('/crm/sa2/notificaciones');
+            navigate('/sa2/notificaciones');
           }}
         >
           Ver todas las notificaciones
@@ -270,7 +270,7 @@ export default function SA2Layout() {
         <div className="sa2-auth-error">
           <h2>Acceso Denegado</h2>
           <p>No tienes permisos de Super Administrador para ver esta interfaz.</p>
-          <button onClick={() => navigate('/crm/login')}>Ir al Login</button>
+          <button onClick={() => navigate('/')}>Ir al Login</button>
         </div>
       </div>
     );
@@ -288,7 +288,7 @@ export default function SA2Layout() {
 
     localStorage.removeItem('token');
     localStorage.removeItem('role');
-    navigate('/crm/login');
+    navigate('/');
   };
 
   return (
@@ -309,22 +309,22 @@ export default function SA2Layout() {
             </div>
             
             <nav className="sa2-nav">
-              <NavLink to="/crm/sa2" end className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/sa2" end className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
                 <i className="fas fa-chart-pie"></i>
                 {isSidebarOpen && <span>Dashboard Global</span>}
               </NavLink>
               
-              <NavLink to="/crm/sa2/leads-web" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/sa2/leads-web" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
                 <i className="fas fa-globe"></i>
                 {isSidebarOpen && <span>Leads Web <span className="sa2-badge">LIVE</span></span>}
               </NavLink>
 
-              <NavLink to="/crm/sa2/quotes-stats" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/sa2/quotes-stats" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
                 <i className="fas fa-chart-line"></i>
                 {isSidebarOpen && <span>Estadísticas</span>}
               </NavLink>
               
-              <NavLink to="/crm/sa2/personal" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
+              <NavLink to="/sa2/personal" className={({ isActive }) => `sa2-nav-item ${isActive ? 'active' : ''}`}>
                 <i className="fas fa-users-cog"></i>
                 {isSidebarOpen && <span>Personal</span>}
               </NavLink>

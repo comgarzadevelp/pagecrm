@@ -1,0 +1,241 @@
+.ficha-header-tag {
+  background: var(--color-brand-primary, #05393a);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ficha-header-status-badge {
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.ficha-header-sae-badge {
+  background: rgba(212, 163, 89, 0.12);
+  color: var(--color-brand-primary, #05393a);
+  border: 1px solid rgba(212, 163, 89, 0.3);
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ficha-header-sae-icon {
+  font-size: 0.6rem;
+}
+
+.ficha-header-profile-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.5rem;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.ficha-header-profile-b2b {
+  background: #05393A;
+}
+
+.ficha-header-profile-b2c {
+  background: #398d52;
+}
+
+.ficha-header-icon-building {
+  color: var(--color-brand-accent);
+}
+
+.ficha-header-icon-user {
+  color: #64748b;
+}
+
+.quickbar-btn-wa-disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: not-allowed;
+}
+
+.quickbar-btn-schedule {
+  background: rgba(212, 163, 89, 0.12);
+  color: var(--color-brand-primary, #a5cbcc);
+  border: 1px solid rgba(212, 163, 89, 0.3);
+}
+
+/* ─── Reglas migradas desde FichaClienteIndividualModal.css ─── */
+
+/* Header base */
+.client-modal-header {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f1f5f9;
+  background: linear-gradient(180deg, #84f5d9 0%, #effaf5 100%);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.client-modal-header-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.client-modal-close {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 20px;
+  font-weight: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.client-modal-close:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+  transform: rotate(90deg);
+}
+
+.client-modal-title {
+  font-family: var(--font-primary, 'Outfit', sans-serif);
+  font-size: 1.65rem;
+  font-weight: 800;
+  color: var(--color-brand-primary, #05393a);
+  margin: 0;
+  line-height: 1.2;
+}
+
+.client-modal-subtitle {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 6px 0 0 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* QuickBar de acciones */
+.client-modal-quickbar {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
+.quickbar-btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+  outline: none;
+}
+
+.quickbar-btn-wa {
+  background: #ecfdf5;
+  color: #10b981;
+  border-color: #a7f3d0;
+}
+
+.quickbar-btn-wa:hover {
+  background: #d1fae5;
+}
+
+.quickbar-btn-phone {
+  background: #eff6ff;
+  color: #3b82f6;
+  border-color: #bfdbfe;
+}
+
+.quickbar-btn-phone:hover {
+  background: #dbeafe;
+}
+
+.quickbar-btn-email {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+.quickbar-btn-email:hover {
+  background: #f1f5f9;
+}
+
+.quickbar-btn-action {
+  background: #073326;
+  color: #ffffff;
+  margin-left: auto;
+  box-shadow: 0 4px 10px rgba(212, 175, 55, 0.2);
+}
+
+.quickbar-btn-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(80, 64, 11, 0.644);
+}
+
+/* Tab buttons */
+.client-modal-tabs {
+  width: 100%;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  gap: 8px !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+  overflow-x: auto !important;
+  padding-bottom: 4px !important;
+  scrollbar-width: thin;
+}
+
+.client-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  padding: 10px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.client-tab-btn.active {
+  color: var(--color-brand-primary, #05393a) !important;
+  border-bottom: 3px solid var(--color-brand-accent, #aa8529) !important;
+}
+
+.client-tab-btn:hover {
+  color: var(--color-brand-primary, #05393a) !important;
+}

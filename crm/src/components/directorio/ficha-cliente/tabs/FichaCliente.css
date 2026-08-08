@@ -433,3 +433,117 @@
 .pac-container {
   z-index: 100005 !important;
 }
+
+/* FichaClienteModalFeature layout classes */
+.crm-modal-overlay-custom {
+  z-index: 10000;
+}
+
+.customer-details-modal-content {
+  max-width: 850px;
+  width: 96%;
+  display: flex;
+  flex-direction: column;
+  height: 90vh;
+  overflow: hidden;
+}
+
+.customer-modal-header-custom {
+  margin-bottom: 1.5rem;
+  flex-shrink: 0;
+}
+
+.customer-modal-header-top-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.customer-modal-title-custom {
+  margin-top: 0.5rem;
+  font-family: var(--font-primary);
+}
+
+.customer-modal-header-bottom-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.customer-modal-subtitle-text {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin: 4px 0 0 0;
+}
+
+.customer-modal-visita-btn {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.customer-modal-tabs-wrapper {
+  flex-shrink: 0;
+}
+
+.customer-modal-body-scrollable {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.customer-modal-footer-custom {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #f1f5f9;
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  gap: 1rem;
+  align-items: center;
+}
+
+.customer-modal-footer-left-content {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-right: auto;
+}
+
+.customer-modal-quality-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.customer-modal-quality-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.customer-modal-quality-auto-label {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.customer-modal-archive-btn {
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #ef4444;
+  border: 1px solid #fca5a5;
+  font-weight: 600;
+}
+
+.customer-modal-close-btn-footer {
+  padding: 0.6rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 600;
+}
+

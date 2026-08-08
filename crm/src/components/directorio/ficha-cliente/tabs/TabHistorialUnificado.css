@@ -1,0 +1,240 @@
+/* Styles for TabHistorialUnificado.jsx */
+
+.history-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.history-loading-container {
+  text-align: center;
+  padding: 3rem;
+}
+
+.history-header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-title {
+  font-family: var(--font-primary);
+  color: var(--color-brand-primary);
+  margin: 0;
+  font-weight: 800;
+}
+
+.history-add-comment-btn {
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.history-comment-box {
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+}
+
+.history-comment-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  font-size: 0.85rem;
+  font-family: inherit;
+  resize: vertical;
+}
+
+.history-comment-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.history-comment-cancel-btn {
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: #475569;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.history-comment-save-btn {
+  padding: 0.5rem 1.2rem;
+  border-radius: 8px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.history-empty-container {
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.history-empty-icon {
+  font-size: 2.5rem;
+  color: #cbd5e1;
+  margin-bottom: 1rem;
+}
+
+.history-empty-text {
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.history-timeline-trail {
+  position: relative;
+  border-left: 2px solid #e2e8f0;
+  padding-left: 1.5rem;
+  margin-left: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.history-timeline-node {
+  position: relative;
+}
+
+.history-timeline-icon-box {
+  position: absolute;
+  left: -2.05rem;
+  top: 0.25rem;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  border: 2px solid #ffffff;
+}
+
+.history-color-blue {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.history-color-purple {
+  background: #faf5ff;
+  color: #7c3aed;
+}
+
+.history-color-green {
+  background: #f0fdf4;
+  color: #16a34a;
+}
+
+.history-color-gold {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.history-color-red {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.history-node-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+}
+
+.history-node-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 0.5rem;
+}
+
+.history-node-title-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.history-node-title {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #1f2937;
+}
+
+.history-node-badge-source {
+  font-size: 0.65rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+
+.history-node-time {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.history-node-text {
+  font-size: 0.825rem;
+  color: #475569;
+  line-height: 1.5;
+  margin: 0 0 0.75rem 0;
+}
+
+.history-node-evidence-image-container {
+  width: 140px;
+  height: 95px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #cbd5e1;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
+}
+
+.history-node-evidence-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.history-node-gps-box {
+  background: #f8fafc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.history-node-gps-label {
+  color: #475569;
+}
+
+.history-node-gps-link {
+  color: #2563eb;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.history-node-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 0.5rem;
+}
+
+.history-node-author {
+  font-weight: 700;
+  color: #64748b;
+}

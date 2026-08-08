@@ -1,0 +1,17 @@
+/* Styles for SubModalEditContacto */
+
+.invalid-label {
+  color: #ef4444 !important;
+}
+
+.invalid-input {
+  border: 1px solid #ef4444 !important;
+}
+
+.invalid-text-message {
+  color: #ef4444;
+  font-size: 0.75rem;
+  margin-top: 4px;
+  display: block;
+  font-weight: 600;
+}

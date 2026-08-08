@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import FichaArchivadoModal from '../../../components/directorio/archivo/FichaArchivadoModal';
-import DetallesNegociacion from '../../ventas/detalles/DetallesNegociacionFeature';
+import FichaArchivadoModal from '../../components/directorio/archivo/FichaArchivadoModal';
+import DetallesNegociacion from '../ventas/detalles/DetallesNegociacionFeature';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
-export default function ArchivoContactos() {
+export default function ArchivoFeature() {
   const [activeSubTab, setActiveSubTab] = useState('customers'); // 'customers' | 'contacts' | 'companies' | 'opportunities'
   const [items, setItems] = useState([]);
   const [filtered, setFiltered] = useState([]);

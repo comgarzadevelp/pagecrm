@@ -14,7 +14,7 @@ import AgendaPanelFeature from '../pages/Agenda';
 import DirectorioFeature from '../pages/Directorio';
 import StatsDashboardFeature from '../sections/dashboard/StatsDashboardFeature';
 import DocumentosFeature from '../pages/Documentos';
-import ArchivoContactosFeature from '../sections/directorio/archivo/ArchivoContactosFeature';
+import ArchivoFeature from '../pages/Archivo';
 import NotificationsPanelFeature from '../sections/system/NotificationsPanelFeature';
 import MiPerfilFeature from '../sections/system/MiPerfilFeature';
 import ProspectosHuerfanosFeature from '../sections/ventas/huerfanos/ProspectosHuerfanosFeature';
@@ -31,6 +31,7 @@ import PersonalGarza from '../sections/superadmin/SuperAdminPersonnel';
 import AdminAgendaPanel from '../sections/superadmin/SuperAdminAgenda';
 import SuperAdminStats from '../sections/superadmin/SuperAdminStats';
 import SuperAdminContactos from '../sections/superadmin/SuperAdminContactos';
+
 
 export default function DashboardLayout({ role, enabledModules }) {
   const {
@@ -260,7 +261,7 @@ export default function DashboardLayout({ role, enabledModules }) {
       {activeTab === 'obras' && <DirectorioObrasFeature API_BASE={API_BASE} role={role} />}
       {activeTab === 'personal-agenda' && <AgendaPanelFeature leads={leads || []} />}
       {activeTab === 'files' && <DocumentosFeature />}
-      {activeTab === 'archive-contacts' && <ArchivoContactosFeature />}
+      {activeTab === 'archive-contacts' && <ArchivoFeature />}
       {activeTab === 'notifications' && <NotificationsPanelFeature />}
       {activeTab === 'profile' && <MiPerfilFeature />}
       {activeTab === 'orphans' && <ProspectosHuerfanosFeature onViewCompanyDetails={fetchLeads} />}

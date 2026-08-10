@@ -1,16 +1,16 @@
-import React from 'react';
+﻿import React from 'react';
 import { useUX } from '../../../components/common/UXProvider';
-import TabPerfil from './tabs/TabPerfil';
-import TabCotizaciones from './tabs/TabCotizaciones';
-import TabActualizaciones from './tabs/TabActualizaciones';
-import TabHistorialUnificado from './tabs/TabHistorialUnificado';
-import TabContacts from './tabs/TabContacts';
-import TabObras from './tabs/TabObras';
-import FichaFeatureHeader from './FichaFeatureHeader/FichaFeatureHeader';
-import FichaFeatureSubModals from './FichaFeatureSubModals/FichaFeatureSubModals';
+import TabPerfil from '../../directorio/ficha-cliente/tabs/TabPerfil';
+import TabCotizaciones from '../../directorio/ficha-cliente/tabs/TabCotizaciones';
+import TabActualizaciones from '../../directorio/ficha-cliente/tabs/TabActualizaciones';
+import TabHistorialUnificado from '../../directorio/ficha-cliente/tabs/TabHistorialUnificado';
+import TabContacts from '../../directorio/ficha-cliente/tabs/TabContacts';
+import TabObras from '../../directorio/ficha-cliente/tabs/TabObras';
+import FichaFeatureHeader from '../../directorio/ficha-cliente/FichaFeatureHeader/FichaFeatureHeader';
+import FichaFeatureSubModals from '../../directorio/ficha-cliente/FichaFeatureSubModals/FichaFeatureSubModals';
 import useFichaClienteFeature from '../../../hooks/directorio/useFichaClienteFeature';
 import { computeDataQuality, getQualityConfig } from '../../../utils/dataQuality.js';
-import './tabs/FichaCliente.css';
+import '../../directorio/ficha-cliente/tabs/FichaCliente.css';
 
 export default function FichaClienteModal({
   selectedCustomer,
@@ -278,3 +278,4 @@ export default function FichaClienteModal({
     </div>
   );
 }
+

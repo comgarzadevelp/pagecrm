@@ -1,6 +1,6 @@
-import React from 'react';
+﻿import React from 'react';
 import ReactDOM from 'react-dom';
-import RegistrarVisitaModal from '../../visita/RegistrarVisitaModal';
+import RegistrarVisitaModal from '../../../modals/registrar-visita/RegistrarVisitaModal';
 
 export default function FichaFeatureSubModals({ crm, API_BASE }) {
   return (
@@ -65,3 +65,4 @@ export default function FichaFeatureSubModals({ crm, API_BASE }) {
     </>
   );
 }
+

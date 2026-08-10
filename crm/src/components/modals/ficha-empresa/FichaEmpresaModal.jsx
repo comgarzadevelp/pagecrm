@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { computeDataQuality, getQualityConfig } from '../../../utils/dataQuality';
-import FichaTimelineItem, { compileTimelineItems } from '../ficha-cliente/FichaTimelineItem';
-import '../ficha-contacto/FichaContacto.css'; // Reusing the layout styles
+import FichaTimelineItem, { compileTimelineItems } from '../../directorio/ficha-cliente/FichaTimelineItem';
+import '../../directorio/ficha-contacto/FichaContacto.css'; // Reusing the layout styles
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const getToken = () => localStorage.getItem('token');
@@ -578,3 +578,4 @@ export default function FichaEmpresaModal({ company: initialCompany, onClose, re
     document.body
   );
 }
+

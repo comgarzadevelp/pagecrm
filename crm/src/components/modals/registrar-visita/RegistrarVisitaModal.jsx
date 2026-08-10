@@ -342,16 +342,16 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
           <div style={{ 
             flex: 1, 
             overflowY: 'auto', 
-            padding: '1.5rem', 
+            padding: '1.25rem 1.5rem', 
             display: 'flex', 
             flexDirection: 'column', 
-            gap: '1.25rem',
+            gap: '1.15rem',
             scrollbarWidth: 'thin'
           }}>
             {entityId ? (
               // Vista si ya viene pre-asociado
               <div style={{ 
-                padding: '1rem 1.25rem', 
+                padding: '0.85rem 1.15rem', 
                 background: 'rgba(5, 57, 58, 0.04)', 
                 border: '1px solid rgba(5, 57, 58, 0.12)', 
                 borderRadius: '14px', 
@@ -373,35 +373,36 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                 </p>
               </div>
             ) : (
-              // Selector interactivo alineado con la nueva arquitectura
+              // Selector inteligente de Entidad (CRM / SAE)
               <div style={{ 
                 background: 'rgba(5, 57, 58, 0.02)', 
                 border: '1px solid rgba(5, 57, 58, 0.08)', 
                 borderRadius: '16px', 
-                padding: '1.25rem', 
+                padding: '1rem 1.15rem', 
                 fontFamily: "'Public Sans', sans-serif" 
               }}>
                 <h4 style={{ 
-                  margin: '0 0 0.85rem 0', 
-                  fontSize: '0.825rem', 
+                  margin: '0 0 0.75rem 0', 
+                  fontSize: '0.78rem', 
                   color: '#05393A', 
                   fontWeight: '800', 
                   display: 'flex', 
                   alignItems: 'center', 
                   gap: '6px',
+                  letterSpacing: '0.04em',
                   fontFamily: "'Roc Grotesk', sans-serif"
                 }}>
                   <Search size={14} style={{ color: '#E0922B' }} /> VINCULAR ACTIVIDAD A:
                 </h4>
                 
-                {/* Tabs Modernos */}
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '12px', background: 'rgba(5, 57, 58, 0.04)', padding: '4px', borderRadius: '10px' }}>
+                {/* Tabs de Tipo de Entidad */}
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', background: 'rgba(5, 57, 58, 0.04)', padding: '3px', borderRadius: '10px' }}>
                   <button
                     type="button"
                     onClick={() => handleTabChange('cliente')}
                     style={{
                       flex: 1, 
-                      padding: '8px 12px', 
+                      padding: '7px 10px', 
                       fontSize: '0.75rem', 
                       borderRadius: '8px', 
                       cursor: 'pointer', 
@@ -417,14 +418,14 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                       gap: '4px'
                     }}
                   >
-                    <User size={12} /> Cliente / Prospecto
+                    <User size={12} /> Cliente / Prospecto (CRM & SAE)
                   </button>
                   <button
                     type="button"
                     onClick={() => handleTabChange('obra')}
                     style={{
                       flex: 1, 
-                      padding: '8px 12px', 
+                      padding: '7px 10px', 
                       fontSize: '0.75rem', 
                       borderRadius: '8px', 
                       cursor: 'pointer', 
@@ -440,11 +441,11 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                       gap: '4px'
                     }}
                   >
-                    <Briefcase size={12} /> Negociación / Obra
+                    <Briefcase size={12} /> Obra / Negociación
                   </button>
                 </div>
 
-                {/* Caja de Búsqueda */}
+                {/* Caja de Búsqueda Inteligente */}
                 <div style={{ position: 'relative' }} ref={searchContainerRef}>
                   {!selectedEntity ? (
                     <>
@@ -453,10 +454,10 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                         value={searchText}
                         onChange={(e) => setSearchText(e.target.value)}
                         style={{ 
-                          fontSize: '0.85rem', 
-                          padding: '10px 14px 10px 36px', 
-                          height: '42px', 
-                          border: '1px solid rgba(5, 57, 58, 0.15)', 
+                          fontSize: '0.825rem', 
+                          padding: '8px 12px 8px 34px', 
+                          height: '40px', 
+                          border: '1px solid rgba(5, 57, 58, 0.18)', 
                           borderRadius: '10px', 
                           width: '100%', 
                           boxSizing: 'border-box', 
@@ -465,18 +466,18 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                           outline: 'none',
                           transition: 'border-color 0.2s'
                         }}
-                        placeholder={activeTab === 'cliente' ? 'Buscar cliente o empresa (mínimo 2 letras)...' : 'Buscar negociación u obra...'}
+                        placeholder={activeTab === 'cliente' ? 'Buscar por nombre, empresa o clave SAE...' : 'Buscar obra o negociación...'}
                         required
                       />
-                      <Search size={14} style={{ position: 'absolute', left: '12px', top: '14px', color: '#738787' }} />
+                      <Search size={14} style={{ position: 'absolute', left: '12px', top: '13px', color: '#738787' }} />
                       
                       {searching && (
-                        <div style={{ position: 'absolute', right: '12px', top: '14px', fontSize: '0.75rem', color: '#738787' }}>
+                        <div style={{ position: 'absolute', right: '12px', top: '12px', fontSize: '0.75rem', color: '#738787' }}>
                           <i className="fas fa-spinner fa-spin" />
                         </div>
                       )}
                       
-                      {/* Dropdown de Autocomplete */}
+                      {/* Dropdown de Autocomplete con insignias SAE vs CRM */}
                       {showSuggestions && searchResults.length > 0 && (
                         <ul style={{
                           position: 'absolute', 
@@ -488,43 +489,59 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                           borderRadius: '12px', 
                           listStyle: 'none', 
                           padding: '0.25rem', 
-                          margin: '6px 0 0 0',
+                          margin: '4px 0 0 0',
                           zIndex: 999, 
                           maxHeight: '180px', 
                           overflowY: 'auto', 
-                          boxShadow: '0 12px 30px rgba(5, 57, 58, 0.1)'
+                          boxShadow: '0 12px 30px rgba(5, 57, 58, 0.12)'
                         }}>
-                          {searchResults.map((item) => (
-                            <li
-                              key={item.id}
-                              onClick={() => {
-                                setSelectedEntity(item);
-                                setSearchText(item.nombre);
-                                setShowSuggestions(false);
-                              }}
-                              style={{ 
-                                padding: '10px 12px', 
-                                cursor: 'pointer', 
-                                fontSize: '0.8rem', 
-                                borderRadius: '8px', 
-                                fontFamily: "'Public Sans', sans-serif", 
-                                color: '#334155',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '2px',
-                                transition: 'background 0.2s'
-                              }}
-                              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 57, 58, 0.04)'}
-                              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
-                            >
-                              <span style={{ fontWeight: '700', color: '#05393A' }}>{item.nombre}</span>
-                              {item.company && (
-                                <span style={{ fontSize: '0.7rem', color: '#738787', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  🏢 {item.company}
+                          {searchResults.map((item) => {
+                            const isSae = item.sae_clave || (item.company && item.company.includes('SAE'));
+                            return (
+                              <li
+                                key={item.id}
+                                onClick={() => {
+                                  setSelectedEntity(item);
+                                  setSearchText(item.nombre);
+                                  setShowSuggestions(false);
+                                }}
+                                style={{ 
+                                  padding: '8px 10px', 
+                                  cursor: 'pointer', 
+                                  fontSize: '0.8rem', 
+                                  borderRadius: '8px', 
+                                  fontFamily: "'Public Sans', sans-serif", 
+                                  color: '#334155',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  transition: 'background 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(5, 57, 58, 0.04)'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                              >
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                                  <span style={{ fontWeight: '700', color: '#05393A' }}>{item.nombre}</span>
+                                  {item.company && (
+                                    <span style={{ fontSize: '0.7rem', color: '#738787' }}>
+                                      🏢 {item.company}
+                                    </span>
+                                  )}
+                                </div>
+                                <span style={{
+                                  fontSize: '0.65rem',
+                                  fontWeight: '800',
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  backgroundColor: isSae ? 'rgba(59, 130, 246, 0.1)' : 'rgba(5, 57, 58, 0.08)',
+                                  color: isSae ? '#2563eb' : '#05393A',
+                                  textTransform: 'uppercase'
+                                }}>
+                                  {isSae ? 'SAE' : 'CRM'}
                                 </span>
-                              )}
-                            </li>
-                          ))}
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                       
@@ -537,25 +554,25 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                           background: '#fff',
                           border: '1px solid rgba(5, 57, 58, 0.12)', 
                           borderRadius: '12px', 
-                          padding: '12px', 
-                          margin: '6px 0 0 0',
+                          padding: '10px 12px', 
+                          margin: '4px 0 0 0',
                           zIndex: 999, 
                           fontSize: '0.775rem', 
                           color: '#738787', 
                           boxShadow: '0 12px 30px rgba(5, 57, 58, 0.1)', 
                           fontFamily: "'Public Sans', sans-serif"
                         }}>
-                          No se encontraron resultados para su búsqueda.
+                          No se encontraron entidades registradas.
                         </div>
                       )}
                     </>
                   ) : (
-                    /* Entidad seleccionada Badge Premium */
+                    /* Badge de Entidad Seleccionada */
                     <div style={{ 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'space-between', 
-                      padding: '10px 14px', 
+                      padding: '8px 12px', 
                       background: 'rgba(16, 185, 129, 0.06)', 
                       border: '1px solid rgba(16, 185, 129, 0.25)', 
                       borderRadius: '10px',
@@ -587,10 +604,7 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                           cursor: 'pointer', 
                           fontSize: '0.75rem', 
                           fontWeight: '800', 
-                          fontFamily: "'Public Sans', sans-serif",
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px'
+                          fontFamily: "'Public Sans', sans-serif"
                         }}
                       >
                         Cambiar
@@ -601,62 +615,114 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
               </div>
             )}
 
-            {/* Inputs Tipo, Fecha, y Hora */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
-                  Tipo de Actividad
-                </label>
-                <select
-                  value={tipo}
-                  onChange={(e) => setTipo(e.target.value)}
-                  style={{ 
-                    height: '42px', 
-                    borderRadius: '10px', 
-                    border: '1px solid rgba(5, 57, 58, 0.15)', 
-                    fontSize: '0.825rem', 
-                    padding: '0 10px', 
-                    fontFamily: "'Public Sans', sans-serif", 
-                    fontWeight: '600',
-                    outline: 'none',
-                    background: '#fff'
+            {/* SELECTOR VISUAL DE TIPO DE ACTIVIDAD (PÍLDORAS CON ÍCONOS) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.75rem', color: '#738787', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Tipo de Actividad
+              </label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setTipo('llamada')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: '10px',
+                    border: tipo === 'llamada' ? '2px solid #05393A' : '1px solid rgba(5, 57, 58, 0.15)',
+                    background: tipo === 'llamada' ? 'rgba(5, 57, 58, 0.06)' : '#fff',
+                    color: tipo === 'llamada' ? '#05393A' : '#64748b',
+                    fontWeight: tipo === 'llamada' ? '800' : '600',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease'
                   }}
-                  required
                 >
-                  <option value="visita_presencial">📍 Visita Presencial</option>
-                  <option value="llamada">📞 Llamada Telefónica</option>
-                  <option value="reunion_virtual">💻 Reunión Virtual / Teams</option>
-                </select>
-              </div>
+                  <Phone size={16} style={{ color: tipo === 'llamada' ? '#05393A' : '#64748b' }} />
+                  <span>Llamada</span>
+                </button>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
-                  Fecha y Hora
-                </label>
-                <input
-                  type="datetime-local"
-                  value={fecha}
-                  onChange={(e) => setFecha(e.target.value)}
-                  style={{ 
-                    height: '42px', 
-                    borderRadius: '10px', 
-                    border: '1px solid rgba(5, 57, 58, 0.15)', 
-                    fontSize: '0.825rem', 
-                    fontFamily: "'Public Sans', sans-serif", 
-                    fontWeight: '600', 
-                    padding: '0 10px',
-                    outline: 'none',
-                    background: '#fff'
+                <button
+                  type="button"
+                  onClick={() => setTipo('visita_presencial')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: '10px',
+                    border: tipo === 'visita_presencial' ? '2px solid #E0922B' : '1px solid rgba(5, 57, 58, 0.15)',
+                    background: tipo === 'visita_presencial' ? 'rgba(224, 146, 43, 0.08)' : '#fff',
+                    color: tipo === 'visita_presencial' ? '#b45309' : '#64748b',
+                    fontWeight: tipo === 'visita_presencial' ? '800' : '600',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease'
                   }}
-                  required
-                />
+                >
+                  <MapPin size={16} style={{ color: tipo === 'visita_presencial' ? '#d97706' : '#64748b' }} />
+                  <span>Visita Presencial</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTipo('reunion_virtual')}
+                  style={{
+                    padding: '8px 6px',
+                    borderRadius: '10px',
+                    border: tipo === 'reunion_virtual' ? '2px solid #2563eb' : '1px solid rgba(5, 57, 58, 0.15)',
+                    background: tipo === 'reunion_virtual' ? 'rgba(37, 99, 235, 0.06)' : '#fff',
+                    color: tipo === 'reunion_virtual' ? '#1d4ed8' : '#64748b',
+                    fontWeight: tipo === 'reunion_virtual' ? '800' : '600',
+                    fontSize: '0.75rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Video size={16} style={{ color: tipo === 'reunion_virtual' ? '#2563eb' : '#64748b' }} />
+                  <span>Reunión Virtual</span>
+                </button>
               </div>
+            </div>
+
+            {/* FECHA Y HORA */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.75rem', color: '#738787', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Fecha y Hora de Ejecución
+              </label>
+              <input
+                type="datetime-local"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                style={{ 
+                  height: '40px', 
+                  borderRadius: '10px', 
+                  border: '1px solid rgba(5, 57, 58, 0.18)', 
+                  fontSize: '0.825rem', 
+                  fontFamily: "'Public Sans', sans-serif", 
+                  fontWeight: '600', 
+                  padding: '0 12px',
+                  outline: 'none',
+                  background: '#fff',
+                  width: '100%',
+                  boxSizing: 'border-box'
+                }}
+                required
+              />
             </div>
 
             {/* GPS Alertas Integradas */}
             {tipo === 'visita_presencial' && !isFuture && (
               <div style={{ 
-                padding: '10px 14px', 
+                padding: '10px 12px', 
                 borderRadius: '10px', 
                 display: 'flex', 
                 alignItems: 'center',
@@ -676,7 +742,7 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                 ) : gps ? (
                   <>
                     <MapPin size={16} style={{ color: '#10b981' }} />
-                    <p style={{ margin: 0, fontWeight: '600' }}>Ubicación capturada: {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</p>
+                    <p style={{ margin: 0, fontWeight: '600' }}>GPS capturado: {gps.lat.toFixed(5)}, {gps.lng.toFixed(5)}</p>
                   </>
                 ) : (
                   <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -707,20 +773,20 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
 
             {/* Resultado / Acuerdos */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
+              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.75rem', color: '#738787', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                 Resumen / Acuerdos
               </label>
               <textarea
                 value={resultado}
                 onChange={(e) => setResultado(e.target.value)}
-                placeholder={isFuture ? "Ej. Se acordó visitar al cliente para presentar catálogo de transformadores..." : "Ej. Se conversó sobre los precios de conductores y se agendó cotización..."}
+                placeholder={isFuture ? "Ej. Se acordó presentar propuesta comercial sobre transformadores de potencia..." : "Ej. Se trataron precios con el cliente y se acordó llamada de seguimiento..."}
                 style={{ 
-                  minHeight: '85px', 
+                  minHeight: '75px', 
                   resize: 'vertical', 
                   borderRadius: '10px', 
-                  border: '1px solid rgba(5, 57, 58, 0.15)', 
+                  border: '1px solid rgba(5, 57, 58, 0.18)', 
                   fontSize: '0.825rem', 
-                  padding: '10px 12px', 
+                  padding: '8px 12px', 
                   fontFamily: "'Public Sans', sans-serif", 
                   lineHeight: '1.4',
                   outline: 'none',
@@ -729,42 +795,17 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                 required
               />
             </div>
-
-            {/* Notas Internas Opcionales */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-              <label style={{ fontFamily: "'Public Sans', sans-serif", fontWeight: '750', fontSize: '0.775rem', color: '#738787', textTransform: 'uppercase' }}>
-                Notas Internas (Opcional)
-              </label>
-              <textarea
-                value={notas}
-                onChange={(e) => setNotas(e.target.value)}
-                placeholder="Notas de control interno visible solo para ti..."
-                style={{ 
-                  minHeight: '55px', 
-                  resize: 'vertical', 
-                  borderRadius: '10px', 
-                  border: '1px solid rgba(5, 57, 58, 0.15)', 
-                  fontSize: '0.825rem', 
-                  padding: '10px 12px', 
-                  fontFamily: "'Public Sans', sans-serif", 
-                  lineHeight: '1.4',
-                  outline: 'none',
-                  background: '#fff'
-                }}
-              />
-            </div>
           </div>
 
           {/* Pie de página fijo */}
           <div className="crm-modal-footer" style={{ 
             flexShrink: 0, 
             borderTop: '1px solid rgba(5, 57, 58, 0.08)', 
-            padding: '1.25rem 1.5rem', 
+            padding: '1rem 1.5rem', 
             display: 'flex', 
             justifyContent: 'flex-end', 
             gap: '12px', 
-            background: 'rgba(255,255,255,0.8)', 
-            backdropFilter: 'blur(10px)', 
+            background: 'rgba(255,255,255,0.95)', 
             margin: 0 
           }}>
             <button 
@@ -772,19 +813,19 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
               onClick={() => onClose(false)}
               disabled={isSubmitting}
               style={{ 
-                height: '40px', 
-                padding: '0 1.25rem', 
+                height: '38px', 
+                padding: '0 1.2rem', 
                 borderRadius: '10px', 
                 fontSize: '0.8rem', 
                 fontWeight: '700', 
-                border: '1px solid rgba(5, 57, 58, 0.15)', 
+                border: '1px solid rgba(5, 57, 58, 0.18)', 
                 background: '#fff', 
                 color: '#738787',
                 cursor: 'pointer', 
                 fontFamily: "'Public Sans', sans-serif",
-                transition: 'all 0.2s'
+                transition: 'all 0.15s ease'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(5, 57, 58, 0.02)'}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(5, 57, 58, 0.04)'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#fff'}
             >
               Cancelar
@@ -793,8 +834,8 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
               type="submit" 
               disabled={isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)}
               style={{ 
-                height: '40px', 
-                padding: '0 1.5rem', 
+                height: '38px', 
+                padding: '0 1.4rem', 
                 borderRadius: '10px', 
                 fontSize: '0.8rem', 
                 fontWeight: '800', 
@@ -802,8 +843,8 @@ export default function RegistrarVisitaModal({ isOpen, onClose, entityType, enti
                 background: '#E0922B', 
                 color: '#fff', 
                 fontFamily: "'Public Sans', sans-serif", 
-                boxShadow: '0 4px 14px rgba(224, 146, 43, 0.25)',
-                transition: 'all 0.2s',
+                boxShadow: '0 4px 12px rgba(224, 146, 43, 0.25)',
+                transition: 'all 0.15s ease',
                 opacity: (isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)) ? 0.5 : 1, 
                 cursor: (isSubmitting || (tipo === 'visita_presencial' && !isFuture && !gps)) ? 'not-allowed' : 'pointer' 
               }}

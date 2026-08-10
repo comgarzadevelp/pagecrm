@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY } from './moduleRegistry';
 import QuickCreateFab from './QuickCreateFab';
 import { useCompany } from '../contexts/CompanyContext';
@@ -12,8 +12,8 @@ import MobileNavigation from './MobileNavigation';
 
 
 // Modals
-import FichaEmpresaModal from '../components/directorio/ficha-empresa/FichaEmpresaModal';
-import FichaContactoModal from '../components/directorio/ficha-contacto/FichaContactoModal';
+import FichaEmpresaModal from '../components/modals/ficha-empresa/FichaEmpresaModal';
+import FichaContactoModal from '../components/modals/ficha-contacto/FichaContactoModal';
 import DetallesNegociacionFeature from '../sections/ventas/detalles/DetallesNegociacionFeature';
 
 const DashboardShell = ({
@@ -131,13 +131,13 @@ const DashboardShell = ({
 
   return (
     <div className={`crm-dashboard-page crm-modular-layout ${role === 'super_admin' ? 'superadmin-dashboard-root' : ''}`}>
-      {/* PERSISTENT GLOBAL BELL NOTIFICATIONS */}
+      {/* PERSISTENT GLOBAL BELL NOTIFICATIONS (DESACTIVADO TEMPORALMENTE)
       <GlobalBellNotifications 
         setActiveTab={setActiveTab} 
         role={role} 
         activeTab={activeTab} 
         onOpenEntity={handleOpenEntity} 
-      />
+      /> */}
 
       {/* SIDEBAR NAVIGATION PANEL */}
       <Sidebar 
@@ -253,3 +253,4 @@ const DashboardShell = ({
 };
 
 export default DashboardShell;
+

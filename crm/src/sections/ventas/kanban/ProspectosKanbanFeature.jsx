@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
 import useDebounce from '../../../hooks/useDebounce';
 import { getLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import '../styles/ProspectosKanban.css';
 import { validateQuotePDF } from '../../../utils/pdfValidator';
-import EventCreatorModal from '../../../sections/agenda/EventCreatorModalFeature';
+import EventCreatorModal from '../../../components/modals/event-creator/EventCreatorModalFeature';
 import DetallesNegociacion from '../detalles/DetallesNegociacionFeature';
-import CrearProspectoModal from '../../../components/ventas/crear-prospecto/CrearProspectoModal';
-import CierreGanadoModal from '../../../components/ventas/cierre/CierreGanadoModal';
+import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
+import CierreGanadoModal from '../../../components/modals/cierre-ganado/CierreGanadoModal';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
 
 // Helper for image compression using canvas
@@ -2379,3 +2379,4 @@ ProspectosKanban.propTypes = {
   API_BASE: PropTypes.string.isRequired,
   fetchLeads: PropTypes.func
 };
+

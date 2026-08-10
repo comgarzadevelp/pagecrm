@@ -1056,7 +1056,7 @@
 .crm-main-content {
   margin-left: 280px;
   /* offset the fixed sidebar */
-  padding: 2.5rem 3rem;
+  padding: 1.25rem 3rem 2.5rem 3rem;
   box-sizing: border-box;
   width: calc(100% - 280px);
   /* take remaining space */

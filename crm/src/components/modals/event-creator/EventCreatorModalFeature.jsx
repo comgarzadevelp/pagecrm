@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { 
   X, 
@@ -19,8 +19,8 @@ import {
   Info,
   Tag
 } from 'lucide-react';
-import { useUX } from '../../components/common/UXProvider';
-import './styles/EventCreatorModal.css';
+import { useUX } from '../../common/UXProvider';
+import './EventCreatorModal.css';
 
 const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 const WEEK_DAYS = ['Do', 'Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sá'];
@@ -1262,3 +1262,4 @@ const EventCreatorModal = ({
 export default function EventCreatorModalFeature(props) {
   return <EventCreatorModal {...props} />;
 }
+

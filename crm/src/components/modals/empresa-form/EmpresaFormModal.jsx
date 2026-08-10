@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
-import './Empresas.module.css';
+import '../../directorio/ficha-empresa/Empresas.module.css';
 
 const isValidEmail = (email) => {
   if (!email) return false;
@@ -296,3 +296,4 @@ export default function EmpresaFormModal({ editMode, selectedCompany, onClose, r
     document.body
   );
 }
+

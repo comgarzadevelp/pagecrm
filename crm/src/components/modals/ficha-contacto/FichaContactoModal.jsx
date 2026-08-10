@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+﻿import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { computeDataQuality, getQualityConfig, isValidPhone, isValidEmail } from '../../../utils/dataQuality.js';
-import './FichaContacto.css';
+import '../../directorio/ficha-contacto/FichaContacto.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 const getToken = () => localStorage.getItem('token');
@@ -870,3 +870,4 @@ export default function FichaContactoModal({ contact: initialContact, onClose, r
     document.body
   );
 }
+

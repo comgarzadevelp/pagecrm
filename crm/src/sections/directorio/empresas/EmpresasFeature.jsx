@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import useEmpresas from '../../../hooks/directorio/useEmpresas'; // Hook legacy de data fetching
@@ -9,7 +9,7 @@ import { computeDataQuality } from '../../../utils/dataQuality.js';
 
 // Importamos el código original gigante del formulario temporalmente (refactorizable en futuro)
 // Por ahora mantendremos el formulario dentro de este wrapper o podemos delegar.
-import EmpresaFormModal from '../../../components/directorio/ficha-empresa/EmpresaFormModal';
+import EmpresaFormModal from '../../../components/modals/empresa-form/EmpresaFormModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
 
@@ -532,3 +532,4 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
     </section>
   );
 }
+

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import DashboardShell from './DashboardShell';
 import { useCrmData } from '../hooks/useCrmData';
@@ -20,9 +20,9 @@ import MiPerfilFeature from '../sections/system/MiPerfilFeature';
 import ProspectosHuerfanosFeature from '../sections/ventas/huerfanos/ProspectosHuerfanosFeature';
 import EquipoVentasFeature from '../sections/system/EquipoVentasFeature';
 import DirectorioClientesFeature from '../sections/directorio/clientes/DirectorioClientesFeature';
-import FichaEmpresaModal from '../components/directorio/ficha-empresa/FichaEmpresaModal';
-import FichaContactoModal from '../components/directorio/ficha-contacto/FichaContactoModal';
-import FichaClienteIndividualModal from '../components/directorio/ficha-cliente/FichaClienteIndividualModal';
+import FichaEmpresaModal from '../components/modals/ficha-empresa/FichaEmpresaModal';
+import FichaContactoModal from '../components/modals/ficha-contacto/FichaContactoModal';
+import FichaClienteIndividualModal from '../components/modals/ficha-cliente/FichaClienteIndividualModal';
 import DirectorioObrasFeature from '../sections/directorio/obras/DirectorioObrasFeature';
 import ModuleConfigPanel from '../sections/superadmin/ModuleConfigPanel';
 import ChatbotConfigPanel from '../sections/superadmin/ChatbotConfigPanel';
@@ -322,3 +322,4 @@ export default function DashboardLayout({ role, enabledModules }) {
     </DashboardShell>
   );
 }
+

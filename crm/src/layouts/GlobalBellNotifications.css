@@ -4,11 +4,7 @@ s
    🔔 PERSISTENT GLOBAL NOTIFICATION BELL (TOP-RIGHT FIXED)
    ───────────────────────────────────────────────────────────── */
 .crm-global-bell-wrapper {
-  position: fixed;
-  top: 20px;
-  right: 25px;
-  z-index: 99999;
-  /* Stay on top of all sheets and dashboards */
+  display: none !important;
 }
 
 .crm-global-bell-btn {

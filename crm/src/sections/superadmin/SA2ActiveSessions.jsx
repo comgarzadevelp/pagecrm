@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabaseMTY } from '../core/supabaseClient';
-import SA2UserActivityModal from './SA2UserActivityModal';
+import SA2UserActivityModal from '../../components/modals/sa2-user-activity/SA2UserActivityModal';
 import './SA2ActiveSessions.css';
 
 const ROLE_LABELS = {
@@ -526,3 +526,4 @@ export default function SA2ActiveSessions() {
     </div>
   );
 }
+

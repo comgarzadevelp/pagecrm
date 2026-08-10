@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import FichaArchivadoModal from '../../components/directorio/archivo/FichaArchivadoModal';
+﻿import React, { useEffect, useState } from 'react';
+import FichaArchivadoModal from '../../components/modals/ficha-archivado/FichaArchivadoModal';
 import DetallesNegociacion from '../ventas/detalles/DetallesNegociacionFeature';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -440,3 +440,4 @@ export default function ArchivoFeature() {
     </section>
   );
 }
+

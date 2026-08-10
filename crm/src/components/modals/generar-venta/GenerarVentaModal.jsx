@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
-import './CrearProspectoModal.css'; // Reutiliza los estilos premium de modales de la app
+import '../crear-prospecto/CrearProspectoModal.css'; // Reutiliza los estilos premium de modales de la app
 
 /**
  * GenerarVentaModal
@@ -253,3 +253,4 @@ GenerarVentaModal.propTypes = {
   API_BASE: PropTypes.string.isRequired,
   customer: PropTypes.object
 };
+

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import useDebounce from '../../../hooks/useDebounce';
 import { useUX } from '../../../components/common/UXProvider';
@@ -7,8 +7,8 @@ import '../styles/ProspectosKanban.css';
 import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../components/ventas/status-dropdown/StatusDropdown';
 import DetallesNegociacion from '../detalles/DetallesNegociacionFeature';
-import CrearProspectoModal from '../../../components/ventas/crear-prospecto/CrearProspectoModal';
-import CierreGanadoModal from '../../../components/ventas/cierre/CierreGanadoModal';
+import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
+import CierreGanadoModal from '../../../components/modals/cierre-ganado/CierreGanadoModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
 import { validateQuotePDF } from '../../../utils/pdfValidator';
@@ -1675,3 +1675,4 @@ export default function LeadsBandejaFeature({
     </>
   );
 }
+

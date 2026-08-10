@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { useDirectorioObras } from '../../../hooks/directorio/useDirectorioObras';
-import FichaObraModal from '../../../components/directorio/ficha-obra/FichaObraModalFeature';
+import FichaObraModal from '../../../components/modals/ficha-obra/FichaObraModalFeature';
 import styles from './DirectorioObras.module.css';
 
 /**
@@ -130,3 +130,4 @@ export default function DirectorioObrasFeature({ API_BASE, role }) {
     </section>
   );
 }
+

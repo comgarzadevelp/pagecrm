@@ -1,0 +1,144 @@
+/* ==========================================================================
+   CalendarWidget.css - Unified Reusable Calendar Styles
+   Supports both 'compact' (Inicio) and 'full' (Agenda) variants
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   VARIANTE COMPACTA (Inicio)
+   -------------------------------------------------------------------------- */
+.calendar-card-wrapper {
+  background: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 24px !important;
+  padding: 1.75rem !important;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: space-between !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.02) !important;
+  box-sizing: border-box !important;
+  text-align: left !important;
+}
+
+.calendar-card-header h3 {
+  font-size: 1.1rem !important;
+  font-weight: 700 !important;
+  color: #d85d36 !important;
+  margin: 0 0 0.5rem 0 !important;
+  letter-spacing: -0.01em !important;
+}
+
+.calendar-card-header p {
+  color: #94a3b8 !important;
+  font-size: 0.85rem !important;
+  line-height: 1.45 !important;
+  margin: 0 0 1.25rem 0 !important;
+}
+
+.calendar-widget-box {
+  background: #ffffff !important;
+  border: 1px solid #f1f5f9 !important;
+  border-radius: 18px !important;
+  padding: 1.25rem !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02) !important;
+}
+
+.calendar-widget-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 1rem !important;
+}
+
+.cal-month-title {
+  font-size: 0.95rem !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+}
+
+.cal-nav-btn {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 999px !important;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  font-size: 0.8rem !important;
+}
+
+.calendar-days-grid {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  gap: 0.35rem !important;
+  text-align: center !important;
+  margin-bottom: 1rem !important;
+}
+
+.day-name {
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  color: #94a3b8 !important;
+  padding-bottom: 0.25rem !important;
+}
+
+.day-num {
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 10px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.day-num:hover {
+  background: #f1f5f9 !important;
+}
+
+.day-num.muted {
+  color: #cbd5e1 !important;
+}
+
+.day-num.active-outline {
+  border: 1.5px solid #043834 !important;
+  color: #043834 !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+}
+
+.day-num.selected-blue {
+  background: #043834 !important;
+  color: #ffffff !important;
+  border-radius: 10px !important;
+  font-weight: 700 !important;
+  box-shadow: 0 4px 10px rgba(4, 56, 52, 0.2) !important;
+}
+
+.calendar-widget-footer {
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+.btn-calendar-done {
+  background: #043834 !important;
+  color: #ffffff !important;
+  border: none !important;
+  padding: 0.5rem 1.4rem !important;
+  border-radius: 10px !important;
+  font-size: 0.82rem !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 4px 12px rgba(4, 56, 52, 0.2) !important;
+}
+
+.btn-calendar-done:hover {
+  background: #095751 !important;
+  transform: translateY(-1px) !important;
+}

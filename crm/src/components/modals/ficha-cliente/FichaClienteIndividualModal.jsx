@@ -1,11 +1,11 @@
-import React from 'react';
+﻿import React from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 
-import FichaHeader from './FichaHeader/FichaHeader';
-import FichaLeftPanel from './FichaLeftPanel/FichaLeftPanel';
-import TimelineFeed from './TimelineFeed/TimelineFeed';
-import FichaSubModals from './FichaSubModals/FichaSubModals';
+import FichaHeader from '../../directorio/ficha-cliente/FichaHeader/FichaHeader';
+import FichaLeftPanel from '../../directorio/ficha-cliente/FichaLeftPanel/FichaLeftPanel';
+import TimelineFeed from '../../directorio/ficha-cliente/TimelineFeed/TimelineFeed';
+import FichaSubModals from '../../directorio/ficha-cliente/FichaSubModals/FichaSubModals';
 import useFichaCliente from '../../../hooks/directorio/useFichaCliente';
 
 import './FichaClienteIndividualModal.css';
@@ -207,3 +207,4 @@ export default function FichaClienteIndividualModal({
     document.body
   );
 }
+

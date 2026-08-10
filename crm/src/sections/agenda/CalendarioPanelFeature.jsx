@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import './styles/CalendarioPanel.css';
 import { useUX } from '../../components/common/UXProvider';
-import EventCreatorModal from './EventCreatorModalFeature';
+import EventCreatorModal from '../../components/modals/event-creator/EventCreatorModalFeature';
 import EventCard from './agenda/EventCard';
-import CancelEventModal from './agenda/CancelEventModal';
+import CancelEventModal from '../../components/modals/cancel-event/CancelEventModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -554,3 +554,4 @@ export default function CalendarioPanelFeature({
     </section>
   );
 }
+

@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import DirectorioClientesFeature from '../directorio/clientes/DirectorioClientesFeature';
-import { compileTimelineItems } from '../../components/directorio/ficha-cliente/FichaTimelineItem';
-import SA2UserVisitasTab from './SA2UserVisitasTab';
-import SA2UserSessionsTab from './SA2UserSessionsTab';
+import DirectorioClientesFeature from '../../../sections/directorio/clientes/DirectorioClientesFeature';
+import { compileTimelineItems } from '../../directorio/ficha-cliente/FichaTimelineItem';
+import SA2UserVisitasTab from '../../../sections/superadmin/SA2UserVisitasTab';
+import SA2UserSessionsTab from '../../../sections/superadmin/SA2UserSessionsTab';
 import './SA2UserActivityModal.css';
 
 function formatFullDateTime(isoString) {
@@ -343,3 +343,4 @@ export default function SA2UserActivityModal({ user, userId, onClose }) {
     document.body
   );
 }
+

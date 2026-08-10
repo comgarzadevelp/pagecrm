@@ -1,13 +1,13 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDirectorioClientes } from '../../../hooks/directorio/useDirectorioClientes';
 import CustomerTable from '../../../components/directorio/directory-card/CustomerTable';
 import styles from './DirectorioClientes.module.css';
 
-import RegistrarClienteModal from '../../../components/directorio/registro/RegistrarClienteModal';
-import FichaClienteIndividualModal from '../../../components/directorio/ficha-cliente/FichaClienteIndividualModal';
-import CrearProspectoModal from '../../../components/ventas/crear-prospecto/CrearProspectoModal';
-import RegistrarVisitaModal from '../../../components/directorio/visita/RegistrarVisitaModal';
-import EventCreatorModal from '../../../sections/agenda/EventCreatorModalFeature';
+import RegistrarClienteModal from '../../../components/modals/registrar-cliente/RegistrarClienteModal';
+import FichaClienteIndividualModal from '../../../components/modals/ficha-cliente/FichaClienteIndividualModal';
+import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
+import RegistrarVisitaModal from '../../../components/modals/registrar-visita/RegistrarVisitaModal';
+import EventCreatorModal from '../../../components/modals/event-creator/EventCreatorModalFeature';
 import useDirectorio from '../../../hooks/directorio/useDirectorio';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
@@ -262,3 +262,4 @@ export default function DirectorioClientesFeature({
     </section>
   );
 }
+

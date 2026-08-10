@@ -1,11 +1,11 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { useMisContactos } from '../../../hooks/directorio/useMisContactos';
 import { computeDataQuality } from '../../../utils/dataQuality';
 import DirectoryCard from '../../../components/directorio/directory-card/DirectoryCard';
-import ContactoFormModal from '../../../components/directorio/ficha-contacto/ContactoFormModal';
-import FichaContactoModal from '../../../components/directorio/ficha-contacto/FichaContactoModal';
+import ContactoFormModal from '../../../components/modals/contacto-form/ContactoFormModal';
+import FichaContactoModal from '../../../components/modals/ficha-contacto/FichaContactoModal';
 import styles from './MisContactos.module.css';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
@@ -212,3 +212,4 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
     </section>
   );
 }
+

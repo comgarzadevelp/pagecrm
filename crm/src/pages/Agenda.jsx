@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { useUX } from '../components/common/UXProvider';
 import { useAgendaData } from '../sections/agenda/agenda/useAgendaData';
 import CalendarioPanel from '../sections/agenda/CalendarioPanelFeature';
 import CalendarioGrid from '../sections/agenda/agenda/CalendarioGrid';
 import DiarioOperacionPanel from '../sections/agenda/agenda/DiarioOperacionPanel';
-import NoteReaderModal from '../sections/agenda/agenda/NoteReaderModal';
+import NoteReaderModal from '../components/modals/note-reader/NoteReaderModal';
 import '../sections/agenda/styles/AgendaPanel.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
@@ -151,3 +151,4 @@ export default function AgendaPanelFeature({ leads = [] }) {
     </div>
   );
 }
+

@@ -1,15 +1,17 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
 import useDebounce from '../../../hooks/useDebounce';
 import { getLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
-import '../styles/ProspectosKanban.css';
+import './OpportunityKanban.css';
 import { validateQuotePDF } from '../../../utils/pdfValidator';
 import EventCreatorModal from '../../../components/modals/event-creator/EventCreatorModalFeature';
 import DetallesNegociacion from '../detalles/DetallesNegociacionFeature';
 import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
 import CierreGanadoModal from '../../../components/modals/cierre-ganado/CierreGanadoModal';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
+import KanbanCard from '../../../components/cards/KanbanCard/KanbanCard';
+import PremiumSegmentedFilter from '../../../components/filters/PremiumSegmentedFilter/PremiumSegmentedFilter';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {
@@ -65,7 +67,7 @@ const STAGE_EXPLANATIONS = {
   cierre_perdido: 'La oportunidad no prosperó debido a precio, competencia u otros factores comerciales.'
 };
 
-export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
+export default function OpportunityKanbanFeature({ role, API_BASE, fetchLeads }) {
   const { showToast, showConfirm } = useUX();
 
   // ── Filters State ──
@@ -1122,105 +1124,21 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
       </div>
 
       {/* ── PIPELINE SUMMARY BAND (Zoom) ── */}
-      <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', padding: '10px 16px', borderRadius: '100px', marginBottom: '0.5rem', minHeight: '52px', boxSizing: 'border-box' }}>
-        <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '8px', letterSpacing: '0.05em' }}>Zoom:</span>
-
-        {/* 'Todos' Pill */}
-        <button
-          type="button"
-          onClick={() => setZoomColumnKey(null)}
-          style={{
-            padding: '0 14px',
-            height: '32px',
-            borderRadius: '100px',
-            fontSize: '0.78rem',
-            fontWeight: '700',
-            border: zoomColumnKey === null ? '1.5px solid #64748b' : '1.5px solid transparent',
-            background: zoomColumnKey === null ? 'rgba(100, 116, 139, 0.12)' : '#ffffff',
-            color: '#64748b',
-            cursor: 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-            transition: 'all 0.2s ease',
-            outline: 'none',
-            boxSizing: 'border-box',
-            lineHeight: '1.2'
-          }}
-        >
-          <span>Todos</span>
-          <span style={{
-            background: zoomColumnKey === null ? '#64748b' : '#e2e8f0',
-            color: zoomColumnKey === null ? '#fff' : '#64748b',
-            fontSize: '0.68rem',
-            height: '18px',
-            minWidth: '20px',
-            padding: '0 6px',
-            borderRadius: '10px',
-            fontWeight: '850',
-            transition: 'all 0.2s ease',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            {filteredLeads.length}
-          </span>
-        </button>
-
-        {/* Column Specific Pills */}
-        {columns.map(col => {
-          const count = columnCounts[col.key] || 0;
-          const isActive = zoomColumnKey === col.key;
-          const softBgColor = `${col.color}12`; // ~7% opacity
-
-          return (
-            <button
-              key={col.key}
-              type="button"
-              onClick={() => setZoomColumnKey(isActive ? null : col.key)}
-              style={{
-                padding: '0 14px',
-                height: '32px',
-                borderRadius: '100px',
-                fontSize: '0.78rem',
-                fontWeight: '700',
-                border: isActive ? `1.5px solid ${col.color}` : '1.5px solid transparent',
-                background: isActive ? softBgColor : '#ffffff',
-                color: isActive ? col.color : '#475569',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                transition: 'all 0.2s ease',
-                outline: 'none',
-                boxSizing: 'border-box',
-                lineHeight: '1.2'
-              }}
-            >
-              <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: col.color }}></span>
-              <span>{col.label}</span>
-              <span style={{
-                background: isActive ? col.color : '#e2e8f0',
-                color: isActive ? '#fff' : '#64748b',
-                fontSize: '0.68rem',
-                height: '18px',
-                minWidth: '20px',
-                padding: '0 6px',
-                borderRadius: '10px',
-                fontWeight: '850',
-                transition: 'all 0.2s ease',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+        <PremiumSegmentedFilter
+          label="Zoom:"
+          activeKey={zoomColumnKey}
+          onChange={(key) => setZoomColumnKey(key === 'all' ? null : key)}
+          options={[
+            { key: 'all', label: 'Todos', color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)', count: filteredLeads.length },
+            ...columns.map(col => ({
+              key: col.key,
+              label: col.label,
+              color: col.color,
+              bgActive: `${col.color}12`,
+              count: columnCounts[col.key] || 0
+            }))
+          ]}
+        />
 
       {/* ── MOBILE TABS (Only visible on mobile) ── */}
       <div className="mobile-tabs-container">
@@ -1408,146 +1326,20 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
                       const isExpanded = !!expandedCards[lead.id];
 
                       return (
-                        <div
+                        <KanbanCard
                           key={lead.id}
-                          className={`kanban-card glass ${slaClass} ${stageClass} ${isPulseActive ? 'drop-pulse' : ''}`}
-                          onMouseDown={(e) => handleCardPointerDown(e, lead.id)}
-                          style={{
-                            cursor: 'grab',
-                            animationDelay: staggerDelay,
-                            '--drop-color': isPulseActive ? droppedCardPulse.color : 'transparent'
-                          }}
-                        >
-                          <div className="card-header-row">
-                            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                              <span className="channel-badge" style={{ backgroundColor: channel.color }}>
-                                {channel.label}
-                              </span>
-                              {lead.is_opportunity && (
-                                <span className="channel-badge" style={{ backgroundColor: '#10b981', display: 'flex', alignItems: 'center', gap: '3px' }} title="Oportunidad Vinculada">
-                                  <i className="fas fa-link" style={{ fontSize: '0.7rem' }}></i> Opp
-                                </span>
-                              )}
-                            </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <button
-                                type="button"
-                                className="card-menu-btn"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedCards(prev => ({ ...prev, [lead.id]: !prev[lead.id] }));
-                                }}
-                                title={isExpanded ? "Colapsar información" : "Expandir información"}
-                                style={{ color: '#94a3b8', transition: 'transform 0.2s' }}
-                              >
-                                <i className={`fas ${isExpanded ? 'fa-chevron-up' : 'fa-chevron-down'}`}></i>
-                              </button>
-                              <button
-                                type="button"
-                                className="card-menu-btn"
-                                onClick={(e) => openCardMenu(e, lead)}
-                              >
-                                <i className="fas fa-ellipsis-v"></i>
-                              </button>
-                            </div>
-                          </div>
-
-                          <h3 className="card-lead-name" style={{ fontWeight: 800 }}>
-                            <i className="fas fa-bullseye" style={{ marginRight: '6px', color: 'var(--color-brand-primary)' }}></i>
-                            {requirementText}
-                          </h3>
-
-                          {isExpanded && (
-                            <div className="card-entity-details" style={{ marginTop: '8px', animation: 'fadeIn 0.2s ease' }}>
-                              <p className="card-info-item" style={{ fontWeight: 600, color: '#334155' }}>
-                                <i className="fas fa-hard-hat" style={{ color: '#f59e0b' }}></i>
-                                <span>{projectText}</span>
-                              </p>
-                              <p className="card-company-name">
-                                <i className="fas fa-building" style={{ color: '#64748b' }}></i>
-                                <span>{lead.company || 'Sin empresa'}</span>
-                              </p>
-                              <p className="card-info-item">
-                                <i className="fas fa-user" style={{ color: '#64748b' }}></i>
-                                <span>{lead.name || 'Anónimo'}</span>
-                              </p>
-                              {parsedNotes.general && (
-                                <p className="card-note-preview">
-                                  <i className="fas fa-sticky-note" style={{ color: '#94a3b8' }}></i>
-                                  <span>{parsedNotes.general}</span>
-                                </p>
-                              )}
-                            </div>
-                          )}
-
-                          {lead.active_appointment && (
-                            <div className="card-reunion-time" style={{
-                              display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.78rem',
-                              color: '#0891b2', background: 'rgba(8, 145, 178, 0.06)', padding: '6px 10px',
-                              borderRadius: '6px', marginTop: '8px', fontWeight: '600',
-                              border: '1px solid rgba(8, 145, 178, 0.15)', width: 'fit-content'
-                            }}>
-                              <i className="far fa-calendar-alt" style={{ fontSize: '0.85rem' }}></i>
-                              <span>
-                                {new Date(lead.active_appointment.start_time).toLocaleString('es-MX', {
-                                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true
-                                }).replace('.', '')}
-                              </span>
-                            </div>
-                          )}
-
-                          <hr className="card-footer-divider" />
-
-                          <div className="card-footer-row" style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '100%' }}>
-                              {/* Badge A: Inactividad de Seguimiento */}
-                              <span className={`card-age-badge ${ageInfo.followup.critical ? 'critical' : ageInfo.followup.warning ? 'warning' : ''}`} style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '650' }}>
-                                <i className={`far ${ageInfo.followup.critical ? 'fa-bell' : 'fa-clock'}`} style={{ marginRight: '3px' }}></i>
-                                Seg: {ageInfo.followup.text}
-                              </span>
-
-                              {/* Badge B: Tiempo en la Etapa */}
-                              <span className={`card-age-badge ${ageInfo.stage.critical ? 'critical-stage' : ageInfo.stage.warning ? 'warning-stage' : ''}`} style={{ fontSize: '0.68rem', padding: '2px 6px', borderRadius: '4px', fontWeight: '650' }}>
-                                <i className="fas fa-layer-group" style={{ marginRight: '3px' }}></i>
-                                Etapa: {ageInfo.stage.text}
-                              </span>
-                            </div>
-
-                            {/* Assignee initials in row */}
-                            {lead.assigned_to && (role === 'admin' || role === 'supervisor' || role === 'super_admin') && (
-                              <div
-                                className="card-assignee-avatar"
-                                title={`Asignado a: ${lead.assigned_to.name}`}
-                                style={{ marginTop: '4px', alignSelf: 'flex-end' }}
-                              >
-                                {lead.assigned_to.name.substring(0, 1)}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="card-quick-actions">
-                            <button
-                              className="btn-quick-action"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (lead.phone) window.open(`https://wa.me/${lead.phone.replace(/\D/g, '')}`, '_blank');
-                              }}
-                              title="WhatsApp"
-                            >
-                              <i className="fab fa-whatsapp" style={{ color: '#25D366' }}></i> WhatsApp
-                            </button>
-                            <button
-                              className="btn-quick-action"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (lead.phone) window.location.href = `tel:${lead.phone.replace(/\D/g, '')}`;
-                              }}
-                              title="Llamar"
-                            >
-                              <i className="fas fa-phone-alt" style={{ color: '#0ea5e9' }}></i> Llamar
-                            </button>
-                          </div>
-                        </div>
+                          lead={lead}
+                          index={index}
+                          role={role}
+                          channel={channel}
+                          ageInfo={ageInfo}
+                          isExpanded={isExpanded}
+                          isPulseActive={isPulseActive}
+                          droppedCardPulse={droppedCardPulse}
+                          onCardPointerDown={handleCardPointerDown}
+                          onToggleExpand={(id) => setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }))}
+                          onOpenMenu={openCardMenu}
+                        />
                       );
                     })}
 
@@ -2374,7 +2166,7 @@ export default function ProspectosKanban({ role, API_BASE, fetchLeads }) {
   );
 }
 
-ProspectosKanban.propTypes = {
+OpportunityKanbanFeature.propTypes = {
   role: PropTypes.string.isRequired,
   API_BASE: PropTypes.string.isRequired,
   fetchLeads: PropTypes.func

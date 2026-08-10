@@ -1,6 +1,9 @@
 // src/pages/crm/panels/Contenedor.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import { useUX } from '../../components/common/UXProvider';
+import ResourceCard from '../../components/cards/ResourceCard/ResourceCard';
+import PageHeader from '../../components/common/PageHeader/PageHeader';
+import SearchInput from '../../components/common/SearchInput/SearchInput';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -133,26 +136,28 @@ export default function Contenedor() {
   return (
     <section className="crm-table-container glass">
       {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
-        <div>
-          <h2 className="panel-title"><i className="fas fa-folder-open" style={{ marginRight: 8 }} />Contenedor de Recursos</h2>
-          <p style={{ margin: '4px 0 0', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>
-            Documentos, recursos gráficos, contratos y convenios compartidos por el administrador.
-          </p>
-        </div>
-        {role === 'admin' && (
-          <button className="btn-primary-golden" onClick={() => setShowUpload(true)}>
-            <i className="fas fa-cloud-upload-alt" /> Subir Archivo
-          </button>
-        )}
-      </div>
+      <PageHeader
+        icon="fa-folder-open"
+        iconColor="#e0922b"
+        title="Contenedor de Recursos"
+        subtitle="Documentos, recursos gráficos, contratos y convenios compartidos por el administrador."
+        actionButton={
+          role === 'admin' && (
+            <button className="btn-primary-golden" onClick={() => setShowUpload(true)}>
+              <i className="fas fa-cloud-upload-alt" /> Subir Archivo
+            </button>
+          )
+        }
+      />
 
       {/* FILTERS */}
-      <div className="crm-filters-bar" style={{ marginBottom: '1.5rem' }}>
-        <div className="search-box">
-          <i className="fas fa-search" />
-          <input type="text" placeholder="Buscar archivos..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
+      <div className="crm-filters-bar" style={{ marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+        <SearchInput
+          placeholder="Buscar archivos..."
+          value={search}
+          onChange={setSearch}
+          style={{ flex: 1 }}
+        />
         <div className="filter-select-group">
           <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
             <option value="all">Todas las categorías</option>
@@ -173,46 +178,14 @@ export default function Contenedor() {
         </div>
       ) : (
         <div className="files-grid">
-          {filtered.map(file => {
-            const ft = getFileIcon(file.file_type);
-            const isImage = file.file_type === 'image';
-            return (
-              <div className="file-card glass" key={file.id}>
-                {isImage ? (
-                  <div className="file-preview-img">
-                    <img src={resolveMediaUrl(file.file_url)} alt={file.name} />
-                  </div>
-                ) : (
-                  <div className="file-icon-wrap" style={{ background: `${ft.color}15`, color: ft.color }}>
-                    <i className={`fas ${ft.icon}`} />
-                  </div>
-                )}
-                <div className="file-card-body">
-                  <h5 className="file-name">{file.name}</h5>
-                  {file.description && <p className="file-desc">{file.description}</p>}
-                  <div className="file-meta">
-                    <span className="file-cat-badge">{file.category}</span>
-                    <span className="file-size">{formatSize(file.file_size)}</span>
-                    <span className="file-date">{formatDate(file.created_at)}</span>
-                  </div>
-                  {file.uploaded_by && <p className="file-uploader"><i className="fas fa-user" /> {file.uploaded_by.name}</p>}
-                </div>
-                <div className="file-card-actions">
-                  <a href={resolveMediaUrl(file.file_url)} target="_blank" rel="noopener noreferrer" className="btn-view-details">
-                    <i className="fas fa-external-link-alt" /> Abrir
-                  </a>
-                  <a href={resolveMediaUrl(file.file_url)} download={file.name} className="btn-view-details">
-                    <i className="fas fa-download" /> Descargar
-                  </a>
-                  {role === 'admin' && (
-                    <button className="btn-delete-contact" onClick={() => handleDelete(file.id)}>
-                      <i className="fas fa-trash" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+          {filtered.map(file => (
+            <ResourceCard
+              key={file.id}
+              file={file}
+              role={role}
+              onDelete={handleDelete}
+            />
+          ))}
         </div>
       )}
 

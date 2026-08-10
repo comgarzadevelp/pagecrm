@@ -14,6 +14,7 @@ import {
   CheckCircle2,
   CalendarDays
 } from 'lucide-react';
+import PremiumSegmentedFilter from '../../../components/filters/PremiumSegmentedFilter/PremiumSegmentedFilter';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -217,29 +218,16 @@ export default function DiarioOperacionPanel() {
 
         {/* Filtro por periodo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', gap: '4px', background: 'rgba(5, 57, 58, 0.04)', padding: '3px', borderRadius: '8px' }}>
-            {['hoy', 'ayer', 'semana', 'personalizado'].map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => handleFilterTypeChange(type)}
-                style={{
-                  padding: '6px 12px',
-                  fontSize: '0.7rem',
-                  borderRadius: '6px',
-                  border: 'none',
-                  background: filterType === type ? '#05393A' : 'transparent',
-                  color: filterType === type ? '#fff' : '#738787',
-                  fontWeight: '700',
-                  cursor: 'pointer',
-                  fontFamily: "'Public Sans', sans-serif",
-                  textTransform: 'capitalize'
-                }}
-              >
-                {type === 'semana' ? 'Esta Semana' : type}
-              </button>
-            ))}
-          </div>
+          <PremiumSegmentedFilter
+            activeKey={filterType}
+            onChange={handleFilterTypeChange}
+            options={[
+              { key: 'hoy', label: 'Hoy', color: '#05393A', bgActive: 'rgba(5, 57, 58, 0.08)' },
+              { key: 'ayer', label: 'Ayer', color: '#05393A', bgActive: 'rgba(5, 57, 58, 0.08)' },
+              { key: 'semana', label: 'Esta Semana', color: '#05393A', bgActive: 'rgba(5, 57, 58, 0.08)' },
+              { key: 'personalizado', label: 'Personalizado', color: '#05393A', bgActive: 'rgba(5, 57, 58, 0.08)' }
+            ]}
+          />
 
           {filterType === 'personalizado' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', animation: 'fadeIn 0.2s ease' }}>

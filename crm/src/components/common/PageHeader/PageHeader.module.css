@@ -1,0 +1,45 @@
+/* --- PageHeader.module.css --- */
+.headerContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #19333b;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  letter-spacing: -0.02em;
+  font-family: 'Outfit', 'Inter', sans-serif;
+}
+
+.title i {
+  font-size: 1.25rem;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: var(--color-text-muted, #1f7cff);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.actionGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

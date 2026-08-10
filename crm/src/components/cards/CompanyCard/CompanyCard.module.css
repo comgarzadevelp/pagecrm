@@ -1,0 +1,229 @@
+/* --- CompanyCard.module.css --- */
+.coCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  min-width: 0;
+}
+
+.coCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(5, 57, 58, 0.09);
+  border-color: rgba(5, 57, 58, 0.18);
+}
+
+.coCardToprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.coCardSourceGroup {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sourceBadge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 2.5px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sourceBadge.sae {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.sourceBadge.crm {
+  background: rgba(212, 163, 89, 0.1);
+  color: var(--color-brand-accent, #aa8529);
+  border: 1px solid rgba(212, 163, 89, 0.2);
+}
+
+.coStatusPill {
+  font-size: 0.62rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 20px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.coCardTitlerow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.coCardIcon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(5, 57, 58, 0.06);
+  color: var(--color-brand-primary, #05393a);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.coCardNamecol {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.coCardName {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--color-brand-primary, #05393a);
+  margin: 0;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coCardAlerts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.coAlertChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  color: #dc2626;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.coAlertChip i {
+  font-size: 0.6rem;
+}
+
+.coCardContactDetails {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: var(--color-text-dark, #334155);
+  padding: 4px 0;
+}
+
+.coContactDetailItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.coContactDetailItem i {
+  color: var(--color-brand-accent, #aa8529);
+  font-size: 0.7rem;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.coCardLocation {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+  font-weight: 600;
+}
+
+.coCardLocation i {
+  color: var(--color-brand-accent, #aa8529);
+  font-size: 0.7rem;
+}
+
+.coCardContactsPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(226, 232, 240, 0.9);
+}
+
+.coContactChip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.coContactAvatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-brand-primary, #05393a), #0c4d4f);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.coContactInfo {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  flex: 1;
+}
+
+.coContactName {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--color-text-dark, #334155);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.coContactRole {
+  font-size: 0.66rem;
+  color: var(--color-text-muted, #64748b);
+  font-style: normal;
+  font-weight: 600;
+  flex-shrink: 0;
+  background: #f1f5f9;
+  padding: 1px 5px;
+  border-radius: 4px;
+}

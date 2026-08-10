@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { useDirectorioClientes } from '../../../hooks/directorio/useDirectorioClientes';
 import CustomerTable from '../../../components/directorio/directory-card/CustomerTable';
 import styles from './DirectorioClientes.module.css';
@@ -11,6 +11,9 @@ import EventCreatorModal from '../../../components/modals/event-creator/EventCre
 import useDirectorio from '../../../hooks/directorio/useDirectorio';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import PremiumSegmentedFilter from '../../../components/filters/PremiumSegmentedFilter/PremiumSegmentedFilter';
+import PageHeader from '../../../components/common/PageHeader/PageHeader';
+import SearchInput from '../../../components/common/SearchInput/SearchInput';
 
 /**
  * DirectorioClientesFeature
@@ -90,86 +93,37 @@ export default function DirectorioClientesFeature({
 
   return (
     <section className={styles.container}>
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>Registro de Clientes</h2>
-          <p className={styles.subtitle}>
-            Bandeja general de clientes y empresas. Inicia nuevas negociaciones desde aquí.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        icon="fa-users"
+        iconColor="#64748b"
+        title="Registro de Clientes"
+        subtitle="Bandeja general de clientes y empresas. Inicia nuevas negociaciones desde aquí."
+      />
 
       <div className={styles.filtersBar} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        {/* Selectores de categorías de seguimiento */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-          {[
-            { id: 'todos', label: 'Todos', color: '#64748b', bg: '#f1f5f9' },
-            { id: 'prospectos', label: 'Prospectos', color: '#ea580c', bg: '#fff7ed' },
-            { id: 'reactivacion', label: 'En Reactivación', color: '#3b82f6', bg: '#eff6ff' },
-            { id: 'activos', label: 'Compradores Activos', color: '#059669', bg: '#ecfdf5' },
-            { id: 'recontactar', label: 'Recontactar Ahora', color: '#dc2626', bg: '#fef2f2' },
-            { id: 'descartados', label: 'Descartados', color: '#111827', bg: '#f3f4f6' }
-          ].map(cat => {
-            const count = categoryCounts[cat.id] || 0;
-            const isActive = selectedCategory === cat.id;
-            return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setSelectedCategory(cat.id)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '100px',
-                  fontSize: '0.8rem',
-                  fontWeight: '700',
-                  border: isActive ? `1.5px solid ${cat.color}` : '1.5px solid transparent',
-                  background: isActive ? cat.bg : 'var(--color-bg-white, #fff)',
-                  color: cat.color,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-                  transition: 'all 0.2s ease',
-                  outline: 'none'
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = cat.bg;
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.backgroundColor = 'var(--color-bg-white, #fff)';
-                }}
-              >
-                {cat.label}
-                <span style={{
-                  background: isActive ? cat.color : '#e2e8f0',
-                  color: isActive ? '#fff' : '#64748b',
-                  fontSize: '0.7rem',
-                  padding: '2px 6px',
-                  borderRadius: '10px',
-                  fontWeight: '800',
-                  transition: 'all 0.2s ease'
-                }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <PremiumSegmentedFilter
+          label="Clasificador:"
+          activeKey={selectedCategory}
+          onChange={setSelectedCategory}
+          options={[
+            { key: 'todos', label: 'Todos', color: '#64748b', bgActive: '#f1f5f9', count: categoryCounts.todos || 0 },
+            { key: 'prospectos', label: 'Prospectos', color: '#ea580c', bgActive: '#fff7ed', count: categoryCounts.prospectos || 0 },
+            { key: 'reactivacion', label: 'En Reactivación', color: '#3b82f6', bgActive: '#eff6ff', count: categoryCounts.reactivacion || 0 },
+            { key: 'activos', label: 'Compradores Activos', color: '#059669', bgActive: '#ecfdf5', count: categoryCounts.activos || 0 },
+            { key: 'recontactar', label: 'Recontactar Ahora', color: '#dc2626', bgActive: '#fef2f2', count: categoryCounts.recontactar || 0 },
+            { key: 'descartados', label: 'Descartados', color: '#111827', bgActive: '#f3f4f6', count: categoryCounts.descartados || 0 },
+          ]}
+        />
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
           
-          <div className={styles.searchBox} style={{ flex: 1, minWidth: '250px' }}>
-            <i className="fas fa-search" style={{ color: '#9ca3af' }}></i>
-            <input
-              className={styles.searchInput}
-              type="text"
-              placeholder="Buscar por nombre, correo, teléfono o empresa..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
+          <SearchInput
+            placeholder="Buscar por nombre, correo, teléfono o empresa..."
+            value={searchTerm}
+            onChange={setSearchTerm}
+            style={{ flex: 1, minWidth: '250px' }}
+          />
         </div>
       </div>
 

@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
 import { getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../components/ventas/status-dropdown/StatusDropdown';
-import '../styles/DetallesNegociacion.css';
+import './DetallesNegociacion.css';
 
 // Helper for image compression using canvas
 const compressImage = (file) => {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import { useMisContactos } from '../../../hooks/directorio/useMisContactos';
@@ -9,6 +9,9 @@ import FichaContactoModal from '../../../components/modals/ficha-contacto/FichaC
 import styles from './MisContactos.module.css';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import PremiumSegmentedFilter from '../../../components/filters/PremiumSegmentedFilter/PremiumSegmentedFilter';
+import PageHeader from '../../../components/common/PageHeader/PageHeader';
+import SearchInput from '../../../components/common/SearchInput/SearchInput';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -72,82 +75,38 @@ export default function MisContactosFeature({ onViewCompanyDetails }) {
   return (
     <section className={`${styles.container} glass`}>
       {/* HEADER */}
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}>
-            <i className="fas fa-address-book" style={{ color: '#64748b' }} /> Mis Contactos
-          </h2>
-          <p className={styles.subtitle}>
-            Personas físicas con las que tienes contacto comercial. Vincúlalos a una o más empresas.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        icon="fa-address-book"
+        iconColor="#64748b"
+        title="Mis Contactos"
+        subtitle="Personas físicas con las que tienes contacto comercial. Vincúlalos a una o más empresas."
+      />
 
       {/* SEARCH & FILTERS */}
       <div className={styles.filtersBar}>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          {[
-            { key: 'all',       label: 'Todos',     bg: '#f8fafc', color: '#475569', border: '#cbd5e1' },
-            { key: 'pesima',    label: 'Pésima',    bg: '#fef2f2', color: '#dc2626', border: '#fca5a5' },
-            { key: 'mala',      label: 'Mala',      bg: '#fff7ed', color: '#ea580c', border: '#fdba74' },
-            { key: 'pendiente', label: 'Pendiente', bg: '#fefce8', color: '#ca8a04', border: '#fde047' },
-            { key: 'buena',     label: 'Buena',     bg: '#f0fdf4', color: '#16a34a', border: '#86efac' },
-            { key: 'activa',    label: 'Activa',    bg: '#eff6ff', color: '#2563eb', border: '#93c5fd' },
-          ].map(opt => {
-            const isActive = qualityFilter === opt.key;
-            const count = counts[opt.key] || 0;
-            return (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setQualityFilter(opt.key)}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 14px',
-                  borderRadius: '20px',
-                  border: `1.5px solid ${isActive ? opt.color : opt.border}`,
-                  background: isActive ? opt.color : opt.bg,
-                  color: isActive ? '#fff' : opt.color,
-                  fontWeight: '700',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  outline: 'none',
-                  boxShadow: isActive ? `0 2px 8px ${opt.color}33` : 'none'
-                }}
-              >
-                {opt.label}
-                <span style={{
-                  background: isActive ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
-                  color: isActive ? '#fff' : '#64748b',
-                  padding: '2px 6px',
-                  borderRadius: '10px',
-                  fontSize: '0.7rem',
-                  marginLeft: '2px',
-                  fontWeight: '800'
-                }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <PremiumSegmentedFilter
+          label="Clasificador:"
+          activeKey={qualityFilter}
+          onChange={setQualityFilter}
+          options={[
+            { key: 'all', label: 'Todos', color: '#475569', bgActive: 'rgba(100, 116, 139, 0.12)', count: counts.all || 0 },
+            { key: 'pesima', label: 'Pésima', color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)', count: counts.pesima || 0 },
+            { key: 'mala', label: 'Mala', color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)', count: counts.mala || 0 },
+            { key: 'pendiente', label: 'Pendiente', color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)', count: counts.pendiente || 0 },
+            { key: 'buena', label: 'Buena', color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)', count: counts.buena || 0 },
+            { key: 'activa', label: 'Activa', color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)', count: counts.activa || 0 },
+          ]}
+        />
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
 
-          <div className={styles.searchBox} style={{ flex: 1, minWidth: '250px' }}>
-            <i className="fas fa-search" style={{ color: '#9ca3af' }} />
-            <input 
-              className={styles.searchInput}
-              type="text" 
-              placeholder="Buscar por nombre, correo, teléfono o cargo..." 
-              value={search} 
-              onChange={e => setSearch(e.target.value)} 
-            />
-          </div>
+          <SearchInput
+            placeholder="Buscar por nombre, correo, teléfono o cargo..."
+            value={search}
+            onChange={setSearch}
+            style={{ flex: 1, minWidth: '250px' }}
+          />
         </div>
       </div>
 

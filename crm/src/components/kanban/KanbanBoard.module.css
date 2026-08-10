@@ -1,0 +1,29 @@
+/* --- KanbanBoard.module.css --- */
+.boardContainer {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 4px 16px 4px;
+  width: 100%;
+  min-height: calc(100vh - 240px);
+  box-sizing: border-box;
+  scroll-snap-type: x mandatory;
+}
+
+.boardContainer::-webkit-scrollbar {
+  height: 8px;
+}
+
+.boardContainer::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+}
+
+.boardContainer::-webkit-scrollbar-thumb {
+  background: rgba(5, 57, 58, 0.2);
+  border-radius: 4px;
+}
+
+.boardContainer::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-primary, #05393a);
+}

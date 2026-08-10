@@ -1,0 +1,89 @@
+/* --- PremiumSegmentedFilter.module.css --- */
+.segmentedFilterContainer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.filterLabel {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex-shrink: 0;
+}
+
+.segmentedFilterPills {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  flex: 1;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.segmentedFilterPills::-webkit-scrollbar {
+  display: none;
+}
+
+.pillBtn {
+  padding: 0 14px;
+  height: 32px;
+  border-radius: 100px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1.5px solid transparent;
+  background: #ffffff;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+  box-sizing: border-box;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+
+.pillBtn:hover {
+  background: #f8fafc;
+  color: #1e293b;
+}
+
+.pillBtn.active {
+  border-color: var(--active-color);
+  background: var(--active-bg);
+  color: var(--active-color);
+}
+
+.indicatorDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.countBadge {
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 0.68rem;
+  height: 18px;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  font-weight: 850;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, color 0.2s;
+}
+
+.pillBtn.active .countBadge {
+  background: var(--active-color);
+  color: #ffffff;
+}

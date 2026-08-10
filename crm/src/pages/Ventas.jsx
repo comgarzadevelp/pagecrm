@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import LeadsBandejaFeature from '../sections/ventas/bandeja/LeadsBandejaFeature';
-import ProspectosKanbanFeature from '../sections/ventas/kanban/ProspectosKanbanFeature';
+import OpportunityBandejaFeature from '../sections/ventas/bandeja/OpportunityBandejaFeature';
+import OpportunityKanbanFeature from '../sections/ventas/kanban/OpportunityKanbanFeature';
 import CotizadorB2BFeature from '../sections/cotizaciones/CotizadorB2BFeature';
 import CotizadorRAVFeature from '../sections/cotizaciones/CotizadorRAVFeature';
 import '../components/directorio/Directorio.css'; // Reutilizamos estilos del switch
@@ -48,10 +48,10 @@ export default function VentasFeature(props) {
       {/* Active Component Render with animation wrapper */}
       <div className="directory-tab-content animate-fade-in">
         {activeSubTab === 'bandeja' && (
-          <LeadsBandejaFeature {...props} leads={props.allOpportunities || []} />
+          <OpportunityBandejaFeature {...props} leads={props.allOpportunities || []} />
         )}
         {activeSubTab === 'kanban' && (
-          <ProspectosKanbanFeature {...props} />
+          <OpportunityKanbanFeature {...props} />
         )}
         {activeSubTab === 'cotizador' && (
           localStorage.getItem('companyCode')?.toUpperCase() === 'RAV' ? (

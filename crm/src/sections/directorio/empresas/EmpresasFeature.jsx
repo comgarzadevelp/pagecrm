@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 import useEmpresas from '../../../hooks/directorio/useEmpresas'; // Hook legacy de data fetching
@@ -12,6 +12,9 @@ import { computeDataQuality } from '../../../utils/dataQuality.js';
 import EmpresaFormModal from '../../../components/modals/empresa-form/EmpresaFormModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilter from '../../../components/common/DateFilter/DateFilter';
+import PremiumSegmentedFilter from '../../../components/filters/PremiumSegmentedFilter/PremiumSegmentedFilter';
+import PageHeader from '../../../components/common/PageHeader/PageHeader';
+import SearchInput from '../../../components/common/SearchInput/SearchInput';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
@@ -180,116 +183,40 @@ export default function EmpresasFeature({ onViewCompanyDetails, onCompanyStatusU
   return (
     <section className={styles.container + " glass"}>
       {/* HEADER */}
-      <header className={styles.header}>
-        <div>
-          <h2 className={styles.title}><i className="fas fa-city" style={{ color: '#64748b' }} />Empresas o Desarradoras</h2>
-          <p className={styles.subtitle}>
-            Directorio completo de empresas (S.A de C.V o similares) desarrolladoras y constructoras que contengan empleados.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        icon="fa-city"
+        iconColor="#64748b"
+        title="Empresas o Desarrolladoras"
+        subtitle="Directorio completo de empresas (S.A de C.V o similares) desarrolladoras y constructoras que contengan empleados."
+      />
 
       {/* ── CONSOLIDATED CLASSIFICATION & SEARCH BAND ── */}
       <div className="pipeline-summary-band glass" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '8px 16px', borderRadius: '100px', marginBottom: '1rem', minHeight: '52px', boxSizing: 'border-box' }}>
 
-        {/* Left Side: Label and Pills */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflowX: 'auto', flex: 1, scrollbarWidth: 'none' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: '800', color: '#64748b', textTransform: 'uppercase', marginRight: '4px', letterSpacing: '0.05em' }}>Clasificador:</span>
-
-          {[
-            { key: 'all', label: 'Todos', color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)' },
-            { key: 'activa', label: 'Activa', color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)' },
-            { key: 'buena', label: 'Buena', color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)' },
-            { key: 'pendiente', label: 'Pendiente', color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)' },
-            { key: 'mala', label: 'Mala', color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)' },
-            { key: 'pesima', label: 'Pésima', color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)' },
-          ].map(opt => {
-            const isActive = qualityFilter === opt.key;
-            const count = companies ? companies.filter(c => {
-              if (opt.key === 'all') return true;
-              const score = c.data_quality?.score || computeDataQuality(c, 'company');
-              return score === opt.key;
-            }).length : 0;
-
-            return (
-              <button
-                key={opt.key}
-                type="button"
-                onClick={() => setQualityFilter(opt.key)}
-                style={{
-                  padding: '0 14px',
-                  height: '32px',
-                  borderRadius: '100px',
-                  fontSize: '0.78rem',
-                  fontWeight: '600',
-                  border: isActive ? `1.5px solid ${opt.color}` : '1.5px solid transparent',
-                  background: isActive ? opt.bgActive : '#ffffff',
-                  color: isActive ? opt.color : '#475569',
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  transition: 'all 0.2s ease',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  lineHeight: '1.2',
-                  flexShrink: 0
-                }}
-              >
-                {opt.key !== 'all' && <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: opt.color }}></span>}
-                <span>{opt.label}</span>
-                <span style={{
-                  background: isActive ? opt.color : '#e2e8f0',
-                  color: isActive ? '#fff' : '#64748b',
-                  fontSize: '0.68rem',
-                  height: '18px',
-                  minWidth: '20px',
-                  padding: '0 6px',
-                  borderRadius: '10px',
-                  fontWeight: '850',
-                  transition: 'all 0.2s ease',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
+        <PremiumSegmentedFilter
+          label="Clasificador:"
+          activeKey={qualityFilter}
+          onChange={setQualityFilter}
+          options={[
+            { key: 'all', label: 'Todos', color: '#64748b', bgActive: 'rgba(100, 116, 139, 0.12)', count: companies ? companies.length : 0 },
+            { key: 'activa', label: 'Activa', color: '#2563eb', bgActive: 'rgba(37, 99, 235, 0.12)', count: companies ? companies.filter(c => (c.data_quality?.score || computeDataQuality(c, 'company')) === 'activa').length : 0 },
+            { key: 'buena', label: 'Buena', color: '#16a34a', bgActive: 'rgba(22, 163, 74, 0.12)', count: companies ? companies.filter(c => (c.data_quality?.score || computeDataQuality(c, 'company')) === 'buena').length : 0 },
+            { key: 'pendiente', label: 'Pendiente', color: '#ca8a04', bgActive: 'rgba(202, 138, 4, 0.12)', count: companies ? companies.filter(c => (c.data_quality?.score || computeDataQuality(c, 'company')) === 'pendiente').length : 0 },
+            { key: 'mala', label: 'Mala', color: '#ea580c', bgActive: 'rgba(234, 88, 12, 0.12)', count: companies ? companies.filter(c => (c.data_quality?.score || computeDataQuality(c, 'company')) === 'mala').length : 0 },
+            { key: 'pesima', label: 'Pésima', color: '#dc2626', bgActive: 'rgba(220, 38, 38, 0.12)', count: companies ? companies.filter(c => (c.data_quality?.score || computeDataQuality(c, 'company')) === 'pesima').length : 0 },
+          ]}
+        />
 
         {/* Right Side: Compact Search Box and Filter Button */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <DateFilter dateFilter={dateFilter} setDateFilter={setDateFilter} />
 
-          <div style={{
-            position: 'relative',
-            width: '240px',
-            height: '36px'
-          }}>
-            <i className="fas fa-search" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '0.8rem' }} />
-            <input
-              type="text"
-              placeholder="Buscar empresas..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                height: '100%',
-                padding: '0 12px 0 32px',
-                borderRadius: '100px',
-                border: '1px solid #e2e8f0',
-                outline: 'none',
-                fontSize: '0.85rem',
-                color: '#334155',
-                boxSizing: 'border-box',
-                transition: 'border-color 0.2s',
-                backgroundColor: '#f8fafc'
-              }}
-            />
-          </div>
+          <SearchInput
+            placeholder="Buscar empresas..."
+            value={search}
+            onChange={setSearch}
+            style={{ width: '220px' }}
+          />
           
           {/* Filter Toggle Button */}
           <button

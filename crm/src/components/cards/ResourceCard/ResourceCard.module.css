@@ -1,0 +1,141 @@
+/* --- ResourceCard.module.css --- */
+.fileCard {
+  padding: 1.25rem;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.fileCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+}
+
+.filePreviewImg {
+  width: 100%;
+  height: 140px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f1f5f9;
+}
+
+.filePreviewImg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fileIconWrap {
+  width: 60px;
+  height: 60px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+}
+
+.fileCardBody {
+  flex: 1;
+}
+
+.fileName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-brand-primary, #05393a);
+  margin: 0 0 0.3rem;
+  word-break: break-word;
+}
+
+.fileDesc {
+  font-size: 0.8rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 0 0 0.5rem;
+}
+
+.fileMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.fileCatBadge {
+  background: rgba(5, 57, 58, 0.06);
+  color: var(--color-brand-primary, #05393a);
+  border-radius: 20px;
+  padding: 1px 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.fileSize,
+.fileDate {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+}
+
+.fileUploader {
+  font-size: 0.75rem;
+  color: var(--color-text-muted, #64748b);
+  margin: 0.3rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.fileCardActions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fileCardActions a {
+  text-decoration: none;
+}
+
+.btnViewDetails {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  text-decoration: none;
+}
+
+.btnViewDetails:hover {
+  background: var(--color-brand-primary, #05393a);
+  color: #fff;
+  border-color: var(--color-brand-primary, #05393a);
+}
+
+.btnDeleteContact {
+  background: rgba(239, 68, 68, 0.06);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  padding: 0.45rem 0.7rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btnDeleteContact:hover {
+  background: #ef4444;
+  color: #fff;
+}

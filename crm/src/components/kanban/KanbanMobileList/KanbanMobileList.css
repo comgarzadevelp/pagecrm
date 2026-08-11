@@ -1,0 +1,12 @@
+/* Styles dedicated to KanbanMobileList */
+.mobile-view-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+@media (min-width: 769px) {
+  .mobile-view-root {
+    display: none !important;
+  }
+}

@@ -1008,11 +1008,25 @@
 }
 
 /* ── DIRECTORY SWITCH STYLES ───────────────────────────────── */
+/* Flex chain: fill all remaining height inside .crm-main-content */
 .directory-panel-container {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
+  /* Take all remaining vertical space in .crm-main-content (flex child) */
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Tab content fills the remaining space below the tab switcher */
+.directory-tab-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .directory-switch-wrapper {

@@ -1,0 +1,4 @@
+/* Styles dedicated to KanbanDesktopBoard */
+.kanban-board-container.has-zoom {
+  overflow-x: hidden;
+}

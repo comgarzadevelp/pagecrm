@@ -841,20 +841,21 @@
   }
 }
 
-/* Evitar scroll lateral global y doble scroll vertical en toda la vista de CRM */
-html, body, #root, .crm-dashboard-page, .crm-modular-layout, .crm-main-content {
-  max-width: 100vw !important;
-  overflow-x: hidden !important;
-  box-sizing: border-box !important;
+/* Global layout lock: html/body never scroll — all scroll is inside .crm-main-content */
+html, body, #root {
+  height: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
-/* Dejar que el contenedor de la página principal del Dashboard encuentre su scroll */
+/* .crm-dashboard-page is a strict 100vh container */
 .crm-dashboard-page {
-  overflow-y: auto !important;
-  height: 100vh !important;
-  max-height: 100vh !important;
-  box-sizing: border-box !important;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
 }
+
 
 /* Animaciones y estilos premium para el dropdown de estatus personalizado */
 @keyframes popoverScale {

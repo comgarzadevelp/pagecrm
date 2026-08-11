@@ -1,9 +1,22 @@
 .inicio-panel-container {
   max-width: 1040px;
   margin: 0 auto;
-  padding: 0 1rem 1.5rem 1rem !important;
+  padding: 0 1rem 2.5rem 1rem !important;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
   box-sizing: border-box;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.inicio-panel-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.inicio-panel-container::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 999px;
 }
 
 /* BANNER HÉROE SUPERIOR: REGISTRO INTELIGENTE */

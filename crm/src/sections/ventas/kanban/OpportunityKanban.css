@@ -27,18 +27,24 @@
   --ease-decelerate: cubic-bezier(0.0, 0.0, 0.2, 1);
   --ease-accelerate: cubic-bezier(0.4, 0.0, 1, 1);
 
-  /* Layout Base */
-  background: #f2f2f7;
-  padding: 1.5rem;
-  border-radius: 14px;
-  height: 800px;
+  /* Layout Base — flex:1 fills all available space from the parent flex chain */
+  background: #f1f5f9;
+  padding: 1rem;
+  border-radius: 16px;
+  margin: 0;
+  width: 100%;
+
+  /* Flex child: stretch to fill all remaining vertical space */
+  flex: 1 1 auto;
+  height: calc(100vh - 150px);
+  max-height: calc(100vh - 150px);
   min-height: 0;
   overflow: hidden;
   font-family: 'Outfit', sans-serif;
   color: #1e293b;
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 0.75rem;
   box-sizing: border-box;
 }
 
@@ -54,28 +60,36 @@
   color: #f1f5f9;
 }
 
-/* ── Glassmorphism Layer Styling ── */
+/* ── Column & Bar Styles (production-faithful: solid white, no blur) ── */
 
-/* Nivel 1 — Columnas, barras */
-.prospectos-kanban-root .kanban-col.glass,
-.prospectos-kanban-root .pipeline-summary-band.glass,
-.prospectos-kanban-root .kanban-filters-bar.glass {
-  background: var(--glass-l1-bg);
-  backdrop-filter: blur(var(--glass-l1-blur));
-  -webkit-backdrop-filter: blur(var(--glass-l1-blur));
-  border: 1px solid var(--glass-l1-border);
-  box-shadow: var(--glass-l1-shadow);
+/* Columns — white background, colored top-border via inline style, clean shadow */
+.prospectos-kanban-root .kanban-col.glass {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
-/* Nivel 2 — Tarjetas, popovers */
+/* Filters bar & pipeline summary — white/solid */
+.prospectos-kanban-root .pipeline-summary-band.glass,
+.prospectos-kanban-root .kanban-filters-bar.glass {
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Cards — white, clean shadow */
 .prospectos-kanban-root .kanban-card.glass,
 .prospectos-kanban-root .context-menu-popover.glass,
 .prospectos-kanban-root .nested-submenu-popover.glass {
-  background: var(--glass-l2-bg);
-  backdrop-filter: blur(var(--glass-l2-blur));
-  -webkit-backdrop-filter: blur(var(--glass-l2-blur));
-  border: 1px solid var(--glass-l2-border);
-  box-shadow: var(--glass-l2-shadow);
+  background: #ffffff;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .modal-content-glass {
@@ -405,14 +419,12 @@
 /* Kanban Board Layout */
 .kanban-board-container {
   flex-grow: 1;
-  /* min-height:0 es crítico para que flex-grow funcione dentro de un flex container con altura limitada */
   min-height: 0;
   display: flex;
-  gap: 16px;
+  gap: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  /* padding-bottom reserva espacio para la scrollbar horizontal (evita corte de cards) */
-  padding-bottom: 14px;
+  padding-bottom: 12px;
   scroll-behavior: smooth;
   box-sizing: border-box;
 }
@@ -434,47 +446,66 @@
   background: rgba(0, 0, 0, 0.2);
 }
 
-/* Kanban Column */
+/* Kanban Column — production sizing */
 .kanban-col {
-  width: 285px;
-  min-width: 285px;
-  max-width: 285px;
-  border-radius: 14px;
+  width: 260px;
+  min-width: 220px;
+  max-width: 300px;
+  flex: 0 0 260px;
+  border-radius: 12px;
   padding: 12px;
+  /* Columns fill the flex container height */
   height: 100%;
   max-height: 100%;
-  /* overflow-y debe ser hidden aquí — el scroll ocurre solo en .kanban-cards-list */
-  overflow-y: hidden;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   flex-shrink: 0;
   box-sizing: border-box;
   position: relative;
-  transition: background 0.2s var(--ease-spring-soft), border 0.2s var(--ease-spring-soft), transform 0.2s var(--ease-spring-soft);
+  transition: box-shadow 0.2s ease, transform 0.2s var(--ease-spring-soft);
 }
 
 /* Zoom state: collapse non-active columns */
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) {
-  width: 60px;
-  min-width: 60px;
-  padding: 12px 6px;
+  flex: 0 0 44px !important;
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  padding: 12px 4px;
   overflow: hidden;
-  opacity: 0.6;
+  opacity: 0.65;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.kanban-board-container.has-zoom .kanban-col:not(.zoomed-in):hover {
+  opacity: 1;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.kanban-board-container.has-zoom .kanban-col.zoomed-in {
+  flex: 0 0 320px !important;
+  width: 320px !important;
+  min-width: 300px !important;
+  box-shadow: 0 4px 16px rgba(5, 57, 58, 0.1);
 }
 
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .kanban-card,
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .load-more-col-btn,
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .empty-col-placeholder {
-  display: none;
+  display: none !important;
 }
 
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .col-header-left span {
-  display: none;
+  display: none !important;
 }
 
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .col-header-actions {
-  display: none;
+  display: none !important;
 }
 
 .kanban-board-container.has-zoom .kanban-col:not(.zoomed-in) .kanban-col-header {
@@ -483,6 +514,8 @@
   align-items: center;
   gap: 8px;
   height: 100%;
+  justify-content: flex-start;
+  padding-top: 4px;
 }
 
 /* Column dragging states */
@@ -582,13 +615,16 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  flex-grow: 1;
-  overflow-y: auto;
+  flex: 1 1 auto;
+  overflow-y: auto !important;
+  overflow-x: hidden;
   min-height: 0;
-  /* Crucial para que flexbox permita el scroll interno */
+  max-height: 100%;
   padding-right: 4px;
-  padding-bottom: 16px;
+  padding-bottom: 24px;
   box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
 }
 
 .kanban-cards-list::-webkit-scrollbar {
@@ -975,3 +1011,89 @@
   }
 }
 
+
+/* -- Context Menu -- */
+.context-menu-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9998;
+}
+
+.context-menu-popover {
+  position: fixed;
+  z-index: 9999;
+  width: 240px;
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: popoverFadeIn 0.2s ease;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.nested-submenu-popover {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 6px;
+  width: 240px;
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: popoverFadeIn 0.2s ease;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.menu-item-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #334155;
+  text-align: left;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.15s ease;
+}
+
+.menu-item-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #0f172a;
+}
+
+.menu-item-btn.destructive:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: #ef4444;
+}
+
+.menu-item-btn i:not(.submenu-arrow) {
+  width: 16px;
+  text-align: center;
+  color: #64748b;
+}
+
+.menu-item-btn.destructive i {
+  color: #ef4444;
+}
+
+.submenu-arrow {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #94a3b8;
+}
+
+@keyframes popoverFadeIn {
+  from { opacity: 0; transform: scale(0.95) translateY(-4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}

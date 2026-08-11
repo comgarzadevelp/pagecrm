@@ -1,10 +1,10 @@
-﻿import React from 'react';
+import React from 'react';
 import './FichaSubModals.css';
 import B2BContactManager from '../../ficha-contacto/B2BContactManager';
 import FichaContactoModal from '../../../modals/ficha-contacto/FichaContactoModal';
 import FichaEmpresaModal from '../../../modals/ficha-empresa/FichaEmpresaModal';
 import RegistrarVisitaModal from '../../../modals/registrar-visita/RegistrarVisitaModal';
-import CrearProspectoModal from '../../../modals/crear-prospecto/CrearProspectoModal';
+import CrearOportunidadModal from '../../../modals/crear-oportunidad/CrearOportunidadModal';
 
 import SubModalEditContacto from '../SubModalEditContacto/SubModalEditContacto';
 import SubModalEditEmpresa from '../SubModalEditEmpresa/SubModalEditEmpresa';
@@ -34,7 +34,7 @@ export default function FichaSubModals({ crm, API_BASE, fetchCustomers }) {
       )}
 
       {crm.showVentaModal && (
-        <CrearProspectoModal
+        <CrearOportunidadModal
           isOpen={crm.showVentaModal}
           onClose={() => crm.setShowVentaModal(false)}
           onSuccess={() => {

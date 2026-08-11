@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import '../styles/InicioFeature.css';
 
 // Componente Reutilizable de Calendario
@@ -8,7 +8,7 @@ import CalendarWidget from '../components/common/calendar/CalendarWidget';
 import FieldFlowWizard from '../sections/inicio/fieldflow/FieldFlowWizard';
 
 // Modales del CRM
-import CrearProspectoModal from '../components/modals/crear-prospecto/CrearProspectoModal';
+import CrearOportunidadModal from '../components/modals/crear-oportunidad/CrearOportunidadModal';
 import RegistrarVisitaModal from '../components/modals/registrar-visita/RegistrarVisitaModal';
 
 // Drawer y Modales para notificaciones
@@ -235,7 +235,7 @@ export default function InicioFeature({ API_BASE, role, fetchCustomers, fetchOpp
       )}
 
       {showNegociacionModal && (
-        <CrearProspectoModal
+        <CrearOportunidadModal
           isOpen={true}
           API_BASE={API_BASE}
           onClose={() => setShowNegociacionModal(false)}

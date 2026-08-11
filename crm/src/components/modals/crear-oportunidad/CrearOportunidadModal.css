@@ -1,4 +1,4 @@
-/* src/pages/crm/components/CrearProspectoModal.css */
+/* src/components/modals/crear-oportunidad/CrearOportunidadModal.css */
 
 .crm-modal-overlay {
   display: flex !important;
@@ -43,7 +43,7 @@
 
 .wizard-title-area h2 {
   font-size: 1.15rem !important;
-  fontWeight: 850 !important;
+  font-weight: 850 !important;
   color: var(--color-brand-primary, #05393a) !important;
   margin: 0 0 0.25rem 0 !important;
   display: flex !important;
@@ -445,11 +445,53 @@
 
 .photo-preview-item {
   position: relative !important;
-  width: 76px !important;
-  height: 76px !important;
+  width: 85px !important;
+  height: 85px !important;
   border-radius: 10px !important;
   border: 1px solid #e2e8f0 !important;
   overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+.photo-preview-item.pdf-preview-item {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 4px !important;
+}
+
+.pdf-preview-content {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.pdf-preview-content .pdf-icon {
+  color: #dc2626 !important;
+}
+
+.pdf-preview-content .pdf-filename {
+  font-size: 0.58rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  width: 75px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  text-align: center !important;
+  line-height: 1.1 !important;
+}
+
+.pdf-preview-content .pdf-filesize {
+  font-size: 0.52rem !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
 }
 
 .photo-preview-item img {
@@ -879,6 +921,200 @@
 
 .obra-search-option.already-linked:hover {
   background: rgba(16, 185, 129, 0.05) !important;
+}
+
+/* Card de alta automática de Obra Nueva */
+.create-new-obra-card {
+  padding: 12px 14px !important;
+  background: #f0fdf4 !important;
+  border-left: 4px solid #10b981 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.create-new-obra-card:hover {
+  background: #dcfce7 !important;
+}
+
+.create-obra-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  font-size: 0.65rem !important;
+  font-weight: 850 !important;
+  color: #047857 !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+  padding: 2px 8px !important;
+  border-radius: 4px !important;
+  letter-spacing: 0.04em !important;
+  margin-bottom: 4px !important;
+}
+
+.create-obra-title {
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  color: #064e3b !important;
+}
+
+.create-obra-title strong {
+  font-weight: 850 !important;
+  color: #047857 !important;
+}
+
+.create-obra-subtext {
+  font-size: 0.725rem !important;
+  color: #475569 !important;
+  display: block !important;
+  margin-top: 2px !important;
+  line-height: 1.3 !important;
+}
+
+/* Card de Obra Confirmada (Estilo FieldFlow) */
+.confirmed-obra-card {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  padding: 12px 16px !important;
+  background: #f0fdf4 !important;
+  border: 1.5px solid #6ee7b7 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08) !important;
+  margin-top: 4px !important;
+}
+
+.confirmed-obra-left {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 4px !important;
+  flex: 1 !important;
+}
+
+.confirmed-obra-header-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  flex-wrap: wrap !important;
+}
+
+.confirmed-obra-icon {
+  color: #059669 !important;
+}
+
+.confirmed-obra-name {
+  font-size: 0.9rem !important;
+  font-weight: 800 !important;
+  color: #064e3b !important;
+}
+
+.obra-status-pill {
+  font-size: 0.65rem !important;
+  font-weight: 850 !important;
+  padding: 2px 8px !important;
+  border-radius: 6px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.03em !important;
+}
+
+.obra-status-pill.new {
+  background: rgba(16, 185, 129, 0.15) !important;
+  color: #047857 !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.obra-status-pill.existing {
+  background: rgba(59, 130, 246, 0.1) !important;
+  color: #1d4ed8 !important;
+  border: 1px solid rgba(59, 130, 246, 0.2) !important;
+}
+
+.confirmed-obra-desc {
+  font-size: 0.75rem !important;
+  color: #475569 !important;
+  margin: 0 !important;
+  line-height: 1.35 !important;
+}
+
+.btn-change-obra {
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
+  padding: 6px 12px !important;
+  border-radius: 8px !important;
+  font-size: 0.75rem !important;
+  font-weight: 750 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  white-space: nowrap !important;
+}
+
+.btn-change-obra:hover {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #94a3b8 !important;
+}
+
+/* Summary Attached Photos & PDF Grid */
+.summary-photos-grid {
+  display: flex !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+  margin-top: 6px !important;
+}
+
+.summary-photo-item {
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 8px !important;
+  border: 1px solid #cbd5e1 !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+  position: relative !important;
+}
+
+.summary-photo-item img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+.summary-photo-item.pdf {
+  background: #f8fafc !important;
+  padding: 4px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.summary-pdf-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 2px !important;
+  width: 100% !important;
+  height: 100% !important;
+  text-align: center !important;
+}
+
+.summary-pdf-box .pdf-icon {
+  color: #dc2626 !important;
+}
+
+.summary-pdf-box .summary-pdf-name {
+  font-size: 0.52rem !important;
+  font-weight: 700 !important;
+  color: #334155 !important;
+  width: 56px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.1 !important;
+}
+
+.summary-pdf-box .summary-pdf-size {
+  font-size: 0.5rem !important;
+  color: #64748b !important;
 }
 
 @keyframes slideDownFade {

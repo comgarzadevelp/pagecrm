@@ -598,6 +598,38 @@ export const createManualLead = async (req, res) => {
 
     let finalObraId = obra_id || null;
 
+    // Autocrear la obra en la tabla 'obras' si se ingresó un nombre de obra nuevo
+    if (!finalObraId && leadObraName) {
+      try {
+        const { data: existingObra } = await supabase
+          .from('obras')
+          .select('id')
+          .ilike('name', leadObraName)
+          .maybeSingle();
+
+        if (existingObra) {
+          finalObraId = existingObra.id;
+        } else {
+          const { data: newObra } = await supabase
+            .from('obras')
+            .insert([{
+              name: leadObraName,
+              status: 'En Construcción',
+              latitude: latitude || null,
+              longitude: longitude || null
+            }])
+            .select('id')
+            .single();
+
+          if (newObra) {
+            finalObraId = newObra.id;
+          }
+        }
+      } catch (errObra) {
+        console.warn('[createManualLead] Advertencia al autocrear obra en BD:', errObra.message);
+      }
+    }
+
     let sharedEvidenceNode = null;
     if (evidence_photo_url || evidence_text || (latitude && longitude)) {
       sharedEvidenceNode = {
@@ -629,6 +661,9 @@ export const createManualLead = async (req, res) => {
 
     if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
 
+    const reqContactId = req.body.contact_id || null;
+    const reqCompanyId = req.body.company_id || null;
+
     const insertPayload = {
       name: leadContactName.trim(),
       email: leadContactEmail ? leadContactEmail.trim() : null,
@@ -640,10 +675,11 @@ export const createManualLead = async (req, res) => {
       type: 'vendedor_manual'
     };
 
-    if (reqCompanyId && !String(reqCompanyId).startsWith('company-')) {
+    if (reqCompanyId && !String(reqCompanyId).startsWith('company-') && !String(reqCompanyId).startsWith('sae-')) {
       insertPayload.company_id = reqCompanyId;
     }
 
+    // 1. Crear registro en 'leads'
     const { data: leadData, error: leadError } = await supabase
       .from('leads')
       .insert([insertPayload])
@@ -652,10 +688,114 @@ export const createManualLead = async (req, res) => {
 
     if (leadError) throw leadError;
 
-    return res.status(201).json({ success: true, lead: leadData, isNegotiation: false });
+    // 2. Resolver o vincular contacto/empresa y crear oportunidad oficial en 'crm_opportunities'
+    let resolvedContactId = reqContactId && !String(reqContactId).startsWith('sae-') ? reqContactId : null;
+    let resolvedCompanyId = reqCompanyId && !String(reqCompanyId).startsWith('sae-') && !String(reqCompanyId).startsWith('company-') ? reqCompanyId : null;
+
+    if (!resolvedContactId && (leadContactPhone || leadContactEmail)) {
+      try {
+        let q = supabase.from('contacts').select('id');
+        if (leadContactPhone) q = q.eq('phone', leadContactPhone);
+        else if (leadContactEmail) q = q.eq('email', leadContactEmail);
+        const { data: existingContact } = await q.maybeSingle();
+
+        if (existingContact) {
+          resolvedContactId = existingContact.id;
+        } else if (leadContactName) {
+          const { data: newContact } = await supabase.from('contacts').insert([{
+            name: leadContactName,
+            phone: leadContactPhone || '',
+            email: leadContactEmail || '',
+            notes: notes || 'Contacto creado desde registro de negociación.',
+            created_by: userId
+          }]).select('id').maybeSingle();
+          if (newContact) resolvedContactId = newContact.id;
+        }
+      } catch (cErr) {
+        console.warn('[createManualLead] Advertencia resolviendo contacto:', cErr.message);
+      }
+    }
+
+    if (!resolvedCompanyId && leadCompanyName) {
+      try {
+        const { data: existingCompany } = await supabase
+          .from('companies')
+          .select('id')
+          .ilike('name', leadCompanyName)
+          .maybeSingle();
+
+        if (existingCompany) {
+          resolvedCompanyId = existingCompany.id;
+        } else {
+          const { data: newCompany } = await supabase.from('companies').insert([{
+            name: leadCompanyName,
+            phone_main: leadContactPhone || '',
+            email_main: leadContactEmail || '',
+            status: 'activo',
+            notes: JSON.stringify({ general: 'Empresa creada desde registro de negociación.', timeline: [] }),
+            created_by: userId
+          }]).select('id').maybeSingle();
+          if (newCompany) resolvedCompanyId = newCompany.id;
+        }
+      } catch (coErr) {
+        console.warn('[createManualLead] Advertencia resolviendo empresa:', coErr.message);
+      }
+    }
+
+    if (resolvedContactId && resolvedCompanyId) {
+      await supabase.from('contact_companies').insert([{
+        contact_id: resolvedContactId,
+        company_id: resolvedCompanyId,
+        status: 'activo'
+      }]).catch(() => {});
+    }
+
+    const oppTitle = requirement_title?.trim()
+      ? requirement_title.trim()
+      : (leadObraName ? `${leadObraName} - ${leadCompanyName || leadContactName}` : `Negociación - ${leadCompanyName || leadContactName}`);
+
+    const oppDescriptionText = `${leadObraName ? `[Obra: ${leadObraName}]\n` : ''}${notes || 'Negociación registrada en el CRM.'}`;
+
+    const opportunityPayload = {
+      title: oppTitle,
+      description: oppDescriptionText,
+      stage: 'nuevo',
+      type: 'proyecto',
+      value: 0,
+      assigned_to: userId,
+      contact_id: resolvedContactId || null,
+      company_id: resolvedCompanyId || null,
+      created_by: userId,
+      stage_updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
+    };
+
+    let opportunityData = null;
+    try {
+      const { data: opp, error: oppErr } = await supabase
+        .from('crm_opportunities')
+        .insert([opportunityPayload])
+        .select()
+        .single();
+
+      if (oppErr) {
+        console.error('[createManualLead] Error al insertar en crm_opportunities:', oppErr);
+      } else {
+        opportunityData = opp;
+      }
+    } catch (oppExc) {
+      console.error('[createManualLead] Excepción al crear crm_opportunities:', oppExc);
+    }
+
+    return res.status(201).json({
+      success: true,
+      lead: leadData,
+      opportunity: opportunityData,
+      isNegotiation: true
+    });
   } catch (err) {
     console.error('createManualLead error:', err);
-    res.status(500).json({ success: false, message: 'Error interno al registrar el prospecto.' });
+    res.status(500).json({ success: false, message: 'Error interno al registrar la negociación.' });
   }
 };
 

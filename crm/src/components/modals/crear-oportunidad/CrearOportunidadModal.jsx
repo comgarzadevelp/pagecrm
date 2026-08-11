@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -17,9 +17,10 @@ import {
   Sparkles,
   Info,
   Calendar,
-  Layers
+  Layers,
+  Paperclip
 } from 'lucide-react';
-import './CrearProspectoModal.css';
+import './CrearOportunidadModal.css';
 
 // Framer Motion transition variants
 const slideVariants = {
@@ -43,7 +44,7 @@ const springTransition = {
   damping: 30,
 };
 
-export default function CrearProspectoModal({
+export default function CrearOportunidadModal({
   isOpen,
   onClose,
   onSuccess,
@@ -74,6 +75,7 @@ export default function CrearProspectoModal({
   const [obraOptions, setObraOptions] = useState([]);
   const [showObraOptions, setShowObraOptions] = useState(false);
   const [selectedObraObj, setSelectedObraObj] = useState(null);
+  const [isObraConfirmed, setIsObraConfirmed] = useState(false);
   const obraDropdownRef = useRef(null);
 
   // 3. Geolocation & Evidence State
@@ -88,6 +90,25 @@ export default function CrearProspectoModal({
   // Debounced searches
   const debouncedCustomerSearch = useDebounce(customerSearchQuery, 300);
   const debouncedObraSearch = useDebounce(obraText, 300);
+
+  // Fetch Customers for Search Autocomplete
+  const fetchCustomers = useCallback(async (query = '') => {
+    try {
+      setCustomersLoading(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/crm/customers`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.success && data.customers) {
+        setCustomersList(data.customers);
+      }
+    } catch (err) {
+      console.error('Error al cargar clientes:', err);
+    } finally {
+      setCustomersLoading(false);
+    }
+  }, [API_BASE]);
 
   // Fetch searched customers (with global search support)
   useEffect(() => {
@@ -114,7 +135,7 @@ export default function CrearProspectoModal({
     };
 
     searchCustomers();
-  }, [debouncedCustomerSearch, API_BASE]);
+  }, [debouncedCustomerSearch, API_BASE, fetchCustomers]);
 
   // Reset/Initialize Wizard when Modal Opens
   useEffect(() => {
@@ -127,6 +148,7 @@ export default function CrearProspectoModal({
       setObraId('new');
       setObraText('');
       setSelectedObraObj(null);
+      setIsObraConfirmed(false);
       setRequirementTitle('');
       setNotes(initialNotes || '');
 
@@ -144,7 +166,7 @@ export default function CrearProspectoModal({
       // Silent background Geolocation acquisition for creation metadata
       acquireSilentGps();
     }
-  }, [isOpen, customer, initialNotes]);
+  }, [isOpen, customer, initialNotes, fetchCustomers]);
 
   // Background GPS Acquisition
   const acquireSilentGps = () => {
@@ -161,25 +183,6 @@ export default function CrearProspectoModal({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
-  };
-
-  // Fetch Customers for Search Autocomplete
-  const fetchCustomers = async (query = '') => {
-    try {
-      setCustomersLoading(true);
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/api/crm/customers`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      const data = await res.json();
-      if (data.success && data.customers) {
-        setCustomersList(data.customers);
-      }
-    } catch (err) {
-      console.error('Error al cargar clientes:', err);
-    } finally {
-      setCustomersLoading(false);
-    }
   };
 
   // Fetch Linked Obras for Selected Customer
@@ -279,21 +282,27 @@ export default function CrearProspectoModal({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Photo handlers
+  // Photo & PDF Evidence handlers (Up to 5 files: images + PDFs)
   const handleFilesSelected = (e) => {
     const selectedFiles = Array.from(e.target.files);
     if (!selectedFiles.length) return;
 
-    if (photos.length + selectedFiles.length > 3) {
-      showToast('Puedes adjuntar un máximo de 3 fotografías.', 'warning');
+    if (photos.length + selectedFiles.length > 5) {
+      showToast('Puedes adjuntar un máximo de 5 archivos de evidencia (fotos o PDF).', 'warning');
       return;
     }
 
-    const newPhotos = selectedFiles.map(f => ({
-      id: Math.random().toString(36).substr(2, 9),
-      file: f,
-      url: URL.createObjectURL(f)
-    }));
+    const newPhotos = selectedFiles.map(f => {
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        file: f,
+        name: f.name,
+        sizeMb: (f.size / (1024 * 1024)).toFixed(2),
+        isPdf,
+        url: isPdf ? null : URL.createObjectURL(f)
+      };
+    });
 
     setPhotos(prev => [...prev, ...newPhotos]);
     e.target.value = '';
@@ -315,10 +324,7 @@ export default function CrearProspectoModal({
       return !!selectedCustomer;
     }
     if (step === 2) {
-      // Obra is optional, but if "Agregar nueva..." is selected, the title cannot be empty
-      if (obraId === 'new') {
-        return obraText.trim().length > 0;
-      }
+      // La obra es opcional: el usuario puede avanzar sin ingresar ninguna obra
       return true;
     }
     if (step === 3) {
@@ -360,6 +366,48 @@ export default function CrearProspectoModal({
         uploadedPhotoUrls = results.filter(url => url !== null);
       }
 
+      // 1.5 Si se especificó una nueva obra (obraId === 'new' y obraText no está vacío), crearla físicamente en el catálogo
+      let finalObraId = obraId === 'new' ? null : obraId;
+      let finalObraName = obraText.trim() || undefined;
+
+      if (obraId === 'new' && obraText.trim().length > 0) {
+        try {
+          const obraRes = await fetch(`${API_BASE}/api/crm/obras`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              name: obraText.trim(),
+              status: 'En Construcción',
+              latitude: creationCoords?.lat || null,
+              longitude: creationCoords?.lng || null
+            })
+          });
+          const obraData = await obraRes.json();
+          if (obraData.success && obraData.obra?.id) {
+            finalObraId = obraData.obra.id;
+            finalObraName = obraData.obra.name;
+
+            // Vincular la nueva obra a la empresa del cliente si existe
+            const compId = selectedCustomer?.company_id || selectedCustomer?.companyId;
+            if (compId) {
+              fetch(`${API_BASE}/api/crm/obras/${finalObraId}/link-company`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ company_id: compId, role: 'Cliente Principal' })
+              }).catch(e => console.warn('Error al vincular obra a empresa:', e));
+            }
+          }
+        } catch (obraErr) {
+          console.warn('Advertencia al crear la obra:', obraErr);
+        }
+      }
+
       // 2. Build payload
       const payload = {
         // Company
@@ -367,8 +415,8 @@ export default function CrearProspectoModal({
         company_name: selectedCustomer.company || null,
 
         // Obra
-        obra_id: obraId === 'new' ? null : obraId,
-        obra_name: obraId === 'new' ? obraText.trim() : undefined,
+        obra_id: finalObraId,
+        obra_name: finalObraName,
 
         // Contact
         contact_id: selectedCustomer.id,
@@ -668,6 +716,37 @@ export default function CrearProspectoModal({
                         <div className="loading-sub-indicator">
                           <Loader2 className="animate-spin" size={14} /> Cargando obras vinculadas al cliente...
                         </div>
+                      ) : isObraConfirmed && (selectedObraObj || obraText.trim()) ? (
+                        <div className="confirmed-obra-card animate-fade-in">
+                          <div className="confirmed-obra-left">
+                            <div className="confirmed-obra-header-row">
+                              <Building2 size={16} className="confirmed-obra-icon" />
+                              <span className="confirmed-obra-name">{selectedObraObj?.name || obraText.trim()}</span>
+                              {obraId === 'new' || selectedObraObj?.isNew ? (
+                                <span className="obra-status-pill new">✨ Se creará en catálogo</span>
+                              ) : (
+                                <span className="obra-status-pill existing">✓ Vinculada</span>
+                              )}
+                            </div>
+                            <p className="confirmed-obra-desc">
+                              {obraId === 'new' || selectedObraObj?.isNew
+                                ? `Esta obra se registrará automáticamente en el catálogo de Obras y se vinculará a ${selectedCustomer?.company || selectedCustomer?.name || 'este cliente'}.`
+                                : selectedObraObj?.address
+                                  ? `Ubicación: ${selectedObraObj.address}`
+                                  : `Obra vinculada comercialmente a ${selectedCustomer?.company || selectedCustomer?.name || 'este cliente'}.`}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn-change-obra"
+                            onClick={() => {
+                              setIsObraConfirmed(false);
+                              setShowObraOptions(true);
+                            }}
+                          >
+                            Cambiar
+                          </button>
+                        </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           {linkedObras.length > 0 && (
@@ -680,10 +759,12 @@ export default function CrearProspectoModal({
                                   if (match) {
                                     setObraText(match.name);
                                     setSelectedObraObj(match);
+                                    setIsObraConfirmed(true);
                                   }
                                 } else {
                                   setObraText('');
                                   setSelectedObraObj(null);
+                                  setIsObraConfirmed(false);
                                 }
                               }}
                             >
@@ -705,6 +786,7 @@ export default function CrearProspectoModal({
                                 onChange={(e) => {
                                   setObraText(e.target.value);
                                   setShowObraOptions(true);
+                                  setIsObraConfirmed(false);
                                 }}
                                 onFocus={() => setShowObraOptions(true)}
                                 autoComplete="off"
@@ -726,6 +808,7 @@ export default function CrearProspectoModal({
                                             setObraText(o.name);
                                             setSelectedObraObj(o);
                                             setShowObraOptions(false);
+                                            setIsObraConfirmed(true);
                                           }}
                                         >
                                           <div className="obra-option-header">
@@ -746,8 +829,25 @@ export default function CrearProspectoModal({
                                       );
                                     })
                                   ) : (
-                                    <div className="autocomplete-empty">
-                                      Se creará como nueva obra: "{obraText}"
+                                    <div
+                                      className="autocomplete-option create-new-obra-card"
+                                      onClick={() => {
+                                        setObraId('new');
+                                        setSelectedObraObj({ id: 'new', name: obraText.trim(), isNew: true });
+                                        setShowObraOptions(false);
+                                        setIsObraConfirmed(true);
+                                      }}
+                                    >
+                                      <div className="create-obra-badge">
+                                        <Sparkles size={12} style={{ color: '#10b981' }} />
+                                        <span>NUEVA OBRA EN CATÁLOGO</span>
+                                      </div>
+                                      <div className="create-obra-title">
+                                        ➕ Confirmar y Crear <strong>"{obraText.trim()}"</strong>
+                                      </div>
+                                      <span className="create-obra-subtext">
+                                        Haz clic aquí para confirmar. Se dará de alta en el catálogo al guardar la negociación.
+                                      </span>
                                     </div>
                                   )}
                                 </div>
@@ -779,7 +879,7 @@ export default function CrearProspectoModal({
                     <div className="metadata-gps-audit-box">
                       <div className="audit-label-row">
                         <MapPin size={16} className={creationCoords ? "gps-icon-active" : "gps-icon-loading"} />
-                        <span>Auditoría GPS de Creación (Geolocalización Comercial)</span>
+                        <span>Geolocalización Comercial</span>
                       </div>
                       <div className="audit-body-row">
                         {creationCoords ? (
@@ -792,7 +892,7 @@ export default function CrearProspectoModal({
                           </span>
                         ) : (
                           <span className="gps-status-failed">
-                            Ubicación de registro manual (se asumirá oficina corporativa Garza).
+                            Ubicación no detectada.
                           </span>
                         )}
                       </div>
@@ -800,48 +900,16 @@ export default function CrearProspectoModal({
                         Este parámetro se registra automáticamente para auditoría de campo (saber si la negociación se levantó en oficina o en el sitio de obra).
                       </p>
                     </div>
-
-                    {/* Photo upload (Optional evidence) */}
-                    <div className="modal-input-group" style={{ marginTop: '1rem' }}>
-                      <label className="wizard-input-label">📷 Evidencia Fotográfica de Obra (Opcional)</label>
-                      <div className="photo-upload-grid">
-                        {photos.map(p => (
-                          <div key={p.id} className="photo-preview-item">
-                            <img src={p.url} alt="preview" />
-                            <button
-                              type="button"
-                              onClick={() => handleRemovePhoto(p.id)}
-                              className="remove-photo-badge"
-                            >
-                              &times;
-                            </button>
-                          </div>
-                        ))}
-                        {photos.length < 3 && (
-                          <label className="photo-upload-placeholder">
-                            <span className="plus-symbol">+</span>
-                            <span className="label-text">Foto</span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              multiple
-                              onChange={handleFilesSelected}
-                              style={{ display: 'none' }}
-                            />
-                          </label>
-                        )}
-                      </div>
-                    </div>
                   </div>
                 )}
 
-                {/* ── STEP 3: SALES DETAILS ── */}
+                {/* ── STEP 3: SALES DETAILS & EVIDENCIA REQUERIMIENTO ── */}
                 {step === 3 && (
                   <div className="wizard-step-wrapper">
                     <h3 className="step-section-title">💰 Detalles del Requerimiento</h3>
 
                     <div className="modal-input-group">
-                      <label className="wizard-input-label">Título del Trato / Negociación *</label>
+                      <label className="wizard-input-label">¿Qué se le esta vendiendo? *</label>
                       <input
                         type="text"
                         placeholder="Ej. Suministro de tuberías de alta densidad..."
@@ -858,12 +926,59 @@ export default function CrearProspectoModal({
                     <div className="modal-input-group">
                       <label className="wizard-input-label">Notas del Requerimiento (Opcional)</label>
                       <textarea
-                        rows={4}
+                        rows={3}
                         placeholder="Detalle los materiales, diámetros, cantidades o acuerdos clave conversados con el cliente..."
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
-                        style={{ resize: 'vertical', minHeight: '90px' }}
+                        style={{ resize: 'vertical', minHeight: '80px' }}
                       />
+                    </div>
+
+                    {/* Evidencia Fotográfica / PDF del Requerimiento (Ventas - Paso 3) */}
+                    <div className="modal-input-group" style={{ marginTop: '1rem' }}>
+                      <label className="wizard-input-label">
+                        📎 Comprobante / Evidencia del Requerimiento (Fotos de WhatsApp, pedido o PDF con Orden de Compra)
+                      </label>
+                      <small className="input-helper-text" style={{ marginBottom: '0.5rem', display: 'block' }}>
+                        Puedes subir hasta 5 archivos (imágenes o PDF con la orden del cliente). Se vincularán al cliente y estarán visibles en su historial unificado.
+                      </small>
+
+                      <div className="photo-upload-grid">
+                        {photos.map(p => (
+                          <div key={p.id} className={`photo-preview-item ${p.isPdf ? 'pdf-preview-item' : ''}`}>
+                            {p.isPdf ? (
+                              <div className="pdf-preview-content">
+                                <FileText size={24} className="pdf-icon" />
+                                <span className="pdf-filename" title={p.name}>{p.name}</span>
+                                <span className="pdf-filesize">{p.sizeMb} MB</span>
+                              </div>
+                            ) : (
+                              <img src={p.url} alt="preview" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(p.id)}
+                              className="remove-photo-badge"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ))}
+
+                        {photos.length < 5 && (
+                          <label className="photo-upload-placeholder" style={{ minWidth: '85px', height: '85px' }}>
+                            <Paperclip size={18} className="plus-symbol" />
+                            <span className="label-text" style={{ fontSize: '0.65rem', textAlign: 'center', marginTop: '2px' }}>Adjuntar (Foto / PDF)</span>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf,application/pdf"
+                              multiple
+                              onChange={handleFilesSelected}
+                              style={{ display: 'none' }}
+                            />
+                          </label>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -909,40 +1024,35 @@ export default function CrearProspectoModal({
                           {notes && <p className="requirement-summary-notes">"{notes}"</p>}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Dynamic Status Impact Explanation (Sanguijuela) */}
-                    <div className="lifecycle-impact-box">
-                      <div className="impact-header-row">
-                        <Layers size={18} style={{ color: 'var(--color-brand-accent, #d4a359)' }} />
-                        <h4>Impacto en Ficha del Cliente (Ciclo de Vida)</h4>
-                      </div>
-                      <div className="impact-body-row">
-                        <div className="impact-flow-visual">
-                          <div className="stage-node current">
-                            <span className="stage-tag">Nivel Actual</span>
-                            <span className="stage-name">
-                              {selectedCustomer ? (
-                                selectedCustomer.nivel === 4 ? 'Recontactar Ahora' :
-                                selectedCustomer.nivel === 3 ? 'Comprador Activo' :
-                                selectedCustomer.nivel === 2 ? 'En Reactivación' :
-                                selectedCustomer.nivel === 5 ? 'Descartado' : 'Prospecto'
-                              ) : 'Nuevo'}
-                            </span>
-                          </div>
-                          <div className="flow-arrow"><ArrowRight size={16} /></div>
-                          <div className="stage-node target">
-                            <span className="stage-tag">Siguiente Nivel</span>
-                            <span className="stage-name">
-                              {selectedCustomer ? (
-                                Number(selectedCustomer.won_count || 0) >= 3 ? 'Comprador Activo' : 'En Reactivación'
-                              ) : 'En Reactivación'}
-                            </span>
-                          </div>
+                      {/* Attached Evidence Files Summary */}
+                      <div className="summary-mini-card" style={{ gridColumn: '1 / -1' }}>
+                        <div className="summary-card-header">
+                          <Paperclip size={14} /> Archivos y Evidencias Adjuntas ({photos.length})
                         </div>
-                        <p className="impact-explanation-text">
-                          Al registrar este trato activo, el cliente se reactivará y avanzará automáticamente al nivel correspondiente de conversión, saliendo de cualquier estado de inactividad comercial crítica y actualizando su estatus en el panel general de clientes.
-                        </p>
+                        <div className="summary-card-body">
+                          {photos.length > 0 ? (
+                            <div className="summary-photos-grid">
+                              {photos.map(p => (
+                                <div key={p.id} className={`summary-photo-item ${p.isPdf ? 'pdf' : ''}`}>
+                                  {p.isPdf ? (
+                                    <div className="summary-pdf-box">
+                                      <FileText size={18} className="pdf-icon" />
+                                      <span className="summary-pdf-name" title={p.name}>{p.name}</span>
+                                      <span className="summary-pdf-size">{p.sizeMb} MB</span>
+                                    </div>
+                                  ) : (
+                                    <img src={p.url} alt="evidencia" />
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="sub-line" style={{ fontStyle: 'italic', color: '#94a3b8' }}>
+                              Sin archivos o comprobantes adjuntos en esta negociación.
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1008,7 +1118,7 @@ export default function CrearProspectoModal({
   );
 }
 
-CrearProspectoModal.propTypes = {
+CrearOportunidadModal.propTypes = {
   isOpen: PropTypes.bool.isRequired,
   onClose: PropTypes.func.isRequired,
   onSuccess: PropTypes.func.isRequired,

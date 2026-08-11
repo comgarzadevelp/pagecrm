@@ -422,21 +422,10 @@
 
 .crm-leads-list-glass {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
   margin-top: 1.5rem;
-}
-
-@media (min-width: 1024px) {
-  .crm-leads-list-glass {
-    grid-template-columns: repeat(2, 1fr); /* 2 cards per row on standard desktop */
-  }
-}
-
-@media (min-width: 1440px) {
-  .crm-leads-list-glass {
-    grid-template-columns: repeat(3, 1fr); /* 3 cards per row on wide screens */
-  }
+  align-items: stretch;
 }
 
 .crm-lead-card-ios {

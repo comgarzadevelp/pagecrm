@@ -3,6 +3,11 @@
   flex-direction: column;
   gap: 1.5rem;
   padding: 1rem;
+  /* Flex child: fill remaining space inside .directory-tab-content, scroll internally */
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .header {

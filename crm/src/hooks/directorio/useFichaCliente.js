@@ -1023,6 +1023,17 @@ export default function useFichaCliente({
   };
 
 
+  const translateStage = (stage) => {
+    if (!stage) return 'NUEVA NEGOCIACIÓN';
+    const s = String(stage).toLowerCase().trim();
+    if (s === 'nuevo' || s === 'nueva negociación' || s === 'nueva_negociacion') return 'NUEVA NEGOCIACIÓN';
+    if (s === 'en pláticas' || s === 'en_platicas' || s === 'contactado') return 'EN PLÁTICAS';
+    if (s === 'cotizando' || s === 'se le hizo cotización' || s === 'se le hizo cotizacion') return 'COTIZACIÓN';
+    if (s === 'cierre_ganado' || s === 'ganado' || s === 'venta_ganada' || s === 'venta exitosa') return 'VENTA EXITOSA';
+    if (s === 'cierre_perdido' || s === 'perdido' || s === 'descartado' || s === 'venta perdida') return 'VENTA PERDIDA';
+    return String(stage).toUpperCase();
+  };
+
   // --- AGREGACIÓN DE BITÁCORA ---
 
   const unifiedTimeline = useMemo(() => {
@@ -1068,17 +1079,37 @@ export default function useFichaCliente({
         }
       } catch {}
     }
+    const translateStage = (stage) => {
+      if (!stage) return 'NUEVA NEGOCIACIÓN';
+      const s = stage.toLowerCase();
+      if (s === 'nuevo' || s === 'nueva_negociacion') return 'NUEVA NEGOCIACIÓN';
+      if (s === 'contactado') return 'CONTACTADO';
+      if (s === 'cotizando') return 'COTIZANDO';
+      if (s === 'cierre_ganado' || s === 'ganado') return 'CIERRE GANADO';
+      if (s === 'cierre_perdido' || s === 'perdido') return 'CIERRE PERDIDO';
+      if (s === 'descartado') return 'DESCARTADO';
+      return stage.toUpperCase();
+    };
 
     opportunities.forEach(opp => {
       const isLead = opp.isLead;
+      
+      let descText = opp.description || '';
+      try {
+        if (typeof descText === 'string' && descText.trim().startsWith('{')) {
+          const parsed = JSON.parse(descText);
+          descText = parsed.general || parsed.requirement_title || parsed.description || 'Detalles en ficha';
+        }
+      } catch(e){}
+
       events.push({
         id: `opp-${opp.id}`,
         date: opp.updated_at || opp.created_at,
         type: 'opportunity',
         title: isLead ? 'Negociación (Bandeja)' : 'Oportunidad de Venta',
         text: isLead 
-          ? `Trato registrado en bandeja de entrada. Estado actual: "${opp.stage?.toUpperCase()}". ${opp.description ? `Detalles: "${opp.description}"` : ''}`
-          : `Negocio registrado. Etapa actual: "${opp.stage?.toUpperCase()}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
+          ? `Trato registrado en bandeja de entrada. Estado actual: "${translateStage(opp.stage)}". ${descText ? `Detalles: "${descText}"` : ''}`
+          : `Negocio registrado. Etapa actual: "${translateStage(opp.stage)}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
         author: 'Sistema de Ventas',
         isNote: false,
         isVisita: false,
@@ -1208,33 +1239,24 @@ export default function useFichaCliente({
     return events.sort((a, b) => new Date(b.date) - new Date(a.date));
   }, [opportunities, visitas, appointments, currentCustomer.notes, currentCustomer.created_at, contactNotes, companyNotes]);
 
-  const contactOpportunities = useMemo(() => opportunities.filter(opp => opp._source === 'contact' || !opp._source), [opportunities]);
+  const contactOpportunities = useMemo(() => opportunities, [opportunities]);
   const companyOpportunities = useMemo(() => opportunities.filter(opp => opp._source === 'company'), [opportunities]);
 
   const activeOpportunitiesCount = useMemo(() => {
-    return contactOpportunities.filter(opp => {
+    return opportunities.filter(opp => {
       const stage = (opp.stage || '').toLowerCase();
-      return stage !== 'ganado' && stage !== 'perdido' && stage !== 'descartado' && stage !== 'cierre_ganado' && stage !== 'cierre_perdido' && stage !== 'venta_ganada';
+      return stage !== 'ganado' && stage !== 'perdido' && stage !== 'descartado' && stage !== 'cierre_ganado' && stage !== 'cierre_perdido' && stage !== 'venta_ganada' && stage !== 'venta exitosa' && stage !== 'venta perdida';
     }).length;
-  }, [contactOpportunities]);
+  }, [opportunities]);
 
   const wonOpportunitiesCount = useMemo(() => {
-    return contactOpportunities.filter(opp => {
+    return opportunities.filter(opp => {
       const stage = (opp.stage || '').toLowerCase();
-      return stage === 'ganado' || stage === 'cierre_ganado' || stage === 'venta_ganada';
+      return stage === 'ganado' || stage === 'cierre_ganado' || stage === 'venta_ganada' || stage === 'venta exitosa';
     }).length;
-  }, [contactOpportunities]);
+  }, [opportunities]);
 
-  const translateStage = (stage) => {
-    if (!stage) return 'Nuevo';
-    const s = stage.toLowerCase().trim();
-    if (s === 'contactado') return 'En Negociación';
-    if (s === 'nuevo') return 'Bandeja';
-    if (s === 'cotizando') return 'Cotizando';
-    if (s === 'cierre_ganado' || s === 'ganado' || s === 'venta_ganada') return 'Ganado';
-    if (s === 'cierre_perdido' || s === 'perdido' || s === 'descartado') return 'Perdido';
-    return stage.toUpperCase();
-  };
+
 
   return {
     currentCustomer,

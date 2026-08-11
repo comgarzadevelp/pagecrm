@@ -7,7 +7,7 @@ import '../kanban/OpportunityKanban.css';
 import { getLeadAgeInfo as sharedGetLeadAgeInfo, getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../components/ventas/status-dropdown/StatusDropdown';
 import DetallesNegociacion from '../detalles/DetallesNegociacionFeature';
-import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
+import CrearOportunidadModal from '../../../components/modals/crear-oportunidad/CrearOportunidadModal';
 import CierreGanadoModal from '../../../components/modals/cierre-ganado/CierreGanadoModal';
 import { useDateFilter } from '../../../hooks/useDateFilter';
 import DateFilterComponent from '../../../components/common/DateFilter/DateFilter';
@@ -453,16 +453,37 @@ export default function OpportunityBandejaFeature({
             {localFiltered.filter(l => !['contact_form', 'popup_whatsapp', 'whatsapp_inbound', 'chatbot_capture'].includes(l.type)).map((lead) => {
               let notesText = '';
               let parsedNotes = {};
-              try {
-                parsedNotes = JSON.parse(lead.notes);
-                notesText = parsedNotes.general || lead.notes || '';
-              } catch (e) {
-                notesText = lead.notes || '';
+              let rawString = lead.notes || lead.description || '';
+
+              if (typeof rawString === 'string' && rawString.trim().startsWith('{')) {
+                try {
+                  parsedNotes = JSON.parse(rawString);
+                  notesText = parsedNotes.general || parsedNotes.description || parsedNotes.notes || '';
+                } catch (e) {
+                  notesText = rawString;
+                }
+              } else {
+                notesText = rawString;
               }
 
-              const displayTitle = parsedNotes.requirement_title
-                ? `🏗️ ${parsedNotes.project_name || 'Obra no especificada'} - ${parsedNotes.requirement_title}`
-                : `🏗️ Requerimiento - ${lead.company || lead.name || 'Prospecto'}`;
+              let extractedObra = parsedNotes.project_name || lead.project_name || lead.obra_name || '';
+              let cleanNoteContent = notesText;
+              if (!extractedObra && typeof rawString === 'string' && rawString.includes('[Obra:')) {
+                const match = rawString.match(/\[Obra:\s*([^\]]+)\]/);
+                if (match) {
+                  extractedObra = match[1].trim();
+                  cleanNoteContent = rawString.replace(/\[Obra:\s*([^\]]+)\]/, '').trim();
+                }
+              }
+
+              const reqTitle = parsedNotes.requirement_title || lead.title || '';
+              const displayTitle = extractedObra
+                ? `${extractedObra.toUpperCase()} - ${reqTitle ? reqTitle.toUpperCase() : 'REQUERIMIENTO'}`
+                : (reqTitle ? `${reqTitle.toUpperCase()}` : `${lead.company ? lead.company.toUpperCase() : (lead.name ? lead.name.toUpperCase() : 'NUEVA NEGOCIACIÓN')}`);
+
+              const displayNotes = cleanNoteContent || "Sin descripción de requerimiento.";
+
+              const clientName = lead.contact_name || parsedNotes.contact_name || parsedNotes.client_name || lead.companies?.name || lead.contacts?.name || lead.company || (lead.name !== reqTitle ? lead.name : null);
 
               const ageInfo = getLeadAgeInfo(lead);
 
@@ -471,7 +492,8 @@ export default function OpportunityBandejaFeature({
                   key={lead.id}
                   lead={lead}
                   displayTitle={displayTitle}
-                  notesText={notesText}
+                  notesText={displayNotes}
+                  clientName={clientName}
                   formatDate={formatDate}
                   ageInfo={ageInfo}
                   onSelectLead={setSelectedLead}
@@ -498,6 +520,16 @@ export default function OpportunityBandejaFeature({
           </div>
         )}
       </section>
+
+      <CrearOportunidadModal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => {
+          if (fetchLeads) fetchLeads();
+          setCreateModalOpen(false);
+        }}
+        API_BASE={API_BASE}
+      />
 
       {/* Modal Detail View */}
       <DetallesNegociacion

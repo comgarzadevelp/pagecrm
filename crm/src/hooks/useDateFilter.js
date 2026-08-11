@@ -31,13 +31,24 @@ export function useDateFilter(items, dateField = 'created_at') {
     }
 
     return items.filter(item => {
-      if (!item[dateField]) return true; // keep if no date
-      const itemDate = new Date(item[dateField]);
-      if (isNaN(itemDate.getTime())) return true;
-      
-      if (start && itemDate < start) return false;
-      if (end && itemDate > end) return false;
-      return true;
+      // Revisa todas las candidatas de fecha del objeto (la clave especificada, actividad reciente, última visita, actualización, etc.)
+      const dateCandidates = [
+        item[dateField],
+        item.last_activity_date,
+        item.updated_at,
+        item.created_at,
+        item.last_visit_date,
+        item.last_quote_date
+      ].filter(Boolean).map(d => new Date(d)).filter(d => !isNaN(d.getTime()));
+
+      if (dateCandidates.length === 0) return true; // Mantener si no tiene fechas
+
+      // Un item coincide con el rango si al menos una de sus fechas de creación/actividad entra en el rango (start / end)
+      return dateCandidates.some(d => {
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
     });
   }, [items, dateFilter, dateField]);
 

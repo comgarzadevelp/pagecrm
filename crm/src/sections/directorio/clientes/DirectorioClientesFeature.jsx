@@ -5,7 +5,7 @@ import styles from './DirectorioClientes.module.css';
 
 import RegistrarClienteModal from '../../../components/modals/registrar-cliente/RegistrarClienteModal';
 import FichaClienteIndividualModal from '../../../components/modals/ficha-cliente/FichaClienteIndividualModal';
-import CrearProspectoModal from '../../../components/modals/crear-prospecto/CrearProspectoModal';
+import CrearOportunidadModal from '../../../components/modals/crear-oportunidad/CrearOportunidadModal';
 import RegistrarVisitaModal from '../../../components/modals/registrar-visita/RegistrarVisitaModal';
 import EventCreatorModal from '../../../components/modals/event-creator/EventCreatorModalFeature';
 import useDirectorio from '../../../hooks/directorio/useDirectorio';
@@ -175,9 +175,9 @@ export default function DirectorioClientesFeature({
         />
       )}
 
-      {/* Modal para iniciar negociación (CrearProspectoModal) */}
+      {/* Modal para iniciar negociación (CrearOportunidadModal) */}
       {showCreateDealModal && (
-        <CrearProspectoModal
+        <CrearOportunidadModal
           isOpen={showCreateDealModal}
           onClose={() => {
             setShowCreateDealModal(false);

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import ReactDOM from 'react-dom';
 import PropTypes from 'prop-types';
 import { useUX } from '../../../components/common/UXProvider';
 import { getChannelBadgeInfo } from '../../../utils/leadHelpers';
 import StatusDropdown from '../../../components/ventas/status-dropdown/StatusDropdown';
+import DetallesNegociacionModal from '../../../components/modals/detalles-negociacion/DetallesNegociacionModal';
 import './DetallesNegociacion.css';
 
 // Helper for image compression using canvas
@@ -358,21 +358,26 @@ export default function DetallesNegociacionFeature({
 
 
 
-  return ReactDOM.createPortal(
-    <div className="modal-overlay-glass" style={{ zIndex: 10000 }}>
-      <div className="modal-content-glass" style={{ maxWidth: '920px', height: '88vh' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header-row">
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className="channel-badge" style={{ backgroundColor: getChannelBadgeInfo(lead.type).color }}>
-              {getChannelBadgeInfo(lead.type).label}
+  return (
+    <>
+      <DetallesNegociacionModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title={
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '1.15rem' }}>
+            <span className="channel-badge" style={{ backgroundColor: getChannelBadgeInfo(lead?.type).color }}>
+              {getChannelBadgeInfo(lead?.type).label}
             </span>
-            {lead.company ? `${lead.company} - ${lead.name || 'Obra'}` : (lead.name || 'Negociación')}
+            {lead?.company ? `${lead.company} - ${lead.name || 'Obra'}` : (lead?.name || 'Negociación')}
           </h2>
-          <button className="modal-close-btn" onClick={onClose}>&times;</button>
-        </div>
-
-        <div className="modal-body">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        }
+        footerActions={
+          <button type="button" className="cancel-modal-btn" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={onClose}>
+            Cerrar Detalle
+          </button>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
             {/* Panel de Control Super Admin */}
             {role === 'super_admin' && (
@@ -949,12 +954,8 @@ export default function DetallesNegociacionFeature({
             </div>
 
           </div>
-        </div>
+        </DetallesNegociacionModal>
 
-        <div className="modal-footer-actions" style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-          <button type="button" className="cancel-modal-btn" style={{ padding: '8px 16px', fontSize: '0.85rem' }} onClick={onClose}>Cerrar Detalle</button>
-        </div>
-      </div>
       {/* Lightbox Modal Overlay */}
       {activeLightboxImg && (
         <div className="lightbox-overlay" onClick={() => setActiveLightboxImg(null)}>
@@ -964,8 +965,7 @@ export default function DetallesNegociacionFeature({
           </div>
         </div>
       )}
-    </div>,
-    document.body
+    </>
   );
 }
 

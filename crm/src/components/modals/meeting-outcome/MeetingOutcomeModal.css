@@ -1,0 +1,6 @@
+/* Styles dedicated to MeetingOutcomeModal */
+.form-body-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}

@@ -444,6 +444,10 @@
   .crm-main-content {
     margin-left: 280px;
     width: calc(100% - 280px);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1), width 0.4s cubic-bezier(0.4, 0, 0.2, 1) !important;
   }
 
@@ -465,5 +469,9 @@
   .crm-main-content.sidebar-collapsed {
     margin-left: 0 !important;
     width: 100% !important;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 }

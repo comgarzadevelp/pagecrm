@@ -7,6 +7,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex-shrink: 0;
   box-sizing: border-box;
   animation: cardSlideUp 0.28s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease, border-color 0.2s ease;

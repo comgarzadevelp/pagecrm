@@ -28,15 +28,13 @@
 }
 
 .crm-dashboard-page {
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, var(--color-gray-100, #f8f9fa) 0%, var(--color-gray-200, #e9ecef) 100%);
   color: var(--color-text-dark);
-  padding-top: 130px;
-  /* space for fixed headers */
-  padding-bottom: 80px;
+  /* padding-top: 130px removed — sidebar layout does NOT use a fixed top header */
   font-family: var(--font-secondary), -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   position: relative;
-  overflow: visible;
+  overflow: hidden;
 }
 
 /* Elegant floating blurry background blobs for the light theme */
@@ -988,12 +986,12 @@
    ========================================================================== */
 .crm-modular-layout {
   display: block;
-  /* block layout so it does not interfere with fixed sidebar */
   padding: 0 !important;
   margin: 0 !important;
-  min-height: 100vh;
+  height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  overflow: visible;
+  /* overflow:hidden locks the layout — scroll happens only inside .crm-main-content */
+  overflow: hidden;
   position: relative;
 }
 
@@ -1052,17 +1050,19 @@
 
 
 
-/* Content Area Wrapper */
+/* Content Area Wrapper — flex column so children can use flex:1 to fill available height */
 .crm-main-content {
   margin-left: 280px;
-  /* offset the fixed sidebar */
-  padding: 1.25rem 3rem 2.5rem 3rem;
+  padding: 1.25rem 3rem 1.5rem 3rem;
   box-sizing: border-box;
   width: calc(100% - 280px);
-  /* take remaining space */
+  height: 100vh;
+  /* display:flex+column enables flex:1 on children to distribute height without calc hacks */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   position: relative;
   z-index: 5;
-  min-height: 100vh;
 }
 
 /* Adjust stats card layout when sidebar is on */

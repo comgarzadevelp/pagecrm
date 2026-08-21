@@ -39,8 +39,8 @@ export default function FichaSubModals({ crm, API_BASE, fetchCustomers }) {
           onClose={() => crm.setShowVentaModal(false)}
           onSuccess={() => {
             crm.setShowVentaModal(false);
-            crm.fetchOpportunities(crm.customerId);
-            crm.reloadCustomerDetails();
+            if (crm.fetchOpportunities) crm.fetchOpportunities(crm.customerId);
+            if (crm.reloadCustomerDetails) crm.reloadCustomerDetails();
             if (fetchCustomers) fetchCustomers();
           }}
           API_BASE={API_BASE}

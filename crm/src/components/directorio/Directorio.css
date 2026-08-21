@@ -1017,16 +1017,18 @@
   /* Take all remaining vertical space in .crm-main-content (flex child) */
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
-/* Tab content fills the remaining space below the tab switcher */
+/* Tab content fills the remaining space below the tab switcher and allows vertical scrolling */
 .directory-tab-content {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  padding-bottom: 2rem;
 }
 
 .directory-switch-wrapper {

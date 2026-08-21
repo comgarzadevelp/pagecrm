@@ -21,6 +21,23 @@ export default function FichaLeftPanel({
   translateStage,
   handleStatusChange
 }) {
+  const allOppsList = React.useMemo(() => {
+    const combined = [...(contactOpportunities || []), ...(companyOpportunities || [])];
+    const seen = new Set();
+    return combined.filter(o => {
+      if (!o || !o.id) return false;
+      if (seen.has(o.id)) return false;
+      seen.add(o.id);
+      return true;
+    });
+  }, [contactOpportunities, companyOpportunities]);
+
+  const [expandedOppId, setExpandedOppId] = React.useState(null);
+
+  const toggleExpandOpp = (id) => {
+    setExpandedOppId(prev => prev === id ? null : id);
+  };
+
   const renderContactSummary = (c, title, badgeColor) => {
     if (!c) return null;
     const cName = c.name || c.contact?.name || 'Desconocido';
@@ -311,38 +328,236 @@ export default function FichaLeftPanel({
           <div className="obras-loading-container">
             <div className="spinner-mini obras-loading-spinner" />
           </div>
-        ) : contactOpportunities.length === 0 ? (
+        ) : allOppsList.length === 0 ? (
           <p className="obras-empty-text">
             No hay negocios registrados.
           </p>
         ) : (
-          <div className="opps-list-container">
-            {contactOpportunities.map(opp => {
+          <div className="opps-grid-container">
+            {allOppsList.map(opp => {
               const stageLower = (opp.stage || '').toLowerCase();
-              const isWon = stageLower === 'ganado' || stageLower === 'venta_ganada';
-              const badgeColor = isWon ? '#10b981' : '#3b82f6';
-              const badgeBg = isWon ? '#ecfdf5' : '#eff6ff';
+              const isWon = stageLower === 'ganado' || stageLower === 'cierre_ganado' || stageLower === 'venta_ganada' || stageLower === 'venta exitosa';
+              const isLost = stageLower === 'perdido' || stageLower === 'cierre_perdido' || stageLower === 'descartado' || stageLower === 'venta perdida';
+              const badgeColor = isWon ? '#10b981' : (isLost ? '#ef4444' : '#3b82f6');
+              const badgeBg = isWon ? '#ecfdf5' : (isLost ? '#fef2f2' : '#eff6ff');
+              const isExpanded = expandedOppId === opp.id;
+
+              // Extracción directa y secuencial de fotos, PDFs y observaciones
+              let photos = [];
+              let descClean = '';
+
+              const processObjFields = (obj) => {
+                if (!obj || typeof obj !== 'object') return;
+                if (!descClean) {
+                  descClean = obj.general || obj.notes || obj.requirement_title || obj.description || '';
+                }
+                if (Array.isArray(obj.evidence_photos)) photos.push(...obj.evidence_photos);
+                if (Array.isArray(obj.photos)) photos.push(...obj.photos);
+                if (Array.isArray(obj.attachments)) photos.push(...obj.attachments);
+                if (obj.evidence_photo_url) photos.push(obj.evidence_photo_url);
+                if (obj.photo_url) photos.push(obj.photo_url);
+                if (obj.photoUrl) photos.push(obj.photoUrl);
+                if (Array.isArray(obj.timeline)) {
+                  obj.timeline.forEach(t => {
+                    if (t.photoUrl) photos.push(t.photoUrl);
+                    if (t.photo_url) photos.push(t.photo_url);
+                    if (Array.isArray(t.photos)) photos.push(...t.photos);
+                    if (Array.isArray(t.attachments)) photos.push(...t.attachments);
+                  });
+                }
+              };
+
+              const parseAndExtract = (field) => {
+                if (!field) return;
+                if (typeof field === 'object') {
+                  processObjFields(field);
+                } else if (typeof field === 'string') {
+                  const trimmed = field.trim();
+                  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+                    try {
+                      const parsed = JSON.parse(trimmed);
+                      processObjFields(parsed);
+                    } catch (e) {}
+                  } else if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('/api/uploads/') || trimmed.startsWith('/uploads/')) {
+                    photos.push(trimmed);
+                  } else if (!descClean) {
+                    descClean = trimmed;
+                  }
+                }
+              };
+
+              parseAndExtract(opp.description);
+              parseAndExtract(opp.notes);
+              processObjFields(opp);
+
+              // Fallbacks por si acaso
+              if (opp.evidence_photo_url) photos.push(opp.evidence_photo_url);
+              if (opp.photo_url) photos.push(opp.photo_url);
+              if (opp.photoUrl) photos.push(opp.photoUrl);
+              if (Array.isArray(opp.evidence_photos)) photos.push(...opp.evidence_photos);
+              if (Array.isArray(opp.attachments)) photos.push(...opp.attachments);
+
+              const uniquePhotos = Array.from(new Set(photos.filter(url => url && typeof url === 'string' && url.trim().length > 5)));
+              console.log('[FichaLeftPanel] Opp:', opp.title || opp.id, 'Extracted photos:', uniquePhotos);
 
               return (
-                <div key={opp.id} className="opp-item-card">
-                  <div className="opp-item-info">
-                    <span className="opp-item-title-text">
+                <React.Fragment key={opp.id}>
+                  {/* Mini Card Cuadrada (3 por hilera) */}
+                  <div 
+                    className={`opp-mini-card ${isExpanded ? 'expanded' : ''}`}
+                    onClick={() => toggleExpandOpp(opp.id)}
+                    title="Haz clic para ver el detalle de la negociación"
+                  >
+                    <div className="opp-mini-header">
+                      <span 
+                        className="opp-mini-stage-badge"
+                        style={{ background: badgeBg, color: badgeColor }}
+                      >
+                        {translateStage(opp.stage)}
+                      </span>
+                      {uniquePhotos.length > 0 && (
+                        <span className="opp-mini-badge-attachments" title={`${uniquePhotos.length} archivos adjuntos`}>
+                          <i className="fas fa-paperclip" /> {uniquePhotos.length}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="opp-mini-title">
                       {opp.title || opp.name || 'Oportunidad de Venta'}
                     </span>
-                    <span className="opp-item-amount">
-                      Monto: <strong>${parseFloat(opp.amount || 0).toLocaleString('es-MX')}</strong>
-                    </span>
+
+                    <div className="opp-mini-footer">
+                      <span className="opp-mini-amount">
+                        ${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}
+                      </span>
+                      <i className={`fas fa-chevron-${isExpanded ? 'up' : 'down'} opp-mini-icon-toggle`} />
+                    </div>
                   </div>
-                  <span 
-                    className="opp-item-stage-badge"
-                    style={{
-                      background: badgeBg,
-                      color: badgeColor
-                    }}
-                  >
-                    {translateStage(opp.stage)}
-                  </span>
-                </div>
+
+                  {/* Panel Desplegable Expandido (Accordion Box) */}
+                  {isExpanded && (
+                    <div className="opp-expanded-detail-box">
+                      <div className="opp-expanded-header">
+                        <div>
+                          <div className="opp-expanded-title">
+                            {opp.title || opp.name || 'Oportunidad de Venta'}
+                          </div>
+                          <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                            Registrado el {opp.created_at ? new Date(opp.created_at).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
+                          </div>
+                        </div>
+                        <button 
+                          className="opp-expanded-close-btn"
+                          onClick={(e) => { e.stopPropagation(); toggleExpandOpp(opp.id); }}
+                          title="Cerrar detalle"
+                        >
+                          <i className="fas fa-times" />
+                        </button>
+                      </div>
+
+                      <div className="opp-expanded-grid-info">
+                        <div className="opp-expanded-info-item">
+                          <span className="opp-expanded-label">Etapa Actual</span>
+                          <span className="opp-expanded-val" style={{ color: badgeColor }}>
+                            {translateStage(opp.stage)}
+                          </span>
+                        </div>
+                        <div className="opp-expanded-info-item">
+                          <span className="opp-expanded-label">Monto Estimado</span>
+                          <span className="opp-expanded-val" style={{ color: '#10b981' }}>
+                            ${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {opp.assigned_to && (
+                          <div className="opp-expanded-info-item">
+                            <span className="opp-expanded-label">Vendedor Asignado</span>
+                            <span className="opp-expanded-val">
+                              {typeof opp.assigned_to === 'object' ? opp.assigned_to.name : opp.assigned_to}
+                            </span>
+                          </div>
+                        )}
+                        {opp.type && (
+                          <div className="opp-expanded-info-item">
+                            <span className="opp-expanded-label">Tipo de Proyecto</span>
+                            <span className="opp-expanded-val" style={{ textTransform: 'capitalize' }}>
+                              {opp.type}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {descClean && (
+                        <div style={{ marginTop: '6px' }}>
+                          <span className="opp-expanded-label">Requerimiento / Observaciones</span>
+                          <div className="opp-expanded-text-block">
+                            {descClean}
+                          </div>
+                        </div>
+                      )}
+
+
+
+                      {/* Anexos y Comprobantes Adjuntos */}
+                      {uniquePhotos.length > 0 && (
+                        <div style={{ marginTop: '10px' }}>
+                          <span className="opp-expanded-label">Anexos y Comprobantes Adjuntos ({uniquePhotos.length})</span>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '6px' }}>
+                            {uniquePhotos.map((pUrl, pIdx) => {
+                              const cleanUrl = String(pUrl).trim();
+                              const isPdf = cleanUrl.toLowerCase().endsWith('.pdf') || cleanUrl.toLowerCase().includes('.pdf');
+                              const src = cleanUrl.startsWith('http') ? cleanUrl : `https://comgarza.com${cleanUrl.startsWith('/') ? '' : '/'}${cleanUrl}`;
+
+                              if (isPdf) {
+                                return (
+                                  <a 
+                                    key={pIdx}
+                                    href={src}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    title="Haz clic para abrir o descargar PDF"
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '6px',
+                                      padding: '6px 10px',
+                                      borderRadius: '8px',
+                                      background: '#fef2f2',
+                                      border: '1px solid #fca5a5',
+                                      color: '#991b1b',
+                                      fontSize: '0.7rem',
+                                      fontWeight: '700',
+                                      textDecoration: 'none'
+                                    }}
+                                  >
+                                    <i className="fas fa-file-pdf" style={{ fontSize: '1rem', color: '#dc2626' }} />
+                                    <span>Documento PDF #{pIdx + 1} ↗</span>
+                                  </a>
+                                );
+                              }
+
+                              return (
+                                <a 
+                                  key={pIdx}
+                                  href={src}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  title="Haz clic para ver imagen"
+                                  style={{ display: 'block', width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1' }}
+                                >
+                                  <img 
+                                    src={src}
+                                    alt="Anexo"
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  />
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
               );
             })}
           </div>

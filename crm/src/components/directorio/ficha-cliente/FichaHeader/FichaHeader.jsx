@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './FichaHeader.css';
 
 export default function FichaHeader({
@@ -8,8 +8,61 @@ export default function FichaHeader({
   clientProfile,
   onClose,
   setShowVentaModal,
-  setShowVisitaModal
+  setShowVisitaModal,
+  reloadCustomerDetails,
+  API_BASE,
+  token,
+  showToast
 }) {
+  const [isValidatingWa, setIsValidatingWa] = useState(false);
+
+  const handleWhatsappClick = async () => {
+    if (isValidatingWa) return;
+    setIsValidatingWa(true);
+    showToast('Verificando cuenta de WhatsApp del contacto...', 'info');
+
+    try {
+      const res = await fetch(`${API_BASE}/api/crm/whatsapp/validate`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          customerId: currentCustomer.id,
+          phone: currentCustomer.whatsapp
+        })
+      });
+
+      if (!res.ok) throw new Error('Error al conectar con el servidor de validación');
+
+      const data = await res.json();
+
+      if (data.success) {
+        if (data.isRegistered) {
+          showToast('WhatsApp validado con éxito. Redirigiendo a chat interno...', 'success');
+          if (reloadCustomerDetails) {
+            setTimeout(() => reloadCustomerDetails(), 800);
+          }
+          setTimeout(() => {
+            window.location.href = `/dashboard/whatsapp?phone=${data.normalized}`;
+          }, 1500);
+        } else {
+          showToast('El contacto no tiene una cuenta de WhatsApp activa. Advertencia registrada en el historial.', 'error');
+          if (reloadCustomerDetails) {
+            reloadCustomerDetails();
+          }
+        }
+      } else {
+        showToast(data.message || 'No se pudo verificar el número.', 'error');
+      }
+    } catch (err) {
+      console.error('Error validating WA number:', err);
+      showToast('Error de red al intentar verificar el WhatsApp.', 'error');
+    } finally {
+      setIsValidatingWa(false);
+    }
+  };
   return (
     <header className="client-modal-header">
       <div className="client-modal-header-top">
@@ -61,14 +114,22 @@ export default function FichaHeader({
       {/* ACCIONES RÁPIDAS COMERCIALES */}
       <div className="client-modal-quickbar">
         {currentCustomer.whatsapp ? (
-          <a
-            href={`https://wa.me/52${currentCustomer.whatsapp.replace(/\D/g, '')}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={handleWhatsappClick}
+            disabled={isValidatingWa}
             className="quickbar-btn quickbar-btn-wa"
+            style={{ cursor: isValidatingWa ? 'not-allowed' : 'pointer' }}
           >
-            <i className="fab fa-whatsapp" /> WhatsApp
-          </a>
+            {isValidatingWa ? (
+              <>
+                <i className="fas fa-spinner fa-spin" /> Verificando...
+              </>
+            ) : (
+              <>
+                <i className="fab fa-whatsapp" /> WhatsApp
+              </>
+            )}
+          </button>
         ) : (
           <button
             disabled

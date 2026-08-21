@@ -609,78 +609,118 @@ export default function useFichaCliente({
   const fetchOpportunities = async (id) => {
     setLoadingOpps(true);
     try {
-      let localContactId = null;
-      let localCompanyId = null;
+      let targetContactId = currentCustomer?.contact_id || null;
+      let targetCompanyId = currentCustomer?.company_id || null;
+      const targetPhone = currentCustomer?.phone ? String(currentCustomer.phone).trim() : '';
+      const targetEmail = currentCustomer?.email ? String(currentCustomer.email).trim() : '';
+      const targetName = currentCustomer?.name ? String(currentCustomer.name).trim() : '';
+      const targetCompany = currentCustomer?.company ? String(currentCustomer.company).trim() : '';
 
-      if (currentCustomer?.contact_id && !String(currentCustomer.contact_id).startsWith('sae-')) {
-        localContactId = currentCustomer.contact_id;
+      if (!targetContactId && id && !String(id).startsWith('sae-') && !String(id).startsWith('company-')) {
+        targetContactId = id;
       }
-      if (currentCustomer?.company_id && !String(currentCustomer.company_id).startsWith('sae-') && !String(currentCustomer.company_id).startsWith('company-')) {
-        localCompanyId = currentCustomer.company_id;
+      if (!targetCompanyId && id && String(id).startsWith('sae-')) {
+        targetCompanyId = id;
       }
 
-      if ((!localContactId || !localCompanyId) && currentCustomer?.notes) {
+      if (currentCustomer?.notes) {
         try {
           const parsed = JSON.parse(currentCustomer.notes);
-          if (!localContactId && parsed?.contact_id && !String(parsed.contact_id).startsWith('sae-')) {
-            localContactId = parsed.contact_id;
+          if (!targetContactId && parsed?.contact_id && !String(parsed.contact_id).startsWith('sae-')) {
+            targetContactId = parsed.contact_id;
           }
-          if (!localCompanyId && parsed?.company_id && !String(parsed.company_id).startsWith('sae-')) {
-            localCompanyId = parsed.company_id;
-          }
-          if (!localCompanyId && parsed?.sae_clave) {
-            const resCo = await fetch(`${API_BASE}/api/crm/companies/search?sae_clave=${encodeURIComponent(parsed.sae_clave.trim())}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const dataCo = await resCo.json();
-            if (resCo.ok && dataCo.success && dataCo.companies?.length > 0) {
-              localCompanyId = dataCo.companies[0].id;
-            }
-          }
-
-          if (!localCompanyId && currentCustomer?.name && currentCustomer.name.trim().length > 2) {
-            const resCo = await fetch(`${API_BASE}/api/crm/companies/search?q=${encodeURIComponent(currentCustomer.name.trim())}`, {
-              headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const dataCo = await resCo.json();
-            if (resCo.ok && dataCo.success && dataCo.companies?.length > 0) {
-              const saeClave = parsed?.sae_clave;
-              const matched = dataCo.companies.find(co => {
-                try {
-                  const coNotes = JSON.parse(co.notes || '{}');
-                  if (saeClave) return coNotes.sae_clave && String(coNotes.sae_clave).trim() === String(saeClave).trim();
-                  return true;
-                } catch { return false; }
-              });
-              if (matched) localCompanyId = matched.id;
-            }
+          if (!targetCompanyId && parsed?.company_id && !String(parsed.company_id).startsWith('sae-')) {
+            targetCompanyId = parsed.company_id;
           }
         } catch (e) {}
       }
 
-      if (!localContactId && !localCompanyId) {
-        setOpportunities([]);
-        return;
-      }
-
-      const params = new URLSearchParams();
-      if (localContactId) params.append('contact_id', localContactId);
-      if (localCompanyId) params.append('company_id', localCompanyId);
-
-      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities?${params.toString()}`, {
+      // 1. Consultar /api/crm/opportunities
+      const resOpp = await fetch(`${API_BASE}/api/crm/opportunities`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       const dataOpp = await resOpp.json();
 
-      if (resOpp.ok && dataOpp.success) {
-        const opps = (dataOpp.opportunities || []).map(opp => ({
-          ...opp,
-          _source: localContactId && opp.contact_id === localContactId ? 'contact' : 'company'
-        }));
-        setOpportunities(opps);
-      } else {
-        setOpportunities([]);
-      }
+      // 2. Consultar /api/crm/leads (negociaciones en bandeja)
+      const resLeads = await fetch(`${API_BASE}/api/crm/leads`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const dataLeads = await resLeads.json();
+
+      const rawOfficialOpps = (resOpp.ok && dataOpp.success && Array.isArray(dataOpp.opportunities)) ? dataOpp.opportunities : [];
+      const rawLeadsList = (resLeads.ok && dataLeads.success && Array.isArray(dataLeads.leads)) ? dataLeads.leads : [];
+
+      const checkMatch = (item) => {
+        if (targetContactId && String(item.contact_id) === String(targetContactId)) return true;
+        if (targetCompanyId && String(item.company_id) === String(targetCompanyId)) return true;
+        if (id && (String(item.contact_id) === String(id) || String(item.company_id) === String(id))) return true;
+
+        const itemPhone = String(item.phone || '').trim();
+        const itemEmail = String(item.email || '').trim().toLowerCase();
+        if (targetPhone && targetPhone.length >= 7 && itemPhone && (itemPhone.includes(targetPhone) || targetPhone.includes(itemPhone))) return true;
+        if (targetEmail && itemEmail && itemEmail === targetEmail.toLowerCase()) return true;
+
+        const titleLower = String(item.title || item.name || '').toLowerCase();
+        const compLower = String(item.company || '').toLowerCase();
+        if (targetName && targetName.length > 3 && titleLower.includes(targetName.toLowerCase())) return true;
+        if (targetCompany && targetCompany.length > 3 && (compLower.includes(targetCompany.toLowerCase()) || titleLower.includes(targetCompany.toLowerCase()))) return true;
+
+        try {
+          if (item.notes && typeof item.notes === 'string' && item.notes.trim().startsWith('{')) {
+            const parsedN = JSON.parse(item.notes);
+            if (targetContactId && String(parsedN.contact_id) === String(targetContactId)) return true;
+            if (targetCompanyId && String(parsedN.company_id) === String(targetCompanyId)) return true;
+            if (id && String(parsedN.contact_id) === String(id)) return true;
+          }
+        } catch (e) {}
+
+        return false;
+      };
+
+      // Oportunidades oficiales filtradas
+      const matchedOfficialOpps = rawOfficialOpps.filter(checkMatch);
+
+      // Leads filtrados que NO tengan ya una oportunidad oficial coincidente (mismo minuto o mismo lead_id)
+      const matchedLeads = rawLeadsList.filter(l => {
+        if (!checkMatch(l)) return false;
+
+        const leadTime = new Date(l.created_at || 0).getTime();
+        const hasOfficialCounterpart = matchedOfficialOpps.some(opp => {
+          if (opp.lead_id && String(opp.lead_id) === String(l.id)) return true;
+          const oppTime = new Date(opp.created_at || 0).getTime();
+          const diffMinutes = Math.abs(oppTime - leadTime) / (1000 * 60);
+          return diffMinutes <= 10; // Creados con menos de 10 min de diferencia para el mismo cliente
+        });
+
+        return !hasOfficialCounterpart;
+      }).map(l => ({
+        id: l.id,
+        title: l.requirement_title || l.name || 'Negociación en Bandeja',
+        description: l.notes || '',
+        stage: l.status || 'nuevo',
+        value: l.value || l.amount || 0,
+        created_at: l.created_at,
+        updated_at: l.updated_at,
+        contact_id: l.contact_id || null,
+        company_id: l.company_id || null,
+        phone: l.phone || '',
+        email: l.email || '',
+        company: l.company || '',
+        isLead: true,
+        notes: l.notes
+      }));
+
+      // Fusionar sin duplicados
+      const finalUniqueOpps = [];
+      const seenOppIds = new Set();
+      [...matchedOfficialOpps, ...matchedLeads].forEach(opp => {
+        if (!seenOppIds.has(opp.id)) {
+          seenOppIds.add(opp.id);
+          finalUniqueOpps.push(opp);
+        }
+      });
+
+      setOpportunities(finalUniqueOpps);
     } catch (err) {
       console.error('Error al obtener oportunidades:', err);
       setOpportunities([]);
@@ -1095,12 +1135,40 @@ export default function useFichaCliente({
       const isLead = opp.isLead;
       
       let descText = opp.description || '';
+      let extractedPhotos = [];
+
       try {
         if (typeof descText === 'string' && descText.trim().startsWith('{')) {
           const parsed = JSON.parse(descText);
           descText = parsed.general || parsed.requirement_title || parsed.description || 'Detalles en ficha';
+          if (Array.isArray(parsed.evidence_photos)) extractedPhotos.push(...parsed.evidence_photos);
+          if (Array.isArray(parsed.photos)) extractedPhotos.push(...parsed.photos);
+          if (Array.isArray(parsed.timeline)) {
+            parsed.timeline.forEach(t => {
+              if (t.photoUrl || t.photo_url) extractedPhotos.push(t.photoUrl || t.photo_url);
+            });
+          }
         }
       } catch(e){}
+
+      try {
+        if (opp.notes && typeof opp.notes === 'string' && opp.notes.trim().startsWith('{')) {
+          const parsedN = JSON.parse(opp.notes);
+          if (Array.isArray(parsedN.evidence_photos)) extractedPhotos.push(...parsedN.evidence_photos);
+          if (Array.isArray(parsedN.photos)) extractedPhotos.push(...parsedN.photos);
+          if (Array.isArray(parsedN.timeline)) {
+            parsedN.timeline.forEach(t => {
+              if (t.photoUrl || t.photo_url) extractedPhotos.push(t.photoUrl || t.photo_url);
+            });
+          }
+        }
+      } catch(e){}
+
+      if (opp.evidence_photo_url) extractedPhotos.push(opp.evidence_photo_url);
+      if (opp.photo_url) extractedPhotos.push(opp.photo_url);
+      if (Array.isArray(opp.evidence_photos)) extractedPhotos.push(...opp.evidence_photos);
+
+      const uniquePhotos = Array.from(new Set(extractedPhotos.filter(Boolean)));
 
       events.push({
         id: `opp-${opp.id}`,
@@ -1111,6 +1179,8 @@ export default function useFichaCliente({
           ? `Trato registrado en bandeja de entrada. Estado actual: "${translateStage(opp.stage)}". ${descText ? `Detalles: "${descText}"` : ''}`
           : `Negocio registrado. Etapa actual: "${translateStage(opp.stage)}". Monto estimado: $${parseFloat(opp.amount || opp.value || 0).toLocaleString('es-MX')}`,
         author: 'Sistema de Ventas',
+        photos: uniquePhotos,
+        photoUrl: uniquePhotos[0] || null,
         isNote: false,
         isVisita: false,
         isChange: true
@@ -1356,6 +1426,8 @@ export default function useFichaCliente({
     handleAddComment,
     handleArchiveCustomerClick,
     confirmArchiveCustomer,
+    fetchOpportunities,
+    reloadCustomerDetails,
     unifiedTimeline,
     contactOpportunities,
     companyOpportunities,

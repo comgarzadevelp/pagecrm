@@ -1060,9 +1060,16 @@
   /* display:flex+column enables flex:1 on children to distribute height without calc hacks */
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: relative;
   z-index: 5;
+  transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1), width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.crm-main-content.sidebar-collapsed {
+  margin-left: 70px;
+  width: calc(100% - 70px);
 }
 
 /* Adjust stats card layout when sidebar is on */

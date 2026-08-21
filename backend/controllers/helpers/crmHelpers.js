@@ -91,6 +91,20 @@ export const notifySuperAdmins = async (companyId, title, message, type = 'info'
 export const parseOpportunityDescription = (title, description, opp) => {
   let project_name = '';
   const descriptionStr = description || '';
+
+  if (typeof descriptionStr === 'string' && descriptionStr.trim().startsWith('{')) {
+    try {
+      const parsed = JSON.parse(descriptionStr.trim());
+      return {
+        cleanDescription: parsed.general || parsed.requirement_title || parsed.description || '',
+        project_name: parsed.project_name || '',
+        timelineEntries: parsed.timeline || [],
+        evidence_photos: parsed.evidence_photos || parsed.attachments || [],
+        attachments: parsed.attachments || parsed.evidence_photos || []
+      };
+    } catch (e) {}
+  }
+
   const obraMatch = descriptionStr.match(/^\[Obra:\s*(.*?)\]/);
   if (obraMatch) {
     project_name = obraMatch[1];

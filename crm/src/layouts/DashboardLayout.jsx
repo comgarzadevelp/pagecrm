@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useParams, useNavigate, Navigate } from 'react-router-dom';
 import DashboardShell from './DashboardShell';
 import { useCrmData } from '../hooks/useCrmData';
@@ -31,6 +31,7 @@ import PersonalGarza from '../sections/superadmin/SuperAdminPersonnel';
 import AdminAgendaPanel from '../sections/superadmin/SuperAdminAgenda';
 import SuperAdminStats from '../sections/superadmin/SuperAdminStats';
 import SuperAdminContactos from '../sections/superadmin/SuperAdminContactos';
+import WhatsAppFeature from '../sections/whatsapp/WhatsAppFeature';
 
 
 export default function DashboardLayout({ role, enabledModules }) {
@@ -265,6 +266,7 @@ export default function DashboardLayout({ role, enabledModules }) {
       {activeTab === 'notifications' && <NotificationsPanelFeature />}
       {activeTab === 'profile' && <MiPerfilFeature />}
       {activeTab === 'orphans' && <ProspectosHuerfanosFeature onViewCompanyDetails={fetchLeads} />}
+      {activeTab === 'whatsapp' && <WhatsAppFeature />}
 
       {/* Super Admin Tabs */}
       {activeTab === 'module-config' && role === 'super_admin' && <ModuleConfigPanel />}

@@ -91,7 +91,9 @@ export const getOpportunities = async (req, res) => {
         notes: JSON.stringify({
           general: parsed.cleanDescription,
           project_name: parsed.project_name,
-          timeline: parsed.timelineEntries,
+          timeline: parsed.timelineEntries || [],
+          evidence_photos: parsed.evidence_photos || [],
+          attachments: parsed.attachments || [],
           amount: opp.value || 0,
           requirement_title: opp.title || '',
           contact_id: opp.contact_id || null,

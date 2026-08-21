@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
 
@@ -57,6 +57,10 @@ export default function FichaClienteIndividualModal({
           onClose={onClose}
           setShowVentaModal={crm.setShowVentaModal}
           setShowVisitaModal={crm.setShowVisitaModal}
+          reloadCustomerDetails={crm.reloadCustomerDetails}
+          API_BASE={crm.API_BASE}
+          token={crm.token}
+          showToast={crm.showToast}
         />
 
         <div className={`client-modal-body ${crm.isSidebarCollapsed ? 'sidebar-collapsed' : ''}`}>

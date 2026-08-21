@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MODULE_REGISTRY } from './moduleRegistry';
 import QuickCreateFab from './QuickCreateFab';
 import { useCompany } from '../contexts/CompanyContext';
@@ -98,22 +98,7 @@ const DashboardShell = ({
   const hasCompanies = enabledModules.includes('companies') || enabledModules.includes('directory');
   const showFab = (role === 'admin' || role === 'sales' || role === 'supervisor') && (hasQuotes || hasCustomers || hasCompanies);
 
-  const showGlobalStatsGrid =
-    role !== 'super_admin' &&
-    activeTab !== 'ventas' &&
-    activeTab !== 'inicio' &&
-    activeTab !== 'leads' &&
-    activeTab !== 'pipeline' &&
-    activeTab !== 'quotes' &&
-    activeTab !== 'dashboard' &&
-    activeTab !== 'directory' &&
-    activeTab !== 'quotes-manager' &&
-    activeTab !== 'files' &&
-    activeTab !== 'profile' &&
-    activeTab !== 'personal-agenda' &&
-    activeTab !== 'module-config' &&
-    activeTab !== 'archive-contacts' &&
-    stats;
+
 
   const sidebarRef = useRef(null);
 
@@ -161,39 +146,7 @@ const DashboardShell = ({
 
       {/* MAIN CONTAINER CONTENT AREA */}
       <main className={`crm-main-content ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
-        {/* Global stats grid */}
-        {showGlobalStatsGrid && (
-          <section className="crm-stats-grid hide-on-print">
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box total"><i className="fas fa-users"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.total || 0}</h3>
-                <p>Total de Negociaciones</p>
-              </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box whatsapp"><i className="fab fa-whatsapp"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.whatsapp || 0}</h3>
-                <p>Vía WhatsApp</p>
-              </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box contact"><i className="fas fa-envelope"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.form || 0}</h3>
-                <p>Formulario</p>
-              </div>
-            </div>
-            <div className="crm-stat-card glass">
-              <div className="stat-icon-box qualified"><i className="fas fa-user-check"></i></div>
-              <div className="stat-val-box">
-                <h3>{stats.qualified || 0}</h3>
-                <p>Calificados</p>
-              </div>
-            </div>
-          </section>
-        )}
+
 
         {children}
       </main>

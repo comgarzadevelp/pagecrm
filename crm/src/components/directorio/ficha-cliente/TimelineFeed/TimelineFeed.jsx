@@ -105,7 +105,10 @@ export default function TimelineFeed({
   return (
     <div className="timeline-track timeline-track-scroll">
       {filteredItems.map((evt, idx) => {
-        if (evt.isEvidence || evt.photoUrl || evt.photo_url) {
+        // Las evidencias fotográficas reales de visitas de campo de obras provienen de Fieldflow
+        const isFieldflowEvidence = (evt.type === 'evidence' || evt.isEvidence) && evt.created_from === 'fieldflow';
+        
+        if (isFieldflowEvidence) {
           return (
             <FotoEvidencia
               key={evt.id || idx}
@@ -113,6 +116,11 @@ export default function TimelineFeed({
               onPhotoClick={(url) => window.open(url, '_blank')}
             />
           );
+        }
+
+        // Si fue una foto subida por error de timeline viejo de negociaciones (que no vino de fieldflow), la omitimos de FotoEvidencia
+        if (evt.type === 'evidence' && evt.created_from !== 'fieldflow') {
+          return null;
         }
 
         const nodeClass = `timeline-node timeline-node-${evt.isVisita ? 'visit' : (evt.isChange ? 'manual' : 'manual')}`;
@@ -128,6 +136,36 @@ export default function TimelineFeed({
           iconName = 'fa-user-shield';
           nodeIconClass = "timeline-node-icon-change";
         }
+
+        // Extraer fotos y adjuntos específicos de la oportunidad
+        const rawPhotos = [];
+        if (evt.photoUrl) rawPhotos.push(evt.photoUrl);
+        if (evt.photo_url) rawPhotos.push(evt.photo_url);
+        if (Array.isArray(evt.photos)) rawPhotos.push(...evt.photos);
+        if (Array.isArray(evt.evidence_photos)) rawPhotos.push(...evt.evidence_photos);
+        if (Array.isArray(evt.attachments)) rawPhotos.push(...evt.attachments);
+
+        if (evt.type === 'opportunity') {
+          const extractFromText = (txt) => {
+            if (!txt || typeof txt !== 'string' || !txt.trim().startsWith('{')) return;
+            try {
+              const p = JSON.parse(txt.trim());
+              if (Array.isArray(p.evidence_photos)) rawPhotos.push(...p.evidence_photos);
+              if (Array.isArray(p.attachments)) rawPhotos.push(...p.attachments);
+              if (Array.isArray(p.photos)) rawPhotos.push(...p.photos);
+              if (Array.isArray(p.timeline)) {
+                p.timeline.forEach(t => {
+                  if (t.photoUrl || t.photo_url) rawPhotos.push(t.photoUrl || t.photo_url);
+                });
+              }
+            } catch (e) {}
+          };
+          extractFromText(evt.notes);
+          extractFromText(evt.description);
+          extractFromText(evt.text);
+        }
+
+        const eventPhotos = Array.from(new Set(rawPhotos.filter(Boolean)));
 
         return (
           <div key={evt.id || idx} className={nodeClass}>
@@ -148,6 +186,67 @@ export default function TimelineFeed({
                 </span>
               </div>
               <p className="timeline-node-text timeline-node-text-plain">{evt.text}</p>
+
+              {/* Anexos y Comprobantes Adjuntos en Oportunidades Moradas */}
+              {evt.type === 'opportunity' && eventPhotos.length > 0 && (
+                <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {eventPhotos.map((pUrl, pIdx) => {
+                    const cleanPath = String(pUrl).toLowerCase();
+                    const isPdf = cleanPath.endsWith('.pdf') || cleanPath.includes('.pdf');
+                    const src = pUrl.startsWith('http') ? pUrl : `https://comgarza.com${pUrl.startsWith('/') ? '' : '/'}${pUrl}`;
+
+                    if (isPdf) {
+                      return (
+                        <a
+                          key={pIdx}
+                          href={src}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 10px',
+                            borderRadius: '8px',
+                            background: '#fef2f2',
+                            border: '1px solid #fca5a5',
+                            color: '#991b1b',
+                            fontSize: '0.7rem',
+                            fontWeight: '700',
+                            textDecoration: 'none'
+                          }}
+                        >
+                          <i className="fas fa-file-pdf" style={{ fontSize: '1rem', color: '#dc2626' }} />
+                          <span>Documento PDF Adjunto #{pIdx + 1} ↗</span>
+                        </a>
+                      );
+                    }
+
+                    return (
+                      <a
+                        key={pIdx}
+                        href={src}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: 'block',
+                          width: '48px',
+                          height: '48px',
+                          borderRadius: '8px',
+                          overflow: 'hidden',
+                          border: '1px solid #cbd5e1'
+                        }}
+                      >
+                        <img
+                          src={src}
+                          alt="Anexo"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
 
               {evt.gps_lat && evt.gps_lng && (
                 <div className="timeline-gps-box">

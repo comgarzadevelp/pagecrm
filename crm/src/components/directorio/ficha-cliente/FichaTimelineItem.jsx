@@ -1,5 +1,5 @@
 import React from 'react';
-import FotoEvidencia from './FotoEvidencia';
+import FotoEvidencia, { resolvePhotoUrl } from './FotoEvidencia';
 
 function defaultFormatDate(d) {
   if (!d) return '';
@@ -65,13 +65,46 @@ export function compileTimelineItems(notesInput, visitas = []) {
   return list.sort((a, b) => b.ts - a.ts);
 }
 
+
 export default function FichaTimelineItem({ tl, formatDate = defaultFormatDate, onPhotoClick }) {
   if (!tl) return null;
 
-  const photoUrl = tl.photoUrl || tl.photo_url;
-  const isEvidenceItem = tl.isEvidence || !!photoUrl;
+  const rawPhotos = [];
+  if (tl.photoUrl) rawPhotos.push(tl.photoUrl);
+  if (tl.photo_url) rawPhotos.push(tl.photo_url);
+  if (Array.isArray(tl.photos)) rawPhotos.push(...tl.photos);
+  if (Array.isArray(tl.evidence_photos)) rawPhotos.push(...tl.evidence_photos);
+  if (Array.isArray(tl.attachments)) rawPhotos.push(...tl.attachments);
 
-  // Si el evento es una evidencia fotográfica o incluye foto de FieldFlow, renderiza FotoEvidencia
+  const extractFromText = (txt) => {
+    if (!txt || typeof txt !== 'string' || !txt.trim().startsWith('{')) return;
+    try {
+      const p = JSON.parse(txt.trim());
+      if (Array.isArray(p.evidence_photos)) rawPhotos.push(...p.evidence_photos);
+      if (Array.isArray(p.attachments)) rawPhotos.push(...p.attachments);
+      if (Array.isArray(p.photos)) rawPhotos.push(...p.photos);
+      if (Array.isArray(p.timeline)) {
+        p.timeline.forEach(t => {
+          if (t.photoUrl || t.photo_url) rawPhotos.push(t.photoUrl || t.photo_url);
+        });
+      }
+    } catch (e) {}
+  };
+
+  extractFromText(tl.notes);
+  extractFromText(tl.description);
+  extractFromText(tl.text);
+
+  const photos = Array.from(new Set(rawPhotos.filter(Boolean)));
+
+  // Ocultar duplicados históricos de fotos de negociaciones que se guardaron como tipo 'evidence'
+  if (tl.type === 'evidence' && (!tl.created_from || tl.created_from !== 'fieldflow')) {
+    return null;
+  }
+
+  const isEvidenceItem = (tl.type === 'evidence' && tl.created_from === 'fieldflow') || (tl.isEvidence && !tl.isLead && tl.type !== 'opportunity' && tl.created_from === 'fieldflow');
+
+  // Si el evento es una evidencia fotográfica de visita aislada (Fieldflow), renderiza FotoEvidencia
   if (isEvidenceItem) {
     return (
       <FotoEvidencia
@@ -85,7 +118,10 @@ export default function FichaTimelineItem({ tl, formatDate = defaultFormatDate, 
   let iconClass = 'nota';
   let faIcon = 'fa-sticky-note';
 
-  if (tl.isVisita) {
+  if (tl.type === 'opportunity') {
+    iconClass = 'opportunity';
+    faIcon = 'fa-handshake';
+  } else if (tl.isVisita) {
     iconClass = 'visita';
     faIcon = tl.type === 'llamada' ? 'fa-phone' : 'fa-map-marker-alt';
   } else if (tl.isChange) {
@@ -95,13 +131,16 @@ export default function FichaTimelineItem({ tl, formatDate = defaultFormatDate, 
 
   return (
     <div className="fc-timeline-item">
-      <div className={`fc-tl-icon ${iconClass}`}>
+      <div 
+        className={`fc-tl-icon ${iconClass}`} 
+        style={tl.type === 'opportunity' ? { background: 'rgba(147, 51, 234, 0.12)', color: '#9333ea' } : {}}
+      >
         <i className={`fas ${faIcon}`} />
       </div>
       <div className="fc-tl-content">
         <div className="fc-tl-meta">
-          <span className="fc-tl-type">
-            {tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial')}
+          <span className="fc-tl-type" style={tl.type === 'opportunity' ? { color: '#9333ea', fontWeight: '800' } : {}}>
+            {tl.title || (tl.isChange ? (tl.type === 'archive' ? 'Archivado' : 'Cambio de Datos') : (tl.isVisita ? 'Actividad' : 'Nota Comercial'))}
           </span>
           <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '600' }}>por {tl.author || 'Usuario'}</span>
           <span className="fc-tl-date">{formatDate(tl.date)}</span>
@@ -109,6 +148,81 @@ export default function FichaTimelineItem({ tl, formatDate = defaultFormatDate, 
 
         {tl.text && <div className="fc-tl-text" style={{ whiteSpace: 'pre-wrap' }}>{tl.text}</div>}
         {tl.sub && <div className="fc-tl-sub">{tl.sub}</div>}
+
+        {/* Galería de Fotografías y Anexos Adjuntos (PDFs) */}
+        {photos.length > 0 && (
+          <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {photos.map((pUrl, pIdx) => {
+              const fullUrl = resolvePhotoUrl(pUrl);
+              const cleanPath = String(pUrl).toLowerCase();
+              const isPdf = cleanPath.endsWith('.pdf') || cleanPath.includes('.pdf');
+
+              if (isPdf) {
+                return (
+                  <a
+                    key={pIdx}
+                    href={fullUrl && fullUrl.startsWith('http') ? fullUrl : `https://comgarza.com${(fullUrl || '').replace(/^https?:\/\/[^\/]+/, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      background: '#fef2f2',
+                      border: '1px solid #fca5a5',
+                      color: '#991b1b',
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <i className="fas fa-file-pdf" style={{ fontSize: '1.2rem', color: '#dc2626' }} />
+                    <span>Documento PDF Adjunto #{pIdx + 1} ↗</span>
+                  </a>
+                );
+              }
+
+              return (
+                <a
+                  key={pIdx}
+                  href={fullUrl && fullUrl.startsWith('http') ? fullUrl : `https://comgarza.com${(fullUrl || '').replace(/^https?:\/\/[^\/]+/, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    if (onPhotoClick) {
+                      e.preventDefault();
+                      onPhotoClick(fullUrl);
+                    }
+                  }}
+                  style={{
+                    display: 'block',
+                    borderRadius: '8px',
+                    overflow: 'hidden',
+                    border: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    maxWidth: photos.length === 1 ? '100%' : '180px',
+                    maxHeight: '200px'
+                  }}
+                >
+                  <img
+                    src={fullUrl}
+                    alt={`Evidencia adjunta #${pIdx + 1}`}
+                    onError={(e) => {
+                      if (fullUrl && !e.target.dataset.retried) {
+                        e.target.dataset.retried = 'true';
+                        const cleanP = fullUrl.replace(/^https?:\/\/[^\/]+/, '');
+                        e.target.src = `https://comgarza.com${cleanP.startsWith('/') ? '' : '/'}${cleanP}`;
+                      }
+                    }}
+                    style={{ width: '100%', height: '100%', maxHeight: '200px', objectFit: 'cover', display: 'block' }}
+                  />
+                </a>
+              );
+            })}
+          </div>
+        )}
 
         {/* Mini-mapa interactivo para visitas presenciales/llamadas con coordenadas GPS */}
         {tl.gps_lat && tl.gps_lng && (

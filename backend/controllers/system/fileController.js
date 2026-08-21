@@ -26,7 +26,24 @@ export const getFiles = async (req, res) => {
 
     const { data, error } = await query;
     if (error) throw error;
-    res.json({ success: true, files: data });
+
+    // Filtrar evidencias accidentales de negociaciones/clientes que no deben pertenecer al Contenedor de Recursos corporativo
+    const sanitizedFiles = (data || []).filter(f => {
+      const nameLower = (f.name || '').toLowerCase();
+      const urlLower = (f.file_url || '').toLowerCase();
+
+      const isAccidentalEvidence = (
+        nameLower.includes('whatsapp image') ||
+        nameLower.includes('captura de pantalla') ||
+        nameLower.includes('viviendas bienestar') ||
+        nameLower.includes('solicitud de gasto') ||
+        urlLower.includes('/evidences/')
+      );
+
+      return !isAccidentalEvidence;
+    });
+
+    res.json({ success: true, files: sanitizedFiles });
   } catch (err) {
     console.error('getFiles error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener archivos.' });
@@ -142,3 +159,78 @@ export const deleteFile = async (req, res) => {
     res.status(500).json({ success: false, message: 'Error al eliminar archivo.' });
   }
 };
+
+// POST /api/crm/upload-evidence — Subida de evidencias aisladas para expedientes/oportunidades
+// NO inserta en la tabla file_container (evita que aparezca en el Contenedor de Recursos global)
+export const uploadEvidenceFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se recibió ningún archivo de evidencia.' });
+    }
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(req.file.originalname) || '';
+    const fileName = `${uniqueSuffix}${ext}`;
+    let fileUrl = '';
+
+    try {
+      const { uploadToR2 } = await import('../../services/r2Service.js');
+      fileUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'evidences');
+    } catch (r2Err) {
+      console.warn('R2 upload failed or not configured for evidence, saving to local filesystem:', r2Err.message);
+      const uploadDir = path.join(__dirname, '../../public/uploads/evidences');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `/api/uploads/evidences/${fileName}`;
+    }
+
+    return res.status(201).json({
+      success: true,
+      file_url: fileUrl,
+      name: req.file.originalname
+    });
+  } catch (err) {
+    console.error('uploadEvidenceFile error:', err);
+    res.status(500).json({ success: false, message: 'Error al procesar la evidencia.' });
+  }
+};
+
+// POST /api/crm/upload-attachment — Subida de anexos/comprobantes comerciales (PDFs, cotizaciones, órdenes de compra)
+export const uploadAttachmentFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No se recibió ningún archivo adjunto.' });
+    }
+
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    const ext = path.extname(req.file.originalname) || '';
+    const fileName = `${uniqueSuffix}${ext}`;
+    let fileUrl = '';
+
+    try {
+      const { uploadToR2 } = await import('../../services/r2Service.js');
+      fileUrl = await uploadToR2(req.file.buffer, fileName, req.file.mimetype, 'annexes');
+    } catch (r2Err) {
+      const uploadDir = path.join(__dirname, '../../public/uploads/annexes');
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+      const filePath = path.join(uploadDir, fileName);
+      fs.writeFileSync(filePath, req.file.buffer);
+      fileUrl = `/api/uploads/annexes/${fileName}`;
+    }
+
+    return res.status(201).json({
+      success: true,
+      file_url: fileUrl,
+      name: req.file.originalname
+    });
+  } catch (err) {
+    console.error('uploadAttachmentFile error:', err);
+    res.status(500).json({ success: false, message: 'Error al procesar el anexo comercial.' });
+  }
+};
+

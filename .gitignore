@@ -152,5 +152,6 @@ crm/.env*
 frontend_page/node_modules/
 frontend_page/dist/
 frontend_page/.env*
-
+# Reference repositories
+react-whatsapp-web-reference/
 

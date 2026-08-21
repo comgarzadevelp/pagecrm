@@ -30,7 +30,7 @@ import {
   searchObras, getObrasByCompany, getObrasByContact, createObra, linkCompanyToObra, linkContactToObra, getObraLeads, updateObra
 } from '../controllers/obraController.js';
 
-import { getFiles, uploadFile, deleteFile } from '../controllers/fileController.js';
+import { getFiles, uploadFile, deleteFile, uploadEvidenceFile, uploadAttachmentFile } from '../controllers/fileController.js';
 
 import {
   getExtendedProfile, updateProfile, changeOwnPassword
@@ -46,6 +46,7 @@ import {
 } from '../controllers/moduleConfigController.js';
 
 import { createVisita, getVisitasByEntity, getMyActivities } from '../controllers/visitaController.js';
+import { validateWhatsappNumber } from '../controllers/leads/leadController.js';
 
 const upload = multer({ storage: multer.memoryStorage() });
 const router = express.Router();
@@ -71,8 +72,10 @@ router.put('/leads/:id', updateLead);
 router.put('/leads/:id/stage', updateLeadStage);
 router.put('/leads/:id/assign', assignLead);
 router.post('/leads/:id/promote', promoteLeadToOpportunity);
-router.post('/leads/:id/discard', discardLead);
 router.get('/chat-history/:sessionId', getChatHistory);
+
+// ── WHATSAPP VALIDATION ───────────────────────────────────────
+router.post('/whatsapp/validate', validateWhatsappNumber);
 
 // ── CLIENTES (Customers Directory) ───────────────────────────
 router.get('/customers', getCustomers);
@@ -128,10 +131,14 @@ router.get('/quotes/all', getAllQuotes);
 router.post('/quotes', saveQuote);
 router.delete('/quotes/:id', deleteQuote);
 
-// ── CONTENEDOR DE ARCHIVOS ────────────────────────────────────
+// ── CONTENEDOR DE ARCHIVOS (Recursos Oficiales) ─────────────
 router.get('/files', getFiles);
 router.post('/files', upload.single('file'), uploadFile);
 router.delete('/files/:id', deleteFile);
+
+// ── SUBIDA DE EVIDENCIAS Y ANEXOS COMERCIALES DE OPORTUNIDADES ─────────
+router.post('/upload-evidence', upload.single('file'), uploadEvidenceFile);
+router.post('/upload-attachment', upload.single('file'), uploadAttachmentFile);
 
 // ── PERFIL DE USUARIO ─────────────────────────────────────────
 router.get('/profile', getExtendedProfile);

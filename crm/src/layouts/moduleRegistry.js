@@ -76,6 +76,14 @@ export const MODULE_REGISTRY = {
     category: 'productivity',
     needsData: [],
   },
+  whatsapp: {
+    key: 'whatsapp',
+    label: 'WhatsApp',
+    icon: 'fa-whatsapp',
+    iconPrefix: 'fab',
+    category: 'productivity',
+    needsData: [],
+  },
 
 
   customers: {
@@ -175,23 +183,23 @@ export const MODULE_REGISTRY = {
 
 export const ROLE_DEFAULTS = {
   super_admin: [
-    'dashboard', 'sa-stats', 'sa-contacts', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile',
+    'dashboard', 'sa-stats', 'sa-contacts', 'directory', 'enterprise-group', 'module-config', 'chatbot-config', 'personnel', 'agenda', 'notifications', 'profile', 'whatsapp',
   ],
   admin: [
     'inicio', 'dashboard', 'directory', 'personal-agenda', 'ventas',
-    'quotes', 'obras', 'files', 'archive-contacts', 'notifications', 'profile',
+    'quotes', 'obras', 'files', 'archive-contacts', 'notifications', 'profile', 'whatsapp',
     'orphans', 'sellers',
   ],
   supervisor: [
     'inicio', 'dashboard', 'directory', 'personal-agenda', 'ventas',
-    'obras', 'notifications', 'profile', 'sellers',
+    'obras', 'notifications', 'profile', 'sellers', 'whatsapp',
   ],
   sales: [
     'inicio', 'ventas', 'directory', 'personal-agenda', 'quotes',
-    'files', 'archive-contacts', 'profile',
+    'files', 'archive-contacts', 'profile', 'whatsapp',
   ],
   sistemas: [
-    'files', 'notifications', 'profile',
+    'files', 'notifications', 'profile', 'whatsapp',
   ],
 };
 

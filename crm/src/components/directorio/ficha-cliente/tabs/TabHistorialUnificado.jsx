@@ -264,13 +264,33 @@ export default function TabHistorialUnificado({
 
   if (opportunities) {
     opportunities.forEach(opp => {
+      let extractedPhotos = [];
+      try {
+        if (opp.notes && typeof opp.notes === 'string' && opp.notes.trim().startsWith('{')) {
+          const parsedN = JSON.parse(opp.notes);
+          if (Array.isArray(parsedN.evidence_photos)) extractedPhotos.push(...parsedN.evidence_photos);
+          if (Array.isArray(parsedN.photos)) extractedPhotos.push(...parsedN.photos);
+          if (Array.isArray(parsedN.timeline)) {
+            parsedN.timeline.forEach(t => {
+              if (t.photoUrl || t.photo_url) extractedPhotos.push(t.photoUrl || t.photo_url);
+            });
+          }
+        }
+      } catch (e) {}
+      if (Array.isArray(opp.evidence_photos)) extractedPhotos.push(...opp.evidence_photos);
+      if (opp.evidence_photo_url) extractedPhotos.push(opp.evidence_photo_url);
+      if (opp.photo_url) extractedPhotos.push(opp.photo_url);
+
+      const photoUrl = extractedPhotos.filter(Boolean)[0] || null;
+
       eventsList.push({
         date: new Date(opp.created_at),
         title: '💼 Oportunidad Registrada',
         text: `Se inició el proyecto comercial "${opp.title}" con etapa "${opp.stage.toUpperCase()}" y un valor estimado de $${parseFloat(opp.value || 0).toLocaleString('es-MX', { minimumFractionDigits: 2 })}.`,
         author: opp.assigned_user?.name || 'Vendedor',
         icon: 'fa-handshake',
-        color: 'gold'
+        color: 'gold',
+        photoUrl: photoUrl
       });
     });
   }

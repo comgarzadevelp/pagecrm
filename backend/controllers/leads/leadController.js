@@ -661,22 +661,40 @@ export const createManualLead = async (req, res) => {
 
     if (sharedEvidenceNode) notesPayload.timeline.push(sharedEvidenceNode);
 
+    // Los anexos de la negociación no generan entradas de tipo "evidence" en el timeline histórico de visitas (se conservan en attachments)
+
     const reqContactId = req.body.contact_id || null;
     const reqCompanyId = req.body.company_id || null;
 
+    const finalLeadName = leadContactName || leadCompanyName || req.body.contact_name || req.body.company_name || 'Cliente Comercial';
+    const finalLeadPhone = leadContactPhone || req.body.contact_phone || '8000000000';
+    const finalLeadCompany = leadCompanyName || leadContactName || '';
+
     const insertPayload = {
-      name: leadContactName.trim(),
+      name: finalLeadName.trim(),
       email: leadContactEmail ? leadContactEmail.trim() : null,
-      phone: leadContactPhone.trim(),
-      company: leadCompanyName.trim(),
+      phone: finalLeadPhone.trim(),
+      company: finalLeadCompany.trim(),
       notes: JSON.stringify(notesPayload),
-      assigned_to: userId,
+      assigned_to: userId || null,
       status: 'nuevo',
       type: 'vendedor_manual'
     };
 
     if (reqCompanyId && !String(reqCompanyId).startsWith('company-') && !String(reqCompanyId).startsWith('sae-')) {
-      insertPayload.company_id = reqCompanyId;
+      try {
+        const { data: checkEnt } = await supabase
+          .from('enterprise_companies')
+          .select('id')
+          .eq('id', reqCompanyId)
+          .maybeSingle();
+
+        if (checkEnt) {
+          insertPayload.company_id = checkEnt.id;
+        }
+      } catch (entErr) {
+        console.warn('[createManualLead] reqCompanyId no pertenece a enterprise_companies:', entErr.message);
+      }
     }
 
     // 1. Crear registro en 'leads'
@@ -754,11 +772,18 @@ export const createManualLead = async (req, res) => {
       ? requirement_title.trim()
       : (leadObraName ? `${leadObraName} - ${leadCompanyName || leadContactName}` : `Negociación - ${leadCompanyName || leadContactName}`);
 
-    const oppDescriptionText = `${leadObraName ? `[Obra: ${leadObraName}]\n` : ''}${notes || 'Negociación registrada en el CRM.'}`;
+    const oppDescriptionPayload = {
+      general: notes || 'Negociación registrada en el CRM.',
+      project_name: leadObraName,
+      requirement_title: requirement_title?.trim() || oppTitle,
+      evidence_photos: Array.isArray(req.body.evidence_photos) ? req.body.evidence_photos : [],
+      attachments: Array.isArray(req.body.evidence_photos) ? req.body.evidence_photos : [],
+      timeline: notesPayload.timeline || []
+    };
 
     const opportunityPayload = {
       title: oppTitle,
-      description: oppDescriptionText,
+      description: JSON.stringify(oppDescriptionPayload),
       stage: 'nuevo',
       type: 'proyecto',
       value: 0,
@@ -782,6 +807,18 @@ export const createManualLead = async (req, res) => {
         console.error('[createManualLead] Error al insertar en crm_opportunities:', oppErr);
       } else {
         opportunityData = opp;
+      }
+
+      // Actualizar también la tabla leads con los IDs resueltos
+      if (newLead?.id && (resolvedContactId || resolvedCompanyId)) {
+        await supabase
+          .from('leads')
+          .update({
+            contact_id: resolvedContactId || undefined,
+            company_id: resolvedCompanyId || undefined
+          })
+          .eq('id', newLead.id)
+          .catch(() => {});
       }
     } catch (oppExc) {
       console.error('[createManualLead] Excepción al crear crm_opportunities:', oppExc);
@@ -1044,5 +1081,87 @@ export const getOrphanLeads = async (req, res) => {
   } catch (err) {
     console.error('getOrphanLeads error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener leads huérfanos.' });
+  }
+};
+
+export const validateWhatsappNumber = async (req, res) => {
+  try {
+    const { customerId, phone } = req.body;
+    const userId = req.user?.userId || 'default';
+    const authorName = req.user?.name || 'Vendedor';
+
+    if (!customerId || !phone) {
+      return res.status(400).json({ success: false, message: 'Falta customerId o phone en el request.' });
+    }
+
+    // Normalizar número de México
+    let digits = phone.replace(/\D/g, '');
+    let normalized = digits;
+    if (digits.length === 10) {
+      normalized = '521' + digits;
+    } else if (digits.startsWith('52') && digits.length === 12) {
+      normalized = '521' + digits.slice(2);
+    }
+
+    let isRegistered = false;
+    let waServiceError = null;
+
+    try {
+      const waRes = await fetch(`http://localhost:5002/api/whatsapp/check-number/${normalized}`, {
+        headers: { 'x-user-id': req.user?.name || 'usuario_crm' }
+      });
+      const waData = await waRes.json();
+      if (waData.success) {
+        isRegistered = waData.isRegistered;
+      } else {
+        waServiceError = waData.message || 'Error en el microservicio';
+      }
+    } catch (fetchErr) {
+      console.warn('[WA-VALIDATION] No se pudo conectar al microservicio de WhatsApp en el puerto 5002:', fetchErr.message);
+      waServiceError = 'Microservicio de WhatsApp desconectado o sin iniciar sesión';
+    }
+
+    // Buscar el lead/cliente en Supabase para registrar el evento
+    const { data: lead, error: fetchErr } = await supabase
+      .from('leads')
+      .select('notes, name')
+      .eq('id', customerId)
+      .maybeSingle();
+
+    if (!fetchErr && lead) {
+      let parsed = { general: '', timeline: [] };
+      if (lead.notes) {
+        try {
+          const p = JSON.parse(lead.notes.trim());
+          if (p.timeline) parsed = p;
+          else parsed.general = lead.notes;
+        } catch {
+          parsed.general = lead.notes;
+        }
+      }
+
+      // Crear comentario de historial
+      const newComment = {
+        type: 'nota',
+        text: isRegistered
+          ? `Intento de contacto por WhatsApp: El número [${phone}] se validó correctamente y cuenta con WhatsApp activo.`
+          : `Intento de contacto por WhatsApp fallido: El número [${phone}] no está registrado en WhatsApp o la cuenta no existe. ${waServiceError ? `(${waServiceError})` : 'Favor de actualizar la información.'}`,
+        date: new Date().toISOString(),
+        author: authorName,
+        created_from: 'cliente'
+      };
+
+      parsed.timeline = [newComment, ...(parsed.timeline || [])];
+      
+      await supabase
+        .from('leads')
+        .update({ notes: JSON.stringify(parsed) })
+        .eq('id', customerId);
+    }
+
+    return res.json({ success: true, isRegistered, normalized });
+  } catch (err) {
+    console.error('validateWhatsappNumber error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al validar el número.' });
   }
 };

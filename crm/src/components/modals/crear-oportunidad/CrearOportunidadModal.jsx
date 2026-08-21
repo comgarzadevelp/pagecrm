@@ -343,21 +343,31 @@ export default function CrearOportunidadModal({
       const token = localStorage.getItem('token');
       let uploadedPhotoUrls = [];
 
-      // 1. Upload photos if any
+      // 1. Subir anexos y comprobantes del cliente si los hay
       if (photos.length > 0) {
-        showToast('Subiendo fotografías de evidencia...', 'info');
+        showToast('Subiendo anexos y comprobantes adjuntos...', 'info');
         const uploadPromises = photos.map(async (p) => {
-          const formData = new FormData();
-          formData.append('file', p.file);
+          // Si el archivo ya fue subido en un intento previo que falló en el envío del formulario principal, reusar URL
+          if (p.uploadedUrl || (p.url && (p.url.startsWith('http') || p.url.startsWith('/api/')))) {
+            return p.uploadedUrl || p.url;
+          }
+          try {
+            const formData = new FormData();
+            formData.append('file', p.file);
 
-          const res = await fetch(`${API_BASE}/api/crm/files`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}` },
-            body: formData
-          });
-          const data = await res.json();
-          if (data.success && data.file && data.file.file_url) {
-            return data.file.file_url;
+            const res = await fetch(`${API_BASE}/api/crm/upload-attachment`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}` },
+              body: formData
+            });
+            const data = await res.json();
+            if (data.success && (data.file_url || data.file?.file_url)) {
+              const url = data.file_url || data.file.file_url;
+              p.uploadedUrl = url; // Cachear URL en el objeto de la foto
+              return url;
+            }
+          } catch (fileErr) {
+            console.warn('Error al subir anexo comercial:', fileErr);
           }
           return null;
         });

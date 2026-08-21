@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Search, Building2, User, Landmark, PlusCircle, X, Check, ChevronRight, ArrowLeft, Pencil } from 'lucide-react';
 import { useFieldFlow } from '../FieldFlowContext';
@@ -1332,10 +1332,11 @@ export default function Step1_CustomerResolver() {
           className="fieldflow-btn-primary"
         >
           <span>Todo correcto, continuar </span>
-          <ChevronRight style={{ width: '20x', height: '20px' }} />
+          <ChevronRight style={{ width: '20px', height: '20px' }} />
         </button>
 
       </div>
     </div>
   );
 }
+

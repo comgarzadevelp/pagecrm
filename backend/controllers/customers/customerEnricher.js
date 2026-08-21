@@ -61,6 +61,23 @@ export const getCustomers = async (req, res) => {
     let nativeCustomers = [];
     let saeCustomers = [];
 
+    const searchQuery = req.query?.q ? String(req.query.q).trim() : '';
+
+    // 0. Obtener catálogo de vendedores para mapeo de nombres de ejecutivos (CRM y SAE)
+    const { data: allUsers } = await supabase
+      .from('crm_users')
+      .select('id, name, sae_vendor_key');
+    const userById = {};
+    const userBySaeKey = {};
+    (allUsers || []).forEach(u => {
+      userById[u.id] = u.name;
+      if (u.sae_vendor_key) {
+        userBySaeKey[String(u.sae_vendor_key).trim()] = u.name;
+        userBySaeKey[String(u.sae_vendor_key).trim().padStart(2, '0')] = u.name;
+        userBySaeKey[String(u.sae_vendor_key).trim().replace(/^0+/, '')] = u.name;
+      }
+    });
+
     // =========================================================================
     // 1. OBTENER CLIENTES CRM NATIVOS ACTIVOS (EXCLUIR DESCARTADOS/ARCHIVADOS)
     // =========================================================================
@@ -82,11 +99,18 @@ export const getCustomers = async (req, res) => {
       .eq('type', 'crm_customer')
       .order('created_at', { ascending: false });
 
-    // Filtrado seguro para rol ventas: Si se reconoce userId, filtrar por assigned_to
-    if (role === 'sales' && userId) {
-      query = query.eq('assigned_to', userId);
-    } else if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
-      query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+    // Filtrado de Leads: si hay búsqueda global 'q', busca en toda la base; si no, solo propios
+    if (searchQuery) {
+      query = query.or(`name.ilike.%${searchQuery}%,company.ilike.%${searchQuery}%`);
+      if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+        query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+      }
+    } else {
+      if (role === 'sales' && userId) {
+        query = query.eq('assigned_to', userId);
+      } else if (role !== 'super_admin' && companyId && !String(companyId).startsWith('company-')) {
+        query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+      }
     }
 
     const { data: crmCustomers, error: crmErr } = await query;
@@ -99,7 +123,7 @@ export const getCustomers = async (req, res) => {
     const archivedIds = new Set((archivedRecs || []).map(r => r.sae_id).filter(Boolean));
     const archivedClaves = new Set((archivedRecs || []).map(r => r.clave?.trim()).filter(Boolean));
 
-    // Filtrar clientes nativos: Excluir los que estén archivados permanentemente, PERO conservar los descartados temporalmente (Nivel 5)
+    // Filtrar clientes nativos: Excluir archivados y marcar is_foreign si pertenecen a otro ejecutivo
     nativeCustomers = (crmCustomers || []).filter(cust => {
       let notesObj = null;
       if (cust.notes) {
@@ -109,6 +133,17 @@ export const getCustomers = async (req, res) => {
       if (cust.company_id && archivedIds.has(cust.company_id)) return false;
       if (notesObj?.sae_clave && (archivedClaves.has(notesObj.sae_clave) || archivedIds.has(`sae-${notesObj.sae_clave}`))) return false;
       return true;
+    }).map(cust => {
+      const assignedUser = cust.assigned_to;
+      const assignedId = typeof assignedUser === 'object' ? assignedUser?.id : assignedUser;
+      const assignedName = typeof assignedUser === 'object' ? (assignedUser?.name || userById[assignedId]) : (userById[assignedId] || 'Otro ejecutivo');
+      const isForeign = Boolean(searchQuery && role === 'sales' && userId && assignedId && assignedId !== userId);
+
+      return {
+        ...cust,
+        is_foreign: isForeign,
+        assigned_to_name: assignedName || 'Otro ejecutivo'
+      };
     });
 
     // Registrar claves archivadas de los leads archivados
@@ -128,13 +163,10 @@ export const getCustomers = async (req, res) => {
 
     // =========================================================================
     // 2. CONSULTA BLINDADA A ASPEL SAE — sae_vendor_key leído desde DB
-    //    El JWT no incluye sae_vendor_key, por lo que se consulta crm_users
-    //    directamente, idéntico al patrón de companyController.js líneas 177-185
     // =========================================================================
     const saeObj = getSaeConnection(req.user);
     if (saeObj.saeClient) {
       try {
-        // --- Obtener vendorKey desde la base de datos (no desde JWT) ---
         let vendorKey = null;
         if (role === 'sales' && userId) {
           const { data: userRec } = await supabase
@@ -150,22 +182,20 @@ export const getCustomers = async (req, res) => {
         const userCompanyCode = (req.user?.company_code || req.user?.companyCode || '').toUpperCase().trim();
         const isUnifiedPlaza = userCompanyCode === 'CGG';
 
-        console.log('[SAE Auth Debug] User:', userId, 'Role:', role, 'VendorKey (DB):', vendorKey, 'CompanyCode:', userCompanyCode);
-
         let shouldExecuteQuery = true;
         let saeQuery = saeObj.saeClient
           .from(`clie${saeObj.suffix}`)
           .select('clave, nombre, nombrecomercial, rfc, calle, numext, municipio, estado, telefono, mail, cve_vend, status, fch_ultcom, ventas')
           .eq('status', 'A');
 
-        if (role === 'sales') {
+        if (searchQuery) {
+          saeQuery = saeQuery.or(`nombre.ilike.%${searchQuery}%,nombrecomercial.ilike.%${searchQuery}%,clave.ilike.%${searchQuery}%`);
+        } else if (role === 'sales') {
           if (isUnifiedPlaza) {
-            // Plaza unificada CGG: ve todos los clientes activos de la sucursal
+            // Plaza unificada CGG
           } else if (vendorKey) {
-            // Vendedor con clave SAE: filtrar estrictamente por cve_vend
             saeQuery = saeQuery.eq('cve_vend', vendorKey);
           } else {
-            // Vendedor sin clave SAE registrada: abortar para evitar fuga de datos
             console.warn(`[SAE Abort] User ${userId} (role=sales) no tiene sae_vendor_key en DB. Abortando consulta SAE.`);
             shouldExecuteQuery = false;
           }
@@ -177,23 +207,71 @@ export const getCustomers = async (req, res) => {
           if (saeErr) {
             console.error('[SAE Customers Mirror Error]', saeErr.message || saeErr);
           } else if (saeData) {
-            saeCustomers = saeData.map(client => ({
-              id: `sae-${client.clave.trim()}`,
-              name: client.nombre ? client.nombre.trim() : 'Cliente SAE',
-              company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
-              email: client.mail ? client.mail.trim() : '',
-              phone: client.telefono ? client.telefono.trim() : '',
-              rfc: client.rfc ? client.rfc.trim() : '',
-              calle: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
-              municipio: client.municipio ? client.municipio.trim() : '',
-              estado: client.estado ? client.estado.trim() : '',
-              ventas: parseFloat(client.ventas || 0),
-              created_at: client.fch_ultcom || new Date().toISOString(),
-              status: 'activo',
-              type: 'sae_customer',
-              is_sae: true,
-              sae_clave: client.clave.trim()
-            }));
+            // Resolver claves de clientes matriz para sub-clientes/obras en SAE (ej: X823-1 -> matriz 823)
+            const parentKeysToFetch = new Set();
+            saeData.forEach(c => {
+              const cl = String(c.clave || '').trim();
+              if (cl.toUpperCase().startsWith('X') && cl.includes('-')) {
+                const pKey = cl.replace(/^[Xx]/, '').split('-')[0].trim();
+                if (pKey) parentKeysToFetch.add(pKey);
+              }
+            });
+
+            const parentVendMap = {};
+            if (parentKeysToFetch.size > 0) {
+              const { data: parentVendData } = await saeObj.saeClient
+                .from(`clie${saeObj.suffix}`)
+                .select('clave, cve_vend')
+                .in('clave', Array.from(parentKeysToFetch));
+              (parentVendData || []).forEach(pv => {
+                if (pv.cve_vend) {
+                  parentVendMap[String(pv.clave).trim()] = String(pv.cve_vend).trim();
+                }
+              });
+            }
+
+            saeCustomers = saeData.map(client => {
+              const clUpper = String(client.clave || '').trim().toUpperCase();
+              let clientVendKey = client.cve_vend ? String(client.cve_vend).trim() : '';
+              if (!clientVendKey && clUpper.startsWith('X') && clUpper.includes('-')) {
+                const pKey = clUpper.replace(/^[Xx]/, '').split('-')[0].trim();
+                if (parentVendMap[pKey]) {
+                  clientVendKey = parentVendMap[pKey];
+                }
+              }
+
+              let isForeign = false;
+              let assignedToName = 'Otro ejecutivo';
+
+              if (role === 'sales' && vendorKey) {
+                const normVendorKey = String(vendorKey).trim().replace(/^0+/, '');
+                const normClientVend = clientVendKey.replace(/^0+/, '');
+                if (normClientVend && normClientVend !== normVendorKey) {
+                  isForeign = true;
+                  assignedToName = userBySaeKey[clientVendKey] || userBySaeKey[normClientVend] || `Vendedor clave ${clientVendKey}`;
+                }
+              }
+
+              return {
+                id: `sae-${client.clave.trim()}`,
+                name: client.nombre ? client.nombre.trim() : 'Cliente SAE',
+                company: client.nombrecomercial ? client.nombrecomercial.trim() : (client.nombre ? client.nombre.trim() : 'Particular'),
+                email: client.mail ? client.mail.trim() : '',
+                phone: client.telefono ? client.telefono.trim() : '',
+                rfc: client.rfc ? client.rfc.trim() : '',
+                calle: client.calle ? `${client.calle.trim()} ${client.numext ? client.numext.trim() : ''}`.trim() : '',
+                municipio: client.municipio ? client.municipio.trim() : '',
+                estado: client.estado ? client.estado.trim() : '',
+                ventas: parseFloat(client.ventas || 0),
+                created_at: client.fch_ultcom || new Date().toISOString(),
+                status: 'activo',
+                type: 'sae_customer',
+                is_sae: true,
+                sae_clave: client.clave.trim(),
+                is_foreign: isForeign,
+                assigned_to_name: assignedToName
+              };
+            });
           }
         }
       } catch (saeEx) {

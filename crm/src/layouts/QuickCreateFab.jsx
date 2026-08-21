@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import FieldFlowWizard from '../sections/inicio/fieldflow/FieldFlowWizard';
 import './QuickCreateFab.css';
 
@@ -15,14 +16,14 @@ export default function QuickCreateFab({
   customers = []
 }) {
   const [showSheet, setShowSheet] = useState(false);
-  const [activeModal, setActiveModal] = useState(null); // null | 'prospect' | 'client' | 'company' | 'contact'
+  const [showFieldFlow, setShowFieldFlow] = useState(false);
 
   // Controlar visibilidad de opciones por enabledModules del rol activo
   const hasQuotes = enabledModules.includes('quotes');
 
   React.useEffect(() => {
     const handleOpenFieldFlow = () => {
-      setActiveModal('fieldflow');
+      setShowFieldFlow(true);
     };
     window.addEventListener('open-fieldflow-wizard', handleOpenFieldFlow);
     return () => window.removeEventListener('open-fieldflow-wizard', handleOpenFieldFlow);
@@ -33,91 +34,135 @@ export default function QuickCreateFab({
     return null;
   }
 
-  const handleRefetch = () => {
-    if (fetchCustomers) fetchCustomers();
-    if (fetchOpportunitiesList) fetchOpportunitiesList();
+  const handleOpenOption = (action) => {
+    setShowSheet(false);
+    if (action === 'fieldflow') {
+      setShowFieldFlow(true);
+    } else if (action === 'quotes') {
+      if (typeof setActiveTab === 'function') {
+        setActiveTab('quotes');
+      }
+    }
   };
 
   return (
     <>
-      {/* Botón FAB "NUEVO" flotante fijo en la esquina inferior derecha */}
+      {/* Botón FAB "REGISTRAR ACTIVIDAD" flotante fijo en la esquina inferior derecha */}
       <div className="crm-fab-container">
-        <button
+        <motion.button
           type="button"
-          className="crm-fab-btn bg-[#05393A] hover:bg-[#084e4f] shadow-lg"
-          onClick={() => setShowSheet(!showSheet)}
-          title="Creación rápida"
+          className="crm-fab-btn"
+          onClick={() => setShowSheet(prev => !prev)}
+          title="Registrar Actividad"
+          whileTap={{ scale: 0.95 }}
+          whileHover={{ y: -2 }}
         >
-          <i className="fas fa-bolt"></i>
-          <span>REGISTRAR ACTIVIDAD</span>
-        </button>
+          <div className="crm-fab-icon-bubble">
+            <i className="fas fa-bolt"></i>
+          </div>
+          <span className="crm-fab-label">REGISTRAR ACTIVIDAD</span>
+        </motion.button>
       </div>
 
-      {/* Bottom Sheet de Opciones */}
-      {showSheet && (
-        <div className="quick-create-overlay" onClick={() => setShowSheet(false)}>
-          <div className="quick-create-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="quick-create-handle"></div>
-            <h3 className="quick-create-title">Creación Rápida</h3>
-
-            <div className="quick-create-options-grid flex flex-col gap-3 p-4">
+      {/* Bottom Sheet de Opciones con Framer Motion */}
+      <AnimatePresence>
+        {showSheet && (
+          <motion.div 
+            className="quick-create-overlay" 
+            onClick={() => setShowSheet(false)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+          >
+            <motion.div 
+              className="quick-create-sheet" 
+              onClick={(e) => e.stopPropagation()}
+              initial={{ y: "100%", opacity: 0.8 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: "100%", opacity: 0 }}
+              transition={{ type: "spring", damping: 28, stiffness: 320 }}
+            >
+              <div className="quick-create-handle"></div>
               
-              {/* Opción FieldFlow (Primaria) */}
-              <button
-                type="button"
-                className="w-full flex items-center gap-4 p-4 bg-[#05393A]/5 hover:bg-[#05393A]/10 border-2 border-[#05393A] rounded-xl transition-colors text-left"
-                onClick={() => {
-                  setActiveModal('fieldflow');
-                  setShowSheet(false);
-                }}
-              >
-                <div className="w-12 h-12 bg-[#05393A] rounded-full flex items-center justify-center text-white shrink-0">
-                  <i className="fas fa-bolt text-xl"></i>
+              <div className="quick-create-header">
+                <div className="quick-create-header-icon">
+                  <i className="fas fa-bolt"></i>
                 </div>
-                <div className="flex-1">
-                  <span className="block font-bold text-[#05393A] text-lg">FieldFlow / Visita</span>
-                  <span className="block text-sm text-gray-600">Registro guiado inteligente en campo</span>
+                <div className="quick-create-header-text">
+                  <h3 className="quick-create-title">Creación Rápida</h3>
+                  <p className="quick-create-subtitle">Selecciona la acción que deseas realizar</p>
                 </div>
-              </button>
+                <button 
+                  type="button" 
+                  className="quick-create-close"
+                  onClick={() => setShowSheet(false)}
+                  aria-label="Cerrar"
+                >
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
 
-              {/* Opción Cotización (Secundaria) */}
-              {hasQuotes && (
+              <div className="quick-create-cards-list">
+                
+                {/* Opción FieldFlow (Destacada / Principal) */}
                 <button
                   type="button"
-                  className="w-full flex items-center gap-4 p-4 bg-white hover:bg-gray-50 border border-gray-200 rounded-xl transition-colors text-left shadow-sm"
-                  onClick={() => {
-                    if (typeof setActiveTab === 'function') {
-                      setActiveTab('quotes');
-                    }
-                    setShowSheet(false);
-                  }}
+                  className="quick-action-card quick-action-primary"
+                  onClick={() => handleOpenOption('fieldflow')}
                 >
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 shrink-0">
-                    <i className="fas fa-calculator"></i>
+                  <div className="action-card-icon-wrap primary-pulse">
+                    <i className="fas fa-bolt"></i>
                   </div>
-                  <div className="flex-1">
-                    <span className="block font-semibold text-gray-800">Nueva Cotización</span>
-                    <span className="block text-xs text-gray-500">Flujo de escritorio</span>
+                  <div className="action-card-info">
+                    <div className="action-card-top">
+                      <span className="action-card-title">FieldFlow / Visita</span>
+                      <span className="action-card-tag">Recomendado</span>
+                    </div>
+                    <span className="action-card-desc">Registro inteligente de bitácora y visitas en campo</span>
+                  </div>
+                  <div className="action-card-arrow">
+                    <i className="fas fa-chevron-right"></i>
                   </div>
                 </button>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Modales Fullscreen Condicionales */}
-      {activeModal === 'fieldflow' && (
+                {/* Opción Cotización (Secundaria) */}
+                {hasQuotes && (
+                  <button
+                    type="button"
+                    className="quick-action-card quick-action-secondary"
+                    onClick={() => handleOpenOption('quotes')}
+                  >
+                    <div className="action-card-icon-wrap secondary-icon">
+                      <i className="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div className="action-card-info">
+                      <div className="action-card-top">
+                        <span className="action-card-title">Nueva Cotización</span>
+                      </div>
+                      <span className="action-card-desc">Crear propuesta comercial o cotización formal</span>
+                    </div>
+                    <div className="action-card-arrow">
+                      <i className="fas fa-chevron-right"></i>
+                    </div>
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal FieldFlow */}
+      {showFieldFlow && (
         <FieldFlowWizard 
-          onClose={() => setActiveModal(null)} 
+          onClose={() => setShowFieldFlow(false)} 
           onSuccess={() => {
             if (typeof fetchCustomers === 'function') fetchCustomers();
             if (typeof fetchOpportunitiesList === 'function') fetchOpportunitiesList();
           }}
         />
-
       )}
     </>
   );
 }
-

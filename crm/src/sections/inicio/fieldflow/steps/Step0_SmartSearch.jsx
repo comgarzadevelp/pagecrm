@@ -28,7 +28,7 @@ export default function Step0_SmartSearch() {
     // Capa B: Búsqueda Síncrona Local (0ms latencia)
     const fuse = new Fuse(searchIndex, {
       keys: ['nombre', 'company'],
-      threshold: 0.35,
+      threshold: 0.3,
       minMatchCharLength: 2
     });
     const localResults = fuse.search(query).map(res => res.item);
@@ -37,7 +37,7 @@ export default function Step0_SmartSearch() {
     setResults(localResults);
 
     // Capa C: Fallback a API si hay pocos resultados y query largo (Búsqueda en endpoint aislado de clientes)
-    if (localResults.length < 3 && query.trim().length >= 3) {
+    if (query.trim().length >= 2) {
       setIsSearching(true);
 
       const timer = setTimeout(async () => {
@@ -93,7 +93,7 @@ export default function Step0_SmartSearch() {
         } finally {
           setIsSearching(false);
         }
-      }, 400); // 400ms de debounce exactos
+      }, 300); // 300ms de debounce
 
       return () => clearTimeout(timer);
     } else {
@@ -262,18 +262,18 @@ export default function Step0_SmartSearch() {
                         textAlign: 'left'
                       }}
                     >
-                      <div className="result-icon-box" style={{ background: '#fef2f2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '50%', shrink: 0 }}>
+                      <div className="result-icon-box" style={{ background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '12px', shrink: 0 }}>
                         <i className="fas fa-ban"></i>
                       </div>
                       <div className="result-info" style={{ flex: 1 }}>
                         <h4 style={{ fontSize: '0.9rem', fontWeight: '800', color: '#64748b', margin: 0 }}>
-                          {entity.nombre} <span style={{ fontSize: '0.65rem', fontWeight: '850', background: '#fef2f2', color: '#ef4444', padding: '1px 5px', borderRadius: '4px', marginLeft: '4px', textTransform: 'uppercase' }}>Duplicado</span>
+                          {entity.nombre} <span style={{ fontSize: '0.65rem', fontWeight: '850', background: '#fee2e2', color: '#ef4444', padding: '1px 5px', borderRadius: '4px', marginLeft: '4px', textTransform: 'uppercase' }}>DUPLICADO</span>
                         </h4>
                         <p style={{ fontSize: '0.75rem', color: '#ef4444', fontWeight: '700', margin: '2px 0 0 0' }}>
                           {entity.company ? `${entity.company} • ` : ''}Asignado a: {entity.assigned_to_name}
                         </p>
                         <p style={{ fontSize: '0.68rem', color: '#64748b', margin: '4px 0 0 0', lineHeight: '1.25' }}>
-                          Este cliente pertenece a otro vendedor. Para evitar duplicidades, no puedes usarlo. Comunícate con administración.
+                          Este Cliente Pertenece A Otro Vendedor. Para Evitar Duplicidades, No Puedes Usarlo. Comunícate Con Administración.
                         </p>
                       </div>
                     </div>

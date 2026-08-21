@@ -79,7 +79,14 @@ const compressImage = (file) => {
 };
 
 function WizardContent({ onClose, onSuccess }) {
+  const [isExiting, setIsExiting] = useState(false);
   const { step, direction, paginate, wizardState } = useFieldFlow();
+  const handleAnimatedClose = () => {
+    setIsExiting(true);
+    setTimeout(() => {
+      if (typeof onClose === 'function') onClose();
+    }, 220);
+  };
   const [status, setStatus] = useState('idle'); // 'idle' | 'submitting' | 'success' | 'error'
   const [errorMessage, setErrorMessage] = useState('');
   const [currentActionText, setCurrentActionText] = useState('');
@@ -580,8 +587,9 @@ function WizardContent({ onClose, onSuccess }) {
   };
 
   return (
-    <div className="fieldflow-wizard-overlay">
-      {/* Header fijo */}
+    <div className={`fieldflow-wizard-overlay ${isExiting ? 'exiting' : ''}`}>
+      <div className={`fieldflow-wizard-card ${isExiting ? 'exiting' : ''}`}>
+        {/* Header fijo */}
       <header className="fieldflow-header">
         <div className="fieldflow-header-left">
           {step > 0 && status === 'idle' && (
@@ -604,7 +612,7 @@ function WizardContent({ onClose, onSuccess }) {
         {status !== 'submitting' && (
           <button 
             type="button" 
-            onClick={onClose}
+            onClick={handleAnimatedClose}
             className="fieldflow-btn-circle"
             title="Cerrar"
           >
@@ -682,7 +690,7 @@ function WizardContent({ onClose, onSuccess }) {
                     </p>
                     <button
                       type="button"
-                      onClick={onClose}
+                      onClick={handleAnimatedClose}
                       className="fieldflow-btn-primary"
                       style={{ maxWidth: '220px', height: '42px' }}
                     >
@@ -981,6 +989,7 @@ function WizardContent({ onClose, onSuccess }) {
           </motion.div>
         </AnimatePresence>
       </main>
+      </div>
     </div>
   );
 }

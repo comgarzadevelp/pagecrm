@@ -187,13 +187,23 @@ export const getContacts = async (req, res) => {
 // GET /api/crm/contacts/archived
 export const getArchivedContacts = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const userId = req.user?.userId;
+    const role = req.user?.role;
+
+    let query = supabase
       .from('archived_contacts')
       .select(`
         id, sae_id, name, position, email, phone, whatsapp, notes, archived_at,
         archived_by (id, name)
       `)
       .order('archived_at', { ascending: false });
+
+    // Privacidad: Vendedores solo ven contactos archivados por ellos
+    if (role === 'sales' && userId) {
+      query = query.eq('archived_by', userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     res.json({ success: true, contacts: data || [] });

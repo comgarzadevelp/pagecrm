@@ -1,10 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 
 /**
  * Hook para gestionar la lógica del Directorio de Clientes.
- * Extrae la lógica de filtrado local para separar la capa visual de la lógica de datos.
+ * Separa claramente clientes activos (niveles 1-4 en "Todos") de descartados (nivel 5).
  *
- * @param {Array} customers - Lista cruda de clientes obtenida del backend.
+ * @param {Array} customers - Lista de clientes obtenida del backend.
  * @returns {Object} Estado y funciones de gestión del directorio.
  */
 export function useDirectorioClientes(customers) {
@@ -18,7 +18,6 @@ export function useDirectorioClientes(customers) {
     const counts = { todos: 0, prospectos: 0, reactivacion: 0, activos: 0, recontactar: 0, descartados: 0 };
     if (!customers) return counts;
     
-    counts.todos = customers.length;
     customers.forEach(c => {
       const lvl = Number(c.nivel || 1);
       if (lvl === 1) counts.prospectos++;
@@ -27,6 +26,8 @@ export function useDirectorioClientes(customers) {
       else if (lvl === 4) counts.recontactar++;
       else if (lvl === 5) counts.descartados++;
     });
+    // "Todos" suma únicamente los clientes del embudo comercial activo (niveles 1-4)
+    counts.todos = counts.prospectos + counts.reactivacion + counts.activos + counts.recontactar;
     return counts;
   }, [customers]);
 
@@ -36,14 +37,18 @@ export function useDirectorioClientes(customers) {
     
     // 1. Filtrar por categoría seleccionada
     let list = customers;
-    if (selectedCategory !== 'todos') {
+    if (selectedCategory === 'todos') {
+      // En "Todos" se muestran solo los clientes activos
+      list = customers.filter(c => Number(c.nivel || 1) !== 5);
+    } else if (selectedCategory === 'descartados') {
+      list = customers.filter(c => Number(c.nivel || 1) === 5);
+    } else {
       list = customers.filter(c => {
         const lvl = Number(c.nivel || 1);
         if (selectedCategory === 'prospectos') return lvl === 1;
         if (selectedCategory === 'reactivacion') return lvl === 2;
         if (selectedCategory === 'activos') return lvl === 3;
         if (selectedCategory === 'recontactar') return lvl === 4;
-        if (selectedCategory === 'descartados') return lvl === 5;
         return true;
       });
     }

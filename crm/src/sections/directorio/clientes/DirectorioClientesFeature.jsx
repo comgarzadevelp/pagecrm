@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useDirectorioClientes } from '../../../hooks/directorio/useDirectorioClientes';
 import CustomerTable from '../../../components/directorio/directory-card/CustomerTable';
 import styles from './DirectorioClientes.module.css';
@@ -216,4 +216,6 @@ export default function DirectorioClientesFeature({
     </section>
   );
 }
+
+
 

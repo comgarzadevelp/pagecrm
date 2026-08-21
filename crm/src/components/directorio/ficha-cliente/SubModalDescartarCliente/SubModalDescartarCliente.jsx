@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import './SubModalDescartarCliente.css';
 
 export default function SubModalDescartarCliente({
@@ -9,14 +9,14 @@ export default function SubModalDescartarCliente({
   discardReason,
   setDiscardReason,
   discardError,
-  confirmArchiveCustomer
+  confirmDiscardCustomer
 }) {
   return (
     <div className="client-submodal-overlay" onClick={() => !isDiscarding && setShowDiscardModal(false)}>
       <div className="client-submodal-container descartar-modal-container" onClick={(e) => e.stopPropagation()}>
         <header className="submodal-header descartar-modal-header">
           <h3 className="descartar-modal-title">
-            <i className="fas fa-exclamation-triangle" /> Confirmar Descarte
+            <i className="fas fa-ban" /> Descartar Cliente
           </h3>
           <button 
             type="button" 
@@ -30,15 +30,24 @@ export default function SubModalDescartarCliente({
         <div className="submodal-form">
           <div className="descartar-modal-body-padding">
             <p className="descartar-modal-description">
-              ¿Estás seguro de que deseas archivar y descartar permanentemente a <strong>{currentCustomer?.name}</strong>?
+              ¿Deseas descartar temporalmente a <strong>{currentCustomer?.name}</strong>?
             </p>
+
+            <div className="descartar-modal-explanation-card">
+              <i className="fas fa-info-circle" style={{ color: '#0284c7', marginTop: '2px' }} />
+              <div>
+                Este cliente se moverá a la pestaña <strong>Descartados</strong> del Directorio para no alterar tus métricas del embudo activo. 
+                Podrás recuperarlo o recontactarlo cuando vuelva a tener interés de compra.
+              </div>
+            </div>
+
             <div className="form-group full-width">
               <label className="descartar-modal-label">
-                Motivo del descarte <span className="descartar-modal-required-asterisk">*</span>
+                Motivo del descarte (opcional)
               </label>
               <textarea
                 autoFocus
-                placeholder="Ej. Compró con la competencia, proyecto cancelado, etc."
+                placeholder="Ej. Proyecto pausado, sin presupuesto este trimestre, no compra ahora..."
                 value={discardReason}
                 onChange={(e) => { setDiscardReason(e.target.value); if (discardError) setDiscardError(''); }}
                 rows="3"
@@ -53,7 +62,7 @@ export default function SubModalDescartarCliente({
 
             {discardError && (
               <div className="descartar-modal-error-box">
-                <i className="fas fa-times-circle descartar-modal-error-icon" />
+                <i className="fas fa-times-circle" />
                 <span>{discardError}</span>
               </div>
             )}
@@ -76,19 +85,20 @@ export default function SubModalDescartarCliente({
             </button>
             <button 
               type="button" 
-              className="submodal-btn primary descartar-modal-confirm-btn" 
+              className="submodal-btn primary" 
               style={{ 
-                background: isDiscarding ? '#9ca3af' : '#ef4444', 
-                borderColor: isDiscarding ? '#6b7280' : '#dc2626',
+                background: isDiscarding ? '#94a3b8' : '#475569', 
+                borderColor: isDiscarding ? '#64748b' : '#334155',
+                color: '#fff',
                 cursor: isDiscarding ? 'not-allowed' : 'pointer'
               }}
-              onClick={confirmArchiveCustomer}
-              disabled={isDiscarding || discardReason.trim() === ''}
+              onClick={confirmDiscardCustomer}
+              disabled={isDiscarding}
             >
               {isDiscarding ? (
                 <><i className="fas fa-spinner fa-spin" style={{ marginRight: '6px' }} /> Descartando...</>
               ) : (
-                <><i className="fas fa-trash-alt" style={{ marginRight: '6px' }} /> Descartar Cliente</>
+                <><i className="fas fa-ban" style={{ marginRight: '6px' }} /> Descartar Cliente</>
               )}
             </button>
           </footer>

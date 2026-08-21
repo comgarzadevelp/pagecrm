@@ -1,8 +1,19 @@
 ﻿import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import FichaArchivadoModal from '../../components/modals/ficha-archivado/FichaArchivadoModal';
+import ConfirmRestoreModal from '../../components/modals/confirm-restore/ConfirmRestoreModal';
 import DetallesNegociacion from '../ventas/detalles/DetallesNegociacionFeature';
+import { useUX } from '../../components/common/UXProvider';
+import './ArchivoFeature.css';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
+
+const SUB_TABS = [
+  { id: 'customers', label: 'Clientes Archivados' },
+  { id: 'contacts', label: 'Contactos Archivados' },
+  { id: 'companies', label: 'Empresas Archivadas' },
+  { id: 'opportunities', label: 'Negociaciones Archivadas' }
+];
 
 export default function ArchivoFeature() {
   const [activeSubTab, setActiveSubTab] = useState('customers'); // 'customers' | 'contacts' | 'companies' | 'opportunities'
@@ -14,8 +25,18 @@ export default function ArchivoFeature() {
   
   const [selectedArchive, setSelectedArchive] = useState(null);
   const [selectedOpportunity, setSelectedOpportunity] = useState(null);
+  const [expandedIds, setExpandedIds] = useState({});
 
+  // Custom Confirm Restore Modal state
+  const [confirmConfig, setConfirmConfig] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const { showToast } = useUX();
   const role = localStorage.getItem('role');
+
+  const toggleExpand = (id) => {
+    setExpandedIds(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     fetchArchivedItems();
@@ -115,44 +136,46 @@ export default function ArchivoFeature() {
     }
   };
 
-  const handleReactivateOpportunity = async (leadId) => {
-    if (!window.confirm('¿Deseas reactivar esta negociación y devolverla al flujo activo?')) return;
+  const handleExecuteRestore = async () => {
+    if (!confirmConfig) return;
+    setActionLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/crm/leads/${leadId}/stage`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ stage: 'nuevo' })
-      });
-      const resJson = await res.json();
-      if (res.ok && resJson.success) {
-        fetchArchivedItems();
-      } else {
-        alert('Error al reactivar: ' + resJson.message);
+      if (confirmConfig.type === 'customer') {
+        const res = await fetch(`${API_BASE}/api/crm/customers/${confirmConfig.id}/restore`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token()}` }
+        });
+        const resJson = await res.json();
+        if (res.ok && resJson.success) {
+          if (showToast) showToast('Cliente restaurado exitosamente', 'success');
+          setConfirmConfig(null);
+          fetchArchivedItems();
+        } else {
+          if (showToast) showToast(resJson.message || 'Error al restaurar cliente', 'error');
+        }
+      } else if (confirmConfig.type === 'opportunity') {
+        const res = await fetch(`${API_BASE}/api/crm/leads/${confirmConfig.id}/stage`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${token()}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ stage: 'nuevo' })
+        });
+        const resJson = await res.json();
+        if (res.ok && resJson.success) {
+          if (showToast) showToast('Negociación reactivada exitosamente', 'success');
+          setConfirmConfig(null);
+          fetchArchivedItems();
+        } else {
+          if (showToast) showToast(resJson.message || 'Error al reactivar negociación', 'error');
+        }
       }
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleRestoreCustomer = async (customerId) => {
-    if (!window.confirm('¿Deseas restaurar este cliente y sus entidades vinculadas (empresa, contacto) al flujo activo? (Las negociaciones descartadas permanecerán descartadas por seguridad).')) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/crm/customers/${customerId}/restore`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token()}` }
-      });
-      const resJson = await res.json();
-      if (res.ok && resJson.success) {
-        fetchArchivedItems();
-      } else {
-        alert('Error al restaurar: ' + resJson.message);
-      }
-    } catch (err) {
-      console.error(err);
-      alert('Error de red al restaurar.');
+      if (showToast) showToast('Error de conexión al procesar la solicitud', 'error');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -169,41 +192,30 @@ export default function ArchivoFeature() {
             Base de datos depurada. Aquí se muestran las copias permanentes en CRM de entidades archivadas y ocultadas desde los flujos del SAE.
           </p>
         </div>
-        <button className="btn-sidebar-refresh" onClick={fetchArchivedItems}>
-          <i className="fas fa-sync-alt" /> Actualizar Archivo
-        </button>
       </div>
 
       {/* SUB-TABS SELECTOR */}
-      <div className="modal-tabs" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem', flexWrap: 'wrap' }}>
-        <button 
-          className={`modal-tab-btn ${activeSubTab === 'customers' ? 'active' : ''}`} 
-          onClick={() => { setActiveSubTab('customers'); setSearch(''); }}
-          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
-        >
-          🧾 Clientes Archivados
-        </button>
-        <button 
-          className={`modal-tab-btn ${activeSubTab === 'contacts' ? 'active' : ''}`} 
-          onClick={() => { setActiveSubTab('contacts'); setSearch(''); }}
-          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
-        >
-          👤 Contactos Archivados
-        </button>
-        <button 
-          className={`modal-tab-btn ${activeSubTab === 'companies' ? 'active' : ''}`} 
-          onClick={() => { setActiveSubTab('companies'); setSearch(''); }}
-          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
-        >
-          🏢 Empresas Archivadas
-        </button>
-        <button 
-          className={`modal-tab-btn ${activeSubTab === 'opportunities' ? 'active' : ''}`} 
-          onClick={() => { setActiveSubTab('opportunities'); setSearch(''); }}
-          style={{ padding: '0.5rem 1rem', borderRadius: '6px', fontSize: '0.85rem' }}
-        >
-          🤝 Negociaciones Archivadas
-        </button>
+      <div className="archive-segmented-nav">
+        {SUB_TABS.map(tab => {
+          const isActive = activeSubTab === tab.id;
+          return (
+            <button 
+              key={tab.id}
+              type="button"
+              className={`archive-nav-btn ${isActive ? 'active' : ''}`} 
+              onClick={() => { setActiveSubTab(tab.id); setSearch(''); }}
+            >
+              {isActive && (
+                <motion.div
+                  layoutId="archiveActiveGlider"
+                  className="archive-nav-glider"
+                  transition={{ type: 'spring', stiffness: 480, damping: 36 }}
+                />
+              )}
+              <span className="archive-nav-label">{tab.label}</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* SEARCH */}
@@ -227,6 +239,15 @@ export default function ArchivoFeature() {
         </div>
       </div>
 
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSubTab}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.2, ease: 'easeOut' }}
+        >
+
       {loading ? (
         <div className="crm-loading-placeholder"><div className="spinner" /><p>Cargando archivo histórico...</p></div>
       ) : error ? (
@@ -244,168 +265,312 @@ export default function ArchivoFeature() {
           </span>
         </div>
       ) : activeSubTab === 'customers' ? (
-        <div className="contacts-cards-grid">
-          {filtered.map(c => (
-            <div className="contact-card glass archived-card" key={c.id} style={{ opacity: 0.9, borderLeft: '4px solid #f59e0b', cursor: 'default' }}>
-              <div className="contact-card-avatar" style={{ background: '#fef3c7', color: '#d97706' }}>
-                <i className="fas fa-users" />
-              </div>
-              <div className="contact-card-body" style={{ width: '100%' }}>
-                <h4 className="contact-card-name" style={{ color: '#475569', marginBottom: '4px' }}>
-                  {c.company ? `${c.company} - ${c.name || 'Cliente'}` : (c.name || 'Cliente')}
-                </h4>
-                {c.email && <span className="contact-card-position">{c.email}</span>}
-                {c.phone && <span className="contact-card-position" style={{ display: 'block', marginTop: '2px' }}><i className="fas fa-phone-alt" style={{ marginRight: '4px' }} /> {c.phone}</span>}
-                
-                <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fffbeb', padding: '10px', borderRadius: '8px', border: '1px solid #fcd34d', fontSize: '0.8rem' }}>
-                  <div style={{ marginBottom: '6px', color: '#92400e', display: 'flex', justifyContent: 'space-between' }}>
-                    <span><i className="fas fa-archive" style={{ marginRight: '6px' }} />Descartado</span>
-                    {c.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{c.assigned_to.name}</span>}
+        <div className="archive-cards-grid">
+          {filtered.map(c => {
+            const isExpanded = !!expandedIds[c.id];
+            const customerName = c.company ? `${c.company} - ${c.name || 'Cliente'}` : (c.name || 'Cliente');
+            return (
+              <div className="archive-card customer" key={c.id}>
+                <div className="archive-card-header">
+                  <div className="archive-card-title-wrap" title={customerName}>
+                    <h4 className="archive-card-title">{customerName}</h4>
                   </div>
-                  <div style={{ borderTop: '1px dashed #fcd34d', paddingTop: '8px', color: '#b45309', fontStyle: 'italic', wordBreak: 'break-word' }}>
-                    <strong>Justificación:</strong> {getLeadDiscardReason(c)}
+                  <div className="archive-card-actions">
+                    <button
+                      type="button"
+                      className="btn-archive-action restore-customer"
+                      onClick={() => setConfirmConfig({
+                        type: 'customer',
+                        id: c.id,
+                        name: customerName,
+                        title: '¿Restaurar Cliente?',
+                        description: '¿Deseas restaurar este cliente y sus entidades vinculadas (empresa, contacto) al flujo activo? Las negociaciones descartadas permanecerán descartadas por seguridad.',
+                        theme: 'gold',
+                        confirmText: 'Restaurar Cliente'
+                      })}
+                      title="Restaurar Cliente"
+                    >
+                      <i className="fas fa-undo" /> Restaurar
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-archive-expand ${isExpanded ? 'is-expanded' : ''}`}
+                      onClick={() => toggleExpand(c.id)}
+                      title={isExpanded ? "Colapsar información" : "Expandir información"}
+                    >
+                      <i className="fas fa-chevron-down" />
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="btn-primary-golden"
-                  style={{
-                    marginTop: '12px',
-                    width: '100%',
-                    padding: '8px',
-                    fontSize: '0.8rem',
-                    borderRadius: '8px',
-                    background: 'var(--color-brand-accent)',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                  onClick={() => handleRestoreCustomer(c.id)}
-                >
-                  <i className="fas fa-undo"></i> Restaurar Cliente
-                </button>
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      className="archive-card-details-wrapper"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.04, 0.62, 0.23, 0.98] }}
+                    >
+                      <div className="archive-card-details">
+                        {c.email && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-envelope" />
+                            <span>{c.email}</span>
+                          </div>
+                        )}
+                        {c.phone && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-phone-alt" />
+                            <span>{c.phone}</span>
+                          </div>
+                        )}
+                        <div className="archive-reason-box warning">
+                          <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                            <span><i className="fas fa-archive" style={{ marginRight: '4px' }} />Descartado</span>
+                            {c.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{c.assigned_to.name}</span>}
+                          </div>
+                          <div><strong>Justificación:</strong> {getLeadDiscardReason(c)}</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : activeSubTab === 'contacts' ? (
-        <div className="contacts-cards-grid">
-          {filtered.map(c => (
-            <div className="contact-card glass archived-card" key={c.id} style={{ opacity: 0.9, borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setSelectedArchive(c)}>
-              <div className="contact-card-avatar" style={{ background: '#fee2e2', color: '#ef4444' }}>
-                <i className="fas fa-archive" />
-              </div>
-              <div className="contact-card-body">
-                <h4 className="contact-card-name" style={{ color: '#475569' }}>{c.name}</h4>
-                {c.position && <span className="contact-card-position">{c.position}</span>}
-                
-                <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.8rem' }}>
-                  <div style={{ marginBottom: '6px', color: '#991b1b', display: 'flex', justifyContent: 'space-between' }}>
-                    <span><i className="fas fa-history" style={{ marginRight: '6px' }} /><strong>{formatDate(c.archived_at)}</strong></span>
-                    {c.archived_by && <span><i className="fas fa-user" style={{ marginRight: '4px' }} />{c.archived_by.name}</span>}
+        <div className="archive-cards-grid">
+          {filtered.map(c => {
+            const isExpanded = !!expandedIds[c.id];
+            return (
+              <div className="archive-card contact" key={c.id}>
+                <div className="archive-card-header">
+                  <div className="archive-card-title-wrap" title={c.name}>
+                    <h4 className="archive-card-title">{c.name}</h4>
                   </div>
-                  <div style={{ borderTop: '1px dashed #fca5a5', paddingTop: '8px', color: '#7f1d1d', fontStyle: 'italic', wordBreak: 'break-word' }}>
-                    <strong>Justificación:</strong> {getArchiveReason(c.notes)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : activeSubTab === 'companies' ? (
-        <div className="companies-cards-grid">
-          {filtered.map(co => (
-            <div className="company-card glass archived-card" key={co.id} style={{ opacity: 0.9, borderLeft: '4px solid #ef4444', cursor: 'pointer' }} onClick={() => setSelectedArchive(co)}>
-              <div className="company-card-header">
-                <div className="company-icon-wrap" style={{ background: '#fee2e2' }}>
-                  <i className="fas fa-building" style={{ color: '#ef4444' }} />
-                </div>
-                <div className="company-card-title">
-                  <h4 style={{ color: '#475569' }}>{co.name}</h4>
-                  {co.alias && <span className="company-alias">{co.alias}</span>}
-                </div>
-              </div>
-              
-              <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.8rem' }}>
-                <div style={{ marginBottom: '6px', color: '#991b1b', display: 'flex', justifyContent: 'space-between' }}>
-                  <span><i className="fas fa-history" style={{ marginRight: '6px' }} /><strong>{formatDate(co.archived_at)}</strong></span>
-                  {co.archived_by && <span><i className="fas fa-user" style={{ marginRight: '4px' }} />{co.archived_by.name}</span>}
-                </div>
-                <div style={{ borderTop: '1px dashed #fca5a5', paddingTop: '8px', color: '#7f1d1d', fontStyle: 'italic', wordBreak: 'break-word' }}>
-                  <strong>Justificación:</strong> {getArchiveReason(co.notes)}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="contacts-cards-grid">
-          {filtered.map(l => (
-            <div 
-              className="contact-card glass archived-card" 
-              key={l.id} 
-              style={{ opacity: 0.9, borderLeft: '4px solid #ef4444', cursor: 'pointer' }}
-              onClick={() => setSelectedOpportunity(l)}
-            >
-              <div className="contact-card-avatar" style={{ background: '#fee2e2', color: '#ef4444' }}>
-                <i className="fas fa-handshake" />
-              </div>
-              <div className="contact-card-body" style={{ width: '100%' }}>
-                <h4 className="contact-card-name" style={{ color: '#475569', marginBottom: '4px' }}>
-                  {l.company ? `${l.company} - ${l.name || 'Obra'}` : (l.name || 'Negociación')}
-                </h4>
-                {l.email && <span className="contact-card-position">{l.email}</span>}
-                {l.phone && <span className="contact-card-position" style={{ display: 'block', marginTop: '2px' }}><i className="fas fa-phone-alt" style={{ marginRight: '4px' }} /> {l.phone}</span>}
-                
-                <div className="archived-meta-details" style={{ marginTop: '12px', background: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.8rem' }}>
-                  <div style={{ marginBottom: '6px', color: '#991b1b', display: 'flex', justifyContent: 'space-between' }}>
-                    <span><i className="fas fa-calendar-alt" style={{ marginRight: '6px' }} />Creado: <strong>{new Date(l.created_at).toLocaleDateString('es-MX')}</strong></span>
-                    {l.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{l.assigned_to.name}</span>}
-                  </div>
-                  <div style={{ borderTop: '1px dashed #fca5a5', paddingTop: '8px', color: '#7f1d1d', fontStyle: 'italic', wordBreak: 'break-word' }}>
-                    <strong>Justificación:</strong> {getLeadDiscardReason(l)}
+                  <div className="archive-card-actions">
+                    <button
+                      type="button"
+                      className="btn-archive-action view-details"
+                      onClick={() => setSelectedArchive(c)}
+                      title="Ver Ficha"
+                    >
+                      <i className="fas fa-eye" /> Ficha
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-archive-expand ${isExpanded ? 'is-expanded' : ''}`}
+                      onClick={() => toggleExpand(c.id)}
+                      title={isExpanded ? "Colapsar información" : "Expandir información"}
+                    >
+                      <i className="fas fa-chevron-down" />
+                    </button>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  className="btn-primary-golden"
-                  style={{
-                    marginTop: '12px',
-                    width: '100%',
-                    padding: '8px',
-                    fontSize: '0.8rem',
-                    borderRadius: '8px',
-                    background: 'var(--color-brand-primary)',
-                    color: '#fff',
-                    border: 'none',
-                    fontWeight: '700',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s'
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleReactivateOpportunity(l.id);
-                  }}
-                >
-                  <i className="fas fa-undo"></i> Reactivar Negociación
-                </button>
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      className="archive-card-details-wrapper"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.04, 0.62, 0.23, 0.98] }}
+                    >
+                      <div className="archive-card-details">
+                        {c.position && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-id-badge" />
+                            <span>{c.position}</span>
+                          </div>
+                        )}
+                        {c.email && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-envelope" />
+                            <span>{c.email}</span>
+                          </div>
+                        )}
+                        {c.phone && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-phone-alt" />
+                            <span>{c.phone}</span>
+                          </div>
+                        )}
+                        <div className="archive-reason-box danger">
+                          <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                            <span><i className="fas fa-history" style={{ marginRight: '4px' }} />{formatDate(c.archived_at)}</span>
+                            {c.archived_by && <span><i className="fas fa-user" style={{ marginRight: '4px' }} />{c.archived_by.name}</span>}
+                          </div>
+                          <div><strong>Justificación:</strong> {getArchiveReason(c.notes)}</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
-            </div>
-          ))}
+            );
+          })}
+        </div>
+      ) : activeSubTab === 'companies' ? (
+        <div className="archive-cards-grid">
+          {filtered.map(co => {
+            const isExpanded = !!expandedIds[co.id];
+            const companyName = co.alias ? `${co.name} (${co.alias})` : co.name;
+            return (
+              <div className="archive-card company" key={co.id}>
+                <div className="archive-card-header">
+                  <div className="archive-card-title-wrap" title={companyName}>
+                    <h4 className="archive-card-title">{companyName}</h4>
+                  </div>
+                  <div className="archive-card-actions">
+                    <button
+                      type="button"
+                      className="btn-archive-action view-details"
+                      onClick={() => setSelectedArchive(co)}
+                      title="Ver Ficha"
+                    >
+                      <i className="fas fa-eye" /> Ficha
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-archive-expand ${isExpanded ? 'is-expanded' : ''}`}
+                      onClick={() => toggleExpand(co.id)}
+                      title={isExpanded ? "Colapsar información" : "Expandir información"}
+                    >
+                      <i className="fas fa-chevron-down" />
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      className="archive-card-details-wrapper"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.04, 0.62, 0.23, 0.98] }}
+                    >
+                      <div className="archive-card-details">
+                        {co.phone_main && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-phone-alt" />
+                            <span>{co.phone_main}</span>
+                          </div>
+                        )}
+                        {co.email_main && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-envelope" />
+                            <span>{co.email_main}</span>
+                          </div>
+                        )}
+                        <div className="archive-reason-box danger">
+                          <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                            <span><i className="fas fa-history" style={{ marginRight: '4px' }} />{formatDate(co.archived_at)}</span>
+                            {co.archived_by && <span><i className="fas fa-user" style={{ marginRight: '4px' }} />{co.archived_by.name}</span>}
+                          </div>
+                          <div><strong>Justificación:</strong> {getArchiveReason(co.notes)}</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="archive-cards-grid">
+          {filtered.map(l => {
+            const isExpanded = !!expandedIds[l.id];
+            const oppName = l.company ? `${l.company} - ${l.name || 'Obra'}` : (l.name || 'Negociación');
+            return (
+              <div className="archive-card opportunity" key={l.id}>
+                <div className="archive-card-header">
+                  <div className="archive-card-title-wrap" title={oppName}>
+                    <h4 className="archive-card-title">{oppName}</h4>
+                  </div>
+                  <div className="archive-card-actions">
+                    <button
+                      type="button"
+                      className="btn-archive-action reactivate-opp"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmConfig({
+                          type: 'opportunity',
+                          id: l.id,
+                          name: oppName,
+                          title: '¿Reactivar Negociación?',
+                          description: '¿Deseas reactivar esta negociación y devolverla al flujo activo del Kanban en la etapa "Nuevo"?',
+                          theme: 'primary',
+                          confirmText: 'Reactivar Negociación'
+                        });
+                      }}
+                      title="Reactivar Negociación"
+                    >
+                      <i className="fas fa-undo" /> Reactivar
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-archive-action view-details"
+                      onClick={() => setSelectedOpportunity(l)}
+                      title="Ver Detalles"
+                    >
+                      <i className="fas fa-eye" />
+                    </button>
+                    <button
+                      type="button"
+                      className={`btn-archive-expand ${isExpanded ? 'is-expanded' : ''}`}
+                      onClick={() => toggleExpand(l.id)}
+                      title={isExpanded ? "Colapsar información" : "Expandir información"}
+                    >
+                      <i className="fas fa-chevron-down" />
+                    </button>
+                  </div>
+                </div>
+
+                <AnimatePresence initial={false}>
+                  {isExpanded && (
+                    <motion.div
+                      className="archive-card-details-wrapper"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.22, ease: [0.04, 0.62, 0.23, 0.98] }}
+                    >
+                      <div className="archive-card-details">
+                        {l.email && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-envelope" />
+                            <span>{l.email}</span>
+                          </div>
+                        )}
+                        {l.phone && (
+                          <div className="archive-info-row">
+                            <i className="fas fa-phone-alt" />
+                            <span>{l.phone}</span>
+                          </div>
+                        )}
+                        <div className="archive-reason-box danger">
+                          <div style={{ marginBottom: '4px', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+                            <span><i className="fas fa-calendar-alt" style={{ marginRight: '4px' }} />Creado: {new Date(l.created_at).toLocaleDateString('es-MX')}</span>
+                            {l.assigned_to && <span><i className="fas fa-user-tie" style={{ marginRight: '4px' }} />{l.assigned_to.name}</span>}
+                          </div>
+                          <div><strong>Justificación:</strong> {getLeadDiscardReason(l)}</div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </div>
       )}
+        </motion.div>
+      </AnimatePresence>
 
       <div className="crm-table-footer">
         <p>Mostrando <strong>{filtered.length}</strong> de <strong>{items.length}</strong> registros archivados.</p>
@@ -437,7 +602,21 @@ export default function ArchivoFeature() {
           API_BASE={API_BASE}
         />
       )}
+
+      {/* CUSTOM CONFIRM RESTORE MODAL */}
+      {confirmConfig && (
+        <ConfirmRestoreModal
+          isOpen={!!confirmConfig}
+          title={confirmConfig.title}
+          entityName={confirmConfig.name}
+          description={confirmConfig.description}
+          confirmText={confirmConfig.confirmText}
+          theme={confirmConfig.theme}
+          loading={actionLoading}
+          onConfirm={handleExecuteRestore}
+          onClose={() => !actionLoading && setConfirmConfig(null)}
+        />
+      )}
     </section>
   );
 }
-

@@ -62,7 +62,7 @@ export const getCustomers = async (req, res) => {
     let saeCustomers = [];
 
     // =========================================================================
-    // 1. OBTENER CLIENTES CRM NATIVOS (SUPABASE)
+    // 1. OBTENER CLIENTES CRM NATIVOS ACTIVOS (EXCLUIR DESCARTADOS/ARCHIVADOS)
     // =========================================================================
     let query = supabase
       .from('leads')
@@ -91,7 +91,40 @@ export const getCustomers = async (req, res) => {
 
     const { data: crmCustomers, error: crmErr } = await query;
     if (crmErr) throw crmErr;
-    nativeCustomers = crmCustomers || [];
+
+    // 1.1 Obtener claves SAE e IDs archivados permanentemente
+    const { data: archivedRecs } = await supabase
+      .from('archived_companies')
+      .select('sae_id, clave');
+    const archivedIds = new Set((archivedRecs || []).map(r => r.sae_id).filter(Boolean));
+    const archivedClaves = new Set((archivedRecs || []).map(r => r.clave?.trim()).filter(Boolean));
+
+    // Filtrar clientes nativos: Excluir los que estén archivados permanentemente, PERO conservar los descartados temporalmente (Nivel 5)
+    nativeCustomers = (crmCustomers || []).filter(cust => {
+      let notesObj = null;
+      if (cust.notes) {
+        try { notesObj = JSON.parse(cust.notes.trim()); } catch (e) {}
+      }
+      if (notesObj?.is_archived || notesObj?.archived_snapshot) return false;
+      if (cust.company_id && archivedIds.has(cust.company_id)) return false;
+      if (notesObj?.sae_clave && (archivedClaves.has(notesObj.sae_clave) || archivedIds.has(`sae-${notesObj.sae_clave}`))) return false;
+      return true;
+    });
+
+    // Registrar claves archivadas de los leads archivados
+    (crmCustomers || []).forEach(lead => {
+      if (lead.notes) {
+        try {
+          const parsed = JSON.parse(lead.notes.trim());
+          if ((parsed?.is_archived || parsed?.archived_snapshot) && parsed?.sae_clave) {
+            const c = String(parsed.sae_clave).trim();
+            archivedClaves.add(c);
+            archivedClaves.add(c.padStart(10, '0'));
+            archivedClaves.add(c.replace(/^0+/, ''));
+          }
+        } catch (e) { }
+      }
+    });
 
     // =========================================================================
     // 2. CONSULTA BLINDADA A ASPEL SAE — sae_vendor_key leído desde DB
@@ -188,7 +221,14 @@ export const getCustomers = async (req, res) => {
 
     const uniqueSaeCustomers = saeCustomers.filter(saeCust => {
       const clave = saeCust.sae_clave;
-      return !nativeSaeClaves.has(clave) &&
+      const isArchived = archivedIds.has(saeCust.id) ||
+                         archivedIds.has(clave) ||
+                         archivedClaves.has(clave) ||
+                         archivedClaves.has(clave.padStart(10, '0')) ||
+                         archivedClaves.has(clave.replace(/^0+/, ''));
+
+      return !isArchived &&
+             !nativeSaeClaves.has(clave) &&
              !nativeSaeClaves.has(clave.padStart(10, '0')) &&
              !nativeSaeClaves.has(clave.replace(/^0+/, ''));
     });

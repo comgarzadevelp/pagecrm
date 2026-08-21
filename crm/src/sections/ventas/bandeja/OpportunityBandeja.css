@@ -388,23 +388,36 @@
   margin-bottom: 0.5rem !important;
 }
 
-/* Custom scrollbar for modal body */
+/* Custom scrollbar for modal body (Glassmorphic Green) */
 .crm-modal-content .modal-body::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
 }
 
 .crm-modal-content .modal-body::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  border-radius: 999px;
+  margin: 3px;
 }
 
 .crm-modal-content .modal-body::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 57, 58, 0.28) 0%,
+    rgba(5, 57, 58, 0.45) 100%
+  );
+  backdrop-filter: blur(10px);
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: all 0.2s ease;
 }
 
 .crm-modal-content .modal-body::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: linear-gradient(
+    180deg,
+    rgba(5, 57, 58, 0.6) 0%,
+    rgba(5, 57, 58, 0.85) 100%
+  );
 }
 
 .crm-modal-content .modal-footer {

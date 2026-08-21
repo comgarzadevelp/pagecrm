@@ -10,6 +10,7 @@ import SubModalEditContacto from '../SubModalEditContacto/SubModalEditContacto';
 import SubModalEditEmpresa from '../SubModalEditEmpresa/SubModalEditEmpresa';
 import SubModalVincularObra from '../SubModalVincularObra/SubModalVincularObra';
 import SubModalDescartarCliente from '../SubModalDescartarCliente/SubModalDescartarCliente';
+import SubModalArchivarCliente from '../SubModalArchivarCliente/SubModalArchivarCliente';
 
 export default function FichaSubModals({ crm, API_BASE, fetchCustomers }) {
   const token = localStorage.getItem('token');
@@ -171,6 +172,19 @@ export default function FichaSubModals({ crm, API_BASE, fetchCustomers }) {
           discardReason={crm.discardReason}
           setDiscardReason={crm.setDiscardReason}
           discardError={crm.discardError}
+          confirmDiscardCustomer={crm.confirmDiscardCustomer}
+        />
+      )}
+
+      {crm.showArchiveModal && (
+        <SubModalArchivarCliente
+          isArchiving={crm.isArchiving}
+          setShowArchiveModal={crm.setShowArchiveModal}
+          setArchiveError={crm.setArchiveError}
+          currentCustomer={crm.currentCustomer}
+          archiveReason={crm.archiveReason}
+          setArchiveReason={crm.setArchiveReason}
+          archiveError={crm.archiveError}
           confirmArchiveCustomer={crm.confirmArchiveCustomer}
         />
       )}

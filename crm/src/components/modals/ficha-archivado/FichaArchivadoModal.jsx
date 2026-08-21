@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useUX } from '../../../components/common/UXProvider';
+import ConfirmRestoreModal from '../confirm-restore/ConfirmRestoreModal';
 
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 export default function FichaArchivadoModal({ item, type, onClose, onUnarchive }) {
   const [unarchiving, setUnarchiving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { showToast } = useUX();
   const token = () => localStorage.getItem('token');
 
-  const handleUnarchive = async () => {
-    if (!window.confirm(`¿Estás seguro de que deseas recuperar este ${type === 'company' ? 'registro' : 'contacto'} al CRM?`)) return;
+  const handleExecuteUnarchive = async () => {
     setUnarchiving(true);
     try {
       const endpoint = type === 'company' ? 'companies' : 'contacts';
-      // Si el id es UUID y no sae-, extraemos el UUID de sae_id si es el caso, pero backend lo maneja usando sae_id
       const res = await fetch(`${API_BASE}/api/crm/${endpoint}/${item.sae_id || item.id}/unarchive`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token()}` }
@@ -22,6 +22,7 @@ export default function FichaArchivadoModal({ item, type, onClose, onUnarchive }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message);
       showToast(data.message, 'success');
+      setShowConfirm(false);
       if (onUnarchive) onUnarchive();
     } catch (err) {
       showToast(err.message, 'error');
@@ -87,7 +88,7 @@ export default function FichaArchivadoModal({ item, type, onClose, onUnarchive }
               <button 
                 className="fc-action-btn" 
                 style={{ background: '#10b981', color: '#fff' }} 
-                onClick={handleUnarchive}
+                onClick={() => setShowConfirm(true)}
                 disabled={unarchiving}
               >
                 {unarchiving ? <i className="fas fa-spinner fa-spin" /> : <i className="fas fa-undo-alt" />} 
@@ -189,6 +190,19 @@ export default function FichaArchivadoModal({ item, type, onClose, onUnarchive }
           </div>
 
         </div>
+
+        {/* CUSTOM CONFIRM RESTORE MODAL */}
+        <ConfirmRestoreModal
+          isOpen={showConfirm}
+          title={type === 'company' ? '¿Recuperar Empresa?' : '¿Recuperar Contacto?'}
+          entityName={item.name}
+          description={`¿Estás seguro de que deseas recuperar este ${type === 'company' ? 'registro de empresa' : 'contacto'} al flujo activo del CRM?`}
+          confirmText="Sí, Recuperar"
+          theme="gold"
+          loading={unarchiving}
+          onConfirm={handleExecuteUnarchive}
+          onClose={() => setShowConfirm(false)}
+        />
       </div>
     </div>,
     document.body

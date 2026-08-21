@@ -354,13 +354,23 @@ export const getCompanies = async (req, res) => {
 // GET /api/crm/companies/archived
 export const getArchivedCompanies = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const userId = req.user?.userId;
+    const role = req.user?.role;
+
+    let query = supabase
       .from('archived_companies')
       .select(`
         id, sae_id, name, alias, rfc, address, city, state, phone_main, email_main,
         status, notes, archived_at, archived_by (id, name)
       `)
       .order('archived_at', { ascending: false });
+
+    // Privacidad: Vendedores solo ven empresas archivadas por ellos
+    if (role === 'sales' && userId) {
+      query = query.eq('archived_by', userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) throw error;
     res.json({ success: true, companies: data || [] });

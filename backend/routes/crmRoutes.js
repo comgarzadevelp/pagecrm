@@ -8,7 +8,7 @@ import {
   getLeads, getLeadById, updateLeadStage, updateLead,
   getSellers, createSeller, updateSeller, getSaeSellersList, assignLead, resetSellerPassword,
   deleteSeller, getOrphanLeads,
-  getCustomers, createCustomer, updateCustomer, deleteCustomer, discardCustomer, getArchivedCustomers, restoreCustomer,
+  getCustomers, createCustomer, updateCustomer, deleteCustomer, discardCustomer, discardCustomerTemporal, archiveCustomer, getArchivedCustomers, restoreCustomer,
   getProducts, getPriceLists, saveQuote, getCustomerQuotes, getProfile, uploadCustomerEvidence, uploadCustomerInvoice,
   updateCustomerB2BConfig,
   getAllQuotes, getPipelineStats, getEnterpriseCompanies, translateText, saveRavProduct, createTiRequest, deleteQuote,
@@ -83,6 +83,8 @@ router.get('/customers/archived', getArchivedCustomers);
 router.post('/customers', createCustomer);
 router.put('/customers/:id', updateCustomer);
 router.post('/customers/:id/discard', discardCustomer);
+router.post('/customers/:id/archive', archiveCustomer || discardCustomer);
+router.post('/customers/:id/discard-temporal', discardCustomerTemporal);
 router.post('/customers/:id/restore', restoreCustomer);
 router.delete('/customers/:id', deleteCustomer);
 router.post('/customers/:id/evidence', upload.single('photo'), uploadCustomerEvidence);

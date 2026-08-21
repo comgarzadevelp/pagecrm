@@ -79,11 +79,17 @@ export default function useFichaCliente({
   const [contactNotes, setContactNotes] = useState(null);
   const [companyNotes, setCompanyNotes] = useState(null);
 
-  // Modal de descarte
+  // Modal de descarte temporal (Pasa a pestaña Descartados en Directorio)
   const [showDiscardModal, setShowDiscardModal] = useState(false);
   const [discardReason, setDiscardReason] = useState('');
   const [isDiscarding, setIsDiscarding] = useState(false);
   const [discardError, setDiscardError] = useState('');
+
+  // Modal de archivado permanente (Traslada a Archivo Histórico)
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('');
+  const [isArchiving, setIsArchiving] = useState(false);
+  const [archiveError, setArchiveError] = useState('');
 
   const customerId = currentCustomer?.id;
   const isSae = customerId?.startsWith('sae-');
@@ -1011,24 +1017,19 @@ export default function useFichaCliente({
     }
   };
 
-  // --- ARCHIVAR CLIENTE ---
-
-  const handleArchiveCustomerClick = () => {
+  // --- DESCARTE TEMPORAL (Pasa a pestaña Descartados) ---
+  const handleDiscardCustomerClick = () => {
     setDiscardReason('');
+    setDiscardError('');
     setShowDiscardModal(true);
   };
 
-  const confirmArchiveCustomer = async () => {
-    if (discardReason.trim() === '') {
-      setDiscardError('Debes ingresar un motivo antes de continuar.');
-      return;
-    }
-
+  const confirmDiscardCustomer = async () => {
     setDiscardError('');
     setIsDiscarding(true);
 
     try {
-      const discardUrl = `${API_BASE}/api/crm/customers/${customerId}/discard`;
+      const discardUrl = `${API_BASE}/api/crm/customers/${customerId}/discard-temporal`;
       const res = await fetch(discardUrl, {
         method: 'POST',
         headers: {
@@ -1041,7 +1042,7 @@ export default function useFichaCliente({
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data.success) {
-        showToast('Cliente descartado correctamente', 'success');
+        showToast('Cliente descartado temporalmente (movido a pestaña Descartados)', 'success');
         setShowDiscardModal(false);
         setDiscardReason('');
         setDiscardError('');
@@ -1053,12 +1054,63 @@ export default function useFichaCliente({
         showToast(msg, 'error');
       }
     } catch (err) {
-      console.error('Error archiving customer:', err);
+      console.error('Error discarding customer:', err);
       const msg = 'Sin conexión con el servidor. Verifica tu red e inténtalo de nuevo.';
       setDiscardError(msg);
       showToast(msg, 'error');
     } finally {
       setIsDiscarding(false);
+    }
+  };
+
+  // --- ARCHIVADO PERMANENTE (Traslada a Archivo Histórico y Depuración) ---
+  const handleArchiveCustomerClick = () => {
+    setArchiveReason('');
+    setArchiveError('');
+    setShowArchiveModal(true);
+  };
+
+  const confirmArchiveCustomer = async () => {
+    if (archiveReason.trim() === '') {
+      setArchiveError('Debes ingresar un motivo de archivado antes de continuar.');
+      return;
+    }
+
+    setArchiveError('');
+    setIsArchiving(true);
+
+    try {
+      const archiveUrl = `${API_BASE}/api/crm/customers/${customerId}/archive`;
+      const res = await fetch(archiveUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reason: archiveReason.trim(), customerName: currentCustomer?.name || '' })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok && data.success) {
+        showToast('Cliente archivado y depurado exitosamente', 'success');
+        setShowArchiveModal(false);
+        setArchiveReason('');
+        setArchiveError('');
+        if (fetchCustomers) fetchCustomers();
+        onClose();
+      } else {
+        const msg = data.message || `Error del servidor (${res.status})`;
+        setArchiveError(msg);
+        showToast(msg, 'error');
+      }
+    } catch (err) {
+      console.error('Error archiving customer:', err);
+      const msg = 'Sin conexión con el servidor. Verifica tu red e inténtalo de nuevo.';
+      setArchiveError(msg);
+      showToast(msg, 'error');
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -1413,6 +1465,13 @@ export default function useFichaCliente({
     isDiscarding,
     discardError,
     setDiscardError,
+    showArchiveModal,
+    setShowArchiveModal,
+    archiveReason,
+    setArchiveReason,
+    isArchiving,
+    archiveError,
+    setArchiveError,
     customerId,
     isSae,
     handleSelectCompanySuggestion,
@@ -1424,6 +1483,8 @@ export default function useFichaCliente({
     handleSaveObra,
     handleStatusChange,
     handleAddComment,
+    handleDiscardCustomerClick,
+    confirmDiscardCustomer,
     handleArchiveCustomerClick,
     confirmArchiveCustomer,
     fetchOpportunities,

@@ -301,10 +301,12 @@ export const discardCustomer = async (req, res) => {
     }
 
     notesObj.archived_snapshot = snapshot;
+    notesObj.is_archived = true;
+    delete notesObj.is_temporary_discard;
     if (!notesObj.timeline) notesObj.timeline = [];
     notesObj.timeline.push({
       date: new Date().toISOString(),
-      text: `Cliente descartado. Motivo: "${reason.trim()}"`,
+      text: `Cliente archivado y depurado. Motivo: "${reason.trim()}"`,
       author: authorName,
       type: 'status_change'
     });
@@ -324,12 +326,153 @@ export const discardCustomer = async (req, res) => {
 
     if (updateErr) throw updateErr;
 
-    res.json({ success: true, message: 'Cliente descartado correctamente.', customer: updatedLead });
+    res.json({ success: true, message: 'Cliente archivado correctamente.', customer: updatedLead });
   } catch (err) {
     console.error('discardCustomer error:', err);
-    res.status(500).json({ success: false, message: 'Error interno al descartar el cliente.' });
+    res.status(500).json({ success: false, message: 'Error interno al archivar el cliente.' });
   }
 };
+
+/**
+ * ES: Descarta temporalmente un cliente (Pasa a Nivel 5 en Directorio de Clientes).
+ *     No lo traslada al Archivo Histórico ni archiva empresas/contactos.
+ */
+export const discardCustomerTemporal = async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+  const userId = req.user?.userId;
+  const authorName = req.user?.name || 'Sistema';
+  const companyId = req.user?.companyId && !String(req.user.companyId).startsWith('company-')
+    ? req.user.companyId
+    : null;
+
+  try {
+    let matchedLead = null;
+
+    if (id.startsWith('sae-')) {
+      const saeClave = id.replace('sae-', '').trim();
+      const targetEmpresa = req.user?.sae_empresa || '03';
+
+      const { data: allLeads } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('type', 'crm_customer');
+
+      for (const lead of allLeads || []) {
+        if (lead.notes) {
+          try {
+            const parsed = JSON.parse(lead.notes.trim());
+            if (parsed?.sae_clave?.trim() === saeClave) {
+              const coEmpresa = parsed.sae_empresa || '03';
+              if (coEmpresa === targetEmpresa) {
+                matchedLead = lead;
+                break;
+              }
+            }
+          } catch (e) { }
+        }
+      }
+
+      if (!matchedLead) {
+        const notesPayload = JSON.stringify({
+          general: `Cliente SAE descartado temporalmente. Clave SAE: ${saeClave}.`,
+          sae_clave: saeClave,
+          sae_empresa: targetEmpresa,
+          timeline: [{
+            date: new Date().toISOString(),
+            text: `Cliente descartado temporalmente. Motivo: "${(reason || 'Sin motivo especificado').trim()}"`,
+            author: authorName,
+            type: 'status_change'
+          }],
+          discard_reason: (reason || '').trim(),
+          discarded_by: userId,
+          discarded_at: new Date().toISOString(),
+          is_temporary_discard: true
+        });
+
+        const { data: newLead, error: insertErr } = await supabase
+          .from('leads')
+          .insert([{
+            name: req.body.customerName || `Cliente SAE ${saeClave}`,
+            email: '',
+            phone: '',
+            company: '',
+            company_id: companyId,
+            notes: notesPayload,
+            status: 'descartado',
+            type: 'crm_customer',
+            assigned_to: userId
+          }])
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+        matchedLead = newLead;
+      }
+    } else {
+      const { data: leadData, error: fetchErr } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (fetchErr) throw fetchErr;
+      matchedLead = leadData;
+    }
+
+    if (!matchedLead) {
+      return res.status(404).json({ success: false, message: 'Cliente no encontrado.' });
+    }
+
+    let notesObj = { general: '', timeline: [] };
+    if (matchedLead.notes) {
+      try {
+        const trimmed = matchedLead.notes.trim();
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          notesObj = JSON.parse(trimmed);
+        } else {
+          notesObj.general = matchedLead.notes;
+        }
+      } catch (e) {
+        notesObj.general = matchedLead.notes;
+      }
+    }
+
+    delete notesObj.is_archived;
+    delete notesObj.archived_snapshot;
+    notesObj.is_temporary_discard = true;
+
+    if (!notesObj.timeline) notesObj.timeline = [];
+    notesObj.timeline.push({
+      date: new Date().toISOString(),
+      text: `Cliente descartado temporalmente. Motivo: "${(reason || 'Sin motivo especificado').trim()}"`,
+      author: authorName,
+      type: 'status_change'
+    });
+    notesObj.discard_reason = (reason || '').trim();
+    notesObj.discarded_by = userId;
+    notesObj.discarded_at = new Date().toISOString();
+
+    const { data: updatedLead, error: updateErr } = await supabase
+      .from('leads')
+      .update({
+        status: 'descartado',
+        notes: JSON.stringify(notesObj)
+      })
+      .eq('id', matchedLead.id)
+      .select()
+      .single();
+
+    if (updateErr) throw updateErr;
+
+    res.json({ success: true, message: 'Cliente descartado temporalmente.', customer: updatedLead });
+  } catch (err) {
+    console.error('discardCustomerTemporal error:', err);
+    res.status(500).json({ success: false, message: 'Error interno al descartar temporalmente el cliente.' });
+  }
+};
+
+export const archiveCustomer = discardCustomer;
 
 /**
  * ES: Elimina un cliente nativo del CRM (los de SAE no se pueden eliminar).
@@ -496,15 +639,43 @@ export const uploadCustomerInvoice = async (req, res) => {
  */
 export const getArchivedCustomers = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const userId = req.user?.userId;
+    const role = req.user?.role;
+    const companyId = req.user?.companyId;
+
+    let query = supabase
       .from('leads')
       .select('id, name, company, email, phone, notes, status, created_at, assigned_to (id, name)')
       .eq('type', 'crm_customer')
       .eq('status', 'descartado')
       .order('created_at', { ascending: false });
 
+    if (companyId && !String(companyId).startsWith('company-')) {
+      query = query.or(`company_id.eq.${companyId},company_id.is.null`);
+    }
+
+    // Privacidad: Vendedores solo ven clientes asignados a ellos o descartados por ellos
+    if (role === 'sales' && userId) {
+      query = query.or(`assigned_to.eq.${userId},notes.ilike.%"discarded_by":"${userId}"%`);
+    }
+
+    const { data, error } = await query;
+
     if (error) throw error;
-    res.json({ success: true, customers: data || [] });
+
+    // Solo devolver clientes archivados permanentemente (excluir los descartados temporalmente)
+    const archivedCustomers = (data || []).filter(c => {
+      if (!c.notes) return true;
+      try {
+        const parsed = JSON.parse(c.notes.trim());
+        if (parsed.is_temporary_discard) return false;
+        return true;
+      } catch (e) {
+        return true;
+      }
+    });
+
+    res.json({ success: true, customers: archivedCustomers });
   } catch (err) {
     console.error('getArchivedCustomers error:', err);
     res.status(500).json({ success: false, message: 'Error al obtener clientes archivados.' });

@@ -186,13 +186,28 @@ export default function FichaClienteIndividualModal({
         </div>
 
         <footer className="client-modal-footer">
+          <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center' }}>
+            <button
+              type="button"
+              className="modal-footer-btn modal-footer-btn-secondary"
+              style={{ background: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={crm.handleDiscardCustomerClick}
+              title="Descartar cliente temporalmente del flujo activo (pasa a pestaña Descartados)"
+            >
+              <i className="fas fa-ban" /> Descartar Cliente
+            </button>
+            <button
+              type="button"
+              className="modal-footer-btn modal-footer-btn-danger"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={crm.handleArchiveCustomerClick}
+              title="Archivar y depurar permanentemente a Archivo Histórico"
+            >
+              <i className="fas fa-archive" /> Archivar Cliente
+            </button>
+          </div>
           <button
-            className="modal-footer-btn modal-footer-btn-danger"
-            onClick={crm.handleArchiveCustomerClick}
-          >
-            <i className="fas fa-trash-alt" /> Descartar Cliente
-          </button>
-          <button
+            type="button"
             className="modal-footer-btn modal-footer-btn-secondary"
             onClick={onClose}
           >

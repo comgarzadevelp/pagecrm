@@ -154,4 +154,13 @@ frontend_page/dist/
 frontend_page/.env*
 # Reference repositories
 react-whatsapp-web-reference/
+
+# WhatsApp Service cache and logs
+whatsapp-service/.wwebjs_auth/
+whatsapp-service/.wwebjs_cache/
+whatsapp-service/node_modules/
+whatsapp-service/error.log
+
+# Vite local cache
+crm/.vite/
 

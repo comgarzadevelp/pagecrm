@@ -48,7 +48,16 @@ export default function VentasFeature(props) {
       {/* Active Component Render with animation wrapper */}
       <div className="directory-tab-content animate-fade-in">
         {activeSubTab === 'bandeja' && (
-          <OpportunityBandejaFeature {...props} leads={props.allOpportunities || []} />
+          <OpportunityBandejaFeature
+            {...props}
+            leads={props.allOpportunities || []}
+            loading={props.loadingOpportunities !== undefined ? props.loadingOpportunities : props.loading}
+            error={props.opportunityError !== undefined ? props.opportunityError : props.error}
+            fetchLeads={() => {
+              if (props.fetchOpportunitiesList) props.fetchOpportunitiesList();
+              if (props.fetchLeads) props.fetchLeads();
+            }}
+          />
         )}
         {activeSubTab === 'kanban' && (
           <OpportunityKanbanFeature {...props} />

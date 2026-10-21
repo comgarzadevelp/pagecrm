@@ -45,7 +45,7 @@ export const getOpportunities = async (req, res) => {
     const { data: opportunities, error } = await query;
     if (error) throw error;
 
-    // Cruzar en memoria con la tabla crm_appointments para adjuntar la cita activa (active_appointment)
+    // Cruzar eficientemente con crm_appointments usando un Map indexado
     try {
       const { data: appts } = await supabase
         .from('crm_appointments')
@@ -53,26 +53,29 @@ export const getOpportunities = async (req, res) => {
         .in('status', ['active', 'rescheduled']);
 
       if (appts && appts.length > 0 && opportunities && opportunities.length > 0) {
-        opportunities.forEach(opp => {
-          const contactName = opp.contacts?.name?.toLowerCase();
-          const companyName = opp.companies?.name?.toLowerCase();
-          const oppTitle = opp.title?.toLowerCase();
-
-          // Buscar cita activa que coincida por nombre o contacto
-          const activeAppt = appts.find(appt => {
-            const clientName = appt.client_name?.toLowerCase();
-            if (!clientName) return false;
-            return (
-              clientName === contactName ||
-              clientName === companyName ||
-              clientName === oppTitle
-            );
-          });
-
-          if (activeAppt) {
-            opp.active_appointment = activeAppt;
+        // Indexar citas por nombre en minúsculas para acceso O(1)
+        const apptMap = new Map();
+        for (const appt of appts) {
+          if (appt.client_name) {
+            const key = appt.client_name.trim().toLowerCase();
+            if (!apptMap.has(key)) apptMap.set(key, appt);
           }
-        });
+        }
+
+        for (const opp of opportunities) {
+          const contactKey = opp.contacts?.name?.trim().toLowerCase();
+          const companyKey = opp.companies?.name?.trim().toLowerCase();
+          const oppKey = opp.title?.trim().toLowerCase();
+
+          const matchedAppt =
+            (contactKey && apptMap.get(contactKey)) ||
+            (companyKey && apptMap.get(companyKey)) ||
+            (oppKey && apptMap.get(oppKey));
+
+          if (matchedAppt) {
+            opp.active_appointment = matchedAppt;
+          }
+        }
       }
     } catch (apptErr) {
       console.warn('[getOpportunities] Error al cruzar citas activas:', apptErr.message);

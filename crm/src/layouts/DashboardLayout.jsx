@@ -48,6 +48,8 @@ export default function DashboardLayout({ role, enabledModules }) {
     loadingCustomers,
     customerError,
     allOpportunities,
+    loadingOpportunities,
+    opportunityError,
     selectedCustomer,
     setSelectedCustomer,
     quoteItems,
@@ -171,8 +173,10 @@ export default function DashboardLayout({ role, enabledModules }) {
             } catch(e) { console.error(e); }
           }}
           leads={leads}
-          loading={loading}
-          error={error}
+          loading={loadingOpportunities || loading}
+          error={opportunityError || error}
+          loadingOpportunities={loadingOpportunities}
+          opportunityError={opportunityError}
           sellers={sellers}
           handleStatusChange={handleStatusChange}
           handleAssignSeller={handleAssignSeller}

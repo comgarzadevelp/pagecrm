@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import './Contacto.css';
 
 const Contacto = () => {
@@ -52,7 +52,6 @@ const Contacto = () => {
         throw new Error(data.message || 'Error al enviar la solicitud.');
       }
 
-      console.log('Contacto guardado exitosamente en base de datos:', data);
       setIsSubmitted(true);
       alert('¡Formulario de cotización registrado y enviado con éxito a la base de datos!');
       setFormData({

@@ -42,7 +42,7 @@ const Catalogo = () => {
         { name: "Plomería Interna", details: "CPVC y Tuboplus (1/2, 1/4, 3/4, 1\").", icon: "fa-faucet-drip" },
         { name: "Válvulas", details: "Compuertas, esfera y check industrial.", icon: "fa-gear" }
       ],
-      image: "/assets/tubosyconecciones.jpg"
+      image: "/assets/tubosyconecciones.webp"
     },
     {
       id: "electrico",
@@ -57,7 +57,7 @@ const Catalogo = () => {
         { name: "Iluminación", details: "Focos LED y Luminarias Industriales.", icon: "fa-lightbulb" },
         { name: "Dispositivos", details: "Contactos, Apagadores y Placas.", icon: "fa-plug" }
       ],
-      image: "/assets/materialelectrico.jpg"
+      image: "/assets/materialelectrico.webp"
     },
     {
       id: "acabados",
@@ -72,7 +72,7 @@ const Catalogo = () => {
         { name: "Accesorios", details: "Toalleros, Jaboneras y Espejos.", icon: "fa-wind" },
         { name: "Complementos", details: "Extractores y sistemas de descarga.", icon: "fa-wind" }
       ],
-      image: "/assets/finishes.png"
+      image: "/assets/finishes.webp"
     },
     {
       id: "climatizacion",
@@ -86,7 +86,7 @@ const Catalogo = () => {
         { name: "Calentadores", details: "Boilers Mirage y Ecogas de paso/depósito.", icon: "fa-fire-flame-simple" },
         { name: "Ventilación", details: "Sistemas de circulación y aire forzado.", icon: "fa-fan" }
       ],
-      image: "/assets/climas.jpg"
+      image: "/assets/climas.webp"
     },
     {
       id: "almacenamiento",
@@ -100,7 +100,7 @@ const Catalogo = () => {
         { name: "Bombas de Agua", details: "Centrífugas, periféricas e hidroneumáticos.", icon: "fa-arrow-up-right-dots" },
         { name: "Cisternas", details: "Almacenamiento subterráneo de gran volumen.", icon: "fa-database" }
       ],
-      image: "/assets/tinacos.jpg"
+      image: "/assets/tinacos.webp"
     }
   ];
 
@@ -127,7 +127,7 @@ const Catalogo = () => {
             </div>
             <div className="hero-visual-cat">
               <div className="visual-card-main glass">
-                <img src="/assets/hero.png" alt="Logística Garza" />
+                <img src="/assets/hero.webp" alt="Logística Garza" />
                 <div className="v-label">Inventario Crítico</div>
               </div>
             </div>

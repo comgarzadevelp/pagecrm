@@ -22,7 +22,7 @@ const Hero = () => {
       </div>
       <div className="hero-right">
         <div className="hero-image-container">
-          <img src="/assets/drenaje.jpg" alt="Obra de Infraestructura" className="hero-full-img" />
+          <img src="/assets/drenaje.webp" alt="Obra de Infraestructura" className="hero-full-img" />
           <div className="hero-image-overlay"></div>
         </div>
       </div>

@@ -47,7 +47,7 @@ const Nosotros = () => {
         <div className="container">
           <div className="legacy-grid">
             <div className="legacy-image">
-              <img src="/assets/hero.png" alt="Trayectoria Garza" />
+              <img src="/assets/hero.webp" alt="Trayectoria Garza" />
               <div className="legacy-years glass">
                 <span>Desde</span>
                 <strong>2009</strong>

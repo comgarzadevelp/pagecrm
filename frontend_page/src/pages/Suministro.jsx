@@ -6,19 +6,19 @@ const Suministro = () => {
     {
       title: "Eléctrico e Iluminación",
       description: "Desde media tensión hasta acabados finales. Aseguramos el flujo de energía en cada metro cuadrado de su obra.",
-      image: "/assets/supply.png",
+      image: "/assets/supply.webp",
       features: ["Cableado Industrial", "Canalización", "Transformadores", "Luminarias LED"]
     },
     {
       title: "Hidráulico y Pluvial",
       description: "Sistemas críticos para la gestión de agua. Tubería de alta resistencia que garantiza la durabilidad estructural.",
-      image: "/assets/drenaje.jpg",
+      image: "/assets/drenaje.webp",
       features: ["Tubería PEAD/PVC", "Válvulas Industriales", "Cisternas", "Conexiones"]
     },
     {
       title: "Acabados y Equipamiento",
       description: "El detalle final que define la calidad. Soluciones estéticas de alta gama para proyectos comerciales y residenciales.",
-      image: "/assets/finishes.png",
+      image: "/assets/finishes.webp",
       features: ["Grifería ", "Muebles de Baño", "Accesorios de Baño", "Pisos y Revestimientos"]
     }
   ];
@@ -72,7 +72,7 @@ const Suministro = () => {
             </div>
             <div className="continuity-image">
               <div className="image-stack">
-                <img src="/assets/hero.png" alt="Logística Garza" className="img-main" />
+                <img src="/assets/hero.webp" alt="Logística Garza" className="img-main" />
                 <div className="experience-badge glass">
                   <span className="number">15+</span>
                   <span className="text">Años de experiencia logística</span>

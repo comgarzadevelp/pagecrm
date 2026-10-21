@@ -8,42 +8,42 @@ const ProjectStages = () => {
       title: "Urbanización e Infraestructura Pluvial",
       description: "Suministro crítico para drenaje y contención pluvial.",
       items: "Tubería pluvial (corrugada, PEAD, PVC sanitario reforzado), pozos de visita, brocales, tapas, conexiones (codos, tees), geotextiles, rejillas y canales prefabricados.",
-      image: "/assets/drenaje.jpg"
+      image: "/assets/drenaje.webp"
     },
     {
       id: "02",
       title: "Infraestructura Hidráulica y Sanitaria",
       description: "Conducción eficiente de agua potable y residual.",
       items: "Tubería hidráulica (PVC, CPVC, PEX) y sanitaria (PVC, PEAD), válvulas, uniones y abrazaderas de grado industrial.",
-      image: "/assets/hero.png"
+      image: "/assets/hero.webp"
     },
     {
       id: "03",
       title: "Infraestructura Eléctrica y Almacenamiento",
       description: "Energía y resguardo para grandes desarrollos.",
       items: "Cableado THW/THHN, conduit (PVC/metálico), registros eléctricos, luminarias LED de alta eficiencia, cisternas y sistemas de tapas.",
-      image: "/assets/supply.png"
+      image: "/assets/supply.webp"
     },
     {
       id: "04",
       title: "Urbanización Final y Áreas Verdes",
       description: "El toque final para la habitabilidad del proyecto.",
       items: "Tubería especializada para riego, accesorios de jardinería, mobiliario urbano, tapas y rejillas de diseño integrado.",
-      image: "/assets/drenaje.jpg"
+      image: "/assets/drenaje.webp"
     },
     {
       id: "05",
       title: "Instalaciones Internas (Vivienda y Comercio)",
       description: "Equipamiento técnico para interiores comerciales.",
       items: "Tubería hidráulica/sanitaria interior, cableado, conduit, cajas, apagadores, contactos y preparaciones para climatización (minisplits).",
-      image: "/assets/finishes.png"
+      image: "/assets/finishes.webp"
     },
     {
       id: "06",
       title: "Equipamiento Final y Entrega",
       description: "Calidad y detalle en cada punto de contacto.",
       items: "Luminarias interiores, grifería, sanitarios, accesorios de baño y equipos menores como calentadores y bombas.",
-      image: "/assets/finishes.png"
+      image: "/assets/finishes.webp"
     }
   ];
 

@@ -154,4 +154,12 @@ frontend_page/dist/
 frontend_page/.env*
 # Reference repositories
 react-whatsapp-web-reference/
+
+# Vite local caches
+crm/.vite/
+frontend_page/.vite/
+
+# Temporary bundles & local runtime sessions
+muestra01.bundle
+whatsapp-service/
 

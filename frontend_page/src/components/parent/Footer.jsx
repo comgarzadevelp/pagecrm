@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { Link } from 'react-router-dom';
 import './Footer.css';
 
@@ -68,8 +68,8 @@ const Footer = () => {
         <div className="container footer-bottom-content">
           <p>© {new Date().getFullYear()} Comercializadora Garza. Todos los derechos reservados.</p>
           <div className="footer-legal">
-            <Link to="/privacidad">Aviso de Privacidad</Link>
-            <Link to="/terminos">Términos y Condiciones</Link>
+            <a href="/politica-de-privacidad.html">Aviso de Privacidad</a>
+            <a href="/terminos-y-condiciones.html">Términos y Condiciones</a>
           </div>
         </div>
       </div>
@@ -78,3 +78,4 @@ const Footer = () => {
 };
 
 export default Footer;
+

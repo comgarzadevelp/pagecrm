@@ -47,6 +47,8 @@ export function useCrmData(role, enabledModules = []) {
 
   // Opportunities
   const [allOpportunities, setAllOpportunities] = useState([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [opportunityError, setOpportunityError] = useState('');
 
   // Global Customer Details Modal State
   const [selectedCustomer, setSelectedCustomer] = useState(null);
@@ -204,10 +206,12 @@ export function useCrmData(role, enabledModules = []) {
   };
 
   // 6. Fetch opportunities
-  const fetchOpportunitiesList = async () => {
+  const fetchOpportunitiesList = async (silent = false) => {
     if (!enabledModules.includes('pipeline') && !enabledModules.includes('ventas') && !enabledModules.includes('quotes')) return;
     const token = localStorage.getItem('token');
     if (!token) return;
+    if (!silent) setLoadingOpportunities(true);
+    setOpportunityError('');
     try {
       const res = await fetch(`${API_BASE}/api/crm/opportunities`, {
         headers: getAuthHeaders()
@@ -215,9 +219,14 @@ export function useCrmData(role, enabledModules = []) {
       const data = await res.json();
       if (res.ok) {
         setAllOpportunities(data.opportunities || []);
+      } else {
+        setOpportunityError(data.message || 'Error al obtener negociaciones.');
       }
     } catch (err) {
       console.error('Fetch opportunities list error:', err);
+      setOpportunityError(err.message || 'Fallo de conexión al cargar negociaciones.');
+    } finally {
+      if (!silent) setLoadingOpportunities(false);
     }
   };
 
@@ -439,6 +448,8 @@ export function useCrmData(role, enabledModules = []) {
     loadingCustomers,
     customerError,
     allOpportunities,
+    loadingOpportunities,
+    opportunityError,
     selectedCustomer,
     setSelectedCustomer,
     quoteItems,

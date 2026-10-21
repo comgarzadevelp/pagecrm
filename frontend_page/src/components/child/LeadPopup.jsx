@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import './LeadPopup.css';
 
 const LeadPopup = () => {
@@ -57,7 +57,6 @@ const LeadPopup = () => {
         throw new Error(data.message || 'Error al guardar el prospecto.');
       }
       
-      console.log('WhatsApp guardado en Supabase exitosamente:', data);
       setIsSent(true);
       alert('¡WhatsApp registrado y enviado con éxito a la base de datos!');
       

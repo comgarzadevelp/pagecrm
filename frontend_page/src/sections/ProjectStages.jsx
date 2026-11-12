@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import './ProjectStages.css';
 
 const ProjectStages = () => {
@@ -7,22 +8,22 @@ const ProjectStages = () => {
       id: "01",
       title: "Urbanización e Infraestructura Pluvial",
       description: "Suministro crítico para drenaje y contención pluvial.",
-      items: "Tubería pluvial (corrugada, PEAD, PVC sanitario reforzado), pozos de visita, brocales, tapas, conexiones (codos, tees), geotextiles, rejillas y canales prefabricados.",
+      items: "Tubería pluvial corrugada PEAD, PVC alcantarillado, pozos de visita, brocales, conexiones, geotextiles y rejillas.",
       image: "/assets/drenaje.jpg"
     },
     {
       id: "02",
       title: "Infraestructura Hidráulica y Sanitaria",
       description: "Conducción eficiente de agua potable y residual.",
-      items: "Tubería hidráulica (PVC, CPVC, PEX) y sanitaria (PVC, PEAD), válvulas, uniones y abrazaderas de grado industrial.",
-      image: "/assets/hero.png"
+      items: "Tubería hidráulica (PVC, CPVC, PEX) y sanitaria (PVC, PEAD), válvulas de compuerta, uniones y abrazaderas industriales.",
+      image: "/assets/hero.jpg"
     },
     {
       id: "03",
       title: "Infraestructura Eléctrica y Almacenamiento",
       description: "Energía y resguardo para grandes desarrollos.",
-      items: "Cableado THW/THHN, conduit (PVC/metálico), registros eléctricos, luminarias LED de alta eficiencia, cisternas y sistemas de tapas.",
-      image: "/assets/supply.png"
+      items: "Cableado THW/THHN, conduit (PVC/metálico), registros eléctricos, luminarias LED de alta eficiencia y cisternas.",
+      image: "/assets/supply.jpg"
     },
     {
       id: "04",
@@ -35,15 +36,15 @@ const ProjectStages = () => {
       id: "05",
       title: "Instalaciones Internas (Vivienda y Comercio)",
       description: "Equipamiento técnico para interiores comerciales.",
-      items: "Tubería hidráulica/sanitaria interior, cableado, conduit, cajas, apagadores, contactos y preparaciones para climatización (minisplits).",
-      image: "/assets/finishes.png"
+      items: "Tubería hidráulica/sanitaria interior, cableado, conduit, centros de carga, cajas, apagadores y preparación para climas.",
+      image: "/assets/finishes.jpg"
     },
     {
       id: "06",
       title: "Equipamiento Final y Entrega",
       description: "Calidad y detalle en cada punto de contacto.",
-      items: "Luminarias interiores, grifería, sanitarios, accesorios de baño y equipos menores como calentadores y bombas.",
-      image: "/assets/finishes.png"
+      items: "Luminarias interiores, grifería, sanitarios, accesorios de baño, calentadores, tinacos y bombas de agua.",
+      image: "/assets/finishes.jpg"
     }
   ];
 
@@ -52,22 +53,22 @@ const ProjectStages = () => {
       <div className="container">
         <div className="stages-header">
           <div className="header-top">
-            <span className="hero-badge">Etapas del Proyecto</span>
+            <span className="hero-badge">Etapas de Suministro</span>
             <div className="header-line"></div>
           </div>
           <h2 className="stages-main-title">
-            Abastecimiento <span>sin límites.</span>
+            Abastecimiento <span>en cada etapa de su obra.</span>
           </h2>
           <p className="stages-subtitle">
-            En Garza, no solo suministramos materiales; nos convertimos en el aliado estratégico que garantiza la continuidad operativa de sus proyectos con certidumbre logística.
+            En Garza garantizamos el abasto integral de materiales para contratistas y desarrolladores con respuesta en cotizaciones en menos de 24 horas y entrega en sitio.
           </p>
         </div>
 
         <div className="stages-grid">
           {stages.map((stage, index) => (
-            <div key={index} className="stage-card">
+            <Link to="/catalogo" key={index} className="stage-card" style={{ textDecoration: 'none' }}>
               <div className="stage-card-image">
-                <img src={stage.image} alt={stage.title} />
+                <img src={stage.image} alt={stage.title} loading="lazy" decoding="async" />
                 <div className="stage-card-overlay"></div>
               </div>
               <div className="stage-card-content">
@@ -75,18 +76,32 @@ const ProjectStages = () => {
                 <h3 className="stage-title">{stage.title}</h3>
                 <p className="stage-description">{stage.description}</p>
 
-                <div className="stage-hover-content">
-                  <div className="items-title">Materiales Incluidos:</div>
+                <div className="stage-materials-box">
+                  <div className="items-title">
+                    <i className="fas fa-boxes"></i> Materiales Clave:
+                  </div>
                   <p className="stage-items">{stage.items}</p>
                 </div>
+
+                <div className="stage-card-action">
+                  <span>Ver materiales de esta etapa</span> <i className="fas fa-arrow-right"></i>
+                </div>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
 
         <div className="stages-banner glass">
           <div className="banner-content">
-            <p>Todo lo que su proyecto de infraestructura requiere, desde la urbanización hasta el equipamiento final, lo encuentra en <span>un mismo lugar.</span></p>
+            <p>Todo lo que su proyecto de construcción e infraestructura requiere, lo encuentra en <span>un solo proveedor.</span></p>
+            <a 
+              href="https://wa.me/528120189555?text=Hola,%20quisiera%20cotizar%20materiales%20para%20una%20obra" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="banner-cta"
+            >
+              <i className="fab fa-whatsapp"></i> Cotizar Lista de Materiales
+            </a>
           </div>
         </div>
       </div>

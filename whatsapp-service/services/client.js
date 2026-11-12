@@ -20,17 +20,19 @@ export const sanitizeUserId = (rawUserId) => {
 };
 
 // Health check for a specific user client
-export const isClientHealthy = async (rawUserId) => {
+export const isClientHealthy = (rawUserId) => {
   const userId = sanitizeUserId(rawUserId);
   const waClient = waClients.get(userId);
   if (!waClient) return false;
   try {
-    await waClient.pupPage.evaluate(() => true);
+    if (waClient.pupBrowser && !waClient.pupBrowser.isConnected()) {
+      return false;
+    }
+    if (waClient.pupPage && waClient.pupPage.isClosed()) {
+      return false;
+    }
     return true;
   } catch {
-    console.warn(`[WA-SERVICE] Health check failed for user [${userId}] — resetting client.`);
-    clientStates.set(userId, { status: 'DISCONNECTED', qrCode: null });
-    waClients.delete(userId);
     return false;
   }
 };
@@ -39,8 +41,10 @@ export const getClientStatus = async (rawUserId) => {
   const userId = sanitizeUserId(rawUserId);
   const state = clientStates.get(userId) || { status: 'DISCONNECTED', qrCode: null };
 
-  if (state.status === 'CONNECTED' && !(await isClientHealthy(userId))) {
+  if (state.status === 'CONNECTED' && !isClientHealthy(userId)) {
+    console.warn(`[WA-SERVICE] Browser disconnected for user [${userId}]. Resetting status.`);
     clientStates.set(userId, { status: 'DISCONNECTED', qrCode: null });
+    waClients.delete(userId);
     return { status: 'DISCONNECTED', qrCode: null };
   }
   return state;
@@ -65,11 +69,26 @@ export const initializeWhatsApp = async (rawUserId) => {
   clientStates.set(userId, { status: 'INITIALIZING', qrCode: null });
   console.log(`[WA-SERVICE] Initializing WhatsApp client for user [${userId}]...`);
 
+  let readyTimer = null;
+
   const client = new Client({
     authStrategy: new LocalAuth({ clientId: `GARZA_${userId.toUpperCase()}` }),
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+    webVersionCache: {
+      type: 'remote',
+      remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1052238679-alpha.html',
+    },
     puppeteer: {
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--disable-gpu'
+      ]
     }
   });
 
@@ -137,8 +156,8 @@ export const initializeWhatsApp = async (rawUserId) => {
     }
   });
 
-  // Safety timeout: 2 minutes max to reach ready state
-  let readyTimer = setTimeout(async () => {
+  // Safety timeout: 5 minutes max to reach ready state during initial sync
+  readyTimer = setTimeout(async () => {
     const currentState = clientStates.get(userId)?.status;
     if (currentState !== 'CONNECTED') {
       console.warn(`[WA-SERVICE] Ready timeout for user [${userId}]. Resetting client...`);
@@ -146,7 +165,7 @@ export const initializeWhatsApp = async (rawUserId) => {
       waClients.delete(userId);
       try { await client.destroy(); } catch (_) {}
     }
-  }, 120_000);
+  }, 300_000);
 
   waClients.set(userId, client);
   await client.initialize();

@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import Hero from '../sections/Hero';
 import ProjectStages from '../sections/ProjectStages';
 import './Home.css';
@@ -14,7 +15,6 @@ const Home = () => {
     <div className="home-page">
       <Hero />
 
-      {/* Sección replicada exactamente de la imagen de referencia */}
       <ProjectStages />
 
       <section className="stats-panel section-padding">
@@ -50,8 +50,6 @@ const Home = () => {
         </div>
       </section>
 
-
-
       <section className="clients-section container">
         <span className="section-label">Aliados Estratégicos</span>
         <div className="clients-grid">
@@ -66,7 +64,9 @@ const Home = () => {
         <div className="container glass-panel cta-box">
           <h2>¿Listo para optimizar su suministro?</h2>
           <p>Solicite una cotización técnica hoy mismo y reciba respuesta en menos de 24 horas.</p>
-          <button className="btn-cta">EMPEZAR COTIZACIÓN B2B</button>
+          <Link to="/contacto" className="btn-cta" style={{ textDecoration: 'none', display: 'inline-block' }}>
+            EMPEZAR COTIZACIÓN B2B
+          </Link>
         </div>
       </section>
     </div>

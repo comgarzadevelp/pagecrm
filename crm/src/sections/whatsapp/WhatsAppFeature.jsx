@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './WhatsAppFeature.css';
 import whatsappBg from '../../assets/whatsapp-bg.png';
 
-const WA_URL = 'http://localhost:5002';
+const WA_URL = import.meta.env.VITE_WA_URL ?? (import.meta.env.DEV ? 'http://localhost:5002' : '');
 
 function formatTime(ts) {
   if (!ts) return '';

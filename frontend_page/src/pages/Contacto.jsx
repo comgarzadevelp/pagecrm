@@ -1,4 +1,9 @@
 import React, { useState } from 'react';
+import {
+  generateEventId,
+  getMetaBrowserIdentifiers,
+  trackLeadConversion
+} from '../lib/metaPixel';
 import './Contacto.css';
 
 const Contacto = () => {
@@ -32,6 +37,10 @@ const Contacto = () => {
     setErrorMsg('');
 
     try {
+      const eventId = generateEventId('lead_form');
+      const { fbp, fbc } = getMetaBrowserIdentifiers();
+      const eventSourceUrl = window.location.href;
+
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/leads/contact`, {
         method: 'POST',
@@ -43,7 +52,11 @@ const Contacto = () => {
           email: formData.email,
           company: formData.company,
           phone: formData.phone,
-          message: formData.message
+          message: formData.message,
+          eventId,
+          fbp,
+          fbc,
+          eventSourceUrl
         }),
       });
 
@@ -52,9 +65,18 @@ const Contacto = () => {
         throw new Error(data.message || 'Error al enviar la solicitud.');
       }
 
-      console.log('Contacto guardado exitosamente en base de datos:', data);
+      // Disparar evento Lead en el navegador con el mismo eventId para deduplicación con CAPI
+      trackLeadConversion({
+        eventId,
+        email: formData.email,
+        phone: formData.phone,
+        name: formData.name,
+        company: formData.company,
+        contentName: 'Formulario Contacto B2B',
+        leadType: 'contact_form'
+      });
+
       setIsSubmitted(true);
-      alert('¡Formulario de cotización registrado y enviado con éxito a la base de datos!');
       setFormData({
         name: '',
         email: '',
@@ -65,7 +87,6 @@ const Contacto = () => {
     } catch (err) {
       console.error('Error al enviar formulario de contacto:', err);
       setErrorMsg(err.message || 'Ocurrió un error al enviar su solicitud. Por favor, intente de nuevo.');
-      alert('Fallo al enviar formulario de cotización: ' + (err.message || 'Error de conexión con el servidor.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -116,7 +137,7 @@ const Contacto = () => {
                 <div className="method-info">
                   <h3>Correo Corporativo</h3>
                   <p>Para licitaciones y catálogo de conceptos.</p>
-                  <a href="mailto:ventas@comercializadoragarza.com" className="method-link">ventas@cgarza.com</a>
+                  <a href="mailto:ventas@comercializadoragarza.com.mx" className="method-link">ventas@comercializadoragarza.com.mx</a>
                 </div>
               </div>
 
@@ -168,8 +189,8 @@ const Contacto = () => {
                   <p style={{ color: '#9ca3af', marginBottom: '30px', lineHeight: '1.6' }}>
                     Su requerimiento de suministro ha sido registrado en nuestro sistema. Un asesor de Comercializadora Garza le contactará en breve con una propuesta de cotización técnica.
                   </p>
-                  <button 
-                    onClick={() => setIsSubmitted(false)} 
+                  <button
+                    onClick={() => setIsSubmitted(false)}
                     className="btn-primary"
                     style={{ padding: '12px 30px', borderRadius: '8px' }}
                   >
@@ -185,56 +206,54 @@ const Contacto = () => {
                   )}
 
                   <div className="form-input-group">
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       name="name"
-                      placeholder="Nombre completo" 
+                      placeholder="Nombre completo"
                       value={formData.name}
                       onChange={handleChange}
-                      required 
+                      required
                     />
                   </div>
 
                   <div className="form-input-group">
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       name="email"
-                      placeholder="Correo electrónico corporativo" 
+                      placeholder="Correo electrónico corporativo"
                       value={formData.email}
                       onChange={handleChange}
-                      required 
+                      required
                     />
                   </div>
 
                   <div className="form-row">
                     <div className="form-input-group">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         name="company"
-                        placeholder="Empresa" 
+                        placeholder="Empresa"
                         value={formData.company}
                         onChange={handleChange}
-                        required 
+                        required
                       />
                     </div>
                     <div className="form-input-group">
-                      <input 
-                        type="tel" 
+                      <input
+                        type="tel"
                         name="phone"
-                        placeholder="Teléfono" 
+                        placeholder="Teléfono (10 dígitos)"
                         value={formData.phone}
                         onChange={handleChange}
-                        required 
+                        required
                       />
                     </div>
                   </div>
 
-
-
                   <div className="form-input-group">
-                    <textarea 
+                    <textarea
                       name="message"
-                      placeholder="Cuéntenos sobre sus necesidades de suministro..." 
+                      placeholder="Cuéntenos sobre sus necesidades de suministro..."
                       rows="4"
                       value={formData.message}
                       onChange={handleChange}
@@ -247,9 +266,9 @@ const Contacto = () => {
                     <input type="file" id="file-input" disabled />
                   </div>
 
-                  <button 
-                    type="submit" 
-                    className="btn-primary full-width" 
+                  <button
+                    type="submit"
+                    className="btn-primary full-width"
                     disabled={isSubmitting}
                   >
                     {isSubmitting ? 'Enviando...' : 'Enviar solicitud'}
@@ -272,7 +291,7 @@ const Contacto = () => {
                 width="100%"
                 height="350"
                 style={{ border: 0 }}
-                allowFullScreen=""
+                allowFullScreen
                 loading="lazy"
               ></iframe>
               <div className="map-footer">Sede Matriz - Monterrey</div>

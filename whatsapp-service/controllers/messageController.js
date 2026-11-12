@@ -98,34 +98,60 @@ export const getChats = async (req, res) => {
   if (!client) return res.status(503).json({ success: false, message: 'Not connected.' });
 
   try {
-    const chats = await client.getChats();
-    const data = await Promise.all(
-      chats.slice(0, 50).map(async (c) => {
-        let avatarUrl = null;
+    let chats = [];
+    try {
+      chats = await client.getChats();
+    } catch (evalErr) {
+      console.warn(`[WA-SERVICE] Standard getChats failed for [${userId}], falling back to in-memory Store:`, evalErr.message);
+      chats = await client.pupPage.evaluate(() => {
         try {
-          avatarUrl = await client.getProfilePicUrl(c.id._serialized);
-        } catch (e) {
-          // ignore privacy / missing avatar errors
+          const chatCol = (window.Store && window.Store.Chat) || (window.require && window.require('WAWebCollections')?.Chat);
+          if (!chatCol) return [];
+          const models = chatCol.models || (chatCol.getModelsArray ? chatCol.getModelsArray() : []);
+          return models.slice(0, 50).map(c => {
+            const rawId = c.id?._serialized || c.id?.$1 || (typeof c.id === 'string' ? c.id : String(c.id || ''));
+            const lastMsg = c.lastReceivedKey || (c.msgs && c.msgs.last ? c.msgs.last() : null);
+            return {
+              id: { _serialized: rawId },
+              name: c.name || c.formattedTitle || (c.contact && c.contact.name) || rawId.split('@')[0],
+              isGroup: Boolean(c.isGroup),
+              unreadCount: c.unreadCount || 0,
+              timestamp: c.t || c.timestamp || Math.floor(Date.now() / 1000),
+              lastMessage: lastMsg ? {
+                body: lastMsg.body || '',
+                fromMe: Boolean(lastMsg.fromMe || (lastMsg.id && lastMsg.id.fromMe)),
+                timestamp: lastMsg.t || lastMsg.timestamp || 0,
+                type: lastMsg.type || 'chat',
+                ack: lastMsg.ack || 0,
+              } : null,
+            };
+          });
+        } catch {
+          return [];
         }
-        return {
-          id: c.id._serialized,
-          name: c.name,
-          isGroup: c.isGroup,
-          unreadCount: c.unreadCount,
-          timestamp: c.timestamp,
-          avatarUrl,
-          lastMessage: c.lastMessage
-            ? {
-                body: c.lastMessage.body,
-                fromMe: c.lastMessage.fromMe,
-                timestamp: c.lastMessage.timestamp,
-                type: c.lastMessage.type,
-                ack: c.lastMessage.ack,
-              }
-            : null,
-        };
-      })
-    );
+      });
+    }
+
+    const data = (chats || []).slice(0, 50).map((c) => {
+      const rawId = c.id?._serialized || c.id?.$1 || String(c.id || '');
+      return {
+        id: rawId,
+        name: c.name || rawId.split('@')[0],
+        isGroup: Boolean(c.isGroup),
+        unreadCount: c.unreadCount || 0,
+        timestamp: c.timestamp || Math.floor(Date.now() / 1000),
+        avatarUrl: c.avatarUrl || null,
+        lastMessage: c.lastMessage
+          ? {
+              body: c.lastMessage.body,
+              fromMe: c.lastMessage.fromMe,
+              timestamp: c.lastMessage.timestamp,
+              type: c.lastMessage.type,
+              ack: c.lastMessage.ack,
+            }
+          : null,
+      };
+    });
 
     let user = { name: 'Yo', avatarUrl: null };
     if (client.info) {
@@ -161,18 +187,73 @@ export const getChatMessages = async (req, res) => {
   const limit = parseInt(req.query.limit) || 30;
 
   try {
-    const chat = await client.getChatById(chatId);
-    const messages = await chat.fetchMessages({ limit });
-    const data = messages.map(m => ({
-      id: m.id._serialized || m.id.$1 || m.id.id,
-      body: m.body,
-      caption: m.caption || (m.hasMedia && m.body ? m.body : null),
-      fromMe: m.fromMe,
-      timestamp: m.timestamp,
-      type: m.type,
-      hasMedia: m.hasMedia,
-      ack: m.ack
-    }));
+    let data = [];
+    try {
+      const chat = await client.getChatById(chatId);
+      const messages = await chat.fetchMessages({ limit });
+      data = messages.map(m => ({
+        id: m.id?._serialized || m.id?.$1 || m.id?.id || String(m.id || ''),
+        body: m.body,
+        caption: m.caption || (m.hasMedia && m.body ? m.body : null),
+        fromMe: m.fromMe,
+        timestamp: m.timestamp,
+        type: m.type,
+        hasMedia: m.hasMedia,
+        ack: m.ack
+      }));
+    } catch (chatErr) {
+      console.warn(`[WA-SERVICE] Standard fetchMessages failed for ${chatId}, using chat.msgs fallback:`, chatErr.message);
+      data = await client.pupPage.evaluate(async (targetChatId, lim) => {
+        try {
+          const collections = window.require ? window.require('WAWebCollections') : null;
+          if (!collections || !collections.Chat) return [];
+
+          const widFactory = window.require('WAWebWidFactory');
+          let chatWid = widFactory ? widFactory.createWid(targetChatId) : null;
+
+          let chat = chatWid ? collections.Chat.get(chatWid) : null;
+          if (!chat) {
+            const allChats = collections.Chat.getModelsArray ? collections.Chat.getModelsArray() : (collections.Chat.models || []);
+            chat = allChats.find(c => {
+              const sid = c.id?._serialized || c.id?.$1 || (typeof c.id === 'string' ? c.id : '');
+              return sid === targetChatId;
+            });
+          }
+
+          if (!chat) return [];
+
+          // Trigger message loading from IndexedDB if chat.msgs is empty
+          if (chat.msgs && (!chat.msgs.length || chat.msgs.length < 5)) {
+            try {
+              const loadAction = window.require('WAWebChatLoadMessages');
+              if (loadAction && loadAction.loadEarlierMsgs) {
+                await loadAction.loadEarlierMsgs({ chat });
+              }
+            } catch (_) {}
+          }
+
+          const rawMsgs = chat.msgs
+            ? (chat.msgs.getModelsArray ? chat.msgs.getModelsArray() : (chat.msgs.models || chat.msgs._models || []))
+            : [];
+
+          return rawMsgs.slice(-lim).map(m => {
+            const rawId = m.id?._serialized || m.id?.$1 || (m.id?.id && m.id.id._serialized) || String(m.id || '');
+            return {
+              id: rawId,
+              body: m.body || m.caption || '',
+              caption: m.caption || null,
+              fromMe: Boolean(m.fromMe || (m.id && m.id.fromMe)),
+              timestamp: m.t || m.timestamp || 0,
+              type: m.type || 'chat',
+              hasMedia: Boolean(m.hasMedia || m.mimetype || m.mediaKey),
+              ack: m.ack || 0
+            };
+          });
+        } catch (innerErr) {
+          return [];
+        }
+      }, chatId, limit);
+    }
     res.json({ success: true, data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
